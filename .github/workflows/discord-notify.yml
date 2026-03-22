@@ -17,38 +17,28 @@ jobs:
       - name: Send Discord notification
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
           EVENT_NAME: ${{ github.event_name }}
           ACTOR: ${{ github.actor }}
           REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+          PUSH_COMPARE_URL: ${{ github.event.compare }}
+          HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
+
           PR_ACTION: ${{ github.event.action }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_BASE: ${{ github.event.pull_request.base.ref }}
           PR_HEAD: ${{ github.event.pull_request.head.ref }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
-          PUSH_COMPARE_URL: ${{ github.event.compare }}
         run: |
           if [ -z "$DISCORD_WEBHOOK_URL" ]; then
             echo "DISCORD_WEBHOOK_URL secret is not set."
             exit 1
           fi
 
-          if [ "$EVENT_NAME" = "push" ]; then
-            MESSAGE="🚀 **main 브랜치에 push 발생**\n저장소: \`$REPOSITORY\`\n작성자: **$ACTOR**\n링크: $PUSH_COMPARE_URL"
-          elif [ "$EVENT_NAME" = "pull_request" ]; then
-            if [ "$PR_ACTION" = "opened" ]; then
-              MESSAGE="📌 **PR 생성**\n제목: **$PR_TITLE**\n작성자: **$ACTOR**\n브랜치: \`$PR_HEAD\` → \`$PR_BASE\`\n링크: $PR_URL"
-            elif [ "$PR_ACTION" = "closed" ] && [ "$PR_MERGED" = "true" ]; then
-              MESSAGE="✅ **PR 머지 완료**\n제목: **$PR_TITLE**\n작성자: **$ACTOR**\n브랜치: \`$PR_HEAD\` → \`$PR_BASE\`\n링크: $PR_URL"
-            else
-              exit 0
-            fi
-          else
-            exit 0
-          fi
-
           HOUR=$(TZ='Asia/Seoul' date +%H)
-          DOW=$(TZ='Asia/Seoul' date +%u)   # 1=월 ... 7=일
+          DOW=$(TZ='Asia/Seoul' date +%u)
           QUIET=false
 
           # 주말은 하루 종일 조용한 뱃지
@@ -63,15 +53,76 @@ jobs:
             fi
           fi
 
-          if [ "$QUIET" = true ]; then
+          if [ "$EVENT_NAME" = "push" ]; then
+            TITLE="${HEAD_COMMIT_MSG:-🚀 main 브랜치 push}"
+            URL="$PUSH_COMPARE_URL"
+            DESCRIPTION="main 브랜치에 변경이 반영되었습니다."
+
             PAYLOAD=$(jq -n \
-              --arg content "$MESSAGE" \
-              --argjson flags 4096 \
-              '{content: $content, flags: $flags}')
+              --arg title "$TITLE" \
+              --arg url "$URL" \
+              --arg description "$DESCRIPTION" \
+              --arg repo "$REPOSITORY" \
+              --arg actor "$ACTOR" \
+              --arg branch "$REF_NAME" \
+              '{
+                embeds: [
+                  {
+                    title: $title,
+                    url: $url,
+                    description: $description,
+                    fields: [
+                      { name: "📦 저장소", value: $repo, inline: false },
+                      { name: "👤 작성자", value: $actor, inline: false },
+                      { name: "🌿 브랜치", value: $branch, inline: false }
+                    ]
+                  }
+                ]
+              }')
+
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ "$PR_ACTION" = "opened" ]; then
+              FOOTER_TEXT="📌 PR 생성"
+              DESCRIPTION="새 Pull Request가 생성되었습니다."
+            elif [ "$PR_ACTION" = "closed" ] && [ "$PR_MERGED" = "true" ]; then
+              FOOTER_TEXT="✅ PR 머지 완료"
+              DESCRIPTION="Pull Request가 머지되었습니다."
+            else
+              exit 0
+            fi
+
+            PAYLOAD=$(jq -n \
+              --arg title "$PR_TITLE" \
+              --arg url "$PR_URL" \
+              --arg description "$DESCRIPTION" \
+              --arg actor "$ACTOR" \
+              --arg repo "$REPOSITORY" \
+              --arg head "$PR_HEAD" \
+              --arg base "$PR_BASE" \
+              --arg footer_text "$FOOTER_TEXT" \
+              '{
+                embeds: [
+                  {
+                    title: $title,
+                    url: $url,
+                    description: $description,
+                    fields: [
+                      { name: "📦 저장소", value: $repo, inline: false },
+                      { name: "👤 작성자", value: $actor, inline: false },
+                      { name: "🌿 브랜치", value: ($head + " → " + $base), inline: false }
+                    ],
+                    footer: {
+                      text: $footer_text
+                    }
+                  }
+                ]
+              }')
           else
-            PAYLOAD=$(jq -n \
-              --arg content "$MESSAGE" \
-              '{content: $content}')
+            exit 0
+          fi
+
+          if [ "$QUIET" = true ]; then
+            PAYLOAD=$(echo "$PAYLOAD" | jq '. + {flags: 4096}')
           fi
 
           curl -X POST \
