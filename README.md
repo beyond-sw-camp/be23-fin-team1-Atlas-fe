@@ -4,7 +4,8 @@
 
 플랫폼 구조는 범용 공급망을 지향하지만, MVP 검증 시나리오는 식자재 공급망으로 설정한다. 이를 통해 메인 발주사, 1차 협력사, 2차 협력사, 3차 협력사 구조를 공통으로 다루면서도 실제 데모에서는 품목, 인증, 원산지, 유통기한, 보관 조건 등 구체적인 리스크를 명확하게 보여준다.
 
-## 프로젝트 한눈에 보기
+<details>
+<summary>프로젝트 한눈에 보기</summary>
 
 | 항목 | 내용 |
 | --- | --- |
@@ -13,7 +14,10 @@
 | MVP 검증 도메인 | 식자재 공급망 |
 | 핵심 가치 | 리스크 감지, 권고안 생성, 실행 추적, 사후평가, 협력사 거버넌스 |
 
-## 해결하려는 문제
+</details>
+
+<details>
+<summary>해결하려는 문제</summary>
 
 | 문제 | 설명 |
 | --- | --- |
@@ -22,7 +26,10 @@
 | 정보 분산 | 협력사 간 관계, 납기 성과, 품질 상태, ESG 상태, 인증 정보가 흩어져 있어 대응 속도가 느리다. |
 | 거버넌스 약화 | 권고안을 제시하더라도 실제 수용 여부와 결과를 추적하지 않으면 공급망 거버넌스가 약해진다. |
 
-## 핵심 기능
+</details>
+
+<details>
+<summary>핵심 기능</summary>
 
 | 기능 | 설명 |
 | --- | --- |
@@ -30,7 +37,10 @@
 | 품질/인증 이슈 추적 및 대체 공급처 검토 | lot 기반 추적, 영향 범위 식별, 격리 여부 판단을 지원한다. 필요 시 대체 공급처를 다시 탐색한다. |
 | 권고안 이행 및 사후평가 거버넌스 | 권고안 수용/미수용과 미수용 사유를 기록한다. 실행 상태, 납기 회복 여부, 품질 결과, 비용 영향, ESG 영향을 사후평가에 반영한다. |
 
-## 시나리오
+</details>
+
+<details>
+<summary>시나리오</summary>
 
 | 구분 | 설명 |
 | --- | --- |
@@ -43,7 +53,8 @@
 <details>
 <summary>상세 시나리오 보기</summary>
 
-### 메인 시나리오 1: 공급 차질 발생 시 대체 공급처 권고안 오케스트레이션
+<details>
+<summary>메인 시나리오 1: 공급 차질 발생 시 대체 공급처 권고안 오케스트레이션</summary>
 
 1. 메인 발주사가 1차 협력사 A에 특정 품목 발주를 넣는다.
 2. 공급망에서 병목 또는 직접 이슈가 발생한다.
@@ -99,7 +110,10 @@ else 1차 직접 이슈 발생
 end
 ```
 
-### 메인 시나리오 2: 품질 또는 인증 이슈 기반 lot 추적 및 대체 공급처 검토
+</details>
+
+<details>
+<summary>메인 시나리오 2: 품질 또는 인증 이슈 기반 lot 추적 및 대체 공급처 검토</summary>
 
 1. 특정 lot에서 품질 이슈가 발생하거나 인증서가 만료된다.
 2. 시스템은 해당 lot와 연결된 주문 및 협력사 체인을 추적한다.
@@ -140,7 +154,10 @@ RE-->>CT: "대체 후보 반환"
 CT-->>MB: "격리 범위 / 대체 공급처 검토 지원"
 ```
 
-### 메인 시나리오 3: 권고안 이행 및 사후평가 거버넌스
+</details>
+
+<details>
+<summary>메인 시나리오 3: 권고안 이행 및 사후평가 거버넌스</summary>
 
 1. 시스템이 리스크 대응 권고안을 생성한다.
 2. 권고안 수신자는 수용 또는 미수용 여부를 결정한다.
@@ -186,9 +203,15 @@ CT->>GOV: "납기 / 품질 / 비용 / ESG 결과 반영"
 GOV-->>MB: "사후평가 대시보드 갱신"
 ```
 
-### 보조 시나리오
+</details>
 
-#### 1. 물류 지연 시나리오
+</details>
+
+<details>
+<summary>보조 시나리오</summary>
+
+<details>
+<summary>1. 물류 지연 시나리오</summary>
 
 1. 항만 또는 내륙운송 단계에서 `shipment_delayed` 이벤트가 발생한다.
 2. 시스템은 ETA를 재계산하고 납기 위험 주문을 갱신한다.
@@ -224,7 +247,10 @@ CT->>CT: "지연 위험 주문 갱신"
 CT-->>MB: "긴급 우회 운송 / 부분 선적 검토 알림"
 ```
 
-#### 2. ESG 기준 미달 시나리오
+</details>
+
+<details>
+<summary>2. ESG 기준 미달 시나리오</summary>
 
 1. 특정 협력사의 ESG 점수가 임계값 아래로 하락하거나 중대 이슈가 발생한다.
 2. 시스템은 해당 협력사를 신규 추천에서 제외하거나 강하게 감점한다.
@@ -259,7 +285,12 @@ RE-->>CT: "수정된 추천 결과 반환"
 CT-->>MB: "거래 유지 여부 / 대체 공급처 전환 검토 알림"
 ```
 
-### 확장 시나리오
+</details>
+
+</details>
+
+<details>
+<summary>확장 시나리오</summary>
 
 #### 1. Capacity 부족 / 분산 발주 시나리오
 
@@ -300,7 +331,11 @@ CT-->>MB: "분산 발주 전략 비교 화면 제공"
 
 </details>
 
-## 차별화 포인트
+</details>
+
+
+<details>
+<summary>차별화 포인트</summary>
 
 | 포인트 | 설명 |
 | --- | --- |
@@ -310,7 +345,10 @@ CT-->>MB: "분산 발주 전략 비교 화면 제공"
 | 거버넌스 강화 | 협력사별 수용률과 회복 성과를 관리해 공급망 거버넌스를 강화한다. |
 | 확장성 | 블록체인, 디지털 트윈 Lite, AI 고도화, MSA 확장까지 연결 가능한 구조를 가진다. |
 
-## MVP 범위
+</details>
+
+<details>
+<summary>MVP 범위</summary>
 
 | 구분 | 내용 |
 | --- | --- |
@@ -322,7 +360,10 @@ CT-->>MB: "분산 발주 전략 비교 화면 제공"
 | 거버넌스 | 권고안 수용/미수용 기록, 사후 결과 평가 |
 | 정책 | ESG 점수 1차 버전 |
 
-## 기술 스택
+</details>
+
+<details>
+<summary>기술 스택</summary>
 
 | 영역 | 기술 |
 | --- | --- |
@@ -335,7 +376,10 @@ CT-->>MB: "분산 발주 전략 비교 화면 제공"
 | Infra | `Docker`, `Kubernetes` |
 | CI/CD | `GitHub Actions` |
 
-## 기능 영역별 최종 적용 기술
+</details>
+
+<details>
+<summary>기능 영역별 최종 적용 기술</summary>
 
 | 기능 영역 | 최종 적용 기술 | 적용 방향 |
 | --- | --- | --- |
@@ -352,14 +396,20 @@ CT-->>MB: "분산 발주 전략 비교 화면 제공"
 | AI/권고안 고도화 | `Spring AI`, `sLLM` | 규칙 기반 권고안 위에 이슈 해석, 가중치 조정, 설명 생성 보조 계층을 둔다. |
 | 아키텍처 | `이벤트 기반 분리 구조` | 운영형 워크플로우 중심으로 서비스를 느슨하게 분리하고, 추후 MSA로 확장 가능하게 설계한다. |
 
-### 최종 채택 요약
+</details>
+
+<details>
+<summary>최종 채택 요약</summary>
 
 | 구분 | 기술 |
 | --- | --- |
 | 우선 채택 | `JWT 심화`, `QueryDSL`, `Kafka`, `WebSocket/STOMP`, `Spring Batch`, `Elasticsearch`, `GitHub Actions` |
 | 여유 있으면 채택 | `Prometheus + Grafana`, `Spring AI + sLLM` |
 
-### 팀 회의 반영 포인트
+</details>
+
+<details>
+<summary>팀 회의 반영 포인트</summary>
 
 | 제안자 | 회의 반영 내용 | 연결되는 기술/기능 |
 | --- | --- | --- |
@@ -368,7 +418,10 @@ CT-->>MB: "분산 발주 전략 비교 화면 제공"
 | 강현 & 도균 | 이슈 해결에 가장 적합한 업체를 추천하는 로직과, 이슈 현황 및 납기 영향을 보여주는 대시보드 축을 강화한다. | 추천 로직, `Kafka`, `QueryDSL`, Control Tower 대시보드 |
 | 태환 | sLLM 기반 적합 업체 추천 고도화를 검토하고, 채팅 또는 메일 시스템, 발주 시 문서 첨부 및 전자계약/인증 흐름까지 확장 가능성을 본다. | `Spring AI`, `sLLM`, 채팅/메일, 문서 첨부, 전자계약/인증 |
 
-## 트렌드 및 사례
+</details>
+
+<details>
+<summary>트렌드 및 사례</summary>
 
 | 구분 | 내용 | 링크 |
 | --- | --- | --- |
@@ -378,7 +431,11 @@ CT-->>MB: "분산 발주 전략 비교 화면 제공"
 | Coca-Cola HBC | Shippeo를 통해 실시간 운송 가시성과 ETA 공유를 도입하고 SAP 및 기존 시스템과의 연동을 공식 자료에서 강조했다. | [Coca-Cola HBC 공식](https://www.coca-colahellenic.com/content/dam/cch/us/documents/media/news/CCHBC%20enables%20real-time%20delivery%20tracking%20for%20customers%20by%20partnering%20with%20Shippeo_Press%20Release.pdf.downloadasset.pdf) |
 | Zespri | SAP `S/4HANA`, `IBP`, `Sustainability Control Tower` 기반 공급망 디지털 전환 확대 사례로 소개됐다. | [SAP 공식](https://news.sap.com/sea/2024/10/zespri-upgrades-sap-s-4hana-digital-core-and-begins-next-stage-of-supply-chain-digital-transformation/) |
 
-## 기대 효과
+
+</details>
+
+<details>
+<summary>기대 효과</summary>
 
 | 항목 | 설명 |
 | --- | --- |
@@ -388,5 +445,9 @@ CT-->>MB: "분산 발주 전략 비교 화면 제공"
 | 협력사 거버넌스 강화 | 권고안 수용률과 사후 결과를 관리해 공급망 대응 기준을 표준화한다. |
 | 확장 가능성 확보 | 블록체인, 디지털 트윈 Lite, AI 고도화, MSA 확장까지 자연스럽게 연결할 수 있다. |
 
+<<<<<<< HEAD
+</details>
+=======
 ### 📄 요구사항명세서
 [요구사항 명세서](https://docs.google.com/spreadsheets/d/1-9XXxS_f5A81Zk5Z6et8IepxUo-Pm2fp-omdqqYuDvY/edit?gid=0#gid=0)
+>>>>>>> 547547b4beaf66ad638ee48c95e21ebb0901fca4
