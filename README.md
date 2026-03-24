@@ -445,4 +445,9 @@ CT-->>MB: "분산 발주 전략 비교 화면 제공"
 | 협력사 거버넌스 강화 | 권고안 수용률과 사후 결과를 관리해 공급망 대응 기준을 표준화한다. |
 | 확장 가능성 확보 | 블록체인, 디지털 트윈 Lite, AI 고도화, MSA 확장까지 자연스럽게 연결할 수 있다. |
 
+<<<<<<< HEAD
 </details>
+=======
+### 📄 요구사항명세서
+[요구사항 명세서](https://docs.google.com/spreadsheets/d/1-9XXxS_f5A81Zk5Z6et8IepxUo-Pm2fp-omdqqYuDvY/edit?gid=0#gid=0)
+>>>>>>> 547547b4beaf66ad638ee48c95e21ebb0901fca4
