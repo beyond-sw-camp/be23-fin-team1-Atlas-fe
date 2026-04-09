@@ -7,6 +7,7 @@ import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 
 const SupplierRasterMap = defineAsyncComponent(() => import('../components/SupplierRasterMap.vue'))
+const SupplierProgressiveRasterMap = defineAsyncComponent(() => import('../components/SupplierProgressiveRasterMap.vue'))
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
 
@@ -37,6 +38,14 @@ watchEffect(() => {
         activeTab.value = 'raster'
       },
     },
+    {
+      key: 'supplier-network-raster-v2',
+      label: resolveDefaultCopy('Interactive Map V2', preferences.language),
+      tone: activeTab.value === 'raster-v2' ? 'primary' : 'secondary',
+      onClick: () => {
+        activeTab.value = 'raster-v2'
+      },
+    },
   ])
 })
 
@@ -56,7 +65,8 @@ onBeforeUnmount(() => {
         </div>
 
         <SupplierVectorMap v-if="activeTab === 'vector'" :nodes="supplierNetworkNodes" :language="preferences.language" />
-        <SupplierRasterMap v-else :nodes="supplierNetworkNodes" :language="preferences.language" />
+        <SupplierRasterMap v-else-if="activeTab === 'raster'" :nodes="supplierNetworkNodes" :language="preferences.language" />
+        <SupplierProgressiveRasterMap v-else :nodes="supplierNetworkNodes" :language="preferences.language" />
       </article>
 
       <aside class="supplier-network-side">

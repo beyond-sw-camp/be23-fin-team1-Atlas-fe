@@ -1,6 +1,6 @@
 import type { AppLanguage } from '../../../types'
 
-export type MonitoringMapTab = 'vector' | 'raster'
+export type MonitoringMapTab = 'vector' | 'raster' | 'raster-v2'
 
 export interface LocalizedCopy {
   ko: string
