@@ -12,6 +12,7 @@ const KO_DEFAULT_COPY: Record<string, string> = {
   SIGN_OUT: '로그아웃',
   'Blueprint Map': '블루프린트 맵',
   'Interactive Map': '인터랙티브 맵',
+  'Interactive Map V2': '인터랙티브 맵 V2',
   'CSV Export': 'CSV 내보내기',
   'JSON Snapshot': 'JSON 스냅샷',
   'ACTIVE EXPOSURE': '활성 노출량',

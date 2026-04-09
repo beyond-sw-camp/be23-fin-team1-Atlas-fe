@@ -6,6 +6,7 @@ import { controlTowerAlerts, controlTowerNodes, type MonitoringMapTab } from '..
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 
 const SupplierRasterMap = defineAsyncComponent(() => import('../components/SupplierRasterMap.vue'))
+const SupplierProgressiveRasterMap = defineAsyncComponent(() => import('../components/SupplierProgressiveRasterMap.vue'))
 const preferences = useAtlasPreferencesStore()
 const activeTab = ref<MonitoringMapTab>('vector')
 </script>
@@ -34,10 +35,18 @@ const activeTab = ref<MonitoringMapTab>('vector')
         >
           {{ resolveDefaultCopy('Interactive Map', preferences.language) }}
         </button>
+        <button
+          type="button"
+          :class="['page-button', activeTab === 'raster-v2' ? 'page-button--primary' : 'page-button--secondary']"
+          @click="activeTab = 'raster-v2'"
+        >
+          {{ resolveDefaultCopy('Interactive Map V2', preferences.language) }}
+        </button>
       </div>
 
       <SupplierVectorMap v-if="activeTab === 'vector'" :nodes="controlTowerNodes" :language="preferences.language" />
-      <SupplierRasterMap v-else :nodes="controlTowerNodes" :language="preferences.language" />
+      <SupplierRasterMap v-else-if="activeTab === 'raster'" :nodes="controlTowerNodes" :language="preferences.language" />
+      <SupplierProgressiveRasterMap v-else :nodes="controlTowerNodes" :language="preferences.language" />
     </article>
 
     <aside class="supplier-network-side">
