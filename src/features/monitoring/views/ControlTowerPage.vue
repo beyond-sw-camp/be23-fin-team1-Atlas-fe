@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { resolveDefaultCopy } from '../../../config/defaultCopy'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import ControlTowerMapPanel from './ControlTowerMapPanel.vue'
@@ -20,10 +21,15 @@ const {
 } = useModal<'csv' | 'json'>(false, 'csv')
 const preferences = useAtlasPreferencesStore()
 const language = computed(() => preferences.language)
+const router = useRouter()
 
 function handleAction(label: string) {
   if (label === 'OPEN_ORCHESTRATION') {
     openOrchestration()
+  }
+
+  if (label === 'RISK_SETTINGS') {
+    router.push({ name: 'riskRules', query: preferences.buildQuery() })
   }
 
   if (label === 'EXPORT_DATA') {

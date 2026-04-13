@@ -17,9 +17,9 @@ export const UI_COPY = {
 } as const
 
 export const SECTION_I18N = {
-  monitoring: { ko: '모니터링', en: 'Monitoring' },
-  operations: { ko: '운영', en: 'Operations' },
-  response: { ko: '대응', en: 'Response' },
+  monitoring: { ko: '컨트롤 타워', en: 'Control Tower' },
+  operations: { ko: '공급망 운영', en: 'Supply Chain Ops' },
+  response: { ko: '문서 / 인증', en: 'Documents & Certificates' },
   governance: { ko: '거버넌스', en: 'Governance' },
   system: { ko: '시스템', en: 'System' },
 } as const
@@ -31,29 +31,41 @@ export const ORGANIZATION_I18N: Record<OrganizationType, Record<AppLanguage, str
 }
 
 export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; description: string; pageSubtitle: string }>> = {
+  designSystem: {
+    ko: { label: '디자인 시스템', description: '토큰, 타이포, 인터랙션 기준', pageSubtitle: 'Kinetic Blueprint 토큰, 계층, 컴포넌트 기준' },
+    en: { label: 'Design System', description: 'Tokens, typography, and interaction rules', pageSubtitle: 'Kinetic Blueprint tokens, hierarchy, and component rules' },
+  },
   controlTower: {
-    ko: { label: '컨트롤 타워', description: '실시간 리스크 오케스트레이션', pageSubtitle: '영향 주문, 납기 리스크, 실시간 이슈 모니터링' },
-    en: { label: 'Control Tower', description: 'Real-time risk orchestration', pageSubtitle: 'Impact orders, ETA risk, and live issue monitoring' },
+    ko: { label: '대시보드', description: '운영 대시보드와 핵심 위험 지표', pageSubtitle: '전체 공급망 운영 현황과 핵심 경보 모니터링' },
+    en: { label: 'Dashboard', description: 'Operational dashboard and core risk metrics', pageSubtitle: 'Monitor overall network operations and high-priority alerts' },
   },
   impactOrders: {
-    ko: { label: '영향 발주', description: '영향 PO와 납기 복구 우선순위', pageSubtitle: '영향 발주, 회복 ETA, 우선순위 기준 실행 큐' },
-    en: { label: 'Impact Orders', description: 'Priority queue for impacted POs', pageSubtitle: 'Impacted orders, recovery ETA, and prioritized execution queue' },
+    ko: { label: '영향 분석', description: '영향 분석과 우선순위 주문', pageSubtitle: '영향 주문, ETA 편차, 우선순위 실행 큐' },
+    en: { label: 'Impact', description: 'Impact analysis and prioritized orders', pageSubtitle: 'Impacted orders, ETA variance, and prioritized execution queue' },
   },
   supplierNetwork: {
-    ko: { label: '공급망 네트워크', description: '1차-3차 공급망 가시화', pageSubtitle: '공급망 tier 연결, 병목 위치, 대체 경로 가시화' },
-    en: { label: 'Supplier Network', description: 'Tier 1-3 supply visibility', pageSubtitle: 'Tier links, bottleneck locations, and alternate route visibility' },
+    ko: { label: '공급망 네트워크', description: '공급망 네트워크 시각화', pageSubtitle: 'Tier 연결, 병목 지점, 대체 경로 가시화' },
+    en: { label: 'Network', description: 'Supply network visualization', pageSubtitle: 'Tier links, bottleneck locations, and alternate route visibility' },
   },
   ordersDesk: {
     ko: { label: '발주 관리', description: '발주 승인, ETA, 우선순위 운영', pageSubtitle: '발주 승인 상태, ETA 변동, 공급처별 우선순위 제어' },
-    en: { label: 'Order Control', description: 'PO approval, ETA, and priority operations', pageSubtitle: 'PO approval state, ETA shifts, and supplier priority control' },
+    en: { label: 'Orders', description: 'PO approval, ETA, and priority operations', pageSubtitle: 'PO approval state, ETA shifts, and supplier priority control' },
   },
   supplierControl: {
     ko: { label: '협력사 관리', description: '협력사 상태, 등급, 온보딩 관리', pageSubtitle: '협력사 등급, 인증, 온보딩 및 성과 상태 관리' },
-    en: { label: 'Supplier Control', description: 'Supplier status, tier, and onboarding', pageSubtitle: 'Supplier tier, certifications, onboarding, and performance status' },
+    en: { label: 'Suppliers', description: 'Supplier status, tier, and onboarding', pageSubtitle: 'Supplier tier, certifications, onboarding, and performance status' },
+  },
+  items: {
+    ko: { label: '품목 관리', description: '품목 관리와 재고 임계치', pageSubtitle: 'SKU, 재고, 재발주점, 공급처 기준 운영' },
+    en: { label: 'Items', description: 'Item catalog and stock thresholds', pageSubtitle: 'Operate SKUs, inventory, reorder points, and source ownership' },
+  },
+  lots: {
+    ko: { label: 'Lot / 출하', description: 'Lot 추적과 출하 관리', pageSubtitle: 'Lot 이력, 검수, 출하 상태 추적' },
+    en: { label: 'Lots', description: 'Lot tracking and shipment control', pageSubtitle: 'Track lot history, inspection, and outbound status' },
   },
   certificateWatch: {
-    ko: { label: '인증 감시', description: '인증 만료와 품질 리스크 사전 감시', pageSubtitle: '인증 만료, lot 이슈, 품질 문서 상태 사전 감시' },
-    en: { label: 'Certificate Watch', description: 'Proactive certificate and quality watch', pageSubtitle: 'Expiry risk, lot issues, and proactive quality document watch' },
+    ko: { label: '인증서', description: '인증서 유효성 및 갱신 관리', pageSubtitle: '인증 유형, 만료일, 협력사 상태 추적' },
+    en: { label: 'Certificates', description: 'Certificate validity and renewal control', pageSubtitle: 'Track certificate type, expiry, and supplier status' },
   },
   shipmentOps: {
     ko: { label: '리스크 이벤트', description: 'supplier_issue / shipment_delayed', pageSubtitle: '이벤트 기반 물류 지연 대응과 오케스트레이션' },
@@ -64,8 +76,8 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     en: { label: 'Recovery Tracking', description: 'Recovery ETA and execution tracking', pageSubtitle: 'Recovery ETA, task execution, and bottleneck resolution tracking' },
   },
   documents: {
-    ko: { label: '문서 및 인증', description: '품질 이슈, lot, 인증 추적', pageSubtitle: '품질, lot, 인증, 문서 상태 추적' },
-    en: { label: 'Docs & Certs', description: 'Quality issue, lot, and certification tracking', pageSubtitle: 'Quality, lot, certification, and document status tracking' },
+    ko: { label: '문서 관리', description: '문서 보관과 OCR 검증 관리', pageSubtitle: '송장, BOL, OCR 검증과 문서 상태 추적' },
+    en: { label: 'Documents', description: 'Document storage and OCR validation', pageSubtitle: 'Track invoice, BOL, OCR validation, and document status' },
   },
   recommendations: {
     ko: { label: '권고안', description: '대체 1차 / 2차 권고안', pageSubtitle: '추천 엔진 기반 대체 공급처 의사결정' },
@@ -79,9 +91,21 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     ko: { label: '거버넌스', description: '수용 여부와 사후평가 관리', pageSubtitle: '권고안 수용, 실행, 회복 성과, 사후평가' },
     en: { label: 'Governance', description: 'Acceptance and post-evaluation management', pageSubtitle: 'Acceptance, execution, recovery performance, and post-evaluation' },
   },
+  evaluation: {
+    ko: { label: '평가', description: '수용 결과와 성과 평가 현황', pageSubtitle: '권고안 반영 결과, 평가 점수, 월별 추이 관리' },
+    en: { label: 'Evaluation', description: 'Acceptance outcome and performance evaluation', pageSubtitle: 'Track recommendation adoption, evaluation score, and monthly trends' },
+  },
+  vendorKpi: {
+    ko: { label: '벤더 KPI', description: '협력사 KPI 대시보드', pageSubtitle: '납기, 품질, ESG, 대응속도 기준 KPI 비교' },
+    en: { label: 'Vendor KPI', description: 'Supplier KPI dashboard', pageSubtitle: 'Compare on-time delivery, quality, ESG, and response performance' },
+  },
+  acceptance: {
+    ko: { label: '수용률', description: '권고안 수용률 현황', pageSubtitle: '수용률, 거절 사유, 긴급도별 반영 상태 추적' },
+    en: { label: 'Acceptance', description: 'Recommendation acceptance status', pageSubtitle: 'Track acceptance rate, reject reasons, and urgency-level adoption' },
+  },
   auditTrail: {
-    ko: { label: '감사 이력', description: '권고안 이력, 수용 사유, 감사 로그', pageSubtitle: '권고안 이력, 승인 기록, 감사 로그 추적' },
-    en: { label: 'Audit Trail', description: 'Recommendation history and audit logs', pageSubtitle: 'Recommendation history, approval records, and audit log tracking' },
+    ko: { label: '감사 로그', description: '시스템 감사 로그', pageSubtitle: '사용자, 시스템, 보안 이벤트 감사 로그' },
+    en: { label: 'Audit', description: 'System audit log', pageSubtitle: 'Audit user, system, and security events' },
   },
   collaboration: {
     ko: { label: '협업', description: '실시간 대응 협업과 알림', pageSubtitle: '운영자, 협력사, 알림 흐름의 실시간 협업' },
@@ -94,6 +118,14 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
   riskRules: {
     ko: { label: '리스크 규칙', description: '이벤트 규칙과 임계치 정책 관리', pageSubtitle: '리스크 룰, 임계치, 자동 에스컬레이션 정책 관리' },
     en: { label: 'Risk Rules', description: 'Event rules and threshold policies', pageSubtitle: 'Risk rules, thresholds, and auto-escalation policy management' },
+  },
+  settings: {
+    ko: { label: '설정', description: '조직, 사용자, 알림, API 키 정책', pageSubtitle: '시스템 전역 설정, 사용자, 보안 정책 관리' },
+    en: { label: 'Settings', description: 'Organization, users, notifications, and API policies', pageSubtitle: 'Manage global system configuration, users, and security policies' },
+  },
+  systemSpec: {
+    ko: { label: '시스템 스펙', description: '디자인 스펙과 화면 규격 문서', pageSubtitle: 'Kinetic Blueprint 시스템 스펙 문서' },
+    en: { label: 'System Spec', description: 'Design specification and screen standards', pageSubtitle: 'Kinetic Blueprint system specification reference' },
   },
   profile: {
     ko: { label: '프로필', description: '운영자 계정, 권한, 알림 정책', pageSubtitle: '운영자 권한, 알림 정책, KPI와 감사 이력' },

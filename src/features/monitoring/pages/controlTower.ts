@@ -6,6 +6,7 @@ export const controlTowerPage: StructuredPageDefinition = {
   subtitle: '영향 주문, ETA 리스크, 이벤트 스트림을 단일 시야에서 감시합니다.',
   actions: [
     { label: 'OPEN_ORCHESTRATION', tone: 'primary' },
+    { label: 'RISK_SETTINGS', tone: 'secondary' },
     { label: 'EXPORT_DATA', tone: 'secondary' },
   ],
   metrics: [

@@ -4,11 +4,14 @@ export type OrganizationType = 'mainBuyer' | 'supplier' | 'admin'
 export type AppLanguage = 'ko' | 'en'
 
 export type NavKey =
+  | 'designSystem'
   | 'controlTower'
   | 'impactOrders'
   | 'supplierNetwork'
   | 'ordersDesk'
   | 'supplierControl'
+  | 'items'
+  | 'lots'
   | 'certificateWatch'
   | 'shipmentOps'
   | 'recoveryTracking'
@@ -16,13 +19,18 @@ export type NavKey =
   | 'recommendations'
   | 'esgSignals'
   | 'governance'
+  | 'evaluation'
+  | 'vendorKpi'
+  | 'acceptance'
   | 'auditTrail'
   | 'collaboration'
   | 'notificationsCenter'
   | 'riskRules'
+  | 'settings'
   | 'profile'
+  | 'systemSpec'
 
-export type PageKey = NavKey | 'systemSpec'
+export type PageKey = NavKey
 
 export interface NavEntry {
   key: NavKey
@@ -34,4 +42,5 @@ export interface NavEntry {
   organizations: OrganizationType[]
   badge?: string
   badgeTone?: 'crit' | 'warn' | 'info' | 'ok'
+  hidden?: boolean
 }

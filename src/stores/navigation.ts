@@ -1,7 +1,6 @@
 import { computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useRouter } from 'vue-router'
-import { SYSTEM_SPEC_LABEL, SYSTEM_SPEC_SUBTITLE } from '../config/appDefaults'
 import { NAV_I18N, ORGANIZATION_I18N, SECTION_I18N, SIDEBAR_OPERATOR_I18N } from '../config/appCopy'
 import { NAV_ITEMS, NAV_SECTION_LABELS } from '../config/navigation'
 import type { OrganizationType, PageKey } from '../types'
@@ -21,15 +20,9 @@ export const useAtlasNavigationStore = defineStore('atlasNavigation', () => {
   const activeNavItem = computed(
     () => availableNavItems.value.find((item) => item.key === preferences.pageKey) ?? availableNavItems.value[0] ?? NAV_ITEMS[0],
   )
-  const pageLabel = computed(() =>
-    preferences.pageKey === 'systemSpec'
-      ? SYSTEM_SPEC_LABEL
-      : NAV_I18N[activeNavItem.value.key]?.[preferences.language]?.label ?? activeNavItem.value.label,
-  )
-  const pageSubtitle = computed(() =>
-    preferences.pageKey === 'systemSpec'
-      ? SYSTEM_SPEC_SUBTITLE
-      : NAV_I18N[activeNavItem.value.key]?.[preferences.language]?.pageSubtitle ?? activeNavItem.value.pageSubtitle,
+  const pageLabel = computed(() => NAV_I18N[activeNavItem.value.key]?.[preferences.language]?.label ?? activeNavItem.value.label)
+  const pageSubtitle = computed(
+    () => NAV_I18N[activeNavItem.value.key]?.[preferences.language]?.pageSubtitle ?? activeNavItem.value.pageSubtitle,
   )
   const organizationLabel = computed(() => ORGANIZATION_I18N[preferences.organization][preferences.language])
   const sidebarOperator = computed(() => SIDEBAR_OPERATOR_I18N[preferences.organization])
@@ -39,7 +32,7 @@ export const useAtlasNavigationStore = defineStore('atlasNavigation', () => {
         key: sectionKey,
         label: SECTION_I18N[sectionKey as keyof typeof SECTION_I18N][preferences.language],
         items: availableNavItems.value
-          .filter((item) => item.section === sectionKey)
+          .filter((item) => item.section === sectionKey && !item.hidden)
           .map((item) => ({
             ...item,
             displayDescription: NAV_I18N[item.key][preferences.language].description,
@@ -61,6 +54,7 @@ export const useAtlasNavigationStore = defineStore('atlasNavigation', () => {
 
   function openSettings() {
     const target =
+      availableNavItems.value.find((item) => item.key === 'settings') ??
       availableNavItems.value.find((item) => item.key === 'riskRules') ??
       availableNavItems.value.find((item) => item.key === 'profile') ??
       availableNavItems.value[0]
