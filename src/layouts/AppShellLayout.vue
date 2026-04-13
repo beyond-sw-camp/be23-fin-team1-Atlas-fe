@@ -4,6 +4,7 @@ import { RouterView, useRoute } from 'vue-router'
 import LoginGate from '../components/auth/LoginGate.vue'
 import AppSidebar from '../components/layout/AppSidebar.vue'
 import AppTopbar from '../components/layout/AppTopbar.vue'
+import ChatPanel from '../components/chat/ChatPanel.vue'
 import { useAtlasHeaderStore } from '../stores/header'
 import { useAtlasNavigationStore } from '../stores/navigation'
 import { useAtlasPreferencesStore } from '../stores/preferences'
@@ -55,6 +56,7 @@ onBeforeUnmount(() => {
         </div>
         <RouterView :key="route.fullPath" />
       </main>
+      <ChatPanel />
     </template>
   </div>
 </template>
