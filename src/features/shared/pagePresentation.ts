@@ -1,11 +1,14 @@
 import type { PageKey } from '../../types'
 
 export const PAGE_SHELL_CLASSES: Record<PageKey, string[]> = {
+  designSystem: ['bg-surface-container-lowest', 'text-on-surface', 'antialiased', 'no-roundness'],
   controlTower: ['bg-background', 'text-on-surface', 'antialiased'],
   impactOrders: ['bg-background', 'text-on-surface', 'antialiased'],
   supplierNetwork: ['bg-background', 'text-on-surface', 'antialiased'],
   ordersDesk: ['bg-background', 'text-on-surface', 'antialiased'],
   supplierControl: ['bg-background', 'text-on-surface', 'antialiased'],
+  items: ['bg-background', 'text-on-surface', 'antialiased'],
+  lots: ['bg-background', 'text-on-surface', 'antialiased'],
   certificateWatch: ['bg-background', 'text-on-surface', 'antialiased'],
   shipmentOps: ['bg-background', 'text-on-surface', 'antialiased'],
   recoveryTracking: ['bg-background', 'text-on-surface', 'antialiased'],
@@ -13,10 +16,14 @@ export const PAGE_SHELL_CLASSES: Record<PageKey, string[]> = {
   recommendations: ['bg-background', 'text-on-surface', 'antialiased'],
   esgSignals: ['bg-background', 'text-on-surface', 'antialiased'],
   governance: ['bg-background', 'text-on-surface', 'antialiased'],
+  evaluation: ['bg-background', 'text-on-surface', 'antialiased'],
+  vendorKpi: ['bg-background', 'text-on-surface', 'antialiased'],
+  acceptance: ['bg-background', 'text-on-surface', 'antialiased'],
   auditTrail: ['bg-background', 'text-on-surface', 'antialiased'],
   collaboration: ['bg-background', 'text-on-surface', 'antialiased'],
   notificationsCenter: ['bg-background', 'text-on-surface', 'antialiased'],
   riskRules: ['bg-background', 'text-on-surface', 'antialiased'],
+  settings: ['bg-background', 'text-on-surface', 'antialiased'],
   profile: ['bg-background', 'text-on-surface', 'antialiased'],
   systemSpec: ['bg-surface-container-lowest', 'text-on-surface', 'antialiased', 'no-roundness'],
 }

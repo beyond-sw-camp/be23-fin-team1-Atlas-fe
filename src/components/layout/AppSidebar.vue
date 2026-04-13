@@ -58,7 +58,6 @@ function handleSidebarNavigate(navigate: () => void) {
             <span class="material-symbols-outlined">{{ item.icon }}</span>
             <span class="app-nav-item__body">
               <span class="app-nav-item__label">{{ item.displayLabel }}</span>
-              <span class="app-nav-item__desc">{{ item.displayDescription }}</span>
             </span>
             <span v-if="item.badge" :class="['app-nav-item__badge', item.badgeTone ? `is-${item.badgeTone}` : '']">
               {{ item.badge }}
@@ -68,21 +67,19 @@ function handleSidebarNavigate(navigate: () => void) {
       </div>
     </nav>
 
-    <div class="app-sidebar__footer">
-      <div class="app-sidebar__mobile-tools">
-        <button class="app-icon-button" type="button" @click="toggleTheme">
-          <span class="material-symbols-outlined">contrast</span>
-        </button>
-        <button class="app-icon-button app-icon-button--badge" type="button" @click="navigation.openNotifications">
-          <span class="material-symbols-outlined">notifications</span>
-        </button>
-        <button class="app-icon-button" type="button" @click="navigation.openSettings">
-          <span class="material-symbols-outlined">settings</span>
-        </button>
-        <button class="app-icon-button app-profile-button" type="button" @click="navigation.navigateToPage('profile')">
-          <span class="material-symbols-outlined">account_circle</span>
-        </button>
-      </div>
+    <div class="app-sidebar__mobile-tools">
+      <button class="app-icon-button" type="button" @click="toggleTheme">
+        <span class="material-symbols-outlined">contrast</span>
+      </button>
+      <button class="app-icon-button app-icon-button--badge" type="button" @click="navigation.openNotifications">
+        <span class="material-symbols-outlined">notifications</span>
+      </button>
+      <button class="app-icon-button" type="button" @click="navigation.openSettings">
+        <span class="material-symbols-outlined">settings</span>
+      </button>
+      <button class="app-icon-button app-profile-button" type="button" @click="navigation.navigateToPage('profile')">
+        <span class="material-symbols-outlined">account_circle</span>
+      </button>
     </div>
   </aside>
 </template>

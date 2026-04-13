@@ -36,6 +36,8 @@ function toggleTheme() {
         <span class="material-symbols-outlined">{{ ui.mobileSidebarOpen ? 'close' : 'menu' }}</span>
       </button>
       <strong class="app-brand">ATLAS</strong>
+      <span class="app-topbar__badge app-topbar__badge--neutral">CONTROL TERMINAL</span>
+      <span class="app-topbar__badge app-topbar__badge--warn">3 ALERTS</span>
     </div>
     <div class="app-topbar__actions">
       <label class="app-language-select">

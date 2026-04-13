@@ -6,6 +6,7 @@ const KO_DEFAULT_COPY: Record<string, string> = {
   OPEN: '열기',
   DETAILS: '상세',
   OPEN_ORCHESTRATION: '오케스트레이션 실행',
+  RISK_SETTINGS: '리스크 설정',
   EXPORT_DATA: '데이터 내보내기',
   NOTIFICATION_POLICY: '알림 정책',
   EDIT_PROFILE: '프로필 수정',

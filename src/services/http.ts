@@ -1,8 +1,20 @@
-import { appEnv } from '../config/env'
-
 export interface ApiErrorPayload {
   message?: string
   code?: string
+}
+
+function normalizeBaseUrl(value: string) {
+  return value.replace(/\/+$/, '')
+}
+
+function getApiBaseUrl() {
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL
+
+  if (!apiBaseUrl) {
+    throw new Error('[env] VITE_API_BASE_URL is required. Define it in .env.local or .env.prod.')
+  }
+
+  return normalizeBaseUrl(apiBaseUrl)
 }
 
 export class ApiError extends Error {
@@ -18,7 +30,7 @@ export class ApiError extends Error {
 }
 
 export function buildApiUrl(path: string) {
-  return `${appEnv.apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`
+  return `${getApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}) {

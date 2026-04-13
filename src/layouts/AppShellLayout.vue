@@ -36,7 +36,7 @@ onBeforeUnmount(() => {
       <AppTopbar />
       <AppSidebar />
       <main class="app-main">
-        <div class="app-main__head">
+        <div v-if="!route.meta.hidePageHead" class="app-main__head">
           <div class="app-main__head-row">
             <h1>{{ navigation.pageLabel }}</h1>
             <div v-if="header.actions.length" class="app-main__head-actions">
