@@ -5,10 +5,12 @@ import { ORGANIZATION_I18N, UI_COPY } from '../../config/appCopy'
 import { useAtlasNavigationStore } from '../../stores/navigation'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { useAtlasUiStore } from '../../stores/ui'
+import { useAtlasChatStore } from '../../stores/chat'
 
 const navigation = useAtlasNavigationStore()
 const preferences = useAtlasPreferencesStore()
 const ui = useAtlasUiStore()
+const chat = useAtlasChatStore()
 
 function handleLanguageChange(event: Event) {
   const target = event.target as HTMLSelectElement | null
@@ -59,6 +61,13 @@ function toggleTheme() {
       </label>
       <button class="app-icon-button" type="button" @click="toggleTheme">
         <span class="material-symbols-outlined">contrast</span>
+      </button>
+      <button
+        :class="['app-icon-button', { 'app-icon-button--badge': chat.totalUnreadCount > 0 }]"
+        type="button"
+        @click="chat.togglePanel()"
+      >
+        <span class="material-symbols-outlined">chat_bubble</span>
       </button>
       <button class="app-icon-button app-icon-button--badge" type="button" @click="navigation.openNotifications">
         <span class="material-symbols-outlined">notifications</span>
