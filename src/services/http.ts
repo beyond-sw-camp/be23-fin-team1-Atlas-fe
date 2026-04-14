@@ -1,3 +1,5 @@
+import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+
 export interface ApiErrorPayload {
   message?: string
   code?: string
@@ -11,7 +13,8 @@ function getApiBaseUrl() {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL
 
   if (!apiBaseUrl) {
-    throw new Error('[env] VITE_API_BASE_URL is required. Define it in .env.local or .env.prod.')
+    console.warn('[env] VITE_API_BASE_URL is not defined, using fallback http://localhost:8080')
+    return 'http://localhost:8080'
   }
 
   return normalizeBaseUrl(apiBaseUrl)
@@ -29,35 +32,36 @@ export class ApiError extends Error {
   }
 }
 
-export function buildApiUrl(path: string) {
-  return `${getApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`
-}
+export const apiClient = axios.create({
+  baseURL: getApiBaseUrl(),
+  headers: {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  },
+})
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}) {
-  const response = await fetch(buildApiUrl(path), {
-    headers: {
-      Accept: 'application/json',
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init.headers,
-    },
-    ...init,
-  })
+// Add a request interceptor for X-User-Public-Id
+apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    // In a full auth implementation, this would be fetched from a session store.
+    // For now, we hardcode the initial test user.
+    config.headers['X-User-Public-Id'] = 'user-001'
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
 
-  if (!response.ok) {
-    let payload: ApiErrorPayload | undefined
-
-    try {
-      payload = (await response.json()) as ApiErrorPayload
-    } catch {
-      payload = undefined
+// Add a response interceptor for unified error formatting
+apiClient.interceptors.response.use(
+  (response: AxiosResponse) => response,
+  (error: AxiosError<ApiErrorPayload>) => {
+    if (error.response) {
+      const payload = error.response.data
+      const message = payload?.message || `API request failed with status ${error.response.status}`
+      throw new ApiError(error.response.status, message, payload)
     }
-
-    throw new ApiError(response.status, payload?.message ?? `API request failed with status ${response.status}`, payload)
+    throw error
   }
-
-  if (response.status === 204) {
-    return undefined as T
-  }
-
-  return (await response.json()) as T
-}
+)

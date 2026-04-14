@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onBeforeUnmount, watchEffect } from 'vue'
+import { BaseModal, useModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+import { useAtlasHeaderStore } from '../../../stores/header'
+import { createReturn, CreateReturnRequestDto } from '../../../services/return'
 
 const preferences = useAtlasPreferencesStore()
 
@@ -21,7 +24,8 @@ const CONTENT = {
     exportLabel: '내보내기',
     filterLabel: '필터',
     createLabel: '신규 발주',
-    columns: ['발주 ID', '품목', '협력사', '수량', '총액', '발주일', 'ETA', '우선순위', '상태'],
+    actionLabel: '반품',
+    columns: ['발주 ID', '품목', '협력사', '수량', '총액', '발주일', 'ETA', '우선순위', '상태', '작업'],
     queueTitle: '승인 대기 큐',
     categoryTitle: '카테고리별 금액',
     supplierTitle: '상위 협력사',
@@ -42,7 +46,8 @@ const CONTENT = {
     exportLabel: 'EXPORT',
     filterLabel: 'FILTER',
     createLabel: 'NEW ORDER',
-    columns: ['ORDER ID', 'ITEM', 'SUPPLIER', 'QTY', 'TOTAL', 'PO DATE', 'ETA', 'PRIORITY', 'STATUS'],
+    actionLabel: 'RMA',
+    columns: ['ORDER ID', 'ITEM', 'SUPPLIER', 'QTY', 'TOTAL', 'PO DATE', 'ETA', 'PRIORITY', 'STATUS', 'ACTION'],
     queueTitle: 'Approval Queue',
     categoryTitle: 'Value by Category',
     supplierTitle: 'Top Suppliers',
@@ -133,6 +138,88 @@ const filteredRows = computed(() => {
     return row[8] === '정상' || row[8] === 'ON TIME'
   })
 })
+
+// Return Request Modal State
+const { isOpen: returnModalOpen, payload: selectedOrder, open: openReturnModal, close: closeReturnModal } = useModal<string[]>(false)
+const returnForm = ref({
+  returnQty: 0,
+  returnType: 'DEFECTIVE',
+  returnReason: ''
+})
+const returnAttachedFiles = ref<File[]>([])
+const returnError = ref('')
+
+function handleFileAttach(event: Event) {
+  const target = event.target as HTMLInputElement
+  if (target.files) {
+    returnAttachedFiles.value = Array.from(target.files)
+  }
+}
+
+function handleReturnSubmit() {
+  if (!selectedOrder.value) return
+  
+  // Extract max quantity from order data (e.g., '120t' -> 120)
+  const maxQtyStr = selectedOrder.value[3].replace(/[^0-9.]/g, '')
+  const maxQty = parseFloat(maxQtyStr)
+  
+  if (returnForm.value.returnQty <= 0) {
+    returnError.value = '반품 수량은 0보다 커야 합니다.'
+    return
+  }
+  
+  if (returnForm.value.returnQty > maxQty) {
+    returnError.value = `반품 수량은 원본 발주량(${maxQty})을 초과할 수 없습니다.`
+    return
+  }
+
+  returnError.value = ''
+  
+  // Call API
+  const dto: CreateReturnRequestDto = {
+    returnNumber: `RMA-${Date.now()}`,
+    sourceShipmentPublicId: `pub-${selectedOrder.value[0]}`,
+    requestOrganizationPublicId: 'my-org',
+    targetOrganizationPublicId: 'supplier-org',
+    returnType: returnForm.value.returnType as any,
+    returnReason: returnForm.value.returnReason,
+    items: [
+      {
+        itemPublicId: 'item-pub-001',
+        returnQty: returnForm.value.returnQty,
+        unit: selectedOrder.value[3].replace(/[0-9.]/g, '') || 'ea'
+      }
+    ]
+  }
+
+  createReturn(dto)
+    .then(() => {
+      closeReturnModal()
+      // In a real app, refresh data here
+      alert('Return requested successfully.')
+    })
+    .catch((err) => {
+      returnError.value = err.message || '반품 요청 중 오류가 발생했습니다.'
+    })
+}
+
+function handleAction(row: string[]) {
+  returnForm.value = { returnQty: 0, returnType: 'DEFECTIVE', returnReason: '' }
+  returnAttachedFiles.value = []
+  returnError.value = ''
+  openReturnModal(row)
+}
+
+const header = useAtlasHeaderStore()
+watchEffect(() => {
+  header.setActions([
+    { key: 'orders-export', label: content.value.exportLabel, tone: 'secondary' },
+    { key: 'orders-create', label: content.value.createLabel, tone: 'primary' },
+  ])
+})
+
+onBeforeUnmount(() => header.clearActions())
+
 </script>
 
 <template>
@@ -183,12 +270,17 @@ const filteredRows = computed(() => {
             <div><div class="page-panel__eyebrow">OPERATIONS</div><h3>{{ content.titleLabel }}</h3></div>
             <span class="page-panel__chip">{{ filteredRows.length }}</span>
           </div>
-          <div class="page-table terminal-page__table is-nine-cols">
+          <div class="page-table terminal-page__table is-ten-cols">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
             </div>
             <div v-for="row in filteredRows" :key="row[0]" class="page-table__row">
               <span v-for="cell in row" :key="cell">{{ cell }}</span>
+              <span class="action-cell">
+                <button class="page-button page-button--secondary" type="button" @click="handleAction(row)">
+                  {{ content.actionLabel }}
+                </button>
+              </span>
             </div>
           </div>
         </article>
@@ -227,4 +319,50 @@ const filteredRows = computed(() => {
       </aside>
     </section>
   </section>
+
+  <BaseModal
+    v-model="returnModalOpen"
+    :title="preferences.language === 'ko' ? '반품 요청 (RMA)' : 'Return Request (RMA)'"
+    :description="selectedOrder ? `${selectedOrder[0]} - ${selectedOrder[1]}` : ''"
+    size="md"
+    @close="closeReturnModal"
+  >
+    <div v-if="selectedOrder" class="page-form" style="display: flex; flex-direction: column; gap: 16px;">
+      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+        <span style="font-size: 0.75rem; color: var(--color-on-surface); opacity: 0.7; margin-bottom: 4px;">반품 수량 (최대 {{ selectedOrder[3] }})</span>
+        <input v-model.number="returnForm.returnQty" type="number" min="0" style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;" />
+      </label>
+
+      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+        <span style="font-size: 0.75rem; color: var(--color-on-surface); opacity: 0.7; margin-bottom: 4px;">반품 사유 구분</span>
+        <div style="width: 100%; border-bottom: 2px solid var(--color-surface-container-high);">
+          <select v-model="returnForm.returnType" style="font-family: inherit; font-size: inherit; width: 100%; appearance: auto; background: transparent; color: var(--color-on-surface); padding: 8px 0; border: none; outline: none;">
+            <option value="DEFECTIVE" style="background-color: var(--color-surface); color: var(--color-on-surface);">불량 (DEFECTIVE)</option>
+            <option value="DAMAGE" style="background-color: var(--color-surface); color: var(--color-on-surface);">파손 (DAMAGE)</option>
+            <option value="MISDELIVERY" style="background-color: var(--color-surface); color: var(--color-on-surface);">오배송 (MISDELIVERY)</option>
+            <option value="SIMPLE_RETURN" style="background-color: var(--color-surface); color: var(--color-on-surface);">단순 반품 (SIMPLE_RETURN)</option>
+          </select>
+        </div>
+      </label>
+
+      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+        <span style="font-size: 0.75rem; color: var(--color-on-surface); opacity: 0.7; margin-bottom: 4px;">세부 사유</span>
+        <input v-model="returnForm.returnReason" type="text" placeholder="사유를 입력하세요..." style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;" />
+      </label>
+
+      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+        <span style="font-size: 0.75rem; color: var(--color-on-surface); opacity: 0.7; margin-bottom: 4px;">첨부 파일 (이미지 / 동영상)</span>
+        <input type="file" multiple accept="image/*,video/*" @change="handleFileAttach" style="font-family: inherit; font-size: 0.875rem; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;" />
+      </label>
+
+      <div v-if="returnError" style="color: var(--color-error); font-size: 0.875rem; margin-top: 8px;">
+        {{ returnError }}
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+        <button class="page-button page-button--secondary" type="button" @click="closeReturnModal">취소</button>
+        <button class="page-button page-button--primary" type="button" @click="handleReturnSubmit">승인 요청</button>
+      </div>
+    </div>
+  </BaseModal>
 </template>

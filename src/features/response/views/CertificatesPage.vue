@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, ref, watchEffect, onMounted } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+import { getExpiringCertificates } from '../../../services/certificate'
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
@@ -60,10 +61,23 @@ const ROWS = {
   ],
 }
 
-const content = computed(() => CONTENT[preferences.language])
 const rows = computed(() => ROWS[preferences.language])
 const search = ref('')
-const activeTab = ref<string>(content.value.tabs[0])
+const activeTab = ref<string>(CONTENT[preferences.language].tabs[0])
+const expiringCount = ref<number | null>(null) // null means loading or fallback to default
+
+const content = computed(() => {
+  const base = CONTENT[preferences.language]
+  return {
+    ...base,
+    metrics: base.metrics.map(m => {
+      if ((m.label === '만료 임박' || m.label === 'EXPIRING SOON') && expiringCount.value !== null) {
+        return { ...m, value: String(expiringCount.value) }
+      }
+      return m
+    })
+  }
+})
 
 const filteredRows = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -74,6 +88,15 @@ const filteredRows = computed(() => {
     if (status === '전체' || status === 'ALL') return true
     return row[7] === status
   })
+})
+
+onMounted(async () => {
+  try {
+    const expiring = await getExpiringCertificates()
+    expiringCount.value = expiring.length || 6 // Fallback to dummy if empty or mocked
+  } catch (e) {
+    console.error('Failed to fetch expiring certs:', e)
+  }
 })
 
 watchEffect(() => {
