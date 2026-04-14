@@ -5014,3 +5014,219 @@ input {
 .chat-msg__bubble--deleted {
   max-width: none;
 }
+
+/* ========================================================================
+   TOAST NOTIFICATION SYSTEM
+   Sovereign Architecture: 0px radius · Status Ribbon · Tonal Layering
+   ======================================================================== */
+
+.atlas-toast-container {
+  position: fixed;
+  top: 80px; /* topbar(64px) + 16px 간격 */
+  right: 24px;
+  z-index: 1300; /* 모달(1200)보다 위 */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+  width: 100%;
+  pointer-events: none;
+}
+
+.atlas-toast {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  pointer-events: auto;
+  /* 디자인 규칙: box-shadow 금지, 0px border-radius */
+}
+
+.theme-dark .atlas-toast {
+  background: rgb(var(--surface-container-rgb, 31 31 31) / 0.94);
+  border-color: rgb(var(--outline-variant-rgb, 71 71 71) / 0.28);
+}
+
+/* ── Status Ribbon (4px 좌측 컬러 바) ── */
+
+.atlas-toast__ribbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--on-surface-variant, #474747);
+}
+
+.atlas-toast--nominal .atlas-toast__ribbon {
+  background: #1b873f;
+}
+
+.atlas-toast--warning .atlas-toast__ribbon {
+  background: var(--warning, #b37210);
+}
+
+.atlas-toast--critical .atlas-toast__ribbon {
+  background: var(--error, #9f403d);
+}
+
+.atlas-toast--info .atlas-toast__ribbon {
+  background: var(--on-surface, #121212);
+}
+
+.theme-dark .atlas-toast--info .atlas-toast__ribbon {
+  background: var(--on-surface, #e2e2e2);
+}
+
+/* ── Body ── */
+
+.atlas-toast__body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 14px 20px; /* 좌측 ribbon(4px) + 16px 여유 */
+}
+
+/* ── Icon ── */
+
+.atlas-toast__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.atlas-toast__icon .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.atlas-toast--nominal .atlas-toast__icon {
+  color: #1b873f;
+}
+
+.atlas-toast--warning .atlas-toast__icon {
+  color: var(--warning, #b37210);
+}
+
+.atlas-toast--critical .atlas-toast__icon {
+  color: var(--error, #9f403d);
+}
+
+.atlas-toast--info .atlas-toast__icon {
+  color: var(--on-surface-variant, #474747);
+}
+
+/* ── Content ── */
+
+.atlas-toast__content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.atlas-toast__title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+.atlas-toast__message {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--on-surface-variant, #474747);
+  line-height: 1.45;
+}
+
+.theme-dark .atlas-toast__message {
+  color: var(--on-surface-variant, #919191);
+}
+
+/* ── Dismiss ── */
+
+.atlas-toast__dismiss {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.22);
+  background: transparent;
+  color: var(--on-surface-variant, #474747);
+  cursor: pointer;
+}
+
+.atlas-toast__dismiss .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.atlas-toast__dismiss:hover {
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.8);
+}
+
+.theme-dark .atlas-toast__dismiss:hover {
+  background: rgb(var(--surface-container-high-rgb, 42 42 42) / 0.8);
+}
+
+/* ── Timer Progress Bar ── */
+
+.atlas-toast__timer {
+  height: 2px;
+  background: var(--on-surface, #121212);
+  transform-origin: left;
+  animation: atlas-toast-shrink linear forwards;
+}
+
+.theme-dark .atlas-toast__timer {
+  background: var(--on-surface, #e2e2e2);
+}
+
+.atlas-toast--nominal .atlas-toast__timer { background: #1b873f; }
+.atlas-toast--warning .atlas-toast__timer { background: var(--warning, #b37210); }
+.atlas-toast--critical .atlas-toast__timer { background: var(--error, #9f403d); }
+
+@keyframes atlas-toast-shrink {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* ── Transition ── */
+
+.atlas-toast-enter-active {
+  transition: transform 180ms ease-out, opacity 180ms ease-out;
+}
+
+.atlas-toast-leave-active {
+  transition: transform 140ms ease-in, opacity 140ms ease-in;
+}
+
+.atlas-toast-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.atlas-toast-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* ── 모바일 대응 ── */
+
+@media (max-width: 600px) {
+  .atlas-toast-container {
+    right: 12px;
+    left: 12px;
+    max-width: none;
+  }
+}

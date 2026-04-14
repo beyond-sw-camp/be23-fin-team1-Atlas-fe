@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watchEffect } from 'vue'
 import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+import { updateLotStatus, updateLotQuality } from '../../../services/lot'
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
@@ -202,6 +203,26 @@ function handleLotSelect(row: string[]) {
   openTrace(row)
 }
 
+function handleStatusUpdate(status: string) {
+  if (!selectedLot.value) return
+  const lotPublicId = selectedLot.value[0]
+  updateLotStatus(lotPublicId, status).then(() => {
+    alert(`Status updated to ${status}`)
+  }).catch(e => {
+    alert(`Failed to update status: ${e.message}`)
+  })
+}
+
+function handleQualityUpdate(quality: string) {
+  if (!selectedLot.value) return
+  const lotPublicId = selectedLot.value[0]
+  updateLotQuality(lotPublicId, quality).then(() => {
+    alert(`Quality updated to ${quality}`)
+  }).catch(e => {
+    alert(`Failed to update quality: ${e.message}`)
+  })
+}
+
 watchEffect(() => {
   activeTab.value = content.value.tabs[0]
   header.setActions([
@@ -305,6 +326,25 @@ onBeforeUnmount(() => header.clearActions())
       <div v-for="[label, time] in traceRows" :key="`${time}-${label}`" class="page-feed__item">
         <span class="page-feed__label">{{ time }}</span>
         <strong class="page-feed__text">{{ label }}</strong>
+      </div>
+    </div>
+    
+    <div v-if="selectedLot" style="margin-top: 24px; display: flex; flex-direction: column; gap: 16px;">
+      <div>
+        <div style="font-size: 0.75rem; color: var(--color-on-surface); opacity: 0.7; margin-bottom: 8px;">STATUS ACTION</div>
+        <div style="display: flex; gap: 8px;">
+          <button class="page-button page-button--secondary" type="button" @click="handleStatusUpdate('IN_PRODUCTION')">IN PRODUCTION</button>
+          <button class="page-button page-button--secondary" type="button" @click="handleStatusUpdate('COMPLETED')">COMPLETED</button>
+          <button class="page-button page-button--secondary" type="button" @click="handleStatusUpdate('SHIPPED')">SHIPPED</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size: 0.75rem; color: var(--color-on-surface); opacity: 0.7; margin-bottom: 8px;">QUALITY ACTION</div>
+        <div style="display: flex; gap: 8px;">
+          <button class="page-button page-button--secondary" style="border-color: var(--color-nominal)" type="button" @click="handleQualityUpdate('NORMAL')">PASS (NORMAL)</button>
+          <button class="page-button page-button--secondary" style="border-color: var(--color-warning)" type="button" @click="handleQualityUpdate('HOLD')">HOLD</button>
+          <button class="page-button page-button--secondary" style="border-color: var(--color-critical)" type="button" @click="handleQualityUpdate('DEFECTIVE')">DEFECTIVE</button>
+        </div>
       </div>
     </div>
   </BaseModal>

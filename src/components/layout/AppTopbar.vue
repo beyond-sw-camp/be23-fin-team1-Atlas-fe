@@ -6,11 +6,13 @@ import { useAtlasNavigationStore } from '../../stores/navigation'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { useAtlasUiStore } from '../../stores/ui'
 import { useAtlasChatStore } from '../../stores/chat'
+import { useAtlasNotificationStore } from '../../stores/notification'
 
 const navigation = useAtlasNavigationStore()
 const preferences = useAtlasPreferencesStore()
 const ui = useAtlasUiStore()
 const chat = useAtlasChatStore()
+const notificationStore = useAtlasNotificationStore()
 
 function handleLanguageChange(event: Event) {
   const target = event.target as HTMLSelectElement | null
@@ -29,6 +31,12 @@ function handleOrganizationChange(event: Event) {
 function toggleTheme() {
   preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
 }
+
+function handleNotificationClick() {
+  navigation.openNotifications()
+  // As a UX choice, clicking the bell could clear the badge optimistically or wait for the API
+  notificationStore.unreadCount = 0 
+}
 </script>
 
 <template>
@@ -39,7 +47,9 @@ function toggleTheme() {
       </button>
       <strong class="app-brand">ATLAS</strong>
       <span class="app-topbar__badge app-topbar__badge--neutral">CONTROL TERMINAL</span>
-      <span class="app-topbar__badge app-topbar__badge--warn">3 ALERTS</span>
+      <span v-if="notificationStore.unreadCount > 0" class="app-topbar__badge app-topbar__badge--warn">
+        {{ notificationStore.unreadCount }} ALERTS
+      </span>
     </div>
     <div class="app-topbar__actions">
       <label class="app-language-select">
@@ -69,7 +79,11 @@ function toggleTheme() {
       >
         <span class="material-symbols-outlined">chat_bubble</span>
       </button>
-      <button class="app-icon-button app-icon-button--badge" type="button" @click="navigation.openNotifications">
+      <button 
+        :class="['app-icon-button', { 'app-icon-button--badge': notificationStore.unreadCount > 0 }]" 
+        type="button" 
+        @click="handleNotificationClick"
+      >
         <span class="material-symbols-outlined">notifications</span>
       </button>
       <button class="app-icon-button" type="button" @click="navigation.openSettings">
