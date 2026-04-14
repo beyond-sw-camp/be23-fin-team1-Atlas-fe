@@ -33,10 +33,6 @@ const AUTH_ORG_STORAGE_KEY = 'atlas-organization'
 
 const PAGE_ORGANIZATIONS = Object.fromEntries(NAV_ITEMS.map((item) => [item.key, item.organizations])) as Record<PageKey, OrganizationType[]>
 
-function queryValue(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : Array.isArray(value) ? value[0] : undefined
-}
-
 const pageRoutes = [
   { path: 'design-system', name: 'designSystem', component: DesignSystemPage },
   { path: 'dashboard', alias: ['control-tower'], name: 'controlTower', component: ControlTowerPage },
@@ -87,20 +83,17 @@ router.beforeEach((to) => {
   }
 
   const targetPage: PageKey = currentName
-  const queryOrg = queryValue(to.query.org)
   const storedOrg = typeof window === 'undefined' ? undefined : window.sessionStorage.getItem(AUTH_ORG_STORAGE_KEY) ?? undefined
-  const organization = isOrganization(queryOrg) ? queryOrg : isOrganization(storedOrg) ? storedOrg : DEFAULT_ORGANIZATION
+  const organization = isOrganization(storedOrg) ? storedOrg : DEFAULT_ORGANIZATION
   const allowedOrganizations = PAGE_ORGANIZATIONS[targetPage]
+
 
   if (allowedOrganizations && !allowedOrganizations.includes(organization)) {
     const fallbackPage = NAV_ITEMS.find((item) => item.organizations.includes(organization))?.key ?? DEFAULT_PAGE
 
     return {
       name: fallbackPage,
-      query: {
-        ...to.query,
-        org: organization,
-      },
+      query: to.query,
     }
   }
 

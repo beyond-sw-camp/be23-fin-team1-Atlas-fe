@@ -9,6 +9,44 @@ const AUTH_STORAGE_KEY = 'atlas-authenticated'
 const ORG_STORAGE_KEY = 'atlas-organization'
 const ACCESS_TOKEN_STORAGE_KEY = 'atlas-access-token'
 const REFRESH_TOKEN_STORAGE_KEY = 'atlas-refresh-token'
+const USER_PUBLIC_ID_STORAGE_KEY = 'atlas-user-public-id'
+const ORGANIZATION_PUBLIC_ID_STORAGE_KEY = 'atlas-organization-public-id'
+const ORGANIZATION_TYPE_STORAGE_KEY = 'atlas-organization-type'
+const USER_ROLE_STORAGE_KEY = 'atlas-user-role'
+
+type AccessTokenClaims = {
+  userPublicId?: string
+  organizationPublicId?: string
+  organizationType?: 'BUYER' | 'SUPPLIER' | 'ADMIN'
+  role?: 'USER' | 'ORG_ADMIN' | 'ADMIN'
+}
+
+function decodeAccessToken(accessToken: string): AccessTokenClaims | null {
+  try {
+    const payload = accessToken.split('.')[1]
+    if (!payload) return null
+
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+
+    return JSON.parse(window.atob(padded)) as AccessTokenClaims
+  } catch {
+    return null
+  }
+}
+
+function mapOrganizationType(value: AccessTokenClaims['organizationType']) {
+  switch (value) {
+    case 'BUYER':
+      return 'mainBuyer'
+    case 'SUPPLIER':
+      return 'supplier'
+    case 'ADMIN':
+      return 'admin'
+    default:
+      return null
+  }
+}
 
 export const useAtlasSessionStore = defineStore('atlasSession', () => {
   const preferences = useAtlasPreferencesStore()
@@ -18,6 +56,10 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
   const loginId = ref('')
   const loginPassword = ref('')
   const loginError = ref('')
+  const userPublicId = ref(window.sessionStorage.getItem(USER_PUBLIC_ID_STORAGE_KEY) ?? '')
+  const organizationPublicId = ref(window.sessionStorage.getItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY) ?? '')
+  const organizationType = ref(window.sessionStorage.getItem(ORGANIZATION_TYPE_STORAGE_KEY) ?? '')
+  const userRole = ref(window.sessionStorage.getItem(USER_ROLE_STORAGE_KEY) ?? '')
 
   async function signIn() {
     if (!loginId.value || !loginPassword.value) {
@@ -32,21 +74,47 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
       })
 
       const { accessToken, refreshToken } = response.data
+      const claims = decodeAccessToken(accessToken)
+      const mappedOrganization = mapOrganizationType(claims?.organizationType)
+
+      if (!claims || !mappedOrganization || !claims.userPublicId || !claims.organizationPublicId || !claims.role) {
+        throw new Error('Invalid access token payload')
+      }
 
       window.sessionStorage.setItem(AUTH_STORAGE_KEY, 'true')
-      window.sessionStorage.setItem(ORG_STORAGE_KEY, preferences.organization)
+      window.sessionStorage.setItem(ORG_STORAGE_KEY, mappedOrganization)
+      preferences.syncOrganizationFromSession()
+
       window.sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken)
       window.sessionStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken)
+      window.sessionStorage.setItem(USER_PUBLIC_ID_STORAGE_KEY, claims.userPublicId)
+      window.sessionStorage.setItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY, claims.organizationPublicId)
+      window.sessionStorage.setItem(ORGANIZATION_TYPE_STORAGE_KEY, claims.organizationType ?? '')
+      window.sessionStorage.setItem(USER_ROLE_STORAGE_KEY, claims.role)
 
       isAuthenticated.value = true
+      userPublicId.value = claims.userPublicId
+      organizationPublicId.value = claims.organizationPublicId
+      organizationType.value = claims.organizationType ?? ''
+      userRole.value = claims.role
       loginError.value = ''
       loginPassword.value = ''
       navigation.navigateToPage('controlTower')
     } catch (error) {
       isAuthenticated.value = false
+      userPublicId.value = ''
+      organizationPublicId.value = ''
+      organizationType.value = ''
+      userRole.value = ''
+
       window.sessionStorage.removeItem(AUTH_STORAGE_KEY)
+      window.sessionStorage.removeItem(ORG_STORAGE_KEY)
       window.sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
       window.sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+      window.sessionStorage.removeItem(USER_PUBLIC_ID_STORAGE_KEY)
+      window.sessionStorage.removeItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY)
+      window.sessionStorage.removeItem(ORGANIZATION_TYPE_STORAGE_KEY)
+      window.sessionStorage.removeItem(USER_ROLE_STORAGE_KEY)
 
       if (error instanceof ApiError) {
         loginError.value = error.payload?.message || UI_COPY.loginError[preferences.language]
@@ -59,11 +127,24 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
 
   function signOut() {
     isAuthenticated.value = false
+    userPublicId.value = ''
+    organizationPublicId.value = ''
+    organizationType.value = ''
+    userRole.value = ''
     loginError.value = ''
+
     window.sessionStorage.removeItem(AUTH_STORAGE_KEY)
+    window.sessionStorage.removeItem(ORG_STORAGE_KEY)
     window.sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
     window.sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+    window.sessionStorage.removeItem(USER_PUBLIC_ID_STORAGE_KEY)
+    window.sessionStorage.removeItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY)
+    window.sessionStorage.removeItem(ORGANIZATION_TYPE_STORAGE_KEY)
+    window.sessionStorage.removeItem(USER_ROLE_STORAGE_KEY)
+    preferences.syncOrganizationFromSession()
+
     navigation.navigateToPage('profile')
+
   }
 
   watch(
@@ -81,7 +162,11 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     loginError,
     loginId,
     loginPassword,
+    organizationPublicId,
+    organizationType,
     signIn,
     signOut,
+    userPublicId,
+    userRole,
   }
 })
