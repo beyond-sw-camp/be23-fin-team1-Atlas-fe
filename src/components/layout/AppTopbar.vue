@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ORGANIZATION_LABELS } from '../../config/navigation'
-import type { OrganizationType, ScreenTheme } from '../../types'
-import { ORGANIZATION_I18N, UI_COPY } from '../../config/appCopy'
+import type { ScreenTheme } from '../../types'
+import { UI_COPY } from '../../config/appCopy'
 import { useAtlasNavigationStore } from '../../stores/navigation'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { useAtlasUiStore } from '../../stores/ui'
@@ -20,13 +19,6 @@ function handleLanguageChange(event: Event) {
   preferences.setLanguage(target.value === 'en' ? 'en' : 'ko')
 }
 
-function handleOrganizationChange(event: Event) {
-  const target = event.target as HTMLSelectElement | null
-  if (!target) return
-  if (target.value === 'mainBuyer' || target.value === 'supplier' || target.value === 'admin') {
-    preferences.setOrganization(target.value as OrganizationType)
-  }
-}
 
 function toggleTheme() {
   preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
@@ -58,13 +50,10 @@ function handleNotificationClick() {
           <option value="en">EN</option>
         </select>
       </label>
-      <label class="app-org-select">
-        <select :value="preferences.organization" @change="handleOrganizationChange">
-          <option v-for="(label, key) in ORGANIZATION_LABELS" :key="key" :value="key">
-            {{ ORGANIZATION_I18N[key as OrganizationType][preferences.language] }}
-          </option>
-        </select>
-      </label>
+  <span class="app-topbar__badge app-topbar__badge--neutral">
+  {{ navigation.organizationLabel }}
+</span>
+
       <label class="app-search">
         <span class="material-symbols-outlined">search</span>
         <input type="text" :placeholder="UI_COPY.searchPlaceholder[preferences.language]" />

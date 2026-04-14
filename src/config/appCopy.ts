@@ -10,7 +10,7 @@ export const UI_COPY = {
   loginId: { ko: '아이디', en: 'Username' },
   loginPassword: { ko: '비밀번호', en: 'Password' },
   loginButton: { ko: '로그인', en: 'Sign In' },
-  loginHint: { ko: '데모 계정: atlas.admin / atlas1234', en: 'Demo account: atlas.admin / atlas1234' },
+  loginHint: { ko: '', en: '' },
   loginError: { ko: '아이디 또는 비밀번호가 올바르지 않습니다.', en: 'The username or password is incorrect.' },
   riskOrchestration: { ko: '리스크 오케스트레이션', en: 'Risk Orchestration' },
   beAlignment: { ko: 'BE 정렬 / V1', en: 'BE Alignment / V1' },

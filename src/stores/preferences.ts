@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { DEFAULT_ORGANIZATION, DEFAULT_PAGE, DEFAULT_THEME } from '../config/appDefaults'
@@ -9,6 +9,12 @@ import type { AppLanguage, OrganizationType, PageKey, ScreenTheme } from '../typ
 
 const ORG_STORAGE_KEY = 'atlas-organization'
 const LANG_STORAGE_KEY = 'atlas-language'
+
+function getStoredOrganization(): OrganizationType {
+  const value = window.sessionStorage.getItem(ORG_STORAGE_KEY) ?? undefined
+  return isOrganization(value) ? value : DEFAULT_ORGANIZATION
+}
+
 
 function getRouteNamePageKey(value: unknown): PageKey {
   return typeof value === 'string' && isPageKey(value) ? value : DEFAULT_PAGE
@@ -42,10 +48,9 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
     const value = queryValue(route.query.theme)
     return isTheme(value) ? value : DEFAULT_THEME
   })
-  const organization = computed<OrganizationType>(() => {
-    const value = queryValue(route.query.org) ?? window.sessionStorage.getItem(ORG_STORAGE_KEY) ?? undefined
-    return isOrganization(value) ? value : DEFAULT_ORGANIZATION
-  })
+  const organization = ref<OrganizationType>(getStoredOrganization())
+
+
   const language = computed<AppLanguage>(() => {
     const value = queryValue(route.query.lang) ?? window.sessionStorage.getItem(LANG_STORAGE_KEY) ?? 'ko'
     return value === 'en' ? 'en' : 'ko'
@@ -81,11 +86,18 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
     router.replace({ name: pageKey.value, query: buildQuery({ lang: nextLanguage }) })
   }
 
+  function syncOrganizationFromSession() {
+  organization.value = getStoredOrganization()
+  }
+
+
   function setOrganization(nextOrganization: OrganizationType) {
     const nextAvailable = getNavItemsForOrganization(nextOrganization)
     const nextPage = nextAvailable.find((item) => item.key === pageKey.value) ?? nextAvailable[0] ?? NAV_ITEMS[0]
 
     window.sessionStorage.setItem(ORG_STORAGE_KEY, nextOrganization)
+    organization.value = nextOrganization
+
     router.replace({
       name: nextPage.key,
       query: buildQuery({ org: nextOrganization }),
@@ -102,6 +114,7 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
     screenVars,
     setLanguage,
     setOrganization,
+    syncOrganizationFromSession,
     setTheme,
     theme,
   }
