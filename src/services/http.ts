@@ -45,7 +45,11 @@ apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // In a full auth implementation, this would be fetched from a session store.
     // For now, we hardcode the initial test user.
-    config.headers['X-User-Public-Id'] = 'user-001'
+    const accessToken = window.sessionStorage.getItem('atlas-access-token')
+
+if (accessToken) {
+  config.headers.Authorization = `Bearer ${accessToken}`
+}
     return config
   },
   (error) => {
