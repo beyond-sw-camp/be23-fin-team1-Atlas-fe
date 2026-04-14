@@ -65,7 +65,7 @@ export const useAtlasNavigationStore = defineStore('atlasNavigation', () => {
   watch(
     [() => preferences.pageKey, () => preferences.theme],
     () => {
-      document.title = `Atlas Kinetic Blueprint | ${preferences.pageKey} | ${preferences.theme}`
+      document.title = `Atlas`
     },
     { immediate: true },
   )
