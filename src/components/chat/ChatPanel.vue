@@ -46,6 +46,7 @@ function handleSendReference(refType: string, refCode: string, refTitle: string)
         :messages="chat.messages"
         :current-user-public-id="chat.currentUserPublicId"
         :is-loading="chat.isLoadingMessages"
+        :participants="chat.currentRoom.participants"
         @back="chat.backToList()"
         @send="chat.sendMessage($event)"
         @delete-message="chat.deleteMessage($event)"

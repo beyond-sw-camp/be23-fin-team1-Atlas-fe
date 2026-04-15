@@ -132,6 +132,7 @@ function createDummyMessages(roomPublicId: string): ChatMessageDto[] {
       messageBody: '안녕하세요. 건 관련하여 논의 부탁드립니다.',
       sentAt: new Date(Date.now() - 55 * 60 * 1000).toISOString(),
       isDeleted: false,
+      unreadCount: 0,
     },
     {
       publicId: `${roomPublicId}-msg-003`,
@@ -141,6 +142,7 @@ function createDummyMessages(roomPublicId: string): ChatMessageDto[] {
       messageBody: '네, 확인했습니다. 어떤 부분 먼저 확인할까요?',
       sentAt: new Date(Date.now() - 50 * 60 * 1000).toISOString(),
       isDeleted: false,
+      unreadCount: 0,
     },
     {
       publicId: `${roomPublicId}-msg-004`,
@@ -154,6 +156,7 @@ function createDummyMessages(roomPublicId: string): ChatMessageDto[] {
       referenceTitle: '반도체 부품 긴급 발주',
       sentAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
       isDeleted: false,
+      unreadCount: 0,
     },
     {
       publicId: `${roomPublicId}-msg-005`,
@@ -163,6 +166,7 @@ function createDummyMessages(roomPublicId: string): ChatMessageDto[] {
       messageBody: '확인 중입니다. 수량 관련 이슈가 있어서 잠시만 기다려 주세요.',
       sentAt: new Date(Date.now() - 40 * 60 * 1000).toISOString(),
       isDeleted: false,
+      unreadCount: 0,
     },
     {
       publicId: `${roomPublicId}-msg-006`,
@@ -172,6 +176,7 @@ function createDummyMessages(roomPublicId: string): ChatMessageDto[] {
       messageBody: '수량 확인 완료했습니다. 기존 발주 대비 15% 초과 요청이 들어왔네요.',
       sentAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
       isDeleted: false,
+      unreadCount: 1,
     },
     {
       publicId: `${roomPublicId}-msg-007`,
@@ -181,6 +186,7 @@ function createDummyMessages(roomPublicId: string): ChatMessageDto[] {
       messageBody: '초과분에 대해서는 별도 반품 처리 진행하겠습니다.',
       sentAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
       isDeleted: false,
+      unreadCount: 1,
     },
     {
       publicId: `${roomPublicId}-msg-008`,
@@ -191,6 +197,7 @@ function createDummyMessages(roomPublicId: string): ChatMessageDto[] {
       attachmentPublicIds: ['file-001'],
       sentAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
       isDeleted: false,
+      unreadCount: 1,
     },
     {
       publicId: `${roomPublicId}-msg-009`,
@@ -201,6 +208,7 @@ function createDummyMessages(roomPublicId: string): ChatMessageDto[] {
       sentAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
       editedAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
       isDeleted: false,
+      unreadCount: 2,
     },
   ]
 }

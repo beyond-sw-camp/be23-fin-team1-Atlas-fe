@@ -36,6 +36,8 @@ export interface ChatMessageDto {
   /** 수정 시간. UI에서 '(수정됨)' 표기 */
   editedAt?: string
   isDeleted: boolean
+  /** 메시지별 안읽음 인원 수. 프론트엔드 UI 렌더링용 */
+  unreadCount?: number
 }
 
 /** 읽음 처리 요청 DTO */
