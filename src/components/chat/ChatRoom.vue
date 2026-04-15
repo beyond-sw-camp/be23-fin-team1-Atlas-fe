@@ -5,7 +5,7 @@
  * 현재는 더미 데이터 기반, 추후 WebSocket 구독 추가 예정
  */
 import { ref, nextTick, watch } from 'vue'
-import type { ChatMessageDto } from '../../types/chat'
+import type { ChatMessageDto, ChatParticipant } from '../../types/chat'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 
@@ -14,6 +14,8 @@ const props = defineProps<{
   messages: ChatMessageDto[]
   currentUserPublicId: string
   isLoading: boolean
+  /** 채팅방 참여자 목록 — 발신자 이름 조회용 */
+  participants: ChatParticipant[]
 }>()
 
 const emit = defineEmits<{
@@ -35,6 +37,12 @@ watch(
     }
   },
 )
+
+/** senderUserPublicId → displayName 변환 */
+function getSenderName(senderPublicId: string): string {
+  const participant = props.participants.find((p) => p.userPublicId === senderPublicId)
+  return participant?.displayName ?? '알 수 없음'
+}
 
 /** 업무 참조 카드 전송 핸들러 — ChatInput에서 3개 인자를 받아 상위로 전달 */
 function handleSendReference(refType: string, refCode: string, refTitle: string) {
@@ -69,6 +77,7 @@ function handleDeleteMessage(messagePublicId: string) {
           :key="msg.publicId"
           :message="msg"
           :current-user-public-id="currentUserPublicId"
+          :sender-name="getSenderName(msg.senderUserPublicId)"
           @delete="handleDeleteMessage"
         />
       </template>
