@@ -1,13 +1,14 @@
 <script setup lang="ts">
 /**
  * ChatRoom — 채팅방 화면
- * 메시지 목록 (무한 스크롤 대비) + 입력 영역
+ * 메시지 목록 (무한 스크롤 대비) + 입력 영역 + 초대 기능
  * 현재는 더미 데이터 기반, 추후 WebSocket 구독 추가 예정
  */
-import { ref, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import type { ChatMessageDto, ChatParticipant } from '../../types/chat'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
+import { useAtlasChatStore } from '../../stores/chat'
 
 const props = defineProps<{
   roomName: string
@@ -25,7 +26,15 @@ const emit = defineEmits<{
   sendReference: [refType: string, refCode: string, refTitle: string]
 }>()
 
+const chatStore = useAtlasChatStore()
 const messagesContainer = ref<HTMLElement | null>(null)
+const isInviting = ref(false)
+
+const availableUsersToInvite = computed(() => {
+  return chatStore.availableUsers.filter(
+    (u) => !props.participants.some((p) => p.userPublicId === u.userPublicId)
+  )
+})
 
 /** 메시지 목록 변경 시 스크롤을 최하단으로 이동 */
 watch(
@@ -53,21 +62,54 @@ function handleSendReference(refType: string, refCode: string, refTitle: string)
 function handleDeleteMessage(messagePublicId: string) {
   emit('deleteMessage', messagePublicId)
 }
+
+/** 유저 초대 핸들러 */
+function handleInviteUser(userPublicId: string) {
+  chatStore.inviteUser(userPublicId)
+  isInviting.value = false
+}
 </script>
 
 <template>
   <div class="chat-room">
     <!-- 헤더 -->
-    <div class="chat-room__header">
+    <div class="chat-room__header" style="position: relative;">
       <button class="chat-room__back" type="button" @click="$emit('back')">
         <span class="material-symbols-outlined">arrow_back</span>
       </button>
-      <strong class="chat-room__title">{{ roomName }}</strong>
-      <span class="chat-room__label">CHAT ROOM</span>
+      <strong class="chat-room__title" style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        {{ roomName }}
+      </strong>
+      
+      <button 
+        class="chat-room__invite-btn" 
+        type="button" 
+        style="background: transparent; border: none; color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px;"
+        @click="isInviting = !isInviting"
+        title="초대하기">
+        <span class="material-symbols-outlined">person_add</span>
+      </button>
+
+      <!-- 초대 팝오버 -->
+      <div v-if="isInviting" style="position: absolute; top: 100%; right: 16px; width: 200px; max-height: 250px; overflow-y: auto; background: var(--color-surface, #131313); border: 1px solid var(--color-outline-variant, #474747); z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        <div style="padding: 8px; font-size: 0.75rem; font-weight: 600; color: var(--color-on-surface-variant, #C6C6C6); border-bottom: 1px solid var(--color-surface-container-high, #2A2A2A); text-transform: uppercase; letter-spacing: 0.05em;">
+          초대 가능한 사용자
+        </div>
+        <div v-if="availableUsersToInvite.length === 0" style="padding: 12px; font-size: 0.875rem; text-align: center; color: var(--color-on-surface-variant, #C6C6C6);">
+          모두 참여 중입니다.
+        </div>
+        <button
+          v-for="user in availableUsersToInvite"
+          :key="user.userPublicId"
+          @click="handleInviteUser(user.userPublicId)"
+          style="display: block; width: 100%; padding: 8px 12px; text-align: left; background: transparent; border: none; border-bottom: 1px solid var(--color-surface-container-highest, #333333); color: var(--color-on-surface, #FFFFFF); cursor: pointer; font-size: 0.875rem;">
+          {{ user.displayName }}
+        </button>
+      </div>
     </div>
 
     <!-- 메시지 목록 -->
-    <div ref="messagesContainer" class="chat-room__messages">
+    <div ref="messagesContainer" class="chat-room__messages" style="flex: 1; overflow-y: auto;">
       <div v-if="isLoading" class="chat-room__loading">
         <span>메시지 로딩 중...</span>
       </div>

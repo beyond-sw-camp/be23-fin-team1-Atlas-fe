@@ -42,11 +42,11 @@ function handleSendReference(refType: string, refCode: string, refTitle: string)
       <!-- 채팅방 뷰 -->
       <ChatRoom
         v-else-if="chat.currentView === 'room' && chat.currentRoom"
-        :room-name="chat.currentRoom.name"
+        :room-name="chat.currentRoom.roomName || '이름 없음'"
         :messages="chat.messages"
         :current-user-public-id="chat.currentUserPublicId"
         :is-loading="chat.isLoadingMessages"
-        :participants="chat.currentRoom.participants"
+        :participants="chat.currentRoom.participants || []"
         @back="chat.backToList()"
         @send="chat.sendMessage($event)"
         @delete-message="chat.deleteMessage($event)"

@@ -13,6 +13,7 @@ export interface PageResponse<T> {
 
 export interface CreateReturnItemDto {
   itemPublicId: string
+  itemName?: string
   lotPublicId?: string
   returnQty: number
   unit: string
@@ -25,6 +26,8 @@ export interface CreateReturnRequestDto {
   sourceShipmentPublicId?: string
   requestOrganizationPublicId: string
   targetOrganizationPublicId: string
+  requestOrganizationName?: string
+  targetOrganizationName?: string
   returnType: 'DAMAGE' | 'DEFECTIVE' | 'MISDELIVERY' | 'SIMPLE_RETURN'
   returnReason: string
   attachmentPublicIds?: string[]
@@ -34,6 +37,7 @@ export interface CreateReturnRequestDto {
 export interface ReturnItemResponseDto {
   id: number
   itemPublicId: string
+  itemName?: string
   lotPublicId?: string | null
   returnQty: number
   unit: string
@@ -50,6 +54,8 @@ export interface ReturnRequestResponseDto {
   sourceShipmentPublicId?: string | null
   requestOrganizationPublicId: string
   targetOrganizationPublicId: string
+  requestOrganizationName?: string
+  targetOrganizationName?: string
   returnType: 'DAMAGE' | 'DEFECTIVE' | 'MISDELIVERY' | 'SIMPLE_RETURN'
   returnReason: string
   returnStatus: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'IN_TRANSIT' | 'RECEIVED' | 'COMPLETED'
@@ -59,6 +65,16 @@ export interface ReturnRequestResponseDto {
   createdByUserPublicId?: string | null
   attachmentPublicIds: string[]
   items: ReturnItemResponseDto[]
+}
+
+export interface ReturnStatusHistoryResponseDto {
+  id: number
+  returnRequestId: number
+  beforeStatus: string
+  afterStatus: string
+  reason: string
+  recordedAt: string
+  recordedBy: string
 }
 
 
@@ -104,5 +120,10 @@ export async function getReturnRequest(publicId: string): Promise<ReturnRequestR
 
 export async function updateReturnStatus(publicId: string, statusDto: UpdateReturnStatusDto): Promise<ReturnRequestResponseDto> {
   const response = await apiClient.patch<ReturnRequestResponseDto>(`/api/supply/returns/${publicId}/status`, statusDto)
+  return response.data
+}
+
+export async function getReturnHistories(publicId: string): Promise<ReturnStatusHistoryResponseDto[]> {
+  const response = await apiClient.get<ReturnStatusHistoryResponseDto[]>(`/api/supply/returns/${publicId}/histories`)
   return response.data
 }

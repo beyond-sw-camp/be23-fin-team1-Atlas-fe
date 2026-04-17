@@ -13,6 +13,7 @@ export type NavKey =
   | 'items'
   | 'lots'
   | 'logisticsNodes'
+  | 'returns'
   | 'certificateWatch'
   | 'shipmentOps'
   | 'recoveryTracking'

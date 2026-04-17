@@ -10,6 +10,7 @@ export const PAGE_SHELL_CLASSES: Record<PageKey, string[]> = {
   items: ['bg-background', 'text-on-surface', 'antialiased'],
   lots: ['bg-background', 'text-on-surface', 'antialiased'],
   logisticsNodes: ['bg-background', 'text-on-surface', 'antialiased'],
+  returns: ['bg-background', 'text-on-surface', 'antialiased'],
   certificateWatch: ['bg-background', 'text-on-surface', 'antialiased'],
   shipmentOps: ['bg-background', 'text-on-surface', 'antialiased'],
   recoveryTracking: ['bg-background', 'text-on-surface', 'antialiased'],
