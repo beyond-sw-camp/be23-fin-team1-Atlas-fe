@@ -55,10 +55,11 @@ export interface ChatParticipant {
 /** 채팅방 정보 (프론트 전용 — 백엔드 API 미확정) */
 export interface ChatRoom {
   publicId: string
-  name: string
+  roomName: string
+  roomStatus?: string
   lastMessage?: ChatMessageDto
   unreadCount: number
-  participants: ChatParticipant[]
+  participants?: ChatParticipant[]
 }
 
 /** 패널 내부 뷰 상태 */

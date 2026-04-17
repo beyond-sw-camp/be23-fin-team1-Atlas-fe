@@ -26,7 +26,7 @@ const selectedUsers = ref<string[]>([])
 const filteredRooms = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return props.rooms
-  return props.rooms.filter((room) => room.name.toLowerCase().includes(q))
+  return props.rooms.filter((room) => room.roomName && room.roomName.toLowerCase().includes(q))
 })
 
 async function handleCreateRoom() {
