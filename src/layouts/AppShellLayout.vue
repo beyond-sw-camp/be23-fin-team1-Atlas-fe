@@ -12,7 +12,7 @@ import { useAtlasPreferencesStore } from '../stores/preferences'
 import { useAtlasSessionStore } from '../stores/session'
 import { useAtlasUiStore } from '../stores/ui'
 import { useAtlasToastStore } from '../stores/toast'
-import { useNotificationStomp } from '../composables/useNotificationStomp'
+import { useAtlasChatStore } from '../stores/chat'
 
 const route = useRoute()
 const header = useAtlasHeaderStore()
@@ -21,15 +21,15 @@ const preferences = useAtlasPreferencesStore()
 const session = useAtlasSessionStore()
 const ui = useAtlasUiStore()
 
-// We pass a default dummy user to establish the WS connection.
-const { connect, disconnect } = useNotificationStomp('user-001')
+// 채팅 STOMP 클라이언트에 알림 구독이 통합됨 — 별도 연결 불필요
+const chatStore = useAtlasChatStore()
 
-// Connect to WebSocket when authenticated
+// 인증 완료 시 채팅/알림 통합 WebSocket 연결 시작
 watch(() => session.isAuthenticated, (isAuth) => {
   if (isAuth) {
-    connect()
+    chatStore.connectStomp()
   } else {
-    disconnect()
+    chatStore.disconnectStomp()
   }
 }, { immediate: true })
 
@@ -39,7 +39,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', ui.syncViewportLayout)
-  disconnect()
+  chatStore.disconnectStomp()
 })
 </script>
 
