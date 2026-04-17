@@ -11,7 +11,7 @@ import type {
 import { chatService } from '../services/chat'
 import { useAtlasSessionStore } from './session'
 
-const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8080/ws-chat'
+const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-chat'
 
 export const useAtlasChatStore = defineStore('atlasChat', () => {
   const sessionStore = useAtlasSessionStore()
@@ -49,9 +49,10 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     if (stompClient && stompClient.connected) return
 
     const accessToken = window.sessionStorage.getItem('atlas-access-token') || ''
+    const socketUrl = `${WS_ENDPOINT}?token=${accessToken}`
 
     stompClient = new Client({
-      webSocketFactory: () => new SockJS(WS_ENDPOINT),
+      webSocketFactory: () => new SockJS(socketUrl),
       connectHeaders: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -68,6 +69,15 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
       if (currentRoomPublicId.value) {
         subscribeToRoom(currentRoomPublicId.value)
       }
+    }
+
+    stompClient.onWebSocketError = (event) => {
+      console.error('[STOMP] WebSocket Error:', event)
+    }
+
+    stompClient.onWebSocketClose = () => {
+      console.warn('[STOMP] WebSocket closed or could not connect.')
+      isConnected.value = false
     }
 
     stompClient.onStompError = (frame) => {
@@ -244,11 +254,19 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   }
 
   function sendMessage(messageBody: string) {
-    if (!currentRoomPublicId.value || !messageBody.trim() || !stompClient || !stompClient.connected) return
+    if (!currentRoomPublicId.value || !messageBody.trim()) return
+
+    if (!stompClient || !stompClient.connected) {
+      console.warn('[STOMP] 발송 실패: 현재 소켓이 연결되어 있지 않습니다. (stompClient.connected === false)')
+      return
+    }
 
     stompClient.publish({
       destination: `/pub/chat.message.${currentRoomPublicId.value}`,
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
+        senderUserPublicId: currentUserPublicId.value,
+        roomPublicId: currentRoomPublicId.value,
         messageBody: messageBody.trim(),
         messageType: 'TEXT',
       }),
@@ -260,11 +278,14 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
 
     stompClient.publish({
       destination: `/pub/chat.message.${currentRoomPublicId.value}`,
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
+        senderUserPublicId: currentUserPublicId.value,
+        roomPublicId: currentRoomPublicId.value,
         messageBody: `${refTitle} 건을 공유합니다.`,
         messageType: 'REFERENCE',
         referenceType: refType,
-        referencePublicId: `ref-${Date.now()}`, // 백엔드에서 생성될 수도 있으나 전송 규격에 맞게
+        referencePublicId: `ref-${Date.now()}`,
         referenceCode: refCode,
         referenceTitle: refTitle,
       }),

@@ -35,7 +35,7 @@ function formatRelativeTime(isoString?: string): string {
     <div class="chat-room-item__ribbon" />
     <div class="chat-room-item__content">
       <div class="chat-room-item__head">
-        <strong class="chat-room-item__name">{{ room.name }}</strong>
+        <strong class="chat-room-item__name">{{ room.roomName || '이름 없음' }}</strong>
         <span class="chat-room-item__time">{{ formatRelativeTime(room.lastMessage?.sentAt) }}</span>
       </div>
       <div class="chat-room-item__foot">
