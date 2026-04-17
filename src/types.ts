@@ -12,6 +12,7 @@ export type NavKey =
   | 'supplierControl'
   | 'items'
   | 'lots'
+  | 'returns'
   | 'certificateWatch'
   | 'shipmentOps'
   | 'recoveryTracking'
