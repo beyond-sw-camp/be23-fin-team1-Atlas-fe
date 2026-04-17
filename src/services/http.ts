@@ -46,10 +46,13 @@ apiClient.interceptors.request.use(
     // In a full auth implementation, this would be fetched from a session store.
     // For now, we hardcode the initial test user.
     const accessToken = window.sessionStorage.getItem('atlas-access-token')
+    
+    // API 명세서에 따른 공통 헤더 필수값 추가 (이력 추적 및 권한 검증)
+    config.headers['X-User-Public-Id'] = window.sessionStorage.getItem('atlas-user-public-id') || '01HQ456789ABCDEF01HQ456789'
 
-if (accessToken) {
-  config.headers.Authorization = `Bearer ${accessToken}`
-}
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`
+    }
     return config
   },
   (error) => {
