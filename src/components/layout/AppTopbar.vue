@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import type { ScreenTheme } from '../../types'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import type { ScreenTheme, PageKey } from '../../types'
 import { UI_COPY } from '../../config/appCopy'
 import { useAtlasNavigationStore } from '../../stores/navigation'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { useAtlasUiStore } from '../../stores/ui'
 import { useAtlasChatStore } from '../../stores/chat'
 import { useAtlasNotificationStore } from '../../stores/notification'
+import {
+  integratedSearchService,
+  type IntegratedSearchItem,
+  type IntegratedSearchSection,
+  type IntegratedSearchSectionType,
+} from '../../services/search'
 
 const navigation = useAtlasNavigationStore()
 const preferences = useAtlasPreferencesStore()
@@ -13,12 +20,53 @@ const ui = useAtlasUiStore()
 const chat = useAtlasChatStore()
 const notificationStore = useAtlasNotificationStore()
 
+// 검색창 입력값입니다.
+const searchKeyword = ref('')
+
+// 검색 결과 원본입니다.
+const searchSections = ref<IntegratedSearchSection[]>([])
+
+// 검색 중 여부입니다.
+const isSearching = ref(false)
+
+// 검색 에러 문구입니다.
+const searchError = ref('')
+
+// 검색 패널 열림 여부입니다.
+const isSearchPanelOpen = ref(false)
+
+// 검색 영역 전체를 잡아두는 ref 입니다.
+const searchLayerRef = ref<HTMLElement | null>(null)
+
+// 디바운스 타이머를 저장합니다.
+let searchDebounceTimer: number | undefined
+
+const visibleSections = computed(() =>
+  searchSections.value.filter((section) => Array.isArray(section.items) && section.items.length > 0),
+)
+
+// 실제로 보여줄 결과가 하나라도 있는지 확인합니다.
+const hasSearchResults = computed(() => visibleSections.value.length > 0)
+
+// 검색 패널을 보여줄지 결정합니다.
+const shouldShowSearchPanel = computed(() => {
+  if (!isSearchPanelOpen.value) {
+    return false
+  }
+
+  // 검색어가 없으면 패널을 굳이 띄우지 않습니다.
+  if (!searchKeyword.value.trim()) {
+    return false
+  }
+
+  return true
+})
+
 function handleLanguageChange(event: Event) {
   const target = event.target as HTMLSelectElement | null
   if (!target) return
   preferences.setLanguage(target.value === 'en' ? 'en' : 'ko')
 }
-
 
 function toggleTheme() {
   preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
@@ -26,8 +74,161 @@ function toggleTheme() {
 
 function handleNotificationClick() {
   navigation.openNotifications()
-  // As a UX choice, clicking the bell could clear the badge optimistically or wait for the API
-  notificationStore.unreadCount = 0 
+  // 알림 화면으로 이동할 때 배지를 먼저 0으로 내립니다.
+  notificationStore.unreadCount = 0
+}
+
+function handleSearchFocus() {
+  // 검색창에 들어오면 패널을 열 준비를 합니다.
+  isSearchPanelOpen.value = true
+}
+
+function closeSearchPanel() {
+  // 검색 패널만 닫고 입력값은 남겨둡니다.
+  isSearchPanelOpen.value = false
+}
+
+function resetSearchState() {
+  // 결과와 에러를 같이 초기화합니다.
+  searchSections.value = []
+  searchError.value = ''
+  isSearching.value = false
+}
+
+// 검색어가 바뀌면 잠깐 기다렸다가 API를 호출합니다.
+watch(searchKeyword, (nextKeyword) => {
+  if (searchDebounceTimer) {
+    window.clearTimeout(searchDebounceTimer)
+  }
+
+  const trimmedKeyword = nextKeyword.trim()
+
+  // 공백이면 결과를 바로 비웁니다.
+  if (!trimmedKeyword) {
+    resetSearchState()
+    return
+  }
+
+  // 한 글자 검색은 너무 자주 호출되니 막습니다.
+  if (trimmedKeyword.length < 2) {
+    searchSections.value = []
+    searchError.value = ''
+    isSearching.value = false
+    return
+  }
+
+  searchDebounceTimer = window.setTimeout(async () => {
+    try {
+      isSearching.value = true
+      searchError.value = ''
+
+      const response = await integratedSearchService.search(trimmedKeyword, 5)
+      searchSections.value = response.sections ?? []
+      isSearchPanelOpen.value = true
+    } catch (error) {
+      console.error('Failed to search integrated results', error)
+      searchSections.value = []
+      searchError.value = '통합검색 결과를 불러오지 못했습니다.'
+      isSearchPanelOpen.value = true
+    } finally {
+      isSearching.value = false
+    }
+  }, 250)
+})
+
+// 바깥을 클릭하면 검색 패널을 닫습니다.
+function handleSearchOutside(event: MouseEvent) {
+  const target = event.target as Node | null
+
+  if (!searchLayerRef.value || !target) {
+    return
+  }
+
+  if (!searchLayerRef.value.contains(target)) {
+    closeSearchPanel()
+  }
+}
+
+document.addEventListener('mousedown', handleSearchOutside)
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleSearchOutside)
+
+  if (searchDebounceTimer) {
+    window.clearTimeout(searchDebounceTimer)
+  }
+})
+
+// 엔터를 누르면 맨 위 첫 결과를 바로 엽니다.
+function handleSearchEnter() {
+  const firstItem = visibleSections.value[0]?.items?.[0]
+
+  if (!firstItem) {
+    return
+  }
+
+  handleSearchItemClick(firstItem)
+}
+
+// 각 결과 타입별로 대표 화면을 매핑합니다.
+function resolveTargetPage(type: IntegratedSearchSectionType): PageKey | null {
+  switch (type) {
+    case 'ORGANIZATION':
+    case 'SUPPLIER':
+      return 'supplierControl'
+
+    case 'ITEM':
+      return 'items'
+
+    case 'PURCHASE_ORDER':
+      return 'ordersDesk'
+
+    case 'SHIPMENT':
+      return 'shipmentOps'
+
+    case 'RETURN':
+      return 'returns'
+
+    case 'LOT':
+      return 'lots'
+
+    case 'PRODUCTION_LINE':
+    case 'SETTLEMENT':
+      return 'controlTower'
+
+    default:
+      return null
+  }
+}
+
+// 유저는 아직 바로 1:1 채팅 생성 플로우가 없어서 우선 채팅 패널만 엽니다.
+function openUserResult() {
+  if (!chat.isPanelOpen) {
+    chat.togglePanel()
+  }
+
+  closeSearchPanel()
+}
+
+// 결과를 클릭했을 때 동작입니다.
+function handleSearchItemClick(item: IntegratedSearchItem) {
+  if (item.type === 'USER') {
+    openUserResult()
+    return
+  }
+
+  const targetPage = resolveTargetPage(item.type)
+
+  if (targetPage) {
+    navigation.navigateToPage(targetPage)
+  }
+
+  closeSearchPanel()
+}
+
+// 결과 key 를 안정적으로 만들기 위한 헬퍼입니다.
+function buildItemKey(item: IntegratedSearchItem, index: number) {
+  return `${item.type}-${item.publicId ?? item.id ?? index}`
 }
 </script>
 
@@ -43,24 +244,83 @@ function handleNotificationClick() {
         {{ notificationStore.unreadCount }} ALERTS
       </span>
     </div>
+
     <div class="app-topbar__actions">
       <label class="app-language-select">
         <select :value="preferences.language" @change="handleLanguageChange">
-          <option value="ko">한국어</option>
+          <option value="ko">KO</option>
           <option value="en">EN</option>
         </select>
       </label>
-  <span class="app-topbar__badge app-topbar__badge--neutral">
-  {{ navigation.organizationLabel }}
-</span>
 
-      <label class="app-search">
+      <span class="app-topbar__badge app-topbar__badge--neutral">
+        {{ navigation.organizationLabel }}
+      </span>
+
+      <div ref="searchLayerRef" class="app-search">
         <span class="material-symbols-outlined">search</span>
-        <input type="text" :placeholder="UI_COPY.searchPlaceholder[preferences.language]" />
-      </label>
+        <input
+          v-model="searchKeyword"
+          type="text"
+          :placeholder="UI_COPY.searchPlaceholder[preferences.language]"
+          @focus="handleSearchFocus"
+          @keydown.enter.prevent="handleSearchEnter"
+          @keydown.esc="closeSearchPanel"
+        />
+
+        <div v-if="shouldShowSearchPanel" class="app-search__panel">
+          <div v-if="searchKeyword.trim().length < 2" class="app-search__state">
+            두 글자 이상 입력하세요.
+          </div>
+
+          <div v-else-if="isSearching" class="app-search__state">
+            검색 중...
+          </div>
+
+          <div v-else-if="searchError" class="app-search__state app-search__state--error">
+            {{ searchError }}
+          </div>
+
+          <div v-else-if="!hasSearchResults" class="app-search__state">
+            검색 결과가 없습니다.
+          </div>
+
+          <template v-else>
+            <section
+              v-for="section in visibleSections"
+              :key="section.type"
+              class="app-search__section"
+            >
+              <header class="app-search__section-head">
+                <strong>{{ section.label }}</strong>
+                <span>{{ section.totalCount }}</span>
+              </header>
+
+              <button
+                v-for="(item, index) in section.items"
+                :key="buildItemKey(item, index)"
+                class="app-search__item"
+                type="button"
+                @click="handleSearchItemClick(item)"
+              >
+                <div class="app-search__item-title-row">
+                  <strong class="app-search__item-title">{{ item.title }}</strong>
+                  <span v-if="item.status" class="app-search__chip">{{ item.status }}</span>
+                </div>
+
+                <span v-if="item.subtitle" class="app-search__item-subtitle">
+                  {{ item.subtitle }}
+                </span>
+              </button>
+            </section>
+          </template>
+        </div>
+      </div>
+
       <button class="app-icon-button" type="button" @click="toggleTheme">
         <span class="material-symbols-outlined">contrast</span>
       </button>
+
       <button
         :class="['app-icon-button', { 'app-icon-button--badge': chat.totalUnreadCount > 0 }]"
         type="button"
@@ -68,16 +328,19 @@ function handleNotificationClick() {
       >
         <span class="material-symbols-outlined">chat_bubble</span>
       </button>
-      <button 
-        :class="['app-icon-button', { 'app-icon-button--badge': notificationStore.unreadCount > 0 }]" 
-        type="button" 
+
+      <button
+        :class="['app-icon-button', { 'app-icon-button--badge': notificationStore.unreadCount > 0 }]"
+        type="button"
         @click="handleNotificationClick"
       >
         <span class="material-symbols-outlined">notifications</span>
       </button>
+
       <button class="app-icon-button" type="button" @click="navigation.openSettings">
         <span class="material-symbols-outlined">settings</span>
       </button>
+
       <button class="app-icon-button app-profile-button" type="button" @click="navigation.navigateToPage('profile')">
         <span class="material-symbols-outlined">account_circle</span>
       </button>
