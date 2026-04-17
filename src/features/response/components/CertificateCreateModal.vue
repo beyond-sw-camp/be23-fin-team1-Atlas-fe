@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { BaseModal } from '../../shared'
+import CertificateTypeCreateModal from './CertificateTypeCreateModal.vue'
 import { getCertificateTypes } from '../../../services/certificate'
 import type { CreateSupplierCertificateRequestDto, CertificateTypeResponseDto } from '../../../services/certificate'
 
@@ -25,6 +26,7 @@ const form = ref<CreateSupplierCertificateRequestDto>({
 
 const supplierId = ref('')
 const certificateTypes = ref<CertificateTypeResponseDto[]>([])
+const isTypeModalOpen = ref(false)
 
 // 임시 모의 협력사 목록 (추후 API 연동)
 const MOCK_SUPPLIERS = [
@@ -35,13 +37,13 @@ const MOCK_SUPPLIERS = [
 
 // 임시 모의 인증 유형 목록 (DB에 데이터가 없을 때 폴백)
 const MOCK_CERT_TYPES: CertificateTypeResponseDto[] = [
-  { publicId: 'ctype-001', name: 'ISO 22000' },
-  { publicId: 'ctype-002', name: 'HACCP (위해요소중점관리기준)' },
-  { publicId: 'ctype-003', name: 'ISO 9001 (품질경영시스템)' },
-  { publicId: 'ctype-004', name: 'ESG 친환경 인증' },
+  { publicId: 'ctype-001', name: 'ISO 22000', certificateName: 'ISO 22000' },
+  { publicId: 'ctype-002', name: 'HACCP (위해요소중점관리기준)', certificateName: 'HACCP (위해요소중점관리기준)' },
+  { publicId: 'ctype-003', name: 'ISO 9001 (품질경영시스템)', certificateName: 'ISO 9001 (품질경영시스템)' },
+  { publicId: 'ctype-004', name: 'ESG 친환경 인증', certificateName: 'ESG 친환경 인증' },
 ]
 
-onMounted(async () => {
+async function loadTypes() {
   try {
     const types = await getCertificateTypes()
     if (types && types.length > 0) {
@@ -53,7 +55,16 @@ onMounted(async () => {
     console.warn('Failed to load certificate types, using mock data.', error)
     certificateTypes.value = MOCK_CERT_TYPES
   }
+}
+
+onMounted(() => {
+  loadTypes()
 })
+
+async function handleTypeSuccess() {
+  isTypeModalOpen.value = false
+  await loadTypes()
+}
 
 const content = computed(() => {
   return props.language === 'ko'
@@ -115,10 +126,15 @@ function handleSubmit() {
       <div class="terminal-form-row">
         <div class="terminal-form-group" style="flex: 1;">
           <label>
-            <span>{{ content.certType }}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span>{{ content.certType }}</span>
+              <button type="button" @click="isTypeModalOpen = true" style="background:none; border:none; color:var(--color-primary); cursor:pointer; font-size:0.75rem; text-decoration:underline;">
+                + 신규 추가
+              </button>
+            </div>
             <select v-model="form.certificateTypePublicId" required>
               <option value="" disabled selected>선택</option>
-              <option v-for="t in certificateTypes" :key="t.publicId" :value="t.publicId">{{ t.name }}</option>
+              <option v-for="t in certificateTypes" :key="t.publicId" :value="t.publicId">{{ t.certificateName || t.name || t.certificateCode }}</option>
             </select>
           </label>
         </div>
@@ -162,6 +178,13 @@ function handleSubmit() {
       </div>
     </form>
   </BaseModal>
+
+  <CertificateTypeCreateModal 
+    :is-open="isTypeModalOpen"
+    :language="language"
+    @close="isTypeModalOpen = false"
+    @success="handleTypeSuccess"
+  />
 </template>
 
 <style scoped>
