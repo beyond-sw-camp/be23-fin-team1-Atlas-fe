@@ -109,7 +109,7 @@ const filteredRows = computed(() => {
     const textMatch = !query || 
       cert.certificateNo.toLowerCase().includes(query) || 
       cert.supplierName?.toLowerCase().includes(query) ||
-      cert.certificateType?.name.toLowerCase().includes(query)
+      cert.certificateType?.name?.toLowerCase().includes(query)
     
     if (!textMatch) return false
     if (statusTab === 'ALL') return true

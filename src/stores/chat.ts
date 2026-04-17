@@ -9,8 +9,12 @@ import type {
   ChatParticipant
 } from '../types/chat'
 import { chatService } from '../services/chat'
+import { apiClient } from '../services/http'
 import { useAtlasSessionStore } from './session'
+import { useAtlasNotificationStore } from './notification'
 
+// Gateway WebSocket 라우팅 미설정으로 8083 직결 사용
+// TODO: Gateway application.yml에 WebSocket route 설정 완료 후 http://localhost:8080/api/control/ws-chat 로 원복
 const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-chat'
 
 export const useAtlasChatStore = defineStore('atlasChat', () => {
@@ -64,7 +68,22 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     stompClient.onConnect = () => {
       isConnected.value = true
       console.log('[STOMP] Chat connected.')
-      
+
+      // 알림 구독 — 채팅 STOMP 클라이언트에 통합 (별도 연결 불필요)
+      if (currentUserPublicId.value) {
+        const notificationStore = useAtlasNotificationStore()
+        stompClient!.subscribe(`/sub/notify.user.${currentUserPublicId.value}`, (message) => {
+          try {
+            const notification = JSON.parse(message.body)
+            notificationStore.handleIncomingNotification(notification)
+            console.log('[STOMP] 알림 수신:', notification)
+          } catch (e) {
+            console.error('[STOMP] 알림 파싱 실패', e)
+          }
+        })
+        console.log(`[STOMP] 알림 구독 완료: /sub/notify.user.${currentUserPublicId.value}`)
+      }
+
       // 채팅 패널이 열려있고 특정 방에 들어와있다면 구독 재개
       if (currentRoomPublicId.value) {
         subscribeToRoom(currentRoomPublicId.value)
@@ -111,8 +130,10 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
 
     roomSubscription.value = stompClient.subscribe(`/sub/chat.room.${roomPublicId}`, (message) => {
       try {
-        const chatMsg: ChatMessageDto = JSON.parse(message.body)
-        
+        const raw = JSON.parse(message.body)
+        // 백엔드 응답 필드 정규화 (deleted → isDeleted)
+        const chatMsg: ChatMessageDto = { ...raw, isDeleted: raw.isDeleted ?? raw.deleted ?? false }
+
         // 현재 방의 메시지면 추가
         if (currentRoomPublicId.value === roomPublicId) {
           // 이미 있는 메시지인지 확인 (중복 방지)
@@ -168,6 +189,22 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     }
   }
 
+  /** auth-service에서 전체 조직 사용자 목록을 가져와 초대 목록에 활용 */
+  async function fetchAvailableUsers() {
+    try {
+      const response = await apiClient.get('/api/auth/users')
+      const users = (response.data.content || response.data || []) as any[]
+      // ChatParticipant 형식으로 매핑
+      availableUsers.value = users.map((u: any) => ({
+        userPublicId: u.userPublicId,
+        displayName: `${u.lastName ?? ''}${u.firstName ?? ''}`,
+        jobTitle: u.jobTitle ?? '',
+      }))
+    } catch (e) {
+      console.error('[Chat] 사용자 목록 조회 실패', e)
+    }
+  }
+
   async function createRoom(name: string, userIds: string[]) {
     try {
       const newRoom = await chatService.createRoom(name, currentUserPublicId.value, userIds)
@@ -195,10 +232,18 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     isLoadingMessages.value = true
     messages.value = []
 
+    // 초대 목록용 전체 사용자 조회 (동시 호출)
+    fetchAvailableUsers()
+
     try {
       // 과거 메시지 조회
       const result = await chatService.getMessages(roomPublicId)
-      messages.value = ((result as any).content || result || []).reverse() // 과거순 정렬 필요 시
+      // 백엔드 응답의 'deleted' 필드를 프론트 타입 'isDeleted'로 정규화
+      const raw = ((result as any).content || result || [])
+      messages.value = raw.reverse().map((m: any) => ({
+        ...m,
+        isDeleted: m.isDeleted ?? m.deleted ?? false,
+      }))
 
       // STOMP 구독
       subscribeToRoom(roomPublicId)
@@ -328,6 +373,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     deleteMessage,
     sendReferenceMessage,
     fetchRooms,
+    fetchAvailableUsers,
     connectStomp,
     disconnectStomp,
   }
