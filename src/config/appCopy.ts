@@ -63,6 +63,10 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     ko: { label: 'Lot / 출하', description: 'Lot 추적과 출하 관리', pageSubtitle: 'Lot 이력, 검수, 출하 상태 추적' },
     en: { label: 'Lots', description: 'Lot tracking and shipment control', pageSubtitle: 'Track lot history, inspection, and outbound status' },
   },
+  returns: {
+    ko: { label: '반품 (Returns)', description: '반품 요청 및 처리 관리', pageSubtitle: '요청, 승인, 회수, 입고 상태와 이력 추적' },
+    en: { label: 'Returns', description: 'Return request and processing management', pageSubtitle: 'Track requested, approved, in-transit, and completed status' },
+  },
   certificateWatch: {
     ko: { label: '인증서', description: '인증서 유효성 및 갱신 관리', pageSubtitle: '인증 유형, 만료일, 협력사 상태 추적' },
     en: { label: 'Certificates', description: 'Certificate validity and renewal control', pageSubtitle: 'Track certificate type, expiry, and supplier status' },

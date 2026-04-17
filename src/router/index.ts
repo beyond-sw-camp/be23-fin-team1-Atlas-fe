@@ -15,6 +15,7 @@ import ItemsPage from '../features/operations/views/ItemsPage.vue'
 import LotsPage from '../features/operations/views/LotsPage.vue'
 import OrdersPage from '../features/operations/views/OrdersPage.vue'
 import SuppliersPage from '../features/operations/views/SuppliersPage.vue'
+import ReturnsPage from '../features/operations/views/ReturnsPage.vue'
 import ProfilePage from '../features/profile/views/ProfilePage.vue'
 import { responsePageDefinitions } from '../features/response/definitions'
 import CertificatesPage from '../features/response/views/CertificatesPage.vue'
@@ -42,6 +43,7 @@ const pageRoutes = [
   { path: 'suppliers', alias: ['supplier-control'], name: 'supplierControl', component: SuppliersPage, meta: { hidePageHead: true } },
   { path: 'items', name: 'items', component: ItemsPage, meta: { hidePageHead: true } },
   { path: 'lots', name: 'lots', component: LotsPage, meta: { hidePageHead: true } },
+  { path: 'returns', name: 'returns', component: ReturnsPage, meta: { hidePageHead: true } },
   { path: 'certificates', alias: ['certificate-watch'], name: 'certificateWatch', component: CertificatesPage, meta: { hidePageHead: true } },
   { path: 'risks', alias: ['risk-events'], name: 'shipmentOps', component: StructuredPage, props: { page: responsePageDefinitions.shipmentOps } },
   { path: 'recovery-tracking', name: 'recoveryTracking', component: StructuredPage, props: { page: responsePageDefinitions.recoveryTracking } },
