@@ -1,8 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watchEffect, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
-import { getExpiringCertificates } from '../../../services/certificate'
+import { 
+  getAllCertificates, getExpiringCertificates, 
+  approveCertificate, rejectCertificate, createSupplierCertificate,
+  getCertificateHistories,
+  type SupplierCertificateResponseDto,
+  type CreateSupplierCertificateRequestDto,
+  type CertificateHistoryResponseDto
+} from '../../../services/certificate'
+import CertificateCreateModal from '../components/CertificateCreateModal.vue'
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
@@ -18,12 +27,14 @@ const CONTENT = {
       { label: '갱신 필요', value: '4', meta: '만료됨', tone: 'warning' },
       { label: '협력사 수', value: '18', meta: '등록 업체', tone: 'info' },
     ],
-    tabs: ['전체', '유효', '만료 임박', '만료됨'],
-    searchPlaceholder: '협력사, 인증 유형 검색...',
-    tableTitle: '인증서 목록',
+    tabs: ['ALL', 'REVIEW_REQUESTED', 'APPROVED', 'EXPIRED', 'REJECTED', 'REVOKED'],
+    searchPlaceholder: '협력사명, 인증 번호 검색...',
+    tableTitle: '전체 인증서 이력',
     exportLabel: '내보내기',
     createLabel: '인증서 등록',
-    columns: ['인증서 ID', '협력사', '인증 유형', '발급 기관', '발급일', '만료일', '남은 일수', '상태'],
+    columns: ['인증서 번호', '협력사', '인증 유형', '발급 기관', '발급일', '만료일', '남은 일수', '상태', '상세'],
+    timelineTitle: '인증서 심사 추적 이력',
+    detailLabel: '상세보기'
   },
   en: {
     eyebrow: 'Documents / Certificates',
@@ -35,75 +46,154 @@ const CONTENT = {
       { label: 'RENEWAL NEEDED', value: '4', meta: 'ALREADY EXPIRED', tone: 'warning' },
       { label: 'SUPPLIERS', value: '18', meta: 'REGISTERED', tone: 'info' },
     ],
-    tabs: ['ALL', 'VALID', 'EXPIRING SOON', 'EXPIRED'],
-    searchPlaceholder: 'Search supplier or certificate type...',
+    tabs: ['ALL', 'REVIEW_REQUESTED', 'APPROVED', 'EXPIRED', 'REJECTED', 'REVOKED'],
+    searchPlaceholder: 'Search supplier or cert number...',
     tableTitle: 'Certificate Registry',
     exportLabel: 'EXPORT',
-    createLabel: 'ADD CERTIFICATE',
-    columns: ['CERT ID', 'SUPPLIER', 'TYPE', 'ISSUER', 'ISSUED', 'EXPIRES', 'DAYS LEFT', 'STATUS'],
+    createLabel: 'ADD CERT',
+    columns: ['CERT NO', 'SUPPLIER', 'TYPE', 'ISSUER', 'ISSUED', 'EXPIRES', 'DAYS LEFT', 'STATUS', 'VIEW'],
+    timelineTitle: 'Certificate Audit Trail',
+    detailLabel: 'VIEW'
   },
 }
 
-const ROWS = {
-  ko: [
-    ['CRT-0041', '한국식품(주)', 'ISO 22000', '한국인정원', '2023-04', '2026-04', '+365일', '유효'],
-    ['CRT-0040', '한국식품(주)', 'HACCP', '식약처', '2022-08', '2024-05', '+28일', '만료 임박'],
-    ['CRT-0039', '글로벌푸드', 'ISO 9001', 'KR인증', '2023-01', '2026-01', '+270일', '유효'],
-    ['CRT-0038', '글로벌푸드', 'ESG 인증', '한국ESG원', '2023-06', '2024-06', '+60일', '만료 임박'],
-    ['CRT-0036', '농협유통', 'HACCP', '식약처', '2021-09', '2024-03', '만료', '만료됨'],
-  ],
-  en: [
-    ['CRT-0041', 'KOREA FOODS', 'ISO 22000', 'KOR ACCREDITATION', '2023-04', '2026-04', '+365D', 'VALID'],
-    ['CRT-0040', 'KOREA FOODS', 'HACCP', 'MFDS', '2022-08', '2024-05', '+28D', 'EXPIRING'],
-    ['CRT-0039', 'GLOBAL FOODS', 'ISO 9001', 'KR CERT', '2023-01', '2026-01', '+270D', 'VALID'],
-    ['CRT-0038', 'GLOBAL FOODS', 'ESG CERT', 'KOREA ESG', '2023-06', '2024-06', '+60D', 'EXPIRING'],
-    ['CRT-0036', 'NH DISTRIBUTION', 'HACCP', 'MFDS', '2021-09', '2024-03', 'EXPIRED', 'EXPIRED'],
-  ],
+const content = computed(() => CONTENT[preferences.language])
+
+// API States
+const certs = ref<SupplierCertificateResponseDto[]>([])
+const certHistories = ref<CertificateHistoryResponseDto[]>([])
+const expiringCount = ref<number>(0)
+const search = ref('')
+const activeTab = ref<string>('ALL')
+
+// Modals
+const { isOpen: traceOpen, payload: selectedCert, open: openTrace, close: closeTrace } = useModal<SupplierCertificateResponseDto>(false)
+const isCreateModalOpen = ref(false)
+
+async function fetchCertificates() {
+  try {
+    const res = await getAllCertificates()
+    // pageable 응답 (PageResponse)
+    certs.value = res.content
+  } catch (e) {
+    console.error('Failed to fetch certs:', e)
+  }
 }
 
-const rows = computed(() => ROWS[preferences.language])
-const search = ref('')
-const activeTab = ref<string>(CONTENT[preferences.language].tabs[0])
-const expiringCount = ref<number | null>(null) // null means loading or fallback to default
-
-const content = computed(() => {
-  const base = CONTENT[preferences.language]
-  return {
-    ...base,
-    metrics: base.metrics.map(m => {
-      if ((m.label === '만료 임박' || m.label === 'EXPIRING SOON') && expiringCount.value !== null) {
-        return { ...m, value: String(expiringCount.value) }
-      }
-      return m
-    })
+async function fetchExpiring() {
+  try {
+    const expiring = await getExpiringCertificates()
+    expiringCount.value = expiring.length
+  } catch (e) {
+    console.error('Failed to fetch expiring certs:', e)
   }
+}
+
+onMounted(() => {
+  fetchCertificates()
+  fetchExpiring()
+})
+
+const metricDisplay = computed(() => {
+  const base = [...content.value.metrics]
+  // Update expiring metrics count with API data
+  base[1].value = String(expiringCount.value)
+  return base
 })
 
 const filteredRows = computed(() => {
   const query = search.value.trim().toLowerCase()
-  const status = activeTab.value
-  return rows.value.filter((row) => {
-    const textMatch = !query || row.some((cell) => cell.toLowerCase().includes(query))
+  const statusTab = activeTab.value
+
+  return certs.value.filter((cert) => {
+    const textMatch = !query || 
+      cert.certificateNo.toLowerCase().includes(query) || 
+      cert.supplierName?.toLowerCase().includes(query) ||
+      cert.certificateType?.name.toLowerCase().includes(query)
+    
     if (!textMatch) return false
-    if (status === '전체' || status === 'ALL') return true
-    return row[7] === status
+    if (statusTab === 'ALL') return true
+    return cert.certificateStatus === statusTab
   })
 })
 
-onMounted(async () => {
-  try {
-    const expiring = await getExpiringCertificates()
-    expiringCount.value = expiring.length || 6 // Fallback to dummy if empty or mocked
-  } catch (e) {
-    console.error('Failed to fetch expiring certs:', e)
-  }
+function getDaysLeft(expiredAt: string) {
+  if (!expiredAt) return '-'
+  const diff = new Date(expiredAt).getTime() - new Date().getTime()
+  const days = Math.ceil(diff / (1000 * 3600 * 24))
+  if (days < 0) return `만료됨`
+  return `D-${days}`
+}
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return '-'
+  const d = new Date(dateStr)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+const traceTitle = computed(() => {
+  if (!selectedCert.value) return content.value.timelineTitle
+  return `${selectedCert.value.certificateNo} 추적`
 })
+
+async function handleCertSelect(cert: SupplierCertificateResponseDto) {
+  openTrace(cert)
+  try {
+    certHistories.value = await getCertificateHistories(cert.publicId)
+  } catch (err) {
+    console.error('Failed to load certificate histories', err)
+    certHistories.value = []
+  }
+}
+
+async function handleApprove() {
+  if (!selectedCert.value) return
+  if (!confirm('해당 인증서를 승인하시겠습니까?')) return
+
+  try {
+    await approveCertificate(selectedCert.value.publicId)
+    alert('승인되었습니다.')
+    await fetchCertificates()
+    // refresh history
+    certHistories.value = await getCertificateHistories(selectedCert.value.publicId)
+    // update local payload reference status
+    selectedCert.value.certificateStatus = 'APPROVED'
+  } catch (err: any) {
+    alert('Failed to approve: ' + err.message)
+  }
+}
+
+async function handleReject() {
+  if (!selectedCert.value) return
+  const reason = prompt('반려 사유를 입력해주세요.')
+  if (reason === null) return
+
+  try {
+    await rejectCertificate(selectedCert.value.publicId, reason)
+    alert('반려되었습니다.')
+    await fetchCertificates()
+    certHistories.value = await getCertificateHistories(selectedCert.value.publicId)
+    selectedCert.value.certificateStatus = 'REJECTED'
+  } catch (err: any) {
+    alert('Failed to reject: ' + err.message)
+  }
+}
+
+async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupplierCertificateRequestDto) {
+  try {
+    await createSupplierCertificate(supplierPublicId, data)
+    isCreateModalOpen.value = false
+    alert('인증서가 성공적으로 등록 되었습니다.')
+    await fetchCertificates()
+  } catch (err: any) {
+    alert('Error creating certificate: ' + err.message)
+  }
+}
 
 watchEffect(() => {
   activeTab.value = content.value.tabs[0]
   header.setActions([
     { key: 'cert-export', label: content.value.exportLabel, tone: 'secondary' },
-    { key: 'cert-create', label: content.value.createLabel, tone: 'primary' },
   ])
 })
 
@@ -120,12 +210,12 @@ onBeforeUnmount(() => header.clearActions())
       </div>
       <div class="design-trigger-row">
         <button class="page-button page-button--secondary" type="button">{{ content.exportLabel }}</button>
-        <button class="page-button page-button--primary" type="button">{{ content.createLabel }}</button>
+        <button class="page-button page-button--primary" type="button" @click="isCreateModalOpen = true">{{ content.createLabel }}</button>
       </div>
     </header>
 
     <section class="page-metrics terminal-page__metrics">
-      <article v-for="metric in content.metrics" :key="metric.label" :class="['page-metric', `is-${metric.tone}`]">
+      <article v-for="metric in metricDisplay" :key="metric.label" :class="['page-metric', `is-${metric.tone}`]">
         <span class="page-metric__label">{{ metric.label }}</span>
         <strong class="page-metric__value">{{ metric.value }}</strong>
         <span class="page-metric__meta">{{ metric.meta }}</span>
@@ -137,7 +227,7 @@ onBeforeUnmount(() => header.clearActions())
         <span>⌕</span>
         <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
       </label>
-      <div class="terminal-page__tabs">
+      <div class="terminal-page__tabs" style="overflow-x: auto; white-space: nowrap;">
         <button
           v-for="tab in content.tabs"
           :key="tab"
@@ -155,14 +245,98 @@ onBeforeUnmount(() => header.clearActions())
         <div><div class="page-panel__eyebrow">CERTS</div><h3>{{ content.tableTitle }}</h3></div>
         <span class="page-panel__chip">{{ filteredRows.length }}</span>
       </div>
-      <div class="page-table terminal-page__table is-eight-cols">
+      <div class="page-table terminal-page__table" style="grid-template-columns: repeat(9, minmax(100px, 1fr));">
         <div class="page-table__row page-table__row--head">
           <span v-for="column in content.columns" :key="column">{{ column }}</span>
         </div>
-        <div v-for="row in filteredRows" :key="row[0]" class="page-table__row">
-          <span v-for="cell in row" :key="cell">{{ cell }}</span>
+        
+        <div v-for="cert in filteredRows" :key="cert.publicId" class="page-table__row">
+          <span>{{ cert.certificateNo }}</span>
+          <span>{{ cert.supplierName }}</span>
+          <span>{{ cert.certificateType?.name }}</span>
+          <span>{{ cert.issuerName }}</span>
+          <span>{{ cert.issuedAt }}</span>
+          <span>{{ cert.expiredAt }}</span>
+          <span :class="{'text-critical': Number(getDaysLeft(cert.expiredAt).replace(/\D/g, '')) < 30}">
+            {{ getDaysLeft(cert.expiredAt) }}
+          </span>
+          <span :class="{'text-warning': cert.certificateStatus === 'REVIEW_REQUESTED', 'text-nominal': cert.certificateStatus === 'APPROVED'}">
+            {{ cert.certificateStatus }}
+          </span>
+          <span style="display: flex; justify-content: flex-end;">
+            <button class="page-button page-button--secondary" type="button" @click="handleCertSelect(cert)">
+              {{ content.detailLabel }}
+            </button>
+          </span>
+        </div>
+
+        <div v-if="filteredRows.length === 0" style="padding: 32px 16px; text-align: center; color: var(--color-on-surface-variant); font-size: 0.875rem;">
+          No matching certificates found.
         </div>
       </div>
     </article>
   </section>
+
+  <!-- Create CERT Modal -->
+  <CertificateCreateModal 
+    :is-open="isCreateModalOpen" 
+    :language="preferences.language" 
+    @close="isCreateModalOpen = false" 
+    @submit="handleCreateCertSubmit" 
+  />
+
+  <!-- Trace Timeline Modal -->
+  <BaseModal
+    v-model="traceOpen"
+    :title="traceTitle"
+    :description="preferences.language === 'ko' ? '인증서의 심사, 승인, 반려 이력을 조회합니다.' : 'Review certificate review audit trail.'"
+    size="sm"
+    @close="closeTrace"
+  >
+    <div class="page-feed lots-page__trace-feed" style="max-height: 300px; overflow-y: auto;">
+      <div v-for="hist in certHistories" :key="hist.publicId" class="page-feed__item">
+        <span class="page-feed__label">{{ formatDate(hist.createdAt) }}</span>
+        <strong class="page-feed__text">
+          <span style="opacity: 0.6; font-size: 0.8em; margin-right: 4px;">[{{ hist.status }}]</span>
+          {{ hist.reason || '상태 변경' }}
+        </strong>
+      </div>
+      <div v-if="certHistories.length === 0" class="page-feed__item">
+        <span class="page-feed__text" style="opacity: 0.5;">No history available.</span>
+      </div>
+    </div>
+    
+    <!-- Admin Review Actions -->
+    <div v-if="selectedCert && selectedCert.certificateStatus === 'REVIEW_REQUESTED'" style="margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--color-surface-container-high); display: flex; flex-direction: column; gap: 16px;">
+      <div>
+        <div style="font-size: 0.75rem; color: var(--color-warning); margin-bottom: 8px;">ADMIN ACTION (REVIEW REQUESTED)</div>
+        <div style="display: flex; gap: 8px;">
+          <button class="page-button page-button--secondary" style="border-color: var(--color-nominal)" type="button" @click="handleApprove">
+            APPROVE
+          </button>
+          <button class="page-button page-button--secondary" style="border-color: var(--color-critical)" type="button" @click="handleReject">
+            REJECT
+          </button>
+        </div>
+      </div>
+    </div>
+  </BaseModal>
 </template>
+
+<style scoped>
+.text-critical {
+  color: var(--color-critical, #ff3344);
+}
+.text-warning {
+  color: var(--color-warning, #ffaa00);
+}
+.text-nominal {
+  color: var(--color-nominal, #00eeaa);
+}
+.page-table {
+  grid-template-columns: repeat(9, minmax(80px, 1fr)) !important;
+}
+.terminal-page__tabs::-webkit-scrollbar {
+  display: none;
+}
+</style>
