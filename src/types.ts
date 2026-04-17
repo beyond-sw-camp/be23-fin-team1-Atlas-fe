@@ -12,6 +12,7 @@ export type NavKey =
   | 'supplierControl'
   | 'items'
   | 'lots'
+  | 'logisticsNodes'
   | 'certificateWatch'
   | 'shipmentOps'
   | 'recoveryTracking'
@@ -30,6 +31,7 @@ export type NavKey =
   | 'profile'
   | 'systemSpec'
 
+
 export type PageKey = NavKey
 
 export interface NavEntry {
@@ -43,4 +45,16 @@ export interface NavEntry {
   badge?: string
   badgeTone?: 'crit' | 'warn' | 'info' | 'ok'
   hidden?: boolean
+}
+
+export interface SpringPage<T> {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  size: number
+  number: number
+  first: boolean
+  last: boolean
+  numberOfElements: number
+  empty: boolean
 }
