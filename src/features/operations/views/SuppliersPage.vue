@@ -1,6 +1,24 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+import {
+  getSupplier,
+  getSuppliers,
+  type SupplierListResponseDto,
+  type SupplierResponseDto,
+  type SupplierTierLevel,
+} from '../../../services/supplier'
+
+type SupplierTableRow = {
+  supplierCode: string
+  supplierName: string
+  publicId?: string
+  detail: SupplierResponseDto | null
+  supplierStatus: string
+  tierLevel: SupplierTierLevel
+  cells: string[]
+}
 
 const preferences = useAtlasPreferencesStore()
 
@@ -20,7 +38,7 @@ const CONTENT = {
     exportLabel: '내보내기',
     createLabel: '협력사 등록',
     tableTitle: '협력사 레지스트리',
-    columns: ['ID', '협력사', '국가', '카테고리', '리드타임', '납기율', '품질 점수', '발주 수', '누적 금액', '상태'],
+    columns: ['CODE', '협력사', '협력사 단계', '납기율', '협력사 점수', '품질 점수', '발주 수', '누적 금액', '상태'],
     topTitle: '상위 성과 협력사',
     riskTitle: '주의 필요',
     regionTitle: '권역별 지출',
@@ -40,31 +58,14 @@ const CONTENT = {
     exportLabel: 'EXPORT',
     createLabel: 'ADD SUPPLIER',
     tableTitle: 'Supplier Registry',
-    columns: ['ID', 'SUPPLIER', 'COUNTRY', 'CATEGORY', 'LEAD', 'ON-TIME', 'QUALITY', 'OPEN PO', 'SPEND', 'STATUS'],
+    columns: ['CODE', 'SUPPLIER', 'LEVEL', 'ON-TIME RATE', 'SUPPLIER SCORE', 'QUALITY', 'PO COUNT', 'TOTAL AMOUNT', 'STATUS'],
     topTitle: 'Top Performers',
     riskTitle: 'Needs Attention',
     regionTitle: 'Spend by Region',
   },
 }
 
-const ROWS = {
-  ko: [
-    ['SUP-001', '실링크', '대만', '반도체', '28일', '71%', '62', '4', '₩42억', '위험'],
-    ['SUP-002', '헬릭스 GmbH', '독일', '원자재', '18일', '78%', '74', '6', '₩18억', '위험'],
-    ['SUP-003', '토레이', '일본', '복합재', '22일', '96%', '94', '3', '₩21억', '활성'],
-    ['SUP-004', 'SKF Nordic', '스웨덴', '베어링', '12일', '98%', '97', '2', '₩6억', '활성'],
-    ['SUP-005', '폭스콘', '대만', '전자', '35일', '91%', '88', '12', '₩89억', '활성'],
-    ['SUP-006', '파커', '미국', '유압', '14일', '82%', '79', '5', '₩9억', '검토'],
-  ],
-  en: [
-    ['SUP-001', 'SiLink Corp', 'Taiwan', 'Semiconductors', '28d', '71%', '62', '4', '$4.2M', 'AT RISK'],
-    ['SUP-002', 'Helix GmbH', 'Germany', 'Raw Materials', '18d', '78%', '74', '6', '$1.8M', 'AT RISK'],
-    ['SUP-003', 'Toray Industries', 'Japan', 'Composites', '22d', '96%', '94', '3', '$2.1M', 'ACTIVE'],
-    ['SUP-004', 'SKF Nordic', 'Sweden', 'Bearings', '12d', '98%', '97', '2', '$0.6M', 'ACTIVE'],
-    ['SUP-005', 'Foxconn', 'Taiwan', 'Electronics', '35d', '91%', '88', '12', '$8.9M', 'ACTIVE'],
-    ['SUP-006', 'Parker', 'USA', 'Hydraulics', '14d', '82%', '79', '5', '$0.9M', 'UNDER REVIEW'],
-  ],
-}
+
 
 const TOP_ROWS = {
   ko: [
@@ -106,25 +107,147 @@ const REGION_ROWS = {
 }
 
 const content = computed(() => CONTENT[preferences.language])
-const rows = computed(() => ROWS[preferences.language])
 const topRows = computed(() => TOP_ROWS[preferences.language])
 const riskRows = computed(() => RISK_ROWS[preferences.language])
 const regionRows = computed(() => REGION_ROWS[preferences.language])
+
+
+const rows = ref<SupplierTableRow[]>([])
+const errorMessage = ref('')
+
+const detailModalOpen = ref(false)
+const detailLoading = ref(false)
+const detailErrorMessage = ref('')
+const selectedSupplier = ref<SupplierResponseDto | null>(null)
+
+function formatPercent(value: number | null | undefined) {
+  if (value == null) return '-'
+  return `${value}%`
+}
+
+function formatNumber(value: number | null | undefined) {
+  if (value == null) return '-'
+  return value.toLocaleString('ko-KR')
+}
+
+function formatAmount(value: number | null | undefined) {
+  if (value == null) return '-'
+  return `${value.toLocaleString('ko-KR')}원`
+}
+
+function tierText(value: SupplierTierLevel) {
+  switch (value) {
+    case 'TIER1':
+      return '1차'
+    case 'TIER2':
+      return '2차'
+    case 'TIER3':
+      return '3차'
+    default:
+      return value
+  }
+}
+
+function supplierStatusText(value: string) {
+  switch (value) {
+    case 'ACTIVE':
+      return '정상 거래중'
+    case 'INACTIVE':
+      return '비활성'
+    case 'SUSPENDED':
+      return '일시 정지'
+    case 'TERMINATED':
+      return '계약 해지'
+    default:
+      return value
+  }
+}
+
+function toDisplayRow(supplier: SupplierListResponseDto): SupplierTableRow {
+  return {
+    supplierCode: supplier.supplierCode,
+    supplierName: supplier.supplierName,
+    publicId: supplier.detail?.publicId,
+    detail: supplier.detail,
+    supplierStatus: supplier.detail?.supplierStatus ?? supplier.status,
+    tierLevel: supplier.tierLevel,
+    cells: [
+      supplier.supplierCode || '-',
+      supplier.supplierName || '-',
+      tierText(supplier.tierLevel),
+      formatPercent(supplier.onTimeRate),
+      formatNumber(supplier.supplierScore),
+      formatNumber(supplier.qualityScore),
+      formatNumber(supplier.purchaseOrderCount),
+      formatAmount(supplier.cumulativeAmount),
+      supplierStatusText(supplier.detail?.supplierStatus ?? supplier.status),
+    ],
+  }
+}
+
+
+async function fetchSupplierRows() {
+  try {
+    errorMessage.value = ''
+    const response = await getSuppliers({
+      page: 0,
+      size: 100,
+    })
+
+    rows.value = response.content.map(toDisplayRow)
+  } catch (error: any) {
+    rows.value = []
+    errorMessage.value = error.message ?? '협력사 목록을 불러오지 못했습니다.'
+  }
+}
+
 const search = ref('')
 const activeTab = ref<string>('ALL')
 
 const filteredRows = computed(() => {
   const query = search.value.trim().toLowerCase()
   const tab = activeTab.value
+
   return rows.value.filter((row) => {
-    const matchesQuery = !query || row.some((cell) => cell.toLowerCase().includes(query))
+    const matchesQuery = !query || row.cells.some((cell) => cell.toLowerCase().includes(query))
     if (!matchesQuery) return false
-    if (tab === '전체' || tab === 'ALL') return true
-    if (tab === '활성' || tab === 'ACTIVE') return row[9] === '활성' || row[9] === 'ACTIVE'
-    if (tab === '위험' || tab === 'AT RISK') return row[9] === '위험' || row[9] === 'AT RISK'
-    return row[9] === '검토' || row[9] === 'UNDER REVIEW'
+
+    if (tab === 'ALL' || tab === '전체') return true
+if (tab === 'ACTIVE' || tab === '정상 거래중') return row.supplierStatus === 'ACTIVE'
+if (tab === 'INACTIVE' || tab === '비활성') return row.supplierStatus === 'INACTIVE'
+if (tab === 'SUSPENDED' || tab === '일시 정지') return row.supplierStatus === 'SUSPENDED'
+if (tab === 'TERMINATED' || tab === '계약 해지') return row.supplierStatus === 'TERMINATED'
+
+    return true
   })
 })
+
+onMounted(() => {
+  void fetchSupplierRows()
+})
+
+async function openSupplierDetail(publicId: string) {
+  detailModalOpen.value = true
+  detailLoading.value = true
+  detailErrorMessage.value = ''
+  selectedSupplier.value = null
+
+  try {
+    selectedSupplier.value = await getSupplier(publicId)
+  } catch (error: any) {
+    detailErrorMessage.value = error.message ?? '협력사 상세 정보를 불러오지 못했습니다.'
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+function closeSupplierDetail() {
+  detailModalOpen.value = false
+  detailLoading.value = false
+  detailErrorMessage.value = ''
+  selectedSupplier.value = null
+}
+
 </script>
 
 <template>
@@ -178,8 +301,20 @@ const filteredRows = computed(() => {
             <div class="page-table__row page-table__row--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
             </div>
-            <div v-for="row in filteredRows" :key="row[0]" class="page-table__row">
-              <span v-for="cell in row" :key="cell">{{ cell }}</span>
+            <div v-for="row in filteredRows" :key="row.publicId ?? row.supplierCode" class="page-table__row">
+              <span v-for="(cell, index) in row.cells" :key="`${row.publicId ?? row.supplierCode}-${index}`">
+                <button
+                  v-if="index === 1"
+                  type="button"
+                  @click="row.publicId && openSupplierDetail(row.publicId)"
+                  style="all: unset; cursor: pointer; color: inherit;"
+                >
+                  {{ cell }}
+                </button>
+                <template v-else>
+                  {{ cell }}
+                </template>
+              </span>
             </div>
           </div>
         </article>
@@ -218,4 +353,78 @@ const filteredRows = computed(() => {
       </aside>
     </section>
   </section>
+  <BaseModal
+  v-model="detailModalOpen"
+  title="협력사 상세 조회"
+  :description="selectedSupplier?.supplierName || '선택한 협력사 상세 정보를 확인합니다.'"
+  size="md"
+  @close="closeSupplierDetail"
+>
+  <div v-if="detailLoading" class="page-feed">
+    <div class="page-feed__item">
+      <strong class="page-feed__text">협력사 상세 정보를 불러오는 중...</strong>
+    </div>
+  </div>
+
+  <p v-else-if="detailErrorMessage" style="margin: 0; color: var(--color-error);">
+    {{ detailErrorMessage }}
+  </p>
+
+  <div v-else-if="selectedSupplier" class="page-feed">
+    <div class="page-feed__item">
+      <span class="page-feed__label">PUBLIC ID</span>
+      <strong class="page-feed__text">{{ selectedSupplier.publicId }}</strong>
+    </div>
+
+    <div class="page-feed__item">
+      <span class="page-feed__label">조직 PUBLIC ID</span>
+      <strong class="page-feed__text">{{ selectedSupplier.organizationPublicId }}</strong>
+    </div>
+
+    <div class="page-feed__item">
+      <span class="page-feed__label">협력사 코드</span>
+      <strong class="page-feed__text">{{ selectedSupplier.supplierCode }}</strong>
+    </div>
+
+    <div class="page-feed__item">
+      <span class="page-feed__label">협력사명</span>
+      <strong class="page-feed__text">{{ selectedSupplier.supplierName }}</strong>
+    </div>
+
+    <div class="page-feed__item">
+      <span class="page-feed__label">협력사 단계</span>
+      <strong class="page-feed__text">{{ tierText(selectedSupplier.tierLevel) }}</strong>
+    </div>
+
+    <div class="page-feed__item">
+      <span class="page-feed__label">거래 상태</span>
+      <strong class="page-feed__text">{{ supplierStatusText(selectedSupplier.supplierStatus) }}</strong>
+    </div>
+
+    <div class="page-feed__item">
+      <span class="page-feed__label">담당자명</span>
+      <strong class="page-feed__text">{{ selectedSupplier.primaryContactName || '-' }}</strong>
+    </div>
+
+    <div class="page-feed__item">
+      <span class="page-feed__label">담당자 이메일</span>
+      <strong class="page-feed__text">{{ selectedSupplier.primaryContactEmail || '-' }}</strong>
+    </div>
+
+    <div class="page-feed__item">
+      <span class="page-feed__label">담당자 연락처</span>
+      <strong class="page-feed__text">{{ selectedSupplier.primaryContactPhone || '-' }}</strong>
+    </div>
+
+    <div class="page-feed__item">
+      <span class="page-feed__label">생성일</span>
+      <strong class="page-feed__text">{{ selectedSupplier.createdAt }}</strong>
+    </div>
+
+    <div class="page-feed__item">
+      <span class="page-feed__label">수정일</span>
+      <strong class="page-feed__text">{{ selectedSupplier.updatedAt }}</strong>
+    </div>
+  </div>
+</BaseModal>
 </template>

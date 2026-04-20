@@ -115,7 +115,7 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError<ApiErrorPayload>) => {
     if (error.response) {
-      const payload = error.response.data
+      const payload = error.response.data                                                                                               
       const message = payload?.message || `API request failed with status ${error.response.status}`
       throw new ApiError(error.response.status, message, payload)
     }
