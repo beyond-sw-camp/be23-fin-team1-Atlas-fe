@@ -93,11 +93,15 @@ export interface SupplierItemCapabilityResponseDto {
   createdAt: string
 }
 
-// 협력사 목록 조회
+// 협력사 목록을 기본 응답 형태로 조회합니다.
 export async function getSuppliers(params: GetSuppliersParams = {}) {
-  const response = await apiClient.get<PageResponse<SupplierListResponseDto>>('/api/supply/suppliers', {
-    params,
-  })
+  const response = await apiClient.get<PageResponse<SupplierResponseDto>>(
+    '/api/supply/suppliers',
+    {
+      params,
+    },
+  )
+
   return response.data
 }
 

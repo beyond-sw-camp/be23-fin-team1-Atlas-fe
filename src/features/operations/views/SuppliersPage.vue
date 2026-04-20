@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+// 필요한 Vue 함수만 한 번에 가져옵니다.
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
   getSupplier,
   getSuppliers,
-  type SupplierListResponseDto,
   type SupplierResponseDto,
   type SupplierTierLevel,
 } from '../../../services/supplier'
+import { useAtlasSessionStore } from '../../../stores/session'
+
+
+
 
 type SupplierTabKey = 'ALL' | 'ACTIVE' | 'AT_RISK' | 'UNDER_REVIEW'
 
@@ -23,6 +27,15 @@ type SupplierTableRow = {
 }
 
 const preferences = useAtlasPreferencesStore()
+// 현재 로그인 조직 타입을 확인하려고 세션 스토어를 씁니다.
+const session = useAtlasSessionStore()
+
+// 검색 API를 너무 자주 호출하지 않게 잠깐 기다리는 타이머입니다.
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+// 협력사 조직은 백엔드 검색이 막혀 있어서 로컬 검색만 유지합니다.
+const useServerSearch = computed(() => session.organizationType !== 'SUPPLIER')
+
 
 // 화면 문구와 더미 지표는 기존 레이아웃 유지용으로 그대로 둡니다.
 // 총 협력사 개수만 실제 API 응답으로 덮어씁니다.
@@ -202,30 +215,29 @@ function supplierStatusText(value: string) {
 }
 
 // API 응답을 기존 테이블 레이아웃에 맞게 변환합니다.
-function toDisplayRow(supplier: SupplierListResponseDto): SupplierTableRow {
-  const supplierStatus = supplier.detail?.supplierStatus ?? supplier.status
-  const approvalStatus = supplier.detail?.approvalStatus
-
+// 백엔드가 실제로 주는 기본 협력사 응답 형태에 맞춰 화면용 행 데이터를 만듭니다.
+function toDisplayRow(supplier: SupplierResponseDto): SupplierTableRow {
   return {
     supplierCode: supplier.supplierCode,
     supplierName: supplier.supplierName,
-    publicId: supplier.detail?.publicId,
-    supplierStatus,
-    approvalStatus,
-    detail: supplier.detail,
+    publicId: supplier.publicId,
+    supplierStatus: supplier.supplierStatus,
+    approvalStatus: supplier.approvalStatus,
+    detail: supplier,
     cells: [
       supplier.supplierCode || '-',
       supplier.supplierName || '-',
       tierText(supplier.tierLevel),
-      formatPercent(supplier.onTimeRate),
-      formatNumber(supplier.supplierScore),
-      formatNumber(supplier.qualityScore),
-      formatNumber(supplier.purchaseOrderCount),
-      formatAmount(supplier.cumulativeAmount),
-      supplierStatusText(supplierStatus),
+      '-', // 아직 없는 지표 컬럼은 임시로 비워 둡니다.
+      '-',
+      '-',
+      '-',
+      '-',
+      supplierStatusText(supplier.supplierStatus),
     ],
   }
 }
+
 
 // 총 협력사만 실제 데이터로 바꾸고 나머지 카드 값은 더미 유지합니다.
 const metrics = computed(() => {
@@ -234,11 +246,17 @@ const metrics = computed(() => {
   return base
 })
 
-async function fetchSupplierRows() {
+// 검색어를 받아서 협력사 목록을 다시 불러옵니다.
+// ADMIN / BUYER 는 keyword 를 서버 ES 검색으로 넘깁니다.
+// SUPPLIER 는 keyword 를 보내지 않고 전체 목록만 받아옵니다.
+async function fetchSupplierRows(keyword = '') {
   try {
     errorMessage.value = ''
 
+    const normalizedKeyword = keyword.trim()
+
     const response = await getSuppliers({
+      keyword: useServerSearch.value ? normalizedKeyword || undefined : undefined,
       page: 0,
       size: 100,
     })
@@ -250,9 +268,11 @@ async function fetchSupplierRows() {
   }
 }
 
-// 검색/탭 필터만 기존 레이아웃에 맞게 유지합니다.
+
+// ADMIN / BUYER 는 검색을 서버가 처리하므로 탭 필터만 적용합니다.
+// SUPPLIER 는 기존처럼 화면에서 검색어 필터를 한 번 더 적용합니다.
 const filteredRows = computed(() => {
-  const query = search.value.trim().toLowerCase()
+  const query = useServerSearch.value ? '' : search.value.trim().toLowerCase()
 
   return rows.value.filter((row) => {
     const matchesQuery =
@@ -277,6 +297,32 @@ const filteredRows = computed(() => {
     }
   })
 })
+
+// 검색어가 바뀌면 잠깐 기다렸다가 서버 검색을 호출합니다.
+watch(search, (nextKeyword) => {
+  // 협력사 로그인은 백엔드에서 검색이 막혀 있어서 서버 호출을 하지 않습니다.
+  if (!useServerSearch.value) {
+    return
+  }
+
+  // 이전 타이머가 있으면 지웁니다.
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+
+  // 0.3초 뒤에 한 번만 검색합니다.
+  searchDebounceTimer = setTimeout(() => {
+    void fetchSupplierRows(nextKeyword)
+  }, 300)
+})
+
+// 페이지를 떠날 때 남아 있는 타이머를 정리합니다.
+onBeforeUnmount(() => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+})
+
 
 onMounted(() => {
   void fetchSupplierRows()
