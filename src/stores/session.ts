@@ -13,6 +13,7 @@ const USER_PUBLIC_ID_STORAGE_KEY = 'atlas-user-public-id'
 const ORGANIZATION_PUBLIC_ID_STORAGE_KEY = 'atlas-organization-public-id'
 const ORGANIZATION_TYPE_STORAGE_KEY = 'atlas-organization-type'
 const USER_ROLE_STORAGE_KEY = 'atlas-user-role'
+const PASSWORD_CHANGE_REQUIRED_STORAGE_KEY = 'atlas-password-change-required'
 
 type AccessTokenClaims = {
   userPublicId?: string
@@ -60,6 +61,9 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
   const organizationPublicId = ref(window.sessionStorage.getItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY) ?? '')
   const organizationType = ref(window.sessionStorage.getItem(ORGANIZATION_TYPE_STORAGE_KEY) ?? '')
   const userRole = ref(window.sessionStorage.getItem(USER_ROLE_STORAGE_KEY) ?? '')
+  const passwordChangeRequired = ref(
+  window.sessionStorage.getItem(PASSWORD_CHANGE_REQUIRED_STORAGE_KEY) === 'true',
+)
 
   async function signIn() {
     if (!loginId.value || !loginPassword.value) {
@@ -73,7 +77,12 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
         password: loginPassword.value,
       })
 
-      const { accessToken, refreshToken } = response.data
+      const {
+  accessToken,
+  refreshToken,
+  passwordChangeRequired: mustChangePassword,
+} = response.data
+
       const claims = decodeAccessToken(accessToken)
       const mappedOrganization = mapOrganizationType(claims?.organizationType)
 
@@ -91,21 +100,39 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
       window.sessionStorage.setItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY, claims.organizationPublicId)
       window.sessionStorage.setItem(ORGANIZATION_TYPE_STORAGE_KEY, claims.organizationType ?? '')
       window.sessionStorage.setItem(USER_ROLE_STORAGE_KEY, claims.role)
+      window.sessionStorage.setItem(
+        PASSWORD_CHANGE_REQUIRED_STORAGE_KEY,
+         String(Boolean(mustChangePassword)),
+      )
+
 
       isAuthenticated.value = true
       userPublicId.value = claims.userPublicId
       organizationPublicId.value = claims.organizationPublicId
       organizationType.value = claims.organizationType ?? ''
       userRole.value = claims.role
+      passwordChangeRequired.value = Boolean(mustChangePassword)
       loginError.value = ''
       loginPassword.value = ''
-      navigation.navigateToPage('controlTower')
+
+if (mustChangePassword) {
+  navigation.navigateToPage('profile')
+} else {
+  const firstAvailablePage =
+    navigation.availableNavItems.find((item) => !item.hidden)?.key ?? 'profile'
+
+  navigation.navigateToPage(firstAvailablePage)
+}
+
+
     } catch (error) {
       isAuthenticated.value = false
       userPublicId.value = ''
       organizationPublicId.value = ''
       organizationType.value = ''
       userRole.value = ''
+      passwordChangeRequired.value = false
+
 
       window.sessionStorage.removeItem(AUTH_STORAGE_KEY)
       window.sessionStorage.removeItem(ORG_STORAGE_KEY)
@@ -115,6 +142,8 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
       window.sessionStorage.removeItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY)
       window.sessionStorage.removeItem(ORGANIZATION_TYPE_STORAGE_KEY)
       window.sessionStorage.removeItem(USER_ROLE_STORAGE_KEY)
+      window.sessionStorage.removeItem(PASSWORD_CHANGE_REQUIRED_STORAGE_KEY)
+
 
       if (error instanceof ApiError) {
         loginError.value = error.payload?.message || UI_COPY.loginError[preferences.language]
@@ -132,6 +161,8 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     organizationType.value = ''
     userRole.value = ''
     loginError.value = ''
+    passwordChangeRequired.value = false
+
 
     window.sessionStorage.removeItem(AUTH_STORAGE_KEY)
     window.sessionStorage.removeItem(ORG_STORAGE_KEY)
@@ -141,6 +172,8 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     window.sessionStorage.removeItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY)
     window.sessionStorage.removeItem(ORGANIZATION_TYPE_STORAGE_KEY)
     window.sessionStorage.removeItem(USER_ROLE_STORAGE_KEY)
+    window.sessionStorage.removeItem(PASSWORD_CHANGE_REQUIRED_STORAGE_KEY)
+
     preferences.syncOrganizationFromSession()
 
     navigation.navigateToPage('profile')
@@ -164,6 +197,7 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     loginPassword,
     organizationPublicId,
     organizationType,
+    passwordChangeRequired,
     signIn,
     signOut,
     userPublicId,
