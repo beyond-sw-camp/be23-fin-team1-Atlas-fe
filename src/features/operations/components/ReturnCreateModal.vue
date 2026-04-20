@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { BaseModal } from '../../shared'
 import { createReturn, type CreateReturnRequestDto, type CreateReturnItemDto } from '../../../services/return'
+import { getOrganizations, type OrganizationListItem } from '../../../services/organization'
 
 const props = defineProps<{
   isOpen: boolean
@@ -13,15 +14,21 @@ const emit = defineEmits<{
   success: []
 }>()
 
-// Mock Data for Dropdowns since auth/org service is not fully hooked in the current context
-const MOCK_ORGS = [
-  { id: 'org-001', name: 'Atlas 물류센터 A' },
-  { id: 'org-002', name: 'Atlas 물류센터 B' }
-]
-const MOCK_TARGET_ORGS = [
-  { id: 'supp-001', name: '한국식품(주)' },
-  { id: 'supp-002', name: '글로벌푸드' }
-]
+// 실제 조직 목록을 담아둘 상태입니다.
+const organizations = ref<OrganizationListItem[]>([])
+
+// 조직 목록 로딩 상태입니다.
+const isOrganizationsLoading = ref(false)
+
+// 요청 조직 드롭다운에 보여줄 목록입니다.
+// 우선은 전체 조직을 보여주고, 필요하면 나중에 BUYER만 필터링할 수 있습니다.
+const requestOrganizations = computed(() => organizations.value)
+
+// 대상 조직은 협력사(SUPPLIER)만 보여줍니다.
+const targetOrganizations = computed(() =>
+  organizations.value.filter((org) => org.organizationType === 'SUPPLIER'),
+)
+
 const MOCK_ITEMS = [
   { id: 'item-001', name: '프리미엄 원두 1kg', unit: 'EA' },
   { id: 'item-002', name: '유기농 밀가루 20kg', unit: 'BAG' },
@@ -42,8 +49,8 @@ function createEmptyItem(): CreateReturnItemDto {
 const form = ref<CreateReturnRequestDto>({
   returnNumber: `RT-${Date.now()}`,
   sourceShipmentPublicId: '',
-  requestOrganizationPublicId: MOCK_ORGS[0].id,
-  requestOrganizationName: MOCK_ORGS[0].name,
+  requestOrganizationPublicId: '',
+  requestOrganizationName: '',
   targetOrganizationPublicId: '',
   targetOrganizationName: '',
   returnType: 'DEFECTIVE',
@@ -53,6 +60,42 @@ const form = ref<CreateReturnRequestDto>({
 })
 
 const isSubmitting = ref(false)
+
+// 조직 목록을 실제 API에서 불러옵니다.
+async function loadOrganizations() {
+  try {
+    isOrganizationsLoading.value = true
+
+    // 드롭다운 용도라서 넉넉하게 100개 정도 먼저 가져옵니다.
+    const response = await getOrganizations({
+      page: 0,
+      size: 100,
+    })
+
+    organizations.value = response.content ?? []
+
+    // 로그인한 조직이 있으면 요청 조직 기본값으로 먼저 채워줍니다.
+    const currentOrganizationPublicId =
+      window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
+
+    if (currentOrganizationPublicId) {
+      const currentOrganization = organizations.value.find(
+        (org) => org.organizationPublicId === currentOrganizationPublicId,
+      )
+
+      if (currentOrganization) {
+        form.value.requestOrganizationPublicId = currentOrganization.organizationPublicId
+        form.value.requestOrganizationName = currentOrganization.organizationName
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load organizations', error)
+    organizations.value = []
+  } finally {
+    isOrganizationsLoading.value = false
+  }
+}
+
 
 const content = computed(() => {
   return props.language === 'ko'
@@ -98,19 +141,22 @@ const content = computed(() => {
 
 function handleTargetOrgChange(e: Event) {
   const val = (e.target as HTMLSelectElement).value
-  const found = MOCK_TARGET_ORGS.find(o => o.id === val)
+  const found = targetOrganizations.value.find((o) => o.organizationPublicId === val)
+
   if (found) {
-    form.value.targetOrganizationName = found.name
+    form.value.targetOrganizationName = found.organizationName
   }
 }
 
 function handleReqOrgChange(e: Event) {
   const val = (e.target as HTMLSelectElement).value
-  const found = MOCK_ORGS.find(o => o.id === val)
+  const found = requestOrganizations.value.find((o) => o.organizationPublicId === val)
+
   if (found) {
-    form.value.requestOrganizationName = found.name
+    form.value.requestOrganizationName = found.organizationName
   }
 }
+
 
 function handleItemChange(index: number, e: Event) {
   const val = (e.target as HTMLSelectElement).value
@@ -130,6 +176,19 @@ function removeItem(index: number) {
     form.value.items.splice(index, 1)
   }
 }
+// 모달이 열릴 때마다 조직 목록을 다시 불러옵니다.
+// 처음 열릴 때도 바로 실행되게 immediate 를 켭니다.
+watch(
+  () => props.isOpen,
+  (isOpen) => {
+    if (isOpen) {
+      loadOrganizations()
+    }
+  },
+  { immediate: true },
+)
+
+
 
 async function handleSubmit() {
   if (!form.value.targetOrganizationPublicId) {
@@ -188,18 +247,39 @@ async function handleSubmit() {
         <div class="terminal-form-group">
           <label>
             <span>{{ content.reqOrg }}</span>
-            <select v-model="form.requestOrganizationPublicId" @change="handleReqOrgChange" required :disabled="isSubmitting">
-              <option v-for="org in MOCK_ORGS" :key="org.id" :value="org.id">{{ org.name }}</option>
+            <select
+              v-model="form.requestOrganizationPublicId"
+              @change="handleReqOrgChange"
+              required
+              :disabled="isSubmitting || isOrganizationsLoading"
+            >
+              <option value="" disabled>선택</option>
+              <option
+                v-for="org in requestOrganizations"
+                :key="org.organizationPublicId"
+                :value="org.organizationPublicId"
+              >
+                {{ org.organizationName }}
+              </option>
             </select>
+
+
           </label>
         </div>
         <div class="terminal-form-group">
           <label>
             <span>{{ content.targetOrg }}</span>
-            <select v-model="form.targetOrganizationPublicId" @change="handleTargetOrgChange" required :disabled="isSubmitting">
-              <option value="" disabled selected>선택</option>
-              <option v-for="org in MOCK_TARGET_ORGS" :key="org.id" :value="org.id">{{ org.name }}</option>
-            </select>
+              <select v-model="form.targetOrganizationPublicId" @change="handleTargetOrgChange" required :disabled="isSubmitting || isOrganizationsLoading">
+                <option value="" disabled>선택</option>
+                  <option
+                    v-for="org in targetOrganizations"
+                    :key="org.organizationPublicId"
+                    :value="org.organizationPublicId"
+                  >
+                    {{ org.organizationName }}
+                  </option>
+              </select>
+
           </label>
         </div>
       </div>
@@ -221,7 +301,7 @@ async function handleSubmit() {
           <div class="item-col item-col--name">
             <span>{{ content.item }}</span>
             <select v-model="item.itemPublicId" @change="(e) => handleItemChange(index, e)" required :disabled="isSubmitting">
-              <option value="" disabled selected>선택</option>
+              <option value="" disabled>선택</option>
               <option v-for="i in MOCK_ITEMS" :key="i.id" :value="i.id">{{ i.name }}</option>
             </select>
           </div>

@@ -61,40 +61,45 @@ function applyHeaderIfPresent(
   }
 }
 
-// 모든 API 요청에 공통 헤더를 붙입니다.
-// 로그인한 사용자 정보가 sessionStorage 에 있으면 자동으로 함께 전송됩니다.
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // headers 객체가 없을 가능성까지 먼저 방어합니다.
+    // headers 객체가 없는 경우를 먼저 만들어둡니다.
     if (!config.headers) {
       config.headers = {} as InternalAxiosRequestConfig['headers']
     }
 
-    // 로그인 후 저장된 토큰과 사용자/조직 정보를 꺼냅니다.
+    // 현재 요청 URL이 어떤 API인지 확인합니다.
+    const requestUrl = config.url ?? ''
+
+    // supply / control / file 계열 요청인지 구분합니다.
+    const isSupplyRequest = requestUrl.startsWith('/api/supply')
+    const isControlRequest = requestUrl.startsWith('/api/control')
+    const isFileRequest = requestUrl.startsWith('/api/files')
+
+    // 로그인 후 세션에 저장된 값을 꺼냅니다.
     const accessToken = window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
     const userPublicId = window.sessionStorage.getItem(USER_PUBLIC_ID_STORAGE_KEY)
     const organizationPublicId = window.sessionStorage.getItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY)
     const organizationType = window.sessionStorage.getItem(ORGANIZATION_TYPE_STORAGE_KEY)
     const userRole = window.sessionStorage.getItem(USER_ROLE_STORAGE_KEY)
 
-    // 토큰이 있으면 Authorization 헤더를 붙입니다.
+    // 인증 토큰은 모든 보호 API에서 쓸 수 있게 그대로 붙입니다.
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`
     }
 
-    // 로그인한 사용자 식별값을 붙입니다.
-    applyHeaderIfPresent(config, 'X-User-Public-Id', userPublicId)
+    // 사용자 식별 헤더는 control / file / supply 요청에만 붙입니다.
+    if (isSupplyRequest || isControlRequest || isFileRequest) {
+      applyHeaderIfPresent(config, 'X-User-Public-Id', userPublicId)
+    }
 
-    // 로그인한 조직 식별값을 붙입니다.
-    applyHeaderIfPresent(config, 'X-Organization-Public-Id', organizationPublicId)
-
-    // 로그인한 조직 타입을 붙입니다.
-    // 예: BUYER, SUPPLIER, ADMIN
-    applyHeaderIfPresent(config, 'X-Organization-Type', organizationType)
-
-    // 로그인한 사용자 권한을 붙입니다.
-    // 예: USER, ORG_ADMIN, ADMIN
-    applyHeaderIfPresent(config, 'X-User-Role', userRole)
+    // 조직/권한 헤더는 supply 요청에만 붙입니다.
+    // 검색(/api/search), auth(/api/auth)에는 일부러 붙이지 않습니다.
+    if (isSupplyRequest) {
+      applyHeaderIfPresent(config, 'X-Organization-Public-Id', organizationPublicId)
+      applyHeaderIfPresent(config, 'X-Organization-Type', organizationType)
+      applyHeaderIfPresent(config, 'X-User-Role', userRole)
+    }
 
     return config
   },
