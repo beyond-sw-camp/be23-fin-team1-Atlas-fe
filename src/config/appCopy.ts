@@ -63,6 +63,18 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     ko: { label: 'Lot / 출하', description: 'Lot 추적과 출하 관리', pageSubtitle: 'Lot 이력, 검수, 출하 상태 추적' },
     en: { label: 'Lots', description: 'Lot tracking and shipment control', pageSubtitle: 'Track lot history, inspection, and outbound status' },
   },
+    shipments: {
+    ko: {
+      label: '출하',
+      description: '출하 목록, 추적, ETA, 예외 관리',
+      pageSubtitle: '출하 흐름과 추적 상태를 관리합니다',
+    },
+    en: {
+      label: 'Shipments',
+      description: 'Shipment list, tracking, ETA, and exceptions',
+      pageSubtitle: 'Manage outbound shipment flow and tracking status',
+    },
+  },
   logisticsNodes: {
     ko: {
       label: '물류거점',

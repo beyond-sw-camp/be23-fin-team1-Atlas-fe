@@ -14,9 +14,9 @@ const preferences = useAtlasPreferencesStore()
 
 const CONTENT = {
   ko: {
-    eyebrow: '공급망 운영 / Lot & 출하 관리',
-    title: 'Lot / 출하 관리',
-    subtitle: 'Lot 이력과 검수, 출하 상태를 단일 운영 화면에서 추적합니다.',
+    eyebrow: '공급망 운영 / Lot',
+    title: 'Lot',
+    subtitle: 'Lot 이력과 검수를 단일 운영 화면에서 추적합니다.',
     metrics: [
       { label: '활성 Lot', value: '142', meta: '추적 중', tone: 'nominal' },
       { label: '품질 보류', value: '3', meta: '검수 대기', tone: 'critical' },
@@ -34,7 +34,7 @@ const CONTENT = {
     detailLabel: '상세보기',
   },
   en: {
-    eyebrow: 'Supply Chain Ops / Lot & Shipment',
+    eyebrow: 'Supply Chain Ops / Lot',
     title: 'Lots',
     subtitle: 'Track lot history, inspection, and outbound state in one operating console.',
     metrics: [
@@ -91,7 +91,6 @@ async function fetchLots() {
     console.error('Failed to fetch lots:', err)
   }
 }
-
 onMounted(() => {
   fetchLots()
 })
@@ -224,7 +223,7 @@ onBeforeUnmount(() => header.clearActions())
       <div class="terminal-page__main">
         <section class="terminal-page__filter">
           <label class="terminal-page__search">
-            <span>⌕</span>
+            <span>SEARCH</span>
             <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
           </label>
           <div class="terminal-page__tabs">
@@ -239,7 +238,6 @@ onBeforeUnmount(() => header.clearActions())
             </button>
           </div>
         </section>
-
         <article class="page-panel lots-page__table-panel">
           <div class="page-panel__head">
             <div>
