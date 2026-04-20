@@ -47,10 +47,19 @@ watch(
   },
 )
 
-/** senderUserPublicId → displayName 변환 */
-function getSenderName(senderPublicId: string): string {
-  const participant = props.participants.find((p) => p.userPublicId === senderPublicId)
-  return participant?.displayName ?? '알 수 없음'
+/** senderUserPublicId → displayName 변환 (participants + store.availableUsers 통합 조회) */
+function getSenderName(senderPublicId: string | null | undefined): string {
+  if (!senderPublicId) return ''
+  const fromParticipants = props.participants.find((p) => p.userPublicId === senderPublicId)
+  if (fromParticipants) return fromParticipants.displayName
+  const fromStore = chatStore.availableUsers.find((u) => u.userPublicId === senderPublicId)
+  return fromStore?.displayName ?? senderPublicId.slice(0, 8) + '...'
+}
+
+/** 시스템 메시지 본문의 publicId를 표시명으로 치환 */
+function resolveSystemMessage(body: string): string {
+  // publicId 패턴: 26자리 ULID (부분 매치)
+  return body.replace(/01[A-Z0-9]{24}/g, (id) => getSenderName(id))
 }
 
 /** 업무 참조 카드 전송 핸들러 — ChatInput에서 3개 인자를 받아 상위로 전달 */
@@ -117,7 +126,15 @@ function handleInviteUser(userPublicId: string) {
         <ChatMessage
           v-for="msg in messages"
           :key="msg.publicId"
-          :message="msg"
+          :message="{
+            ...msg,
+            messageBody:
+              msg.messageType === 'SYSTEM' ||
+              msg.messageType === 'SYSTEM_JOIN' ||
+              msg.messageType === 'SYSTEM_LEAVE'
+                ? resolveSystemMessage(msg.messageBody)
+                : msg.messageBody,
+          }"
           :current-user-public-id="currentUserPublicId"
           :sender-name="getSenderName(msg.senderUserPublicId)"
           @delete="handleDeleteMessage"

@@ -4,8 +4,9 @@ import SockJS from 'sockjs-client'
 import { useAtlasNotificationStore } from '../stores/notification'
 import { NotificationDto } from '../services/notification'
 
-// Fallback to /ws endpoint. Bypassing API Gateway (8080) to hit control-service (8083) directly
-const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-chat' 
+// Gateway WebSocket 라우팅 미설정으로 8083 직결 사용
+// TODO: Gateway application.yml에 WebSocket route 설정 완료 후 원복
+const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-chat'
 
 export function useNotificationStomp(userPublicId: string = 'user-001') {
   const notificationStore = useAtlasNotificationStore()
@@ -43,7 +44,14 @@ export function useNotificationStomp(userPublicId: string = 'user-001') {
     }
 
     stompClient.onStompError = (frame) => {
-      console.error('[STOMP] Broker reported error: ' + frame.headers['message'])
+      const msg = frame.headers['message'] || ''
+      // 알림 구독 거부 시(백엔드 미구현 등) 재연결 중단 — 콘솔 스팸 방지
+      if (msg.includes('clientInboundChannel') || msg.includes('Failed to send')) {
+        console.warn('[STOMP] 알림 구독이 서버에서 거부되었습니다. 백엔드 /sub/notify.user.* 구현 여부를 확인하세요.')
+        stompClient?.deactivate()
+        return
+      }
+      console.error('[STOMP] Broker reported error: ' + msg)
       console.error('[STOMP] Additional details: ' + frame.body)
     }
 
