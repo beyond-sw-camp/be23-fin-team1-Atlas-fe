@@ -1,0 +1,106 @@
+import { apiClient } from './http'
+import type { SpringPage } from '../types'
+
+export type LogisticsNodeType =
+  | 'FACTORY'
+  | 'WAREHOUSE'
+  | 'HUB'
+  | 'LOGISTICS_CENTER'
+  | 'PORT'
+
+export interface CreateLogisticsNodeRequestDto {
+  nodeCode: string
+  nodeName: string
+  nodeType: LogisticsNodeType
+  address?: string
+  latitude?: number | null
+  longitude?: number | null
+}
+
+export interface UpdateLogisticsNodeRequestDto {
+  nodeCode: string
+  nodeName: string
+  nodeType: LogisticsNodeType
+  address?: string
+  latitude?: number | null
+  longitude?: number | null
+}
+
+export interface LogisticsNodeResponseDto {
+  publicId: string
+  organizationPublicId: string
+  nodeCode: string
+  nodeName: string
+  nodeType: LogisticsNodeType
+  address?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GetLogisticsNodesParams {
+  page?: number
+  size?: number
+}
+
+export async function createLogisticsNode(
+  data: CreateLogisticsNodeRequestDto,
+): Promise<LogisticsNodeResponseDto> {
+  const response = await apiClient.post<LogisticsNodeResponseDto>(
+    '/api/supply/logistics-nodes',
+    data,
+  )
+  return response.data
+}
+
+export async function getLogisticsNodes(
+  params: GetLogisticsNodesParams = {},
+): Promise<SpringPage<LogisticsNodeResponseDto>> {
+  const response = await apiClient.get<SpringPage<LogisticsNodeResponseDto>>(
+    '/api/supply/logistics-nodes',
+    {
+      params,
+    },
+  )
+  return response.data
+}
+
+export async function getLogisticsNode(
+  publicId: string,
+): Promise<LogisticsNodeResponseDto> {
+  const response = await apiClient.get<LogisticsNodeResponseDto>(
+    `/api/supply/logistics-nodes/${publicId}`,
+  )
+  return response.data
+}
+
+export async function updateLogisticsNode(
+  publicId: string,
+  data: UpdateLogisticsNodeRequestDto,
+): Promise<LogisticsNodeResponseDto> {
+  const response = await apiClient.patch<LogisticsNodeResponseDto>(
+    `/api/supply/logistics-nodes/${publicId}`,
+    data,
+  )
+  return response.data
+}
+
+export async function activateLogisticsNode(
+  publicId: string,
+): Promise<LogisticsNodeResponseDto> {
+  const response = await apiClient.patch<LogisticsNodeResponseDto>(
+    `/api/supply/logistics-nodes/${publicId}/activate`,
+  )
+  return response.data
+}
+
+export async function deactivateLogisticsNode(
+  publicId: string,
+): Promise<LogisticsNodeResponseDto> {
+  const response = await apiClient.patch<LogisticsNodeResponseDto>(
+    `/api/supply/logistics-nodes/${publicId}/deactivate`,
+  )
+  return response.data
+}
