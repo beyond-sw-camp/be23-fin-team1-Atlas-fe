@@ -42,3 +42,33 @@ export async function getOrganizations(
 
   return response.data
 }
+// 관리자 조직 생성 요청 바디입니다.
+export interface CreateOrganizationPayload {
+  organizationType: 'BUYER' | 'SUPPLIER'
+  organizationName: string
+  businessNo: string
+  contactFirstName: string
+  contactMiddleName?: string
+  contactLastName: string
+  contactEmail: string
+  contactPhone: string
+  tierLevel?: number | null
+}
+
+// 조직 생성 응답입니다.
+export interface CreateOrganizationResponse {
+  organizationPublicId: string
+}
+
+// 관리자가 새 조직을 생성합니다.
+export async function createOrganization(
+  payload: CreateOrganizationPayload,
+): Promise<CreateOrganizationResponse> {
+  const response = await apiClient.post<CreateOrganizationResponse>(
+    '/api/auth/organizations',
+    payload,
+  )
+
+  return response.data
+}
+
