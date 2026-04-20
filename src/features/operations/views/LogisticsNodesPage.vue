@@ -4,9 +4,15 @@ import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
+  activateLogisticsNode,
+  createLogisticsNode,
+  deactivateLogisticsNode,
   getLogisticsNodes,
+  updateLogisticsNode,
+  type CreateLogisticsNodeRequestDto,
   type LogisticsNodeResponseDto,
   type LogisticsNodeType,
+  type UpdateLogisticsNodeRequestDto,
 } from '../../../services/logistics'
 
 const header = useAtlasHeaderStore()
@@ -34,7 +40,7 @@ const CONTENT = {
     empty: '조회된 물류거점이 없습니다.',
     loading: '물류거점 목록을 불러오는 중입니다.',
     errorFallback: '물류거점 목록을 불러오지 못했습니다.',
-    columns: ['거점 코드', '거점명', '유형', '주소', '활성 상태', '수정일'],
+    columns: ['거점 코드', '거점명', '유형', '주소', '활성 상태', '수정일', '관리'],
     refreshLabel: '새로고침',
     createLabel: '거점 등록',
     active: '활성',
@@ -61,7 +67,7 @@ const CONTENT = {
     empty: 'No logistics nodes found.',
     loading: 'Loading logistics nodes...',
     errorFallback: 'Failed to load logistics nodes.',
-    columns: ['Code', 'Name', 'Type', 'Address', 'Active', 'Updated At'],
+    columns: ['Code', 'Name', 'Type', 'Address', 'Active', 'Updated At', 'Action'],
     refreshLabel: 'REFRESH',
     createLabel: 'ADD NODE',
     active: 'Active',
@@ -80,6 +86,10 @@ const currentPage = ref(0)
 const pageSize = ref(10)
 const totalElements = ref(0)
 const totalPages = ref(0)
+const isCreateSubmitting = ref(false)
+const createErrorMessage = ref('')
+const editingNodeId = ref<string | null>(null)
+const isEditMode = computed(() => editingNodeId.value !== null)
 const {
   isOpen: createModalOpen,
   open: openCreateModal,
@@ -111,6 +121,7 @@ const nodeTypeOptions: LogisticsNodeType[] = [
 ]
 
 function resetCreateForm() {
+  createErrorMessage.value = ''
   createForm.value = {
     nodeCode: '',
     nodeName: '',
@@ -124,8 +135,84 @@ function resetCreateForm() {
 function handleOpenCreateModal() {
   resetCreateForm()
   openCreateModal()
+  editingNodeId.value = null
 }
 
+function handleOpenEditModal(node: LogisticsNodeResponseDto) {
+  editingNodeId.value = node.publicId
+  createErrorMessage.value = ''
+  createForm.value = {
+    nodeCode: node.nodeCode,
+    nodeName: node.nodeName,
+    nodeType: node.nodeType,
+    address: node.address ?? '',
+    latitude: node.latitude != null ? String(node.latitude) : '',
+    longitude: node.longitude != null ? String(node.longitude) : '',
+  }
+  openCreateModal()
+}
+
+function parseCoordinate(value: string) {
+  const trimmed = value.trim()
+
+  if (!trimmed) {
+    return null
+  }
+
+  const parsed = Number(trimmed)
+
+  if (Number.isNaN(parsed)) {
+    throw new Error('위도/경도는 숫자로 입력해야 합니다.')
+  }
+
+  return parsed
+}
+
+async function handleCreateSubmit() {
+  const nodeCode = createForm.value.nodeCode.trim()
+  const nodeName = createForm.value.nodeName.trim()
+
+  if (!nodeCode || !nodeName) {
+    alert('거점 코드와 거점명은 필수입니다.')
+    return
+  }
+
+  isCreateSubmitting.value = true
+  createErrorMessage.value = ''
+
+  try {
+        const payload = {
+      nodeCode,
+      nodeName,
+      nodeType: createForm.value.nodeType,
+      address: createForm.value.address.trim() || undefined,
+      latitude: parseCoordinate(createForm.value.latitude),
+      longitude: parseCoordinate(createForm.value.longitude),
+    }
+
+    if (editingNodeId.value) {
+      await updateLogisticsNode(
+        editingNodeId.value,
+        payload as UpdateLogisticsNodeRequestDto,
+      )
+    } else {
+      await createLogisticsNode(
+        payload as CreateLogisticsNodeRequestDto,
+      )
+    }
+    closeCreateModal()
+    resetCreateForm()
+    await fetchLogisticsNodes()
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : content.value.errorFallback
+
+    createErrorMessage.value = message
+    alert(message)
+  } finally {
+    isCreateSubmitting.value = false
+  }
+}
 
 const filteredNodes = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -178,6 +265,37 @@ async function fetchLogisticsNodes() {
   } finally {
     isLoading.value = false
   }
+}
+
+async function handleToggleActive(node: LogisticsNodeResponseDto) {
+  try {
+    if (node.active) {
+      await deactivateLogisticsNode(node.publicId)
+    } else {
+      await activateLogisticsNode(node.publicId)
+    }
+
+    await fetchLogisticsNodes()
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : '상태 변경에 실패했습니다.'
+
+    alert(message)
+  }
+}
+
+function goToPreviousPage() {
+  if (currentPage.value === 0) return
+
+  currentPage.value -= 1
+  fetchLogisticsNodes()
+}
+
+function goToNextPage() {
+  if (currentPage.value >= totalPages.value - 1) return
+
+  currentPage.value += 1
+  fetchLogisticsNodes()
 }
 
 watchEffect(() => {
@@ -235,6 +353,30 @@ onBeforeUnmount(() => header.clearActions())
             <span>SEARCH</span>
             <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
           </label>
+
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :disabled="currentPage === 0 || isLoading"
+              @click="goToPreviousPage"
+            >
+              이전
+            </button>
+
+            <span style="font-size: 0.875rem; opacity: 0.8;">
+              {{ currentPage + 1 }} / {{ totalPages || 1 }}
+            </span>
+
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :disabled="totalPages === 0 || currentPage >= totalPages - 1 || isLoading"
+              @click="goToNextPage"
+            >
+              다음
+            </button>
+          </div>
         </section>
 
         <article class="page-panel">
@@ -276,6 +418,22 @@ onBeforeUnmount(() => header.clearActions())
                 {{ node.active ? content.active : content.inactive }}
               </span>
               <span>{{ formatDate(node.updatedAt) }}</span>
+                <span style="display: flex; gap: 8px;">
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  @click="handleOpenEditModal(node)"
+                >
+                  수정
+                </button>
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  @click="handleToggleActive(node)"
+                >
+                  {{ node.active ? '비활성화' : '활성화' }}
+                </button>
+              </span>
             </div>
           </div>
         </article>
@@ -364,15 +522,28 @@ onBeforeUnmount(() => header.clearActions())
           type="text"
           style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
         />
-      </label>
+        </label>
+    </div>
+
+    <div
+      v-if="createErrorMessage"
+      style="color: var(--color-critical); font-size: 0.875rem;"
+    >
+      {{ createErrorMessage }}
     </div>
 
     <template #footer>
+
       <button class="page-button page-button--secondary" type="button" @click="closeCreateModal">
         {{ content.createCancelLabel }}
       </button>
-      <button class="page-button page-button--primary" type="button">
-        {{ content.createSubmitLabel }}
+            <button
+        class="page-button page-button--primary"
+        type="button"
+        :disabled="isCreateSubmitting"
+        @click="handleCreateSubmit"
+      >
+        {{ isCreateSubmitting ? '저장 중...' : content.createSubmitLabel }}
       </button>
     </template>
   </BaseModal>

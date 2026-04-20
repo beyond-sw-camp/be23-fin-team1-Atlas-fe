@@ -49,6 +49,8 @@ apiClient.interceptors.request.use(
     
     // API 명세서에 따른 공통 헤더 필수값 추가 (이력 추적 및 권한 검증)
     config.headers['X-User-Public-Id'] = window.sessionStorage.getItem('atlas-user-public-id') || '01HQ456789ABCDEF01HQ456789'
+        config.headers['X-Organization-Public-Id'] =
+      window.sessionStorage.getItem('atlas-organization-public-id') || ''
 
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`
