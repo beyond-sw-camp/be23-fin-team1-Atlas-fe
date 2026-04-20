@@ -20,15 +20,6 @@ function getApiBaseUrl() {
   return normalizeBaseUrl(apiBaseUrl)
 }
 
-function getSessionStorageValue(key: string) {
-  if (typeof window === 'undefined') {
-    return ''
-  }
-
-  return window.sessionStorage.getItem(key) ?? ''
-}
-
-
 export class ApiError extends Error {
   status: number
   payload?: ApiErrorPayload
@@ -48,33 +39,66 @@ export const apiClient = axios.create({
     Accept: 'application/json',
   },
 })
+// 로그인 후 sessionStorage 에 저장해둔 키 이름입니다.
+// session.ts 에 저장하는 이름과 반드시 같아야 합니다.
+const ACCESS_TOKEN_STORAGE_KEY = 'atlas-access-token'
+const USER_PUBLIC_ID_STORAGE_KEY = 'atlas-user-public-id'
+const ORGANIZATION_PUBLIC_ID_STORAGE_KEY = 'atlas-organization-public-id'
+const ORGANIZATION_TYPE_STORAGE_KEY = 'atlas-organization-type'
+const USER_ROLE_STORAGE_KEY = 'atlas-user-role'
+
+// 값이 있을 때만 헤더를 붙이는 작은 헬퍼 함수입니다.
+// 값이 없으면 헤더를 아예 넣지 않습니다.
+function applyHeaderIfPresent(
+  config: InternalAxiosRequestConfig,
+  headerName: string,
+  value: string | null,
+) {
+
+  // 값이 있을 때만 헤더를 붙입니다.
+  if (value && value.trim()) {
+    config.headers[headerName] = value
+  }
+}
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const accessToken = getSessionStorageValue('atlas-access-token')
-    const userPublicId = getSessionStorageValue('atlas-user-public-id')
-    const organizationPublicId = getSessionStorageValue('atlas-organization-public-id')
-    const organizationType = getSessionStorageValue('atlas-organization-type')
-    const userRole = getSessionStorageValue('atlas-user-role')
+    // headers 객체가 없는 경우를 먼저 만들어둡니다.
+    if (!config.headers) {
+      config.headers = {} as InternalAxiosRequestConfig['headers']
+    }
 
+    // 현재 요청 URL이 어떤 API인지 확인합니다.
+    const requestUrl = config.url ?? ''
+
+    // supply / control / file 계열 요청인지 구분합니다.
+    const isSupplyRequest = requestUrl.startsWith('/api/supply')
+    const isControlRequest = requestUrl.startsWith('/api/control')
+    const isFileRequest = requestUrl.startsWith('/api/files')
+
+    // 로그인 후 세션에 저장된 값을 꺼냅니다.
+    const accessToken = window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
+    const userPublicId = window.sessionStorage.getItem(USER_PUBLIC_ID_STORAGE_KEY)
+    const organizationPublicId = window.sessionStorage.getItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY)
+    const organizationType = window.sessionStorage.getItem(ORGANIZATION_TYPE_STORAGE_KEY)
+    const userRole = window.sessionStorage.getItem(USER_ROLE_STORAGE_KEY)
+
+    // 인증 토큰은 모든 보호 API에서 쓸 수 있게 그대로 붙입니다.
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`
     }
 
-    if (userPublicId) {
-      config.headers['X-User-Public-Id'] = userPublicId
+    // 사용자 식별 헤더는 control / file / supply 요청에만 붙입니다.
+    if (isSupplyRequest || isControlRequest || isFileRequest) {
+      applyHeaderIfPresent(config, 'X-User-Public-Id', userPublicId)
     }
 
-    if (organizationPublicId) {
-      config.headers['X-Organization-Public-Id'] = organizationPublicId
-    }
-
-    if (organizationType) {
-      config.headers['X-Organization-Type'] = organizationType
-    }
-
-    if (userRole) {
-      config.headers['X-User-Role'] = userRole
+    // 조직/권한 헤더는 supply 요청에만 붙입니다.
+    // 검색(/api/search), auth(/api/auth)에는 일부러 붙이지 않습니다.
+    if (isSupplyRequest) {
+      applyHeaderIfPresent(config, 'X-Organization-Public-Id', organizationPublicId)
+      applyHeaderIfPresent(config, 'X-Organization-Type', organizationType)
+      applyHeaderIfPresent(config, 'X-User-Role', userRole)
     }
 
     return config
@@ -83,6 +107,7 @@ apiClient.interceptors.request.use(
     return Promise.reject(error)
   }
 )
+
 
 
 // Add a response interceptor for unified error formatting

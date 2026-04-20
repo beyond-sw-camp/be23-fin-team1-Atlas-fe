@@ -2,6 +2,8 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { Client, StompSubscription } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
+import { getUsers } from '../services/user'
+
 import type {
   ChatRoom,
   ChatMessageDto,
@@ -9,7 +11,6 @@ import type {
   ChatParticipant
 } from '../types/chat'
 import { chatService } from '../services/chat'
-import { apiClient } from '../services/http'
 import { useAtlasSessionStore } from './session'
 import { useAtlasNotificationStore } from './notification'
 
@@ -190,20 +191,27 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   }
 
   /** auth-service에서 전체 조직 사용자 목록을 가져와 초대 목록에 활용 */
-  async function fetchAvailableUsers() {
-    try {
-      const response = await apiClient.get('/api/auth/users')
-      const users = (response.data.content || response.data || []) as any[]
-      // ChatParticipant 형식으로 매핑
-      availableUsers.value = users.map((u: any) => ({
-        userPublicId: u.userPublicId,
-        displayName: `${u.lastName ?? ''}${u.firstName ?? ''}`,
-        jobTitle: u.jobTitle ?? '',
-      }))
-    } catch (e) {
-      console.error('[Chat] 사용자 목록 조회 실패', e)
-    }
+async function fetchAvailableUsers() {
+  try {
+    // 사용자 목록을 auth-service 조회 서비스로 가져옵니다.
+    const response = await getUsers({
+      page: 0,
+      size: 100,
+    })
+
+    const users = response.content ?? []
+
+    // 채팅 초대 목록에서 쓰는 형태로 변환합니다.
+    availableUsers.value = users.map((user) => ({
+      userPublicId: user.userPublicId,
+      displayName: `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim(),
+      jobTitle: user.jobTitle ?? '',
+    }))
+  } catch (e) {
+    console.error('[Chat] 사용자 목록 조회 실패', e)
   }
+}
+
 
   async function createRoom(name: string, userIds: string[]) {
     try {
