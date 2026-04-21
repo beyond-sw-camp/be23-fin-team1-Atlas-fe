@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watchEffect, onBeforeUnmount } from 'vue'
 import { getReturnRequests, type ReturnRequestResponseDto } from '../../../services/return'
+import { getOrganizations, type OrganizationListItem } from '../../../services/organization'
 import ReturnCreateModal from '../components/ReturnCreateModal.vue'
 import ReturnTimelineModal from '../components/ReturnTimelineModal.vue'
 
@@ -17,10 +18,33 @@ const isCreateModalOpen = ref(false)
 const isTimelineModalOpen = ref(false)
 const selectedReturn = ref<ReturnRequestResponseDto | null>(null)
 
+// 조직 publicId → 조직명 매핑용
+const orgNameMap = ref<Record<string, string>>({})
+
 // For formatting dates
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleString()
+}
+
+/** publicId로 조직명 조회 (없으면 publicId 앞 8글자로 표시) */
+function getOrgName(publicId: string | undefined): string {
+  if (!publicId) return '-'
+  return orgNameMap.value[publicId] || publicId.slice(0, 8) + '...'
+}
+
+async function fetchOrganizations() {
+  try {
+    const res = await getOrganizations({ page: 0, size: 200 })
+    const orgs = res.content || []
+    const map: Record<string, string> = {}
+    orgs.forEach((org: OrganizationListItem) => {
+      map[org.organizationPublicId] = org.organizationName
+    })
+    orgNameMap.value = map
+  } catch (e) {
+    console.error('Failed to fetch organizations:', e)
+  }
 }
 
 const content = computed(() => {
@@ -90,6 +114,7 @@ async function fetchReturns() {
 }
 
 onMounted(() => {
+  fetchOrganizations()
   fetchReturns()
 })
 
@@ -143,10 +168,6 @@ function handleCreateSuccess() {
           {{ content.completed }}
         </button>
       </div>
-
-      <button class="page-button page-button--primary" @click="isCreateModalOpen = true">
-        {{ content.newReturn }}
-      </button>
     </div>
 
     <!-- Data Table -->
@@ -172,8 +193,8 @@ function handleCreateSuccess() {
           </tr>
           <tr v-else v-for="item in filteredReturns" :key="item.publicId">
             <td class="font-mono">{{ item.returnNumber }}</td>
-            <td>{{ item.requestOrganizationName || item.requestOrganizationPublicId }}</td>
-            <td>{{ item.targetOrganizationName || item.targetOrganizationPublicId }}</td>
+            <td>{{ item.requestOrganizationName || getOrgName(item.requestOrganizationPublicId) }}</td>
+            <td>{{ item.targetOrganizationName || getOrgName(item.targetOrganizationPublicId) }}</td>
             <td>{{ item.returnType }}</td>
             <td>
               <span class="status-indicator" :class="item.returnStatus.toLowerCase()">
