@@ -61,6 +61,12 @@ export interface ItemCategoryResponseDto {
   updatedAt: string
 }
 
+export interface CreateItemCategoryRequestDto {
+  parentCategoryPublicId?: string
+  categoryName: string
+  sortOrder?: number
+}
+
 export interface ItemResponseDto {
   publicId: string
   supplierPublicId: string
@@ -147,5 +153,11 @@ export async function getItemCategory(categoryPublicId: string) {
   const response = await apiClient.get<ItemCategoryResponseDto>(
     `/api/supply/item-category/${categoryPublicId}`,
   )
+  return response.data
+}
+
+// 품목 카테고리 등록
+export async function createItemCategory(data: CreateItemCategoryRequestDto) {
+  const response = await apiClient.post<ItemCategoryResponseDto>('/api/supply/item-category', data)
   return response.data
 }

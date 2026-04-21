@@ -125,7 +125,7 @@ export const NAV_ITEMS: NavEntry[] = [
     description: '품목 관리와 재고 임계치',
     pageSubtitle: 'SKU, 재고, 재발주점, 공급처 기준 운영',
     section: 'operations',
-    organizations: ['mainBuyer', 'admin'],
+    organizations: ['mainBuyer', 'supplier', 'admin'],
   },
   {
     key: 'lots',
