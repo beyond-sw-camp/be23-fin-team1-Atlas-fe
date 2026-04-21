@@ -4,9 +4,7 @@ import SockJS from 'sockjs-client'
 import { useAtlasNotificationStore } from '../stores/notification'
 import { NotificationDto } from '../services/notification'
 
-// Gateway WebSocket 라우팅 미설정으로 8083 직결 사용
-// TODO: Gateway application.yml에 WebSocket route 설정 완료 후 원복
-const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-chat'
+const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8080/api/control/ws-chat'
 
 export function useNotificationStomp(userPublicId: string = 'user-001') {
   const notificationStore = useAtlasNotificationStore()

@@ -32,7 +32,9 @@ const isInviting = ref(false)
 
 const availableUsersToInvite = computed(() => {
   return chatStore.availableUsers.filter(
-    (u) => !props.participants.some((p) => p.userPublicId === u.userPublicId)
+    (u) => 
+      u.userPublicId !== props.currentUserPublicId &&
+      !props.participants.some((p) => p.userPublicId === u.userPublicId)
   )
 })
 
@@ -77,6 +79,13 @@ function handleInviteUser(userPublicId: string) {
   chatStore.inviteUser(userPublicId)
   isInviting.value = false
 }
+
+/** 채팅방 나가기 핸들러 */
+function handleLeaveRoom() {
+  if (confirm('정말로 이 채팅방에서 나가시겠습니까?\n나가면 채팅 목록에서 삭제됩니다.')) {
+    chatStore.leaveRoom()
+  }
+}
 </script>
 
 <template>
@@ -90,6 +99,15 @@ function handleInviteUser(userPublicId: string) {
         {{ roomName }}
       </strong>
       
+      <button 
+        class="chat-room__leave-btn" 
+        type="button" 
+        style="background: transparent; border: none; color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; margin-right: 4px;"
+        @click="handleLeaveRoom"
+        title="방 나가기">
+        <span class="material-symbols-outlined">logout</span>
+      </button>
+
       <button 
         class="chat-room__invite-btn" 
         type="button" 
