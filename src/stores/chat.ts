@@ -14,8 +14,6 @@ import { chatService } from '../services/chat'
 import { useAtlasSessionStore } from './session'
 import { useAtlasNotificationStore } from './notification'
 
-// Gateway WebSocket 라우팅 미설정으로 8083 직결 사용
-// TODO: Gateway application.yml에 WebSocket route 설정 완료 후 http://localhost:8080/api/control/ws-chat 로 원복
 const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-chat'
 
 export const useAtlasChatStore = defineStore('atlasChat', () => {
@@ -228,9 +226,37 @@ async function fetchAvailableUsers() {
     if (!currentRoomPublicId.value) return
     try {
       await chatService.inviteParticipants(currentRoomPublicId.value, currentUserPublicId.value, [userPublicId])
-      // 참여자 목록 갱신을 위해 방 정보 리로드 가능
+      
+      // 즉각적인 UI 반영을 위한 낙관적 업데이트 (Optimistic Update)
+      const room = rooms.value.find(r => r.publicId === currentRoomPublicId.value)
+      if (room) {
+        if (!room.participants) room.participants = []
+        if (!room.participants.some(p => p.userPublicId === userPublicId)) {
+          const invitedUser = availableUsers.value.find(u => u.userPublicId === userPublicId)
+          if (invitedUser) {
+            room.participants.push(invitedUser)
+          } else { // fallback if user is not in availableUsers
+            room.participants.push({ userPublicId, displayName: '초대된 유저' })
+          }
+        }
+      }
     } catch (e) {
       console.error('Failed to invite user', e)
+    }
+  }
+
+  async function leaveRoom() {
+    if (!currentRoomPublicId.value || !currentUserPublicId.value) return
+    try {
+      await chatService.leaveRoom(currentRoomPublicId.value, currentUserPublicId.value)
+      // 낙관적 업데이트: 현재 목록에서 방 제거
+      rooms.value = rooms.value.filter(r => r.publicId !== currentRoomPublicId.value)
+      // 목록으로 돌아가기
+      backToList()
+      // 최신 갱신을 위해 방 목록 비동기 호출
+      fetchRooms()
+    } catch (e) {
+      console.error('Failed to leave room', e)
     }
   }
 
@@ -375,6 +401,7 @@ async function fetchAvailableUsers() {
     closePanel,
     createRoom,
     inviteUser,
+    leaveRoom,
     openRoom,
     backToList,
     sendMessage,
