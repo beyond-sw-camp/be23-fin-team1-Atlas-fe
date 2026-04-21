@@ -81,10 +81,27 @@ function handleInviteUser(userPublicId: string) {
 }
 
 /** 채팅방 나가기 핸들러 */
+/** 채팅방 나가기 핸들러 */
 function handleLeaveRoom() {
   if (confirm('정말로 이 채팅방에서 나가시겠습니까?\n나가면 채팅 목록에서 삭제됩니다.')) {
     chatStore.leaveRoom()
   }
+}
+
+const isEditingName = ref(false)
+const editedRoomName = ref('')
+
+function startEditingName() {
+  editedRoomName.value = props.roomName
+  isEditingName.value = true
+}
+
+async function handleRenameRoom() {
+  const name = editedRoomName.value.trim()
+  if (name && name !== props.roomName && chatStore.currentRoomPublicId) {
+    await chatStore.renameRoom(chatStore.currentRoomPublicId, name)
+  }
+  isEditingName.value = false
 }
 </script>
 
@@ -95,9 +112,47 @@ function handleLeaveRoom() {
       <button class="chat-room__back" type="button" @click="$emit('back')">
         <span class="material-symbols-outlined">arrow_back</span>
       </button>
-      <strong class="chat-room__title" style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-        {{ roomName }}
-      </strong>
+      <div 
+        v-if="!isEditingName" 
+        style="flex: 1; display: flex; align-items: center; overflow: hidden;"
+      >
+        <strong class="chat-room__title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;">
+          {{ roomName }}
+        </strong>
+        <button
+          type="button"
+          @click="startEditingName"
+          style="background: transparent; border: none; color: var(--color-on-surface-variant, #C6C6C6); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;"
+          title="이름 변경"
+        >
+          <span class="material-symbols-outlined" style="font-size: 1.1rem;">edit</span>
+        </button>
+      </div>
+      
+      <div 
+        v-else 
+        style="flex: 1; display: flex; align-items: center; gap: 4px;"
+      >
+        <input 
+          v-model="editedRoomName" 
+          type="text" 
+          @keyup.enter="handleRenameRoom" 
+          @keyup.esc="isEditingName = false" 
+          style="flex: 1; background: transparent; border: none; border-bottom: 1px solid var(--color-primary, #FFFFFF); color: inherit; outline: none; font-size: 1rem; font-weight: bold;" 
+        />
+        <button 
+          @click="handleRenameRoom" 
+          style="background: transparent; border: none; color: var(--color-primary, #FFFFFF); cursor: pointer; padding: 4px;"
+        >
+          <span class="material-symbols-outlined" style="font-size: 1.1rem;">check</span>
+        </button>
+        <button 
+          @click="isEditingName = false" 
+          style="background: transparent; border: none; color: var(--color-error, #FF5252); cursor: pointer; padding: 4px;"
+        >
+          <span class="material-symbols-outlined" style="font-size: 1.1rem;">close</span>
+        </button>
+      </div>
       
       <button 
         class="chat-room__leave-btn" 
