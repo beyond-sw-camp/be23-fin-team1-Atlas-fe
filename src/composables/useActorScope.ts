@@ -20,10 +20,6 @@ export function useActorScope() {
   const isOrgAdminRole = computed(() => userRole.value === 'ORG_ADMIN')
   const isUserRole = computed(() => userRole.value === 'USER')
 
-  const isBuyerOrganization = computed(() => organizationType.value === 'BUYER')
-  const isSupplierOrganization = computed(() => organizationType.value === 'SUPPLIER')
-  const isPlatformOrganization = computed(() => organizationType.value === 'ADMIN')
-
   // 협력사 목록 전체 조회는 백엔드 SupplierService 기준으로
   // ADMIN role 또는 BUYER organization 에서만 허용됩니다.
   const canViewAllSupplierDirectory = computed(
@@ -35,6 +31,15 @@ export function useActorScope() {
 
   // 품목 CRUD 는 supplier 조직만 가능합니다.
   const canManageItems = computed(() => isSupplierOrganization.value)
+
+
+  const isBuyerOrganization = computed(() => organizationType.value === 'BUYER')
+  const isSupplierOrganization = computed(() => organizationType.value === 'SUPPLIER')
+  const isPlatformOrganization = computed(() => organizationType.value === 'ADMIN')
+  // 품목 카테고리 등록 버튼은 관리자 조직(ADMIN organization)에서만 노출합니다.
+  // 그래서 BUYER / SUPPLIER 로 로그인하면 버튼이 보이지 않습니다.
+  const canManageItemCategories = computed(() => isPlatformOrganization.value)
+
 
   // 발주 생성/수정은 buyer 조직 기준입니다.
   const canCreatePurchaseOrder = computed(() => isBuyerOrganization.value)
@@ -62,5 +67,6 @@ export function useActorScope() {
     canCreatePurchaseOrder,
     canManagePurchaseOrdersAsBuyer,
     ordersViewType,
+    canManageItemCategories,
   }
 }

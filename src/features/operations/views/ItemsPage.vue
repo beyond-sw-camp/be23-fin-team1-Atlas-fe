@@ -6,9 +6,11 @@ import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useActorScope } from '../../../composables/useActorScope'
 import {
   createItem,
+  createItemCategory,
   getItem,
   getItemCategories,
   getItems,
+  type CreateItemCategoryRequestDto,
   type CreateItemRequestDto,
   type GetItemsParams,
   type ItemCategoryResponseDto,
@@ -45,6 +47,62 @@ type CreateItemFormState = CreateItemRequestDto & {
   moq: number | null
   qualityGrade: SupplierItemQualityGrade | ''
 }
+
+type CategoryPathOption = {
+  publicId: string
+  label: string
+  level: number
+  isLeaf: boolean
+}
+
+type CreateCategoryFormState = {
+  parentCategoryPublicId: string
+  categoryName: string
+  sortOrder: number | null
+}
+
+const createCategoryLabel = computed(() =>
+  preferences.language === 'ko' ? '카테고리 등록' : 'ADD CATEGORY',
+)
+
+const createCategoryTitle = computed(() =>
+  preferences.language === 'ko' ? '품목 카테고리 등록' : 'Create Item Category',
+)
+
+const createCategoryDescription = computed(() =>
+  preferences.language === 'ko'
+    ? '상위 카테고리를 선택해서 하위 카테고리를 등록합니다. 비워두면 최상위 카테고리로 등록됩니다.'
+    : 'Select a parent category to create a child category. Leave it empty to create a top-level category.',
+)
+
+const topLevelCategoryLabel = computed(() =>
+  preferences.language === 'ko' ? '최상위 카테고리' : 'Top-level category',
+)
+
+const itemCategoryPlaceholder = computed(() =>
+  preferences.language === 'ko' ? '카테고리 선택' : 'Select category',
+)
+
+const itemCategoryHint = computed(() =>
+  preferences.language === 'ko'
+    ? '품목 등록은 최하위 카테고리만 선택할 수 있습니다. 예: 식품 > 냉동 식품'
+    : 'Only leaf categories can be selected for item creation.',
+)
+
+const categoryParentHint = computed(() =>
+  preferences.language === 'ko'
+    ? '예: 식품을 선택하고 카테고리명을 냉동 식품으로 입력하면 식품 > 냉동 식품이 됩니다.'
+    : 'Example: choose Food and enter Frozen Food to create Food > Frozen Food.',
+)
+
+const commonCancelLabel = computed(() =>
+  preferences.language === 'ko' ? '취소' : 'Cancel',
+)
+
+const categorySubmitLabel = computed(() =>
+  preferences.language === 'ko' ? '카테고리 등록' : 'Create Category',
+)
+
 
 const ITEM_UNIT_OPTIONS: ItemUnit[] = [
   'EA', 'SET', 'PAIR',
@@ -189,6 +247,17 @@ const selectedCapability = ref<SupplierItemCapabilityResponseDto | null>(null)
 // 품목 등록 모달 상태
 const createModalOpen = ref(false)
 
+// 관리자용 카테고리 등록 모달 상태입니다.
+const categoryCreateModalOpen = ref(false)
+const categoryCreateLoading = ref(false)
+const categoryCreateErrorMessage = ref('')
+
+const categoryCreateForm = ref<CreateCategoryFormState>({
+  parentCategoryPublicId: '',
+  categoryName: '',
+  sortOrder: 1,
+})
+
 const createLoading = ref(false)
 const createErrorMessage = ref('')
 const createdItemForCapability = ref<ItemResponseDto | null>(null)
@@ -221,6 +290,52 @@ function formatLeadTime(value: number | null | undefined) {
   if (value == null) return '-'
   return preferences.language === 'ko' ? `${value}일` : `${value}d`
 }
+
+// 카테고리 parent-child 구조를 따라 "식품 > 냉동 식품" 같은 경로 라벨을 만듭니다.
+const categoryPathOptions = computed<CategoryPathOption[]>(() => {
+  const categoryMap = new Map(
+    categories.value.map((category) => [category.publicId, category]),
+  )
+
+  const parentIds = new Set(
+    categories.value
+      .map((category) => category.parentCategoryPublicId)
+      .filter((value): value is string => !!value),
+  )
+
+  function buildPath(category: ItemCategoryResponseDto) {
+    const names: string[] = []
+    const visited = new Set<string>()
+
+    let current: ItemCategoryResponseDto | undefined = category
+
+    while (current && !visited.has(current.publicId)) {
+      visited.add(current.publicId)
+      names.unshift(current.categoryName)
+
+      current = current.parentCategoryPublicId
+        ? categoryMap.get(current.parentCategoryPublicId)
+        : undefined
+    }
+
+    return names.join(' > ')
+  }
+
+  return categories.value
+    .map((category) => ({
+      publicId: category.publicId,
+      label: buildPath(category),
+      level: category.categoryLevel,
+      isLeaf: !parentIds.has(category.publicId),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'ko-KR'))
+})
+
+// 품목 등록에서는 최하위 카테고리만 선택하게 합니다.
+const leafCategoryOptions = computed(() =>
+  categoryPathOptions.value.filter((category) => category.isLeaf),
+)
+
 
 function qualityGradeText(value: SupplierItemQualityGrade | null | undefined) {
   if (!value) return '-'
@@ -325,7 +440,7 @@ async function fetchItems() {
 
 // 등록 모달에서 사용할 카테고리 목록입니다.
 async function loadItemCategories() {
-  if (!actor.canManageItems.value) return
+  if (!actor.canManageItems.value && !actor.canManageItemCategories.value) return
 
   try {
     const response = await getItemCategories(0, 100)
@@ -343,6 +458,7 @@ async function loadItemCategories() {
     categories.value = []
   }
 }
+
 
 function resetCreateForm() {
   createErrorMessage.value = ''
@@ -378,6 +494,83 @@ function closeCreateModal() {
   createLoading.value = false
   resetCreateForm()
 }
+
+function resetCategoryCreateForm() {
+  categoryCreateErrorMessage.value = ''
+  categoryCreateForm.value = {
+    parentCategoryPublicId: '',
+    categoryName: '',
+    sortOrder: 1,
+  }
+}
+
+function openCategoryCreateModal() {
+  if (!actor.canManageItemCategories.value) return
+
+  resetCategoryCreateForm()
+  categoryCreateModalOpen.value = true
+
+  if (!categories.value.length) {
+    void loadItemCategories()
+  }
+}
+
+function closeCategoryCreateModal() {
+  categoryCreateModalOpen.value = false
+  categoryCreateLoading.value = false
+  resetCategoryCreateForm()
+}
+
+async function submitCreateCategory() {
+  if (!categoryCreateForm.value.categoryName.trim()) {
+    categoryCreateErrorMessage.value =
+      preferences.language === 'ko'
+        ? '카테고리명을 입력해 주세요.'
+        : 'Enter category name.'
+    return
+  }
+
+  if (
+    categoryCreateForm.value.sortOrder != null &&
+    categoryCreateForm.value.sortOrder < 0
+  ) {
+    categoryCreateErrorMessage.value =
+      preferences.language === 'ko'
+        ? '정렬 순서는 0 이상이어야 합니다.'
+        : 'Sort order must be 0 or more.'
+    return
+  }
+
+  try {
+    categoryCreateLoading.value = true
+    categoryCreateErrorMessage.value = ''
+
+    const savedCategory = await createItemCategory({
+      parentCategoryPublicId:
+        categoryCreateForm.value.parentCategoryPublicId || undefined,
+      categoryName: categoryCreateForm.value.categoryName.trim(),
+      sortOrder: categoryCreateForm.value.sortOrder ?? undefined,
+    } satisfies CreateItemCategoryRequestDto)
+
+    await loadItemCategories()
+
+    // 카테고리 등록 직후 품목 등록 모달이 열려 있으면 바로 새 카테고리를 선택해 둡니다.
+    if (createModalOpen.value) {
+      createForm.value.itemCategoryPublicId = savedCategory.publicId
+    }
+
+    closeCategoryCreateModal()
+  } catch (error: any) {
+    categoryCreateErrorMessage.value =
+      error.message ??
+      (preferences.language === 'ko'
+        ? '카테고리 등록에 실패했습니다.'
+        : 'Failed to create category.')
+  } finally {
+    categoryCreateLoading.value = false
+  }
+}
+
 
 function isNonNegativeNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
@@ -624,6 +817,16 @@ onMounted(() => {
 watchEffect(() => {
   header.setActions([
     { key: 'items-export', label: copy.value.exportLabel, tone: 'secondary' },
+    ...(actor.canManageItemCategories.value
+      ? [
+          {
+            key: 'items-category-create',
+            label: createCategoryLabel.value,
+            tone: 'secondary' as const,
+            onClick: openCategoryCreateModal,
+          },
+        ]
+      : []),
     ...(actor.canManageItems.value
       ? [
           {
@@ -636,6 +839,7 @@ watchEffect(() => {
       : []),
   ])
 })
+
 
 
 onBeforeUnmount(() => {
@@ -707,8 +911,18 @@ const categoryOptions = computed<CategoryOption[]>(() => {
         <button class="page-button page-button--secondary" type="button">
           {{ copy.exportLabel }}
         </button>
+
         <button
-          v-if="actor.canManageItems"
+          v-if="actor.canManageItemCategories.value"
+          class="page-button page-button--secondary"
+          type="button"
+          @click="openCategoryCreateModal"
+        >
+          {{ createCategoryLabel }}
+        </button>
+
+        <button
+          v-if="actor.canManageItems.value"
           class="page-button page-button--primary"
           type="button"
           @click="openCreateModal"
@@ -921,20 +1135,22 @@ const categoryOptions = computed<CategoryOption[]>(() => {
 
         <label class="items-page__field">
           <span>CATEGORY</span>
-          <select v-model="createForm.itemCategoryPublicId" :disabled="!!createdItemForCapability">
-            <option value="">카테고리 선택</option>
+          <select
+            v-model="createForm.itemCategoryPublicId"
+            :disabled="!!createdItemForCapability"
+          >
+            <option value="">{{ itemCategoryPlaceholder }}</option>
             <option
-              v-for="category in categoryOptions"
+              v-for="category in leafCategoryOptions"
               :key="category.publicId"
               :value="category.publicId"
             >
               {{ category.label }}
             </option>
           </select>
-          <small class="items-page__hint">
-            최하위 카테고리만 선택할 수 있습니다. 예: 식품 > 냉동 식품
-          </small>
+          <small class="items-page__hint">{{ itemCategoryHint }}</small>
         </label>
+
 
         <label class="items-page__field">
           <span>ITEM CODE</span>
@@ -1008,6 +1224,71 @@ const categoryOptions = computed<CategoryOption[]>(() => {
         </button>
         <button class="page-button page-button--primary" type="button" :disabled="createLoading" @click="submitCreateItem">
           {{ createdItemForCapability ? copy.retrySubmitLabel : copy.submitLabel }}
+        </button>
+      </div>
+    </div>
+  </BaseModal>
+
+  <BaseModal
+    v-model="categoryCreateModalOpen"
+    :title="createCategoryTitle"
+    :description="createCategoryDescription"
+    size="md"
+    @close="closeCategoryCreateModal"
+  >
+    <div class="items-page__form">
+      <label class="items-page__field">
+        <span>PARENT CATEGORY</span>
+        <select v-model="categoryCreateForm.parentCategoryPublicId">
+          <option value="">{{ topLevelCategoryLabel }}</option>
+          <option
+            v-for="category in categoryPathOptions"
+            :key="category.publicId"
+            :value="category.publicId"
+          >
+            {{ category.label }}
+          </option>
+        </select>
+        <small class="items-page__hint">{{ categoryParentHint }}</small>
+      </label>
+
+      <label class="items-page__field">
+        <span>CATEGORY NAME</span>
+        <input
+          v-model="categoryCreateForm.categoryName"
+          type="text"
+          maxlength="100"
+        />
+      </label>
+
+      <label class="items-page__field">
+        <span>SORT ORDER</span>
+        <input
+          v-model.number="categoryCreateForm.sortOrder"
+          type="number"
+          min="0"
+        />
+      </label>
+
+      <p v-if="categoryCreateErrorMessage" class="items-page__error">
+        {{ categoryCreateErrorMessage }}
+      </p>
+
+      <div class="items-page__actions">
+        <button
+          class="page-button page-button--secondary"
+          type="button"
+          @click="closeCategoryCreateModal"
+        >
+          {{ commonCancelLabel }}
+        </button>
+        <button
+          class="page-button page-button--primary"
+          type="button"
+          :disabled="categoryCreateLoading"
+          @click="submitCreateCategory"
+        >
+          {{ categorySubmitLabel }}
         </button>
       </div>
     </div>

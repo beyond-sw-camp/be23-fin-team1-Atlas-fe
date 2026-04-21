@@ -4,12 +4,17 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
+  createSupplier,
   getSupplier,
   getSuppliers,
+  type CreateSupplierRequestDto,
+  type SupplierListResponseDto,
   type SupplierResponseDto,
   type SupplierTierLevel,
 } from '../../../services/supplier'
+import { getOrganizations, type OrganizationListItem } from '../../../services/organization'
 import { useAtlasSessionStore } from '../../../stores/session'
+import { useActorScope } from '../../../composables/useActorScope'
 
 
 
@@ -26,9 +31,22 @@ type SupplierTableRow = {
   cells: string[]
 }
 
+type CreateSupplierFormState = {
+  organizationPublicId: string
+  supplierCode: string
+  supplierName: string
+  tierLevel: SupplierTierLevel
+  primaryContactName: string
+  primaryContactEmail: string
+  primaryContactPhone: string
+}
+
 const preferences = useAtlasPreferencesStore()
 // 현재 로그인 조직 타입을 확인하려고 세션 스토어를 씁니다.
 const session = useAtlasSessionStore()
+
+// 화면에서 역할별 버튼 노출 제어에 사용합니다.
+const actor = useActorScope()
 
 // 검색 API를 너무 자주 호출하지 않게 잠깐 기다리는 타이머입니다.
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -151,6 +169,23 @@ const detailLoading = ref(false)
 const detailErrorMessage = ref('')
 const selectedSupplier = ref<SupplierResponseDto | null>(null)
 
+// 관리자 전용 협력사 등록 모달 상태입니다.
+const createModalOpen = ref(false)
+const createLoading = ref(false)
+const createErrorMessage = ref('')
+const supplierOrganizationOptions = ref<OrganizationListItem[]>([])
+
+const createForm = ref<CreateSupplierFormState>({
+  organizationPublicId: '',
+  supplierCode: '',
+  supplierName: '',
+  tierLevel: 'TIER1',
+  primaryContactName: '',
+  primaryContactEmail: '',
+  primaryContactPhone: '',
+})
+
+
 const search = ref('')
 const activeTab = ref<SupplierTabKey>('ALL')
 
@@ -214,29 +249,33 @@ function supplierStatusText(value: string) {
   }
 }
 
-// API 응답을 기존 테이블 레이아웃에 맞게 변환합니다.
-// 백엔드가 실제로 주는 기본 협력사 응답 형태에 맞춰 화면용 행 데이터를 만듭니다.
-function toDisplayRow(supplier: SupplierResponseDto): SupplierTableRow {
+// 협력사 목록 API 응답을 기존 테이블 행 구조로 변환합니다.
+// 목록 API는 SupplierListResponseDto 를 내려주므로 상세 DTO가 아니라 목록 DTO 기준으로 받습니다.
+function toDisplayRow(supplier: SupplierListResponseDto): SupplierTableRow {
+  const supplierStatus = supplier.detail?.supplierStatus ?? supplier.status
+  const approvalStatus = supplier.detail?.approvalStatus
+
   return {
     supplierCode: supplier.supplierCode,
     supplierName: supplier.supplierName,
-    publicId: supplier.publicId,
-    supplierStatus: supplier.supplierStatus,
-    approvalStatus: supplier.approvalStatus,
-    detail: supplier,
+    publicId: supplier.detail?.publicId,
+    supplierStatus,
+    approvalStatus,
+    detail: supplier.detail,
     cells: [
       supplier.supplierCode || '-',
       supplier.supplierName || '-',
       tierText(supplier.tierLevel),
-      '-', // 아직 없는 지표 컬럼은 임시로 비워 둡니다.
-      '-',
-      '-',
-      '-',
-      '-',
-      supplierStatusText(supplier.supplierStatus),
+      formatPercent(supplier.onTimeRate),
+      formatNumber(supplier.supplierScore),
+      formatNumber(supplier.qualityScore),
+      formatNumber(supplier.purchaseOrderCount),
+      formatAmount(supplier.cumulativeAmount),
+      supplierStatusText(supplierStatus),
     ],
   }
 }
+
 
 
 // 총 협력사만 실제 데이터로 바꾸고 나머지 카드 값은 더미 유지합니다.
@@ -326,6 +365,10 @@ onBeforeUnmount(() => {
 
 onMounted(() => {
   void fetchSupplierRows()
+
+  if (actor.canCreateSupplier.value) {
+    void loadSupplierOrganizations()
+  }
 })
 
 async function openSupplierDetail(publicId: string) {
@@ -349,6 +392,99 @@ function closeSupplierDetail() {
   detailErrorMessage.value = ''
   selectedSupplier.value = null
 }
+
+// 협력사 등록 모달 기본값으로 되돌립니다.
+function resetCreateForm() {
+  createErrorMessage.value = ''
+  createForm.value = {
+    organizationPublicId: '',
+    supplierCode: '',
+    supplierName: '',
+    tierLevel: 'TIER1',
+    primaryContactName: '',
+    primaryContactEmail: '',
+    primaryContactPhone: '',
+  }
+}
+
+// 협력사로 생성 가능한 조직 목록을 관리자 화면에서만 불러옵니다.
+async function loadSupplierOrganizations() {
+  if (!actor.canCreateSupplier.value) {
+    supplierOrganizationOptions.value = []
+    return
+  }
+
+  try {
+    const response = await getOrganizations({
+      organizationType: 'SUPPLIER',
+      page: 0,
+      size: 100,
+    })
+
+    supplierOrganizationOptions.value = response.content
+      .slice()
+      .sort((a, b) => a.organizationName.localeCompare(b.organizationName, 'ko-KR'))
+  } catch {
+    supplierOrganizationOptions.value = []
+  }
+}
+
+// 관리자일 때만 협력사 등록 모달을 엽니다.
+function openCreateModal() {
+  if (!actor.canCreateSupplier.value) return
+
+  resetCreateForm()
+  createModalOpen.value = true
+}
+
+// 협력사 등록 모달을 닫습니다.
+function closeCreateModal() {
+  createModalOpen.value = false
+  createErrorMessage.value = ''
+}
+
+// 협력사 생성 API를 호출합니다.
+async function submitCreateSupplier() {
+  if (!createForm.value.organizationPublicId) {
+    createErrorMessage.value = '협력사 조직을 선택해 주세요.'
+    return
+  }
+
+  if (!createForm.value.supplierCode.trim()) {
+    createErrorMessage.value = '협력사 코드를 입력해 주세요.'
+    return
+  }
+
+  if (!createForm.value.supplierName.trim()) {
+    createErrorMessage.value = '협력사명을 입력해 주세요.'
+    return
+  }
+
+  try {
+    createLoading.value = true
+    createErrorMessage.value = ''
+
+    const payload: CreateSupplierRequestDto = {
+      organizationPublicId: createForm.value.organizationPublicId,
+      supplierCode: createForm.value.supplierCode.trim(),
+      supplierName: createForm.value.supplierName.trim(),
+      tierLevel: createForm.value.tierLevel,
+      primaryContactName: createForm.value.primaryContactName.trim(),
+      primaryContactEmail: createForm.value.primaryContactEmail.trim(),
+      primaryContactPhone: createForm.value.primaryContactPhone.trim(),
+    }
+
+    await createSupplier(payload)
+
+    closeCreateModal()
+    await fetchSupplierRows(search.value)
+  } catch (error: any) {
+    createErrorMessage.value = error.message ?? '협력사 등록에 실패했습니다.'
+  } finally {
+    createLoading.value = false
+  }
+}
+
 </script>
 
 <template>
@@ -361,8 +497,18 @@ function closeSupplierDetail() {
       </div>
 
       <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button">{{ content.exportLabel }}</button>
-        <button class="page-button page-button--primary" type="button">{{ content.createLabel }}</button>
+        <button class="page-button page-button--secondary" type="button">
+          {{ content.exportLabel }}
+        </button>
+
+        <button
+          v-if="actor.canCreateSupplier.value"
+          class="page-button page-button--primary"
+          type="button"
+          @click="openCreateModal"
+        >
+          {{ content.createLabel }}
+        </button>
       </div>
     </header>
 
@@ -487,6 +633,117 @@ function closeSupplierDetail() {
       </aside>
     </section>
   </section>
+
+  <BaseModal
+  v-model="createModalOpen"
+  :title="content.createLabel"
+  :description="preferences.language === 'ko' ? '관리자 권한으로 협력사 마스터를 등록합니다.' : 'Create supplier master data as admin.'"
+  size="md"
+  @close="closeCreateModal"
+>
+  <div class="page-form" style="display: flex; flex-direction: column; gap: 16px;">
+    <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">협력사 조직</span>
+      <div style="width: 100%; border-bottom: 2px solid var(--color-surface-container-high);">
+        <select
+          v-model="createForm.organizationPublicId"
+          style="font-family: inherit; font-size: inherit; width: 100%; appearance: auto; background: transparent; color: var(--color-on-surface); padding: 8px 0; border: none; outline: none;"
+        >
+          <option value="">조직을 선택하세요.</option>
+          <option
+            v-for="organization in supplierOrganizationOptions"
+            :key="organization.organizationPublicId"
+            :value="organization.organizationPublicId"
+          >
+            {{ organization.organizationName }} / {{ organization.organizationPublicId }}
+          </option>
+        </select>
+      </div>
+    </label>
+
+    <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">협력사 코드</span>
+      <input
+        v-model="createForm.supplierCode"
+        type="text"
+        placeholder="예: SUP-001"
+        style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
+      />
+    </label>
+
+    <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">협력사명</span>
+      <input
+        v-model="createForm.supplierName"
+        type="text"
+        placeholder="협력사명을 입력하세요."
+        style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
+      />
+    </label>
+
+    <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">티어</span>
+      <div style="width: 100%; border-bottom: 2px solid var(--color-surface-container-high);">
+        <select
+          v-model="createForm.tierLevel"
+          style="font-family: inherit; font-size: inherit; width: 100%; appearance: auto; background: transparent; color: var(--color-on-surface); padding: 8px 0; border: none; outline: none;"
+        >
+          <option value="TIER1">TIER 1</option>
+          <option value="TIER2">TIER 2</option>
+          <option value="TIER3">TIER 3</option>
+        </select>
+      </div>
+    </label>
+
+    <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">담당자명</span>
+      <input
+        v-model="createForm.primaryContactName"
+        type="text"
+        placeholder="담당자명을 입력하세요."
+        style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
+      />
+    </label>
+
+    <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">담당자 이메일</span>
+      <input
+        v-model="createForm.primaryContactEmail"
+        type="email"
+        placeholder="email@example.com"
+        style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
+      />
+    </label>
+
+    <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">담당자 연락처</span>
+      <input
+        v-model="createForm.primaryContactPhone"
+        type="text"
+        placeholder="010-0000-0000"
+        style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
+      />
+    </label>
+
+    <p v-if="createErrorMessage" style="margin: 0; color: var(--color-error);">
+      {{ createErrorMessage }}
+    </p>
+
+    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
+      <button class="page-button page-button--secondary" type="button" @click="closeCreateModal">
+        취소
+      </button>
+      <button
+        class="page-button page-button--primary"
+        type="button"
+        :disabled="createLoading"
+        @click="submitCreateSupplier"
+      >
+        등록
+      </button>
+    </div>
+  </div>
+</BaseModal>
 
   <BaseModal
     v-model="detailModalOpen"
