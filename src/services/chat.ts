@@ -26,6 +26,14 @@ export const chatService = {
     return response.data
   },
 
+  async renameRoom(roomPublicId: string, roomName: string) {
+    const response = await apiClient.patch<{ publicId: string; roomName: string }>(
+      `/api/control/chats/rooms/${roomPublicId}`,
+      { roomName }
+    )
+    return response.data
+  },
+
   async inviteParticipants(roomPublicId: string, inviterPublicId: string, targetUserPublicIds: string[]) {
     const response = await apiClient.post(
       `/api/control/chats/rooms/${roomPublicId}/participants`,

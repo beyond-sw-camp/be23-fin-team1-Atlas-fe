@@ -197,14 +197,47 @@ async function fetchAvailableUsers() {
       size: 100,
     })
 
-    const users = response.content ?? []
+    // 백엔드 공통 응답 래퍼 대응 (Data 기반 추출 방어 코드)
+    let rawData: any = response
+    if (rawData && rawData.data) {
+      rawData = rawData.data
+    }
+    
+    // content 배열 찾기
+    let users: any[] = []
+    if (Array.isArray(rawData)) {
+      users = rawData
+    } else if (rawData && Array.isArray(rawData.content)) {
+      users = rawData.content
+    } else if (rawData && Array.isArray(rawData.data)) {
+      users = rawData.data
+    } else {
+      console.warn('[Chat] 사용자 목록 구조를 파악할 수 없습니다.', response)
+    }
+
+    // 디버깅용: F12 콘솔에서 데이터 직접 확인 가능하도록 출력
+    console.log('[Chat] 원본 사용자 데이터:', users)
 
     // 채팅 초대 목록에서 쓰는 형태로 변환합니다.
-    availableUsers.value = users.map((user) => ({
-      userPublicId: user.userPublicId,
-      displayName: `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim(),
-      jobTitle: user.jobTitle ?? '',
-    }))
+    availableUsers.value = users.map((user: any) => {
+      // camelCase, snake_case 모두 대응
+      const lastName = user.lastName || user.last_name || ''
+      const firstName = user.firstName || user.first_name || ''
+      let displayName = `${lastName} ${firstName}`.trim()
+      
+      if (!displayName) {
+        // 혹시 백엔드 변경으로 name 도는 userName이 올 경우를 대비하거나 loginId로 폴백
+        displayName = user.name || user.userName || user.loginId || user.login_id || '이름 없음'
+      }
+      
+      const jobTitle = user.jobTitle || user.job_title || ''
+
+      return {
+        userPublicId: user.userPublicId || user.user_public_id || user.publicId || user.public_id || user.id,
+        displayName,
+        jobTitle,
+      }
+    })
   } catch (e) {
     console.error('[Chat] 사용자 목록 조회 실패', e)
   }
@@ -219,6 +252,20 @@ async function fetchAvailableUsers() {
     } catch (e) {
       console.error('Failed to create room', e)
       return null
+    }
+  }
+
+  async function renameRoom(roomPublicId: string, newName: string) {
+    if (!newName.trim()) return
+    try {
+      await chatService.renameRoom(roomPublicId, newName)
+      // 낙관적 UI 업데이트
+      const room = rooms.value.find(r => r.publicId === roomPublicId)
+      if (room) {
+        room.roomName = newName
+      }
+    } catch (e) {
+      console.error('Failed to rename room', e)
     }
   }
 
@@ -400,6 +447,7 @@ async function fetchAvailableUsers() {
     togglePanel,
     closePanel,
     createRoom,
+    renameRoom,
     inviteUser,
     leaveRoom,
     openRoom,
