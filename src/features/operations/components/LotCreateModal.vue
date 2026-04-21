@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { BaseModal } from '../../shared'
 import type { CreateLotRequestDto } from '../../../services/lot'
+import { getSuppliers, type SupplierListResponseDto } from '../../../services/supplier'
+import { getItems, type ItemResponseDto } from '../../../services/item'
 
 const props = defineProps<{
   isOpen: boolean
@@ -24,17 +26,29 @@ const form = ref<CreateLotRequestDto>({
   expiredAt: ''
 })
 
-const MOCK_SUPPLIERS = [
-  { id: 'supp-001', name: '한국식품 (KOREA FOODS)' },
-  { id: 'supp-002', name: '대한농산 (DAEHAN AGRI)' },
-  { id: 'supp-003', name: 'FMK 식자재 (FMK FOODS)' },
-]
+const suppliers = ref<SupplierListResponseDto[]>([])
+const items = ref<ItemResponseDto[]>([])
 
-const MOCK_ITEMS = [
-  { id: 'item-001', name: '쌀 (Rice)' },
-  { id: 'item-002', name: '배추 (Cabbage)' },
-  { id: 'item-003', name: '사과 (Apples)' },
-]
+async function loadData() {
+  try {
+    const [supplierRes, itemRes] = await Promise.all([
+      getSuppliers({ page: 0, size: 200 }),
+      getItems({ page: 0, size: 200 })
+    ])
+    if (supplierRes && supplierRes.content) {
+      suppliers.value = supplierRes.content
+    }
+    if (itemRes && itemRes.content) {
+      items.value = itemRes.content
+    }
+  } catch (error) {
+    console.error('Failed to load lot creation data.', error)
+  }
+}
+
+onMounted(() => {
+  loadData()
+})
 
 const content = computed(() => {
   return props.language === 'ko'
@@ -113,7 +127,7 @@ function handleSubmit() {
             <span>{{ content.supplier }}</span>
             <select v-model="form.supplierPublicId" required>
               <option value="" disabled selected>선택</option>
-              <option v-for="s in MOCK_SUPPLIERS" :key="s.id" :value="s.id">{{ s.name }}</option>
+              <option v-for="s in suppliers" :key="s.detail?.publicId || ''" :value="s.detail?.publicId || ''">{{ s.supplierName }}</option>
             </select>
           </label>
         </div>
@@ -122,7 +136,7 @@ function handleSubmit() {
             <span>{{ content.item }}</span>
             <select v-model="form.itemPublicId" required>
               <option value="" disabled selected>선택</option>
-              <option v-for="i in MOCK_ITEMS" :key="i.id" :value="i.id">{{ i.name }}</option>
+              <option v-for="i in items" :key="i.publicId" :value="i.publicId">{{ i.itemName }}</option>
             </select>
           </label>
         </div>

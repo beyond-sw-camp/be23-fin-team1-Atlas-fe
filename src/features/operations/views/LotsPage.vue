@@ -55,21 +55,20 @@ const CONTENT = {
   },
 }
 
-const qualityRows = computed(() =>
-  preferences.language === 'ko'
-    ? [
-        ['합격', '87건', '74%'],
-        ['조건부 합격', '9건', '8%'],
-        ['불합격', '8건', '7%'],
-        ['검수 중', '13건', '11%'],
-      ]
-    : [
-        ['PASS', '87', '74%'],
-        ['CONDITIONAL', '9', '8%'],
-        ['FAIL', '8', '7%'],
-        ['IN REVIEW', '13', '11%'],
-      ],
-)
+const qualityRows = computed(() => {
+  const total = lots.value.length || 1
+  const pass = lots.value.filter(l => l.qualityStatus === 'NORMAL').length
+  const hold = lots.value.filter(l => l.qualityStatus === 'HOLD').length
+  const fail = lots.value.filter(l => l.qualityStatus === 'DEFECTIVE').length
+  
+  const isKo = preferences.language === 'ko'
+  
+  return [
+    [isKo ? '합격 (NORMAL)' : 'PASS (NORMAL)', `${pass}${isKo ? '건' : ''}`, `${Math.round(pass/total*100)}%`],
+    [isKo ? '보류 (HOLD)' : 'HOLD', `${hold}${isKo ? '건' : ''}`, `${Math.round(hold/total*100)}%`],
+    [isKo ? '불합격 (DEFECTIVE)' : 'FAIL (DEFECTIVE)', `${fail}${isKo ? '건' : ''}`, `${Math.round(fail/total*100)}%`]
+  ]
+})
 
 const content = computed(() => CONTENT[preferences.language])
 
@@ -142,6 +141,33 @@ async function handleLotSelect(lot: LotResponseDto) {
   }
 }
 
+const metricDisplay = computed(() => {
+  const base = [...content.value.metrics]
+  if (!lots.value || lots.value.length === 0) {
+    base[0] = { ...base[0], value: '0' }
+    base[1] = { ...base[1], value: '0' }
+    base[2] = { ...base[2], value: '0' }
+    base[3] = { ...base[3], value: '0' }
+    return base
+  }
+  
+  const activeLots = lots.value.filter(l => l.lotStatus !== 'DISCARDED' && l.lotStatus !== 'SHIPPED').length;
+  const qualityHoldLots = lots.value.filter(l => l.qualityStatus === 'HOLD').length;
+  
+  const todayDate = new Date();
+  const today = todayDate.getFullYear() + '-' + String(todayDate.getMonth() + 1).padStart(2, '0') + '-' + String(todayDate.getDate()).padStart(2, '0');
+  
+  const producedToday = lots.value.filter(l => l.manufacturedAt && l.manufacturedAt.startsWith(today)).length;
+  // Fallback: using createdAt for inspectedToday since inspectionDate is not in DTO
+  const inspectedToday = lots.value.filter(l => l.createdAt && l.createdAt.startsWith(today)).length;
+
+  base[0] = { ...base[0], value: String(activeLots) }
+  base[1] = { ...base[1], value: String(qualityHoldLots) }
+  base[2] = { ...base[2], value: String(producedToday) }
+  base[3] = { ...base[3], value: String(inspectedToday) }
+  return base
+})
+
 async function handleStatusUpdate(status: string) {
   if (!selectedLot.value) return
   if (!confirm(`Change LOT status to ${status}?`)) return
@@ -212,7 +238,7 @@ onBeforeUnmount(() => header.clearActions())
     </header>
 
     <section class="page-metrics terminal-page__metrics">
-      <article v-for="metric in content.metrics" :key="metric.label" :class="['page-metric', `is-${metric.tone}`]">
+      <article v-for="(metric, idx) in metricDisplay" :key="idx" :class="['page-metric', `is-${metric.tone}`]">
         <span class="page-metric__label">{{ metric.label }}</span>
         <strong class="page-metric__value">{{ metric.value }}</strong>
         <span class="page-metric__meta">{{ metric.meta }}</span>

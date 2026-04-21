@@ -96,8 +96,22 @@ onMounted(() => {
 
 const metricDisplay = computed(() => {
   const base = [...content.value.metrics]
-  // Update expiring metrics count with API data
-  base[1].value = String(expiringCount.value)
+  if (!certs.value || certs.value.length === 0) {
+    base[0] = { ...base[0], value: '0' }
+    base[1] = { ...base[1], value: String(expiringCount.value) }
+    base[2] = { ...base[2], value: '0' }
+    base[3] = { ...base[3], value: '0' }
+    return base
+  }
+  
+  const validCerts = certs.value.filter(c => c.status === 'APPROVED').length;
+  const renewalNeeded = certs.value.filter(c => c.status === 'EXPIRED' || c.status === 'REVOKED').length;
+  const numSuppliers = new Set(certs.value.map(c => c.supplierPublicId)).size;
+  
+  base[0] = { ...base[0], value: String(validCerts) }
+  base[1] = { ...base[1], value: String(expiringCount.value) }
+  base[2] = { ...base[2], value: String(renewalNeeded) }
+  base[3] = { ...base[3], value: String(numSuppliers) }
   return base
 })
 
