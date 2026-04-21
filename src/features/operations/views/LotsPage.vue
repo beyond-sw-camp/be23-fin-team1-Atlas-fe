@@ -14,14 +14,14 @@ const preferences = useAtlasPreferencesStore()
 
 const CONTENT = {
   ko: {
-    eyebrow: '공급망 운영 / Lot',
-    title: 'Lot',
-    subtitle: 'Lot 이력과 검수를 단일 운영 화면에서 추적합니다.',
+    eyebrow: '공급망 운영 / LOT',
+    title: 'LOT',
+    subtitle: 'LOT 이력과 검사 상태를 한 화면에서 추적합니다.',
     metrics: [
-      { label: '활성 Lot', value: '142', meta: '추적 중', tone: 'nominal' },
-      { label: '품질 보류', value: '3', meta: '검수 대기', tone: 'critical' },
-      { label: '금일 출하', value: '28', meta: '건', tone: 'info' },
-      { label: '금일 입고', value: '41', meta: '건', tone: 'nominal' },
+      { label: '활성 LOT', value: '142', meta: '추적 중', tone: 'nominal' },
+      { label: '품질 보류', value: '3', meta: '검토 대기', tone: 'critical' },
+      { label: '오늘 생산', value: '28', meta: '건', tone: 'info' },
+      { label: '오늘 검사', value: '41', meta: '건', tone: 'nominal' },
     ],
     tabs: ['ALL', 'CREATED', 'IN_PRODUCTION', 'COMPLETED', 'SHIPPED', 'DISCARDED'],
     searchPlaceholder: 'Lot 번호, 품목, 협력사 검색...',
@@ -34,14 +34,14 @@ const CONTENT = {
     detailLabel: '상세보기',
   },
   en: {
-    eyebrow: 'Supply Chain Ops / Lot',
-    title: 'Lots',
-    subtitle: 'Track lot history, inspection, and outbound state in one operating console.',
+    eyebrow: 'Supply Chain Ops / LOT',
+    title: 'LOT',
+    subtitle: 'Track lot history and inspection status in one operating console.',
     metrics: [
       { label: 'ACTIVE LOTS', value: '142', meta: 'TRACKED', tone: 'nominal' },
       { label: 'QUALITY HOLD', value: '3', meta: 'AWAITING REVIEW', tone: 'critical' },
-      { label: 'OUTBOUND TODAY', value: '28', meta: 'CASES', tone: 'info' },
-      { label: 'INBOUND TODAY', value: '41', meta: 'CASES', tone: 'nominal' },
+      { label: 'PRODUCED TODAY', value: '28', meta: 'CASES', tone: 'info' },
+      { label: 'INSPECTED TODAY', value: '41', meta: 'CASES', tone: 'nominal' },
     ],
     tabs: ['ALL', 'CREATED', 'IN_PRODUCTION', 'COMPLETED', 'SHIPPED', 'DISCARDED'],
     searchPlaceholder: 'Search lot, item, or supplier...',

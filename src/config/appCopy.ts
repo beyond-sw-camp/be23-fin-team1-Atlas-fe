@@ -60,8 +60,16 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     en: { label: 'Items', description: 'Item catalog and stock thresholds', pageSubtitle: 'Operate SKUs, inventory, reorder points, and source ownership' },
   },
   lots: {
-    ko: { label: 'Lot / 출하', description: 'Lot 추적과 출하 관리', pageSubtitle: 'Lot 이력, 검수, 출하 상태 추적' },
-    en: { label: 'Lots', description: 'Lot tracking and shipment control', pageSubtitle: 'Track lot history, inspection, and outbound status' },
+    ko: {
+      label: 'LOT',
+      description: 'LOT 추적 및 품질 관리',
+      pageSubtitle: 'LOT 이력, 검사, 상태 정보를 관리합니다',
+    },
+    en: {
+      label: 'LOT',
+      description: 'Lot tracking and quality control',
+      pageSubtitle: 'Manage lot history, inspection, and status',
+    },
   },
     shipments: {
     ko: {
@@ -73,6 +81,18 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
       label: 'Shipments',
       description: 'Shipment list, tracking, ETA, and exceptions',
       pageSubtitle: 'Manage outbound shipment flow and tracking status',
+    },
+  },
+    settlements: {
+    ko: {
+      label: '정산',
+      description: '정산 목록, 상세, 승인, 취소 관리',
+      pageSubtitle: '정산 처리 상태와 승인 흐름을 관리합니다',
+    },
+    en: {
+      label: 'Settlements',
+      description: 'Settlement list, detail, approval, and cancellation',
+      pageSubtitle: 'Manage settlement processing status and approval flow',
     },
   },
   logisticsNodes: {
