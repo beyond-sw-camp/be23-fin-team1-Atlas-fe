@@ -324,6 +324,11 @@ function getDeliveryExceptionSeverityLabel(option: string) {
 }
 
 const shipments = ref<ShipmentListResponseDto[]>([])
+const currentPage = ref(0)
+const pageSize = ref(10)
+const totalElements = ref(0)
+const totalPages = ref(0)
+const isShipmentListLoading = ref(false)
 const shipmentErrorMessage = ref('')
 const selectedShipment = ref<ShipmentListResponseDto | null>(null)
 const selectedShipmentDetail = ref<ShipmentResponseDto | null>(null)
@@ -388,17 +393,48 @@ const checkpointTypeOptions = ['DEPARTURE', 'TRANSIT', 'ARRIVAL', 'WAREHOUSE_IN'
 const checkpointStatusOptions = ['PLANNED', 'PASSED', 'FAILED', 'CANCELLED']
 const deliveryExceptionTypeOptions = ['DELAY', 'DAMAGE', 'TEMPERATURE_DEVIATION', 'WRONG_DELIVERY']
 const deliveryExceptionSeverityOptions = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
-
 async function fetchShipments() {
+  isShipmentListLoading.value = true
+
   try {
-    const res = await getShipments()
+    const res = await getShipments({
+      page: currentPage.value,
+      size: pageSize.value,
+      sort: 'id,desc',
+    })
+
     shipments.value = res.content
+    totalElements.value = res.totalElements
+    totalPages.value = res.totalPages
     shipmentErrorMessage.value = ''
   } catch (err) {
     console.error('Failed to fetch shipments:', err)
     shipments.value = []
+    totalElements.value = 0
+    totalPages.value = 0
     shipmentErrorMessage.value = content.value.messages.loadShipmentsFail
+  } finally {
+    isShipmentListLoading.value = false
   }
+}
+function goToPreviousPage() {
+  if (currentPage.value === 0 || isShipmentListLoading.value) return
+
+  currentPage.value -= 1
+  fetchShipments()
+}
+
+function goToNextPage() {
+  if (
+    totalPages.value === 0 ||
+    currentPage.value >= totalPages.value - 1 ||
+    isShipmentListLoading.value
+  ) {
+    return
+  }
+
+  currentPage.value += 1
+  fetchShipments()
 }
 
 async function handleShipmentSelect(shipment: ShipmentListResponseDto) {
@@ -463,9 +499,11 @@ async function handleCreateShipmentSubmit() {
       ...createForm.value,
       subPoId: createForm.value.subPoId || null,
     })
+    currentPage.value = 0
     await fetchShipments()
     resetCreateForm()
     isCreateModalOpen.value = false
+
   } catch (err: any) {
     console.error('Failed to create shipment:', err)
     createErrorMessage.value = err?.message ?? content.value.messages.createFail
@@ -688,10 +726,14 @@ onMounted(() => {
           <div class="page-panel__eyebrow">{{ content.panels.listEyebrow }}</div>
           <h3>{{ content.panels.listTitle }}</h3>
         </div>
-        <span class="page-panel__chip">{{ shipments.length }}</span>
+        <span class="page-panel__chip">{{ totalElements }}</span>
       </div>
 
-      <div v-if="shipmentErrorMessage" class="page-table__empty">
+            <div v-if="isShipmentListLoading" class="page-table__empty">
+        목록을 불러오는 중입니다.
+      </div>
+
+      <div v-else-if="shipmentErrorMessage" class="page-table__empty">
         {{ shipmentErrorMessage }}
       </div>
 
@@ -727,6 +769,32 @@ onMounted(() => {
             </button>
           </span>
         </div>
+      </div>
+      <div
+        v-if="!shipmentErrorMessage && totalPages > 0"
+        style="display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px;"
+      >
+        <button
+          class="page-button page-button--secondary"
+          type="button"
+          :disabled="currentPage === 0 || isShipmentListLoading"
+          @click="goToPreviousPage"
+        >
+          이전
+        </button>
+
+        <span style="font-size: 0.875rem; opacity: 0.8;">
+          {{ currentPage + 1 }} / {{ totalPages }}
+        </span>
+
+        <button
+          class="page-button page-button--secondary"
+          type="button"
+          :disabled="totalPages === 0 || currentPage >= totalPages - 1 || isShipmentListLoading"
+          @click="goToNextPage"
+        >
+          다음
+        </button>
       </div>
 
       <div

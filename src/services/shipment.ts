@@ -127,14 +127,24 @@ export interface ShipmentLotMappingResponseDto {
   loadedAt: string
 }
 
+export interface GetShipmentsParams {
+  page?: number
+  size?: number
+  sort?: string
+}
+
 export async function getShipments(
-  page = 0,
-  size = 10,
+  params: GetShipmentsParams = {},
 ): Promise<SpringPage<ShipmentListResponseDto>> {
   const response = await apiClient.get<SpringPage<ShipmentListResponseDto>>(
     '/api/supply/shipments',
     {
-      params: { page, size },
+      params: {
+        page: 0,
+        size: 10,
+        sort: 'id,desc',
+        ...params,
+      },
     },
   )
   return response.data

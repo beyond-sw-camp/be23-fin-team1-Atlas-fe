@@ -16,6 +16,7 @@ import {
 } from '../../../services/settlement'
 import {
   getSuppliers,
+  type SupplierListResponseDto,
   type SupplierResponseDto,
 } from '../../../services/supplier'
 import {
@@ -382,7 +383,6 @@ function getTargetLabel(targetType: SettlementTargetType, targetPublicId: string
 
   return targetPublicId
 }
-
 async function loadSupplierOptions() {
   isSupplierOptionsLoading.value = true
 
@@ -391,7 +391,10 @@ async function loadSupplierOptions() {
       page: 0,
       size: 100,
     })
-    supplierOptions.value = response.content ?? []
+
+    supplierOptions.value = (response.content ?? [])
+      .map((supplier: SupplierListResponseDto) => supplier.detail)
+      .filter((supplier): supplier is SupplierResponseDto => supplier !== null)
   } catch (err) {
     console.error('Failed to load suppliers:', err)
     supplierOptions.value = []
