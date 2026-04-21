@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { BaseModal } from '../../shared'
 import { createReturn, type CreateReturnRequestDto, type CreateReturnItemDto } from '../../../services/return'
 import { getOrganizations, type OrganizationListItem } from '../../../services/organization'
+import { getItems, type ItemResponseDto } from '../../../services/item'
 
 const props = defineProps<{
   isOpen: boolean
@@ -29,11 +30,7 @@ const targetOrganizations = computed(() =>
   organizations.value.filter((org) => org.organizationType === 'SUPPLIER'),
 )
 
-const MOCK_ITEMS = [
-  { id: 'item-001', name: '프리미엄 원두 1kg', unit: 'EA' },
-  { id: 'item-002', name: '유기농 밀가루 20kg', unit: 'BAG' },
-  { id: 'item-003', name: '냉동 우삼겹 5kg', unit: 'BOX' }
-]
+const items = ref<ItemResponseDto[]>([])
 
 function createEmptyItem(): CreateReturnItemDto {
   return {
@@ -93,6 +90,18 @@ async function loadOrganizations() {
     organizations.value = []
   } finally {
     isOrganizationsLoading.value = false
+  }
+}
+
+async function loadItems() {
+  try {
+    const res = await getItems({ page: 0, size: 200 })
+    if (res && res.content) {
+      items.value = res.content
+    }
+  } catch (error) {
+    console.error('Failed to load items', error)
+    items.value = []
   }
 }
 
@@ -160,9 +169,9 @@ function handleReqOrgChange(e: Event) {
 
 function handleItemChange(index: number, e: Event) {
   const val = (e.target as HTMLSelectElement).value
-  const found = MOCK_ITEMS.find(i => i.id === val)
+  const found = items.value.find(i => i.publicId === val)
   if (found) {
-    form.value.items[index].itemName = found.name
+    form.value.items[index].itemName = found.itemName
     form.value.items[index].unit = found.unit
   }
 }
@@ -182,7 +191,9 @@ watch(
   () => props.isOpen,
   (isOpen) => {
     if (isOpen) {
+      form.value.items = [createEmptyItem()]
       loadOrganizations()
+      loadItems()
     }
   },
   { immediate: true },
@@ -302,7 +313,7 @@ async function handleSubmit() {
             <span>{{ content.item }}</span>
             <select v-model="item.itemPublicId" @change="(e) => handleItemChange(index, e)" required :disabled="isSubmitting">
               <option value="" disabled>선택</option>
-              <option v-for="i in MOCK_ITEMS" :key="i.id" :value="i.id">{{ i.name }}</option>
+              <option v-for="i in items" :key="i.publicId" :value="i.publicId">{{ i.itemName }}</option>
             </select>
           </div>
           

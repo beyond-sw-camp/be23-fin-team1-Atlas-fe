@@ -30,25 +30,14 @@ const certificateTypes = ref<CertificateTypeResponseDto[]>([])
 const supplierOptions = ref<SupplierListResponseDto[]>([])
 const isTypeModalOpen = ref(false)
 
-// 임시 모의 인증 유형 목록 (DB에 데이터가 없을 때 폴백)
-const MOCK_CERT_TYPES: CertificateTypeResponseDto[] = [
-  { publicId: 'ctype-001', name: 'ISO 22000', certificateName: 'ISO 22000' },
-  { publicId: 'ctype-002', name: 'HACCP (위해요소중점관리기준)', certificateName: 'HACCP (위해요소중점관리기준)' },
-  { publicId: 'ctype-003', name: 'ISO 9001 (품질경영시스템)', certificateName: 'ISO 9001 (품질경영시스템)' },
-  { publicId: 'ctype-004', name: 'ESG 친환경 인증', certificateName: 'ESG 친환경 인증' },
-]
-
 async function loadTypes() {
   try {
     const types = await getCertificateTypes()
     if (types && types.length > 0) {
       certificateTypes.value = types
-    } else {
-      certificateTypes.value = MOCK_CERT_TYPES
     }
   } catch (error) {
-    console.warn('Failed to load certificate types, using mock data.', error)
-    certificateTypes.value = MOCK_CERT_TYPES
+    console.error('Failed to load certificate types', error)
   }
 }
 
