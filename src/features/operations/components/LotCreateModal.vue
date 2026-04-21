@@ -89,7 +89,7 @@ function handleSubmit() {
     :model-value="isOpen"
     :title="content.title"
     :description="content.desc"
-    size="sm"
+    size="md"
     @update:model-value="emit('close')"
   >
     <form @submit.prevent="handleSubmit" class="lot-create-modal__form">

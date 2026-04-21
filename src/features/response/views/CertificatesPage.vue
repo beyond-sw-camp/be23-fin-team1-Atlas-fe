@@ -290,7 +290,7 @@ onBeforeUnmount(() => header.clearActions())
     v-model="traceOpen"
     :title="traceTitle"
     :description="preferences.language === 'ko' ? '인증서의 심사, 승인, 반려 이력을 조회합니다.' : 'Review certificate review audit trail.'"
-    size="sm"
+    size="md"
     @close="closeTrace"
   >
     <div class="page-feed lots-page__trace-feed" style="max-height: 300px; overflow-y: auto;">
