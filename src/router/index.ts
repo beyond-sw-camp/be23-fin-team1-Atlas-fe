@@ -15,6 +15,7 @@ import ItemsPage from '../features/operations/views/ItemsPage.vue'
 import LogisticsNodesPage from '../features/operations/views/LogisticsNodesPage.vue'
 import LotsPage from '../features/operations/views/LotsPage.vue'
 import ShipmentsPage from '../features/operations/views/ShipmentsPage.vue'
+import SettlementsPage from '../features/operations/views/SettlementsPage.vue'
 import OrdersPage from '../features/operations/views/OrdersPage.vue'
 import SuppliersPage from '../features/operations/views/SuppliersPage.vue'
 import ReturnsPage from '../features/operations/views/ReturnsPage.vue'
@@ -46,6 +47,7 @@ const pageRoutes = [
   { path: 'items', name: 'items', component: ItemsPage, meta: { hidePageHead: true } },
   { path: 'lots', name: 'lots', component: LotsPage, meta: { hidePageHead: true } },
   { path: 'shipments', name: 'shipments', component: ShipmentsPage, meta: { hidePageHead: true } },
+  { path: 'settlements', name: 'settlements', component: SettlementsPage, meta: { hidePageHead: true } },
   { path: 'logistics-nodes', name: 'logisticsNodes', component: LogisticsNodesPage, meta: { hidePageHead: true } },
   { path: 'returns', name: 'returns', component: ReturnsPage, meta: { hidePageHead: true } },
   { path: 'certificates', alias: ['certificate-watch'], name: 'certificateWatch', component: CertificatesPage, meta: { hidePageHead: true } },
