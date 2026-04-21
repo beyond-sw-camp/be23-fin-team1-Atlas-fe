@@ -111,7 +111,17 @@ async function submitPasswordChange() {
     return
   }
 
-  // 새 비밀번호 입력값이 비어 있으면 바로 막습니다.
+// 강제 비밀번호 변경 화면이면 새 비밀번호 2개만 검사합니다.
+// 일반 비밀번호 변경 화면이면 현재 비밀번호도 같이 검사합니다.
+if (session.passwordChangeRequired) {
+  if (!passwordForm.newPassword || !passwordForm.newPasswordConfirm) {
+    passwordError.value =
+      preferences.language === 'ko'
+        ? '새 비밀번호와 확인 값을 입력해 주세요.'
+        : 'Please fill in the new password fields.'
+    return
+  }
+} else {
   if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.newPasswordConfirm) {
     passwordError.value =
       preferences.language === 'ko'
@@ -119,6 +129,8 @@ async function submitPasswordChange() {
         : 'Please fill in all password fields.'
     return
   }
+}
+
 
   // 새 비밀번호와 확인 값이 다르면 바로 막습니다.
   if (passwordForm.newPassword !== passwordForm.newPasswordConfirm) {
@@ -132,12 +144,13 @@ async function submitPasswordChange() {
   try {
     isSubmitting.value = true
 
-    // 실제 비밀번호 변경 API를 호출합니다.
-    await changePassword(currentUserId.value, {
-      currentPassword: passwordForm.currentPassword,
-      newPassword: passwordForm.newPassword,
-      newPasswordConfirm: passwordForm.newPasswordConfirm,
-    })
+// 강제 비밀번호 변경 상태면 현재 비밀번호 없이 새 비밀번호만 보냅니다.
+// 일반 비밀번호 변경 상태면 현재 비밀번호도 같이 보냅니다.
+await changePassword(currentUserId.value, {
+  currentPassword: session.passwordChangeRequired ? '' : passwordForm.currentPassword,
+  newPassword: passwordForm.newPassword,
+  newPasswordConfirm: passwordForm.newPasswordConfirm,
+})
 
     // 프론트 세션 상태도 같이 false 로 바꿉니다.
     session.passwordChangeRequired = false
@@ -245,14 +258,16 @@ const currentRoleLabel = computed(() => {
 
         <form v-else class="settings-form" @submit.prevent="submitPasswordChange">
           <!-- 현재 비밀번호 입력 -->
-          <label>
-            <span>{{ preferences.language === 'ko' ? '현재 비밀번호' : 'Current Password' }}</span>
-            <input
-              v-model="passwordForm.currentPassword"
-              type="password"
-              autocomplete="current-password"
-            />
-          </label>
+<!-- 강제 비밀번호 변경이 아닐 때만 현재 비밀번호를 입력받습니다. -->
+<label v-if="!session.passwordChangeRequired">
+  <span>{{ preferences.language === 'ko' ? '현재 비밀번호' : 'Current Password' }}</span>
+  <input
+    v-model="passwordForm.currentPassword"
+    type="password"
+    autocomplete="current-password"
+  />
+</label>
+
 
           <!-- 새 비밀번호 입력 -->
           <label>
