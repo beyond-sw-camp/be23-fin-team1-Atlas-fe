@@ -830,6 +830,11 @@ function validateCreateOrderForm() {
     if (!line.unitPrice || line.unitPrice <= 0) {
       return '단가는 0보다 커야 합니다.'
     }
+
+    // 품목 요청 납기일은 발주 납기일보다 늦을 수 없습니다.
+    if (line.requiredDate && line.requiredDate > createForm.value.dueDate) {
+      return '요청 납기일은 발주 납기일보다 늦을 수 없습니다.'
+    }
   }
 
   return ''
@@ -1664,7 +1669,12 @@ function escapeCsvCell(value: string) {
 
             <label class="orders-page__form-field">
               <span>요청 납기일</span>
-              <input v-model="line.requiredDate" type="date" />
+              <!-- 요청 납기일은 발주 납기일 이후로 선택되지 않게 제한합니다. -->
+                <input
+                  v-model="line.requiredDate"
+                  type="date"
+                  :max="createForm.dueDate || undefined"
+                />
             </label>
           </div>
         </div>
