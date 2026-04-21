@@ -127,16 +127,87 @@ function handleCreateSuccess() {
   isCreateModalOpen.value = false
   fetchReturns()
 }
+
+// 반품 유형 한글 변환
+function returnTypeText(type: string): string {
+  if (currentLanguage.value !== 'ko') return type
+  switch (type) {
+    case 'DAMAGE': return '파손'
+    case 'DEFECTIVE': return '불량'
+    case 'MISDELIVERY': return '오배송'
+    case 'SIMPLE_RETURN': return '단순 반품'
+    default: return type
+  }
+}
+
+// 반품 상태 한글 변환
+function returnStatusText(status: string): string {
+  if (currentLanguage.value !== 'ko') return status
+  switch (status) {
+    case 'REQUESTED': return '요청됨'
+    case 'APPROVED': return '승인됨'
+    case 'REJECTED': return '반려됨'
+    case 'IN_TRANSIT': return '회수 중'
+    case 'RECEIVED': return '입고 완료'
+    case 'COMPLETED': return '처리 완료'
+    default: return status
+  }
+}
+
+// KPI 지표 계산
+const metrics = computed(() => {
+  const all = returns.value
+  const requested = all.filter(r => r.returnStatus === 'REQUESTED' || r.returnStatus === 'APPROVED').length
+  const inTransit = all.filter(r => r.returnStatus === 'IN_TRANSIT' || r.returnStatus === 'RECEIVED').length
+  const completed = all.filter(r => r.returnStatus === 'COMPLETED').length
+
+  return currentLanguage.value === 'ko'
+    ? [
+        { label: '총 반품', value: String(all.length), meta: '전체 건수', tone: 'nominal' },
+        { label: '요청/승인', value: String(requested), meta: '처리 대기', tone: 'warning' },
+        { label: '회수 중', value: String(inTransit), meta: '운송 진행', tone: 'info' },
+        { label: '완료', value: String(completed), meta: '처리 완료', tone: 'nominal' },
+      ]
+    : [
+        { label: 'TOTAL RETURNS', value: String(all.length), meta: 'ALL RECORDS', tone: 'nominal' },
+        { label: 'PENDING', value: String(requested), meta: 'AWAITING', tone: 'warning' },
+        { label: 'IN TRANSIT', value: String(inTransit), meta: 'SHIPPING', tone: 'info' },
+        { label: 'COMPLETED', value: String(completed), meta: 'DONE', tone: 'nominal' },
+      ]
+})
+
+const tabs = computed(() => {
+  return currentLanguage.value === 'ko'
+    ? [
+        { key: 'ALL', label: '전체' },
+        { key: 'REQUESTED', label: '요청됨' },
+        { key: 'IN_TRANSIT', label: '회수 중' },
+        { key: 'COMPLETED', label: '완료됨' },
+      ]
+    : [
+        { key: 'ALL', label: 'ALL' },
+        { key: 'REQUESTED', label: 'REQUESTED' },
+        { key: 'IN_TRANSIT', label: 'IN TRANSIT' },
+        { key: 'COMPLETED', label: 'COMPLETED' },
+      ]
+})
+
+const columns = computed(() => {
+  return currentLanguage.value === 'ko'
+    ? ['반품 번호', '요청 조직', '대상 조직', '반품 유형', '상태', '요청일시', '관리']
+    : ['RETURN NO', 'REQ ORG', 'TARGET ORG', 'TYPE', 'STATUS', 'REQ DATE', 'ACTION']
+})
 </script>
 
 <template>
-  <div class="terminal-page lots-page">
+  <section class="app-screen terminal-page">
     <header class="terminal-page__header">
       <div>
         <div class="terminal-page__eyebrow">Supply Chain Ops / Returns</div>
         <h2 class="terminal-page__title">{{ content.title }}</h2>
         <p class="terminal-page__subtitle">{{ content.desc }}</p>
       </div>
+
       <div class="design-trigger-row">
         <button class="page-button page-button--primary" @click="isCreateModalOpen = true">
           {{ content.newReturn }}
@@ -144,71 +215,76 @@ function handleCreateSuccess() {
       </div>
     </header>
 
-    <!-- Action Bar -->
-    <div class="action-bar" style="margin-top: 24px;">
-      <div class="tabs">
-        <button 
-          :class="['tab-btn', { active: activeTab === 'ALL' }]" 
-          @click="activeTab = 'ALL'">
-          {{ content.all }}
-        </button>
-        <button 
-          :class="['tab-btn', { active: activeTab === 'REQUESTED' }]" 
-          @click="activeTab = 'REQUESTED'">
-          {{ content.requested }}
-        </button>
-        <button 
-          :class="['tab-btn', { active: activeTab === 'IN_TRANSIT' }]" 
-          @click="activeTab = 'IN_TRANSIT'">
-          {{ content.inTransit }}
-        </button>
-        <button 
-          :class="['tab-btn', { active: activeTab === 'COMPLETED' }]" 
-          @click="activeTab = 'COMPLETED'">
-          {{ content.completed }}
-        </button>
-      </div>
-    </div>
+    <!-- KPI 지표 카드 -->
+    <section class="page-metrics terminal-page__metrics">
+      <article v-for="metric in metrics" :key="metric.label" :class="['page-metric', `is-${metric.tone}`]">
+        <span class="page-metric__label">{{ metric.label }}</span>
+        <strong class="page-metric__value">{{ metric.value }}</strong>
+        <span class="page-metric__meta">{{ metric.meta }}</span>
+      </article>
+    </section>
 
-    <!-- Data Table -->
-    <div class="table-container">
-      <table class="terminal-table">
-        <thead>
-          <tr>
-            <th>{{ content.colNo }}</th>
-            <th>{{ content.colReqOrg }}</th>
-            <th>{{ content.colTargetOrg }}</th>
-            <th>{{ content.colType }}</th>
-            <th>{{ content.colStatus }}</th>
-            <th>{{ content.colDate }}</th>
-            <th class="col-action">{{ content.colAction }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="isLoading">
-            <td colspan="7" class="text-center loading-cell">Loading Returns...</td>
-          </tr>
-          <tr v-else-if="filteredReturns.length === 0">
-            <td colspan="7" class="text-center empty-cell">{{ content.empty }}</td>
-          </tr>
-          <tr v-else v-for="item in filteredReturns" :key="item.publicId">
-            <td class="font-mono">{{ item.returnNumber }}</td>
-            <td>{{ item.requestOrganizationName || getOrgName(item.requestOrganizationPublicId) }}</td>
-            <td>{{ item.targetOrganizationName || getOrgName(item.targetOrganizationPublicId) }}</td>
-            <td>{{ item.returnType }}</td>
-            <td>
-              <span class="status-indicator" :class="item.returnStatus.toLowerCase()">
-                {{ item.returnStatus }}
+    <section class="terminal-page__content">
+      <div class="terminal-page__main">
+        <!-- 필터 및 탭 -->
+        <section class="terminal-page__filter">
+          <div class="terminal-page__tabs">
+            <button
+              v-for="tab in tabs"
+              :key="tab.key"
+              :class="['terminal-page__tab', { 'is-active': activeTab === tab.key }]"
+              type="button"
+              @click="activeTab = tab.key"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+        </section>
+
+        <!-- 데이터 테이블 패널 -->
+        <article class="page-panel">
+          <div class="page-panel__head">
+            <div>
+              <div class="page-panel__eyebrow">RETURNS</div>
+              <h3>{{ currentLanguage === 'ko' ? '반품 레지스트리' : 'Return Registry' }}</h3>
+            </div>
+            <span class="page-panel__chip">{{ filteredReturns.length }}</span>
+          </div>
+
+          <div class="page-table terminal-page__table is-eight-cols">
+            <div class="page-table__row page-table__row--head">
+              <span v-for="col in columns" :key="col">{{ col }}</span>
+            </div>
+
+            <div v-if="isLoading" class="page-table__row" style="justify-content: center; padding: 32px 0;">
+              <span style="color: var(--color-on-surface-variant); font-style: italic;">Loading...</span>
+            </div>
+
+            <div v-else-if="filteredReturns.length === 0" class="page-table__row" style="justify-content: center; padding: 32px 0;">
+              <span style="color: var(--color-on-surface-variant); font-style: italic;">{{ content.empty }}</span>
+            </div>
+
+            <div v-else v-for="item in filteredReturns" :key="item.publicId" class="page-table__row">
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">{{ item.returnNumber }}</span>
+              <span>{{ item.requestOrganizationName || getOrgName(item.requestOrganizationPublicId) }}</span>
+              <span>{{ item.targetOrganizationName || getOrgName(item.targetOrganizationPublicId) }}</span>
+              <span>{{ returnTypeText(item.returnType) }}</span>
+              <span>{{ returnStatusText(item.returnStatus) }}</span>
+              <span>{{ formatDate(item.requestedAt) }}</span>
+              <span>
+                <button
+                  type="button"
+                  style="all: unset; cursor: pointer; color: var(--color-primary); font-weight: 600; font-size: 0.875rem;"
+                  @click="openTimeline(item)"
+                >
+                  {{ content.btnDetail }} →
+                </button>
               </span>
-            </td>
-            <td>{{ formatDate(item.requestedAt) }}</td>
-            <td class="col-action">
-              <button class="btn-detail" @click="openTimeline(item)">{{ content.btnDetail }} &rarr;</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
 
     <!-- Modals -->
     <ReturnCreateModal
@@ -225,81 +301,6 @@ function handleCreateSuccess() {
       @close="isTimelineModalOpen = false"
       @status-changed="fetchReturns"
     />
-  </div>
+  </section>
 </template>
 
-<style scoped>
-.action-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.tabs {
-  display: flex;
-  gap: 16px;
-  border-bottom: 1px solid var(--color-surface-container-high);
-}
-
-.tab-btn {
-  background: none;
-  border: none;
-  color: var(--color-on-surface-variant);
-  font-size: 0.875rem;
-  font-weight: 600;
-  padding: 8px 0;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transition: all 0.2s;
-}
-
-.tab-btn:hover {
-  color: var(--color-on-surface);
-}
-
-.tab-btn.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
-}
-
-.table-container {
-  overflow-x: auto;
-  border: 1px solid var(--color-surface-container-highest);
-  background: var(--color-surface-container-lowest);
-}
-
-.status-indicator {
-  padding: 4px 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-}
-
-.status-indicator.requested { color: var(--color-on-surface); background: var(--color-surface-container-high); }
-.status-indicator.approved { color: #10B981; background: rgba(16, 185, 129, 0.1); }
-.status-indicator.in_transit { color: #3B82F6; background: rgba(59, 130, 246, 0.1); }
-.status-indicator.received { color: #8B5CF6; background: rgba(139, 92, 246, 0.1); }
-.status-indicator.completed { color: #6366F1; background: rgba(99, 102, 241, 0.1); }
-.status-indicator.rejected { color: #EF4444; background: rgba(239, 68, 68, 0.1); }
-
-.btn-detail {
-  background: none;
-  border: none;
-  color: var(--color-primary);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-detail:hover {
-  text-decoration: underline;
-}
-
-.loading-cell, .empty-cell {
-  padding: 32px !important;
-  color: var(--color-on-surface-variant);
-  font-style: italic;
-}
-</style>
