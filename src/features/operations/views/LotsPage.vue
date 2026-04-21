@@ -305,7 +305,7 @@ onBeforeUnmount(() => header.clearActions())
     v-model="traceOpen"
     :title="traceTitle"
     :description="preferences.language === 'ko' ? '선택한 Lot의 상태 이력을 시간 순서대로 최신순으로 확인합니다.' : 'Review chronological audit history for the selected lot.'"
-    size="sm"
+    size="md"
     @close="closeTrace"
   >
     <div class="page-feed lots-page__trace-feed" style="max-height: 300px; overflow-y: auto;">

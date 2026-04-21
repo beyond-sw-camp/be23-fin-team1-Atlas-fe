@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { BaseModal } from '../../shared'
 import CertificateTypeCreateModal from './CertificateTypeCreateModal.vue'
 import { getCertificateTypes } from '../../../services/certificate'
+import { getSuppliers, type SupplierListResponseDto } from '../../../services/supplier'
 import type { CreateSupplierCertificateRequestDto, CertificateTypeResponseDto } from '../../../services/certificate'
 
 const props = defineProps<{
@@ -26,14 +27,8 @@ const form = ref<CreateSupplierCertificateRequestDto>({
 
 const supplierId = ref('')
 const certificateTypes = ref<CertificateTypeResponseDto[]>([])
+const supplierOptions = ref<SupplierListResponseDto[]>([])
 const isTypeModalOpen = ref(false)
-
-// 임시 모의 협력사 목록 (추후 API 연동)
-const MOCK_SUPPLIERS = [
-  { id: 'supp-001', name: '한국식품(주) (KOREA FOODS)' },
-  { id: 'supp-002', name: '글로벌푸드 (GLOBAL FOODS)' },
-  { id: 'supp-003', name: '농협유통 (NH DISTRIBUTION)' },
-]
 
 // 임시 모의 인증 유형 목록 (DB에 데이터가 없을 때 폴백)
 const MOCK_CERT_TYPES: CertificateTypeResponseDto[] = [
@@ -57,8 +52,20 @@ async function loadTypes() {
   }
 }
 
+async function loadSuppliers() {
+  try {
+    const res = await getSuppliers({ page: 0, size: 200 })
+    if (res && res.content) {
+      supplierOptions.value = res.content
+    }
+  } catch (error) {
+    console.error('Failed to load suppliers.', error)
+  }
+}
+
 onMounted(() => {
   loadTypes()
+  loadSuppliers()
 })
 
 async function handleTypeSuccess() {
@@ -109,7 +116,7 @@ function handleSubmit() {
     :model-value="isOpen"
     :title="content.title"
     :description="content.desc"
-    size="sm"
+    size="md"
     @update:model-value="emit('close')"
   >
     <form @submit.prevent="handleSubmit" class="cert-create-modal__form">
@@ -118,7 +125,9 @@ function handleSubmit() {
           <span>{{ content.supplier }}</span>
           <select v-model="supplierId" required>
             <option value="" disabled selected>선택</option>
-            <option v-for="s in MOCK_SUPPLIERS" :key="s.id" :value="s.id">{{ s.name }}</option>
+            <option v-for="s in supplierOptions" :key="s.detail?.publicId || ''" :value="s.detail?.publicId || ''">
+              {{ s.supplierName }}
+            </option>
           </select>
         </label>
       </div>
