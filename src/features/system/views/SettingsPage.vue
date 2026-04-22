@@ -821,11 +821,6 @@ async function submitInitialOrgAdmin() {
               <input v-model="itemCategoryForm.categoryName" type="text" maxlength="100" />
             </label>
 
-            <label>
-              <span>{{ categoryCopy.sortOrderLabel }}</span>
-              <input v-model.number="itemCategoryForm.sortOrder" type="number" min="0" />
-            </label>
-
             <div v-if="itemCategoryError" class="login-error">
               {{ itemCategoryError }}
             </div>
