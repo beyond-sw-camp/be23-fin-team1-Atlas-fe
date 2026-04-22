@@ -135,7 +135,7 @@ export const NAV_ITEMS: NavEntry[] = [
     description: 'Lot tracking and quality control',
     pageSubtitle: 'Manage lot history, inspection, and status',
     section: 'operations',
-    organizations: ['mainBuyer', 'admin'],
+    organizations: ['mainBuyer', 'supplier', 'admin'],
   },
   {
     key: 'shipments',
@@ -144,7 +144,7 @@ export const NAV_ITEMS: NavEntry[] = [
     description: 'Shipment list, tracking, ETA, and exceptions',
     pageSubtitle: 'Manage outbound shipment flow and tracking status',
     section: 'operations',
-    organizations: ['mainBuyer', 'admin'],
+    organizations: ['mainBuyer', 'supplier', 'admin'],
   },
     {
     key: 'settlements',
