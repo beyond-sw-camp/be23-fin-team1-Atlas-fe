@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+import { useAtlasSessionStore } from '../../../stores/session'
 import { 
   getAllCertificates, getExpiringCertificates, 
   approveCertificate, rejectCertificate, createSupplierCertificate,
@@ -12,9 +13,12 @@ import {
   type CertificateHistoryResponseDto
 } from '../../../services/certificate'
 import CertificateCreateModal from '../components/CertificateCreateModal.vue'
+import CertificateTypeCreateModal from '../components/CertificateTypeCreateModal.vue'
+import { getAttachment } from '../../../services/file'
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
+const session = useAtlasSessionStore()
 
 const CONTENT = {
   ko: {
@@ -69,11 +73,18 @@ const activeTab = ref<string>('ALL')
 // Modals
 const { isOpen: traceOpen, payload: selectedCert, open: openTrace, close: closeTrace } = useModal<SupplierCertificateResponseDto>(false)
 const isCreateModalOpen = ref(false)
+const isTypeCreateModalOpen = ref(false)
 
+import { getSuppliers } from '../../../services/supplier'
+
+// ... existing imports ...
+
+// ... (find where `certs.value = fetchedCerts` happens and update)
 async function fetchCertificates() {
   try {
     const res = await getAllCertificates()
-    // pageable 응답 (PageResponse)
+    // 백엔드에서 사용자 권한(SUPPLIER 등)에 맞게 이미 필터링해서 내려준다고 가정합니다.
+    // 403 에러가 나던 협력사 검색 로직은 제거합니다.
     certs.value = res.content
   } catch (e) {
     console.error('Failed to fetch certs:', e)
@@ -83,6 +94,7 @@ async function fetchCertificates() {
 async function fetchExpiring() {
   try {
     const expiring = await getExpiringCertificates()
+    // 백엔드에서 이미 권한에 맞게 필터링된 결과가 내려온다고 가정합니다.
     expiringCount.value = expiring.length
   } catch (e) {
     console.error('Failed to fetch expiring certs:', e)
@@ -104,8 +116,8 @@ const metricDisplay = computed(() => {
     return base
   }
   
-  const validCerts = certs.value.filter(c => c.status === 'APPROVED').length;
-  const renewalNeeded = certs.value.filter(c => c.status === 'EXPIRED' || c.status === 'REVOKED').length;
+  const validCerts = certs.value.filter(c => c.status === 'APPROVED' || c.certificateStatus === 'APPROVED').length;
+  const renewalNeeded = certs.value.filter(c => c.status === 'EXPIRED' || c.certificateStatus === 'EXPIRED' || c.status === 'REVOKED' || c.certificateStatus === 'REVOKED').length;
   const numSuppliers = new Set(certs.value.map(c => c.supplierPublicId)).size;
   
   base[0] = { ...base[0], value: String(validCerts) }
@@ -204,6 +216,35 @@ async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupp
   }
 }
 
+function handleTypeCreateSuccess() {
+  isTypeCreateModalOpen.value = false
+  alert(preferences.language === 'ko' ? '인증 유형이 성공적으로 등록되었습니다.' : 'Certificate type successfully created.')
+}
+
+async function handleDownloadPdf(attachmentPublicId: string | undefined) {
+  if (!attachmentPublicId) {
+    alert(preferences.language === 'ko' ? '첨부된 파일이 없습니다.' : 'No attachment found.')
+    return
+  }
+  try {
+    const data = await getAttachment(attachmentPublicId)
+    if (data.files && data.files.length > 0) {
+      // 첫 번째 파일의 경로를 새 창에서 열기
+      const fileUrl = data.files[0].fileUrl || (data.files[0] as any).filePath
+      if (fileUrl) {
+        window.open(fileUrl, '_blank')
+      } else {
+        throw new Error('File URL not found')
+      }
+    } else {
+      alert(preferences.language === 'ko' ? '파일을 찾을 수 없습니다.' : 'File not found.')
+    }
+  } catch (err) {
+    console.error('Download failed:', err)
+    alert(preferences.language === 'ko' ? '다운로드 중 오류가 발생했습니다.' : 'Error during download.')
+  }
+}
+
 watchEffect(() => {
   activeTab.value = content.value.tabs[0]
   header.setActions([
@@ -224,7 +265,12 @@ onBeforeUnmount(() => header.clearActions())
       </div>
       <div class="design-trigger-row">
         <button class="page-button page-button--secondary" type="button">{{ content.exportLabel }}</button>
-        <button class="page-button page-button--primary" type="button" @click="isCreateModalOpen = true">{{ content.createLabel }}</button>
+        <button v-if="session.userRole === 'ADMIN'" class="page-button page-button--primary" type="button" @click="isTypeCreateModalOpen = true">
+          {{ preferences.language === 'ko' ? '인증서 유형 등록' : 'ADD CERT TYPE' }}
+        </button>
+        <button v-else class="page-button page-button--primary" type="button" @click="isCreateModalOpen = true">
+          {{ content.createLabel }}
+        </button>
       </div>
     </header>
 
@@ -259,7 +305,7 @@ onBeforeUnmount(() => header.clearActions())
         <div><div class="page-panel__eyebrow">CERTS</div><h3>{{ content.tableTitle }}</h3></div>
         <span class="page-panel__chip">{{ filteredRows.length }}</span>
       </div>
-      <div class="page-table terminal-page__table" style="grid-template-columns: repeat(9, minmax(100px, 1fr));">
+      <div class="page-table terminal-page__table is-nine-cols">
         <div class="page-table__row page-table__row--head">
           <span v-for="column in content.columns" :key="column">{{ column }}</span>
         </div>
@@ -299,29 +345,54 @@ onBeforeUnmount(() => header.clearActions())
     @submit="handleCreateCertSubmit" 
   />
 
+  <!-- Create CERT Type Modal (Admin Only) -->
+  <CertificateTypeCreateModal
+    :is-open="isTypeCreateModalOpen"
+    :language="preferences.language"
+    @close="isTypeCreateModalOpen = false"
+    @success="handleTypeCreateSuccess"
+  />
+
   <!-- Trace Timeline Modal -->
   <BaseModal
     v-model="traceOpen"
     :title="traceTitle"
     :description="preferences.language === 'ko' ? '인증서의 심사, 승인, 반려 이력을 조회합니다.' : 'Review certificate review audit trail.'"
-    size="md"
+    size="lg"
     @close="closeTrace"
   >
-    <div class="page-feed lots-page__trace-feed" style="max-height: 300px; overflow-y: auto;">
-      <div v-for="hist in certHistories" :key="hist.publicId" class="page-feed__item">
-        <span class="page-feed__label">{{ formatDate(hist.createdAt) }}</span>
-        <strong class="page-feed__text">
-          <span style="opacity: 0.6; font-size: 0.8em; margin-right: 4px;">[{{ hist.status }}]</span>
-          {{ hist.reason || '상태 변경' }}
-        </strong>
+    <div v-if="selectedCert" style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--color-surface-container-high);">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 0.75rem; font-weight: bold; color: var(--color-on-surface-variant); letter-spacing: 0.05em;">인증서 파일</span>
+        <button v-if="selectedCert.attachmentPublicId" class="page-button page-button--secondary" style="padding: 4px 12px; font-size: 0.75rem;" @click="handleDownloadPdf(selectedCert.attachmentPublicId)">
+          PDF 보기
+        </button>
+        <span v-else style="color: var(--color-on-surface-variant); font-size: 0.875rem;">첨부파일 없음</span>
       </div>
-      <div v-if="certHistories.length === 0" class="page-feed__item">
-        <span class="page-feed__text" style="opacity: 0.5;">No history available.</span>
+    </div>
+
+    <div class="page-table is-trace-cols" style="margin-top: 16px;">
+      <div class="page-table__row page-table__row--head">
+        <span>{{ preferences.language === 'ko' ? '일시' : 'Date' }}</span>
+        <span>{{ preferences.language === 'ko' ? '상태' : 'Status' }}</span>
+        <span>{{ preferences.language === 'ko' ? '상세 사유' : 'Reason' }}</span>
+      </div>
+      <div v-for="hist in certHistories" :key="hist.publicId" class="page-table__row">
+        <span>{{ formatDate(hist.recordedAt) }}</span>
+        <span>
+          <span :class="{'text-warning': hist.afterStatus === 'REVIEW_REQUESTED', 'text-nominal': hist.afterStatus === 'APPROVED', 'text-critical': hist.afterStatus === 'REJECTED' || hist.afterStatus === 'REVOKED'}">
+            {{ hist.afterStatus }}
+          </span>
+        </span>
+        <span>{{ hist.reason || '-' }}</span>
+      </div>
+      <div v-if="certHistories.length === 0" style="padding: 16px; text-align: center; color: var(--color-on-surface-variant); grid-column: 1 / -1;">
+        No history available.
       </div>
     </div>
     
     <!-- Admin Review Actions -->
-    <div v-if="selectedCert && selectedCert.certificateStatus === 'REVIEW_REQUESTED'" style="margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--color-surface-container-high); display: flex; flex-direction: column; gap: 16px;">
+    <div v-if="session.userRole === 'ADMIN' && selectedCert && selectedCert.certificateStatus === 'REVIEW_REQUESTED'" style="margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--color-surface-container-high); display: flex; flex-direction: column; gap: 16px;">
       <div>
         <div style="font-size: 0.75rem; color: var(--color-warning); margin-bottom: 8px;">ADMIN ACTION (REVIEW REQUESTED)</div>
         <div style="display: flex; gap: 8px;">
@@ -347,8 +418,17 @@ onBeforeUnmount(() => header.clearActions())
 .text-nominal {
   color: var(--color-nominal, #00eeaa);
 }
+.page-table.is-nine-cols .page-table__row {
+  grid-template-columns: 1.4fr 1.2fr 1.2fr 1.2fr 1fr 1fr 0.8fr 1fr 0.9fr;
+  min-width: 900px;
+}
+
+.page-table.is-trace-cols .page-table__row {
+  grid-template-columns: 180px 150px 1fr;
+}
+
 .page-table {
-  grid-template-columns: repeat(9, minmax(80px, 1fr)) !important;
+  overflow-x: auto;
 }
 .terminal-page__tabs::-webkit-scrollbar {
   display: none;
