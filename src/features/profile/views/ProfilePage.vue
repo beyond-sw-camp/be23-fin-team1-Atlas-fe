@@ -7,21 +7,26 @@ import { useAtlasNavigationStore } from '../../../stores/navigation'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSessionStore } from '../../../stores/session'
 
+// 헤더 액션을 제어하는 스토어입니다.
 const header = useAtlasHeaderStore()
+
+// 페이지 이동에 쓰는 네비게이션 스토어입니다.
 const navigation = useAtlasNavigationStore()
+
+// 언어 설정에 쓰는 스토어입니다.
 const preferences = useAtlasPreferencesStore()
+
+// 로그인 상태와 강제 비밀번호 변경 상태를 읽는 세션 스토어입니다.
 const session = useAtlasSessionStore()
 
 // 현재 로그인한 사용자의 내부 userId를 담아둘 값입니다.
 // 비밀번호 변경 API가 userId를 요구해서 필요합니다.
 const currentUserId = ref<number | null>(null)
 
-// 로딩 상태입니다.
-// 사용자 상세를 불러오는 동안 안내 문구를 보여줄 때 씁니다.
+// 사용자 상세를 불러오는 동안의 로딩 상태입니다.
 const isLoadingUser = ref(false)
 
-// 저장 중 상태입니다.
-// 버튼 중복 클릭을 막기 위해 씁니다.
+// 비밀번호 저장 요청 중 상태입니다.
 const isSubmitting = ref(false)
 
 // 화면에 보여줄 에러 문구입니다.
@@ -37,7 +42,7 @@ const passwordForm = reactive({
   newPasswordConfirm: '',
 })
 
-// 기존 더미 프로필 화면용 데이터입니다.
+// 기존 프로필 화면용 더미 데이터입니다.
 // passwordChangeRequired 가 false 일 때만 보여줍니다.
 const identity = [
   ['User Public ID', 'USR_01HX7ATLASADMIN4P9C8'],
@@ -71,9 +76,9 @@ const history = [
 ]
 
 // 현재 로그인한 사용자의 내부 userId를 조회합니다.
-// 첫 로그인 비밀번호 변경 화면에서 이 값이 필요합니다.
+// 첫 로그인 강제 비밀번호 변경 화면에서 이 값이 필요합니다.
 async function loadCurrentUserId() {
-  // 로그인 안 된 상태면 조회하지 않습니다.
+  // 로그인한 사용자 publicId가 없으면 조회하지 않습니다.
   if (!session.userPublicId) return
 
   try {
@@ -83,10 +88,10 @@ async function loadCurrentUserId() {
     // userPublicId로 사용자 상세를 조회합니다.
     const user = await getUserDetailByPublicId(session.userPublicId)
 
-    // 비밀번호 변경 API에 쓸 userId를 저장합니다.
+    // 비밀번호 변경 API에 쓸 내부 userId를 저장합니다.
     currentUserId.value = user.userId
   } catch (error) {
-    // userId를 못 가져오면 비밀번호 변경 요청 자체를 못 보내므로 안내합니다.
+    // userId를 못 가져오면 비밀번호 변경 자체를 진행할 수 없어서 안내합니다.
     passwordError.value =
       preferences.language === 'ko'
         ? '사용자 정보를 불러오지 못했습니다. 다시 로그인해 주세요.'
@@ -96,9 +101,9 @@ async function loadCurrentUserId() {
   }
 }
 
-// 비밀번호 변경 버튼을 눌렀을 때 실행됩니다.
+// 비밀번호 변경 버튼 클릭 시 실행됩니다.
 async function submitPasswordChange() {
-  // 이전 메시지를 먼저 지웁니다.
+  // 이전 메시지를 먼저 비웁니다.
   passwordError.value = ''
   passwordSuccess.value = ''
 
@@ -111,26 +116,25 @@ async function submitPasswordChange() {
     return
   }
 
-// 강제 비밀번호 변경 화면이면 새 비밀번호 2개만 검사합니다.
-// 일반 비밀번호 변경 화면이면 현재 비밀번호도 같이 검사합니다.
-if (session.passwordChangeRequired) {
-  if (!passwordForm.newPassword || !passwordForm.newPasswordConfirm) {
-    passwordError.value =
-      preferences.language === 'ko'
-        ? '새 비밀번호와 확인 값을 입력해 주세요.'
-        : 'Please fill in the new password fields.'
-    return
+  // 강제 비밀번호 변경 상태면 새 비밀번호 두 칸만 검사합니다.
+  if (session.passwordChangeRequired) {
+    if (!passwordForm.newPassword || !passwordForm.newPasswordConfirm) {
+      passwordError.value =
+        preferences.language === 'ko'
+          ? '새 비밀번호와 확인 값을 입력해 주세요.'
+          : 'Please fill in the new password fields.'
+      return
+    }
+  } else {
+    // 일반 비밀번호 변경 상태면 현재 비밀번호까지 모두 검사합니다.
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.newPasswordConfirm) {
+      passwordError.value =
+        preferences.language === 'ko'
+          ? '모든 비밀번호 항목을 입력해 주세요.'
+          : 'Please fill in all password fields.'
+      return
+    }
   }
-} else {
-  if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.newPasswordConfirm) {
-    passwordError.value =
-      preferences.language === 'ko'
-        ? '모든 비밀번호 항목을 입력해 주세요.'
-        : 'Please fill in all password fields.'
-    return
-  }
-}
-
 
   // 새 비밀번호와 확인 값이 다르면 바로 막습니다.
   if (passwordForm.newPassword !== passwordForm.newPasswordConfirm) {
@@ -144,13 +148,13 @@ if (session.passwordChangeRequired) {
   try {
     isSubmitting.value = true
 
-// 강제 비밀번호 변경 상태면 현재 비밀번호 없이 새 비밀번호만 보냅니다.
-// 일반 비밀번호 변경 상태면 현재 비밀번호도 같이 보냅니다.
-await changePassword(currentUserId.value, {
-  currentPassword: session.passwordChangeRequired ? '' : passwordForm.currentPassword,
-  newPassword: passwordForm.newPassword,
-  newPasswordConfirm: passwordForm.newPasswordConfirm,
-})
+    // 강제 변경 상태면 현재 비밀번호 없이 새 비밀번호만 보냅니다.
+    // 일반 변경 상태면 현재 비밀번호도 같이 보냅니다.
+    await changePassword(currentUserId.value, {
+      currentPassword: session.passwordChangeRequired ? '' : passwordForm.currentPassword,
+      newPassword: passwordForm.newPassword,
+      newPasswordConfirm: passwordForm.newPasswordConfirm,
+    })
 
     // 프론트 세션 상태도 같이 false 로 바꿉니다.
     session.passwordChangeRequired = false
@@ -163,22 +167,16 @@ await changePassword(currentUserId.value, {
     passwordForm.newPassword = ''
     passwordForm.newPasswordConfirm = ''
 
-   // 성공 문구를 먼저 정리합니다.
-// 바로 페이지 이동할 거라서 별도 성공 문구는 남기지 않아도 됩니다.
-passwordSuccess.value = ''
+    // 성공 문구는 남기지 않고 바로 이동합니다.
+    passwordSuccess.value = ''
 
-// 현재 로그인한 조직에 맞는 첫 메뉴로 이동합니다.
-// controlTower를 하드코딩하면 supplier 계정에서 꼬일 수 있어서,
-// 실제로 접근 가능한 첫 메뉴를 찾아 이동시키는 방식이 더 안전합니다.
-const firstAvailablePage =
-  navigation.availableNavItems.find((item) => !item.hidden)?.key ?? 'profile'
+    // 현재 로그인한 조직 기준으로 접근 가능한 첫 메뉴로 이동합니다.
+    const firstAvailablePage =
+      navigation.availableNavItems.find((item) => !item.hidden)?.key ?? 'profile'
 
-
-// 비밀번호 변경이 끝났으면 접근 가능한 기본 화면으로 이동합니다.
-navigation.navigateToPage(firstAvailablePage)
-
+    navigation.navigateToPage(firstAvailablePage)
   } catch (error: any) {
-    // 백엔드 에러 문구가 있으면 그걸 우선 보여줍니다.
+    // 백엔드 에러 문구가 있으면 우선 보여줍니다.
     passwordError.value =
       error?.payload?.message ||
       (preferences.language === 'ko'
@@ -189,8 +187,8 @@ navigation.navigateToPage(firstAvailablePage)
   }
 }
 
-// 첫 로그인 강제 변경 상태일 때는 헤더 액션을 비웁니다.
-// 일반 프로필 상태일 때만 기존 액션을 보여줍니다.
+// 강제 비밀번호 변경 상태일 때는 헤더 액션을 비웁니다.
+// 일반 프로필 화면일 때만 기존 헤더 액션을 보여줍니다.
 watchEffect(() => {
   if (session.passwordChangeRequired) {
     header.clearActions()
@@ -198,12 +196,20 @@ watchEffect(() => {
   }
 
   header.setActions([
-    { key: 'profile-notification-policy', label: resolveDefaultCopy('NOTIFICATION_POLICY', preferences.language), tone: 'secondary' },
-    { key: 'profile-edit-profile', label: resolveDefaultCopy('EDIT_PROFILE', preferences.language), tone: 'primary' },
+    {
+      key: 'profile-notification-policy',
+      label: resolveDefaultCopy('NOTIFICATION_POLICY', preferences.language),
+      tone: 'secondary',
+    },
+    {
+      key: 'profile-edit-profile',
+      label: resolveDefaultCopy('EDIT_PROFILE', preferences.language),
+      tone: 'primary',
+    },
   ])
 })
 
-// 페이지가 열릴 때, 강제 비밀번호 변경 상태면 userId를 먼저 조회합니다.
+// 페이지가 열릴 때 강제 비밀번호 변경 상태면 userId를 먼저 조회합니다.
 onMounted(() => {
   if (session.passwordChangeRequired) {
     loadCurrentUserId()
@@ -224,151 +230,177 @@ const currentRoleLabel = computed(() => {
 </script>
 
 <template>
-  <section class="app-screen profile-page">
-    <!-- 첫 로그인 비밀번호 변경이 필요한 경우에는 이 화면만 보여줍니다. -->
-    <section v-if="session.passwordChangeRequired" class="page-panels">
+  <!-- 강제 비밀번호 변경 상태면 로그인 화면과 비슷한 단순 카드만 보여줍니다. -->
+  <main v-if="session.passwordChangeRequired" class="login-screen">
+    <section class="login-card">
+      <div class="login-card__eyebrow">
+        {{ preferences.language === 'ko' ? '보안 안내' : 'Security Notice' }}
+      </div>
+
+      <h1>
+        {{ preferences.language === 'ko' ? '비밀번호를 먼저 변경해 주세요' : 'Please change your password first' }}
+      </h1>
+
+      <p>
+        {{
+          preferences.language === 'ko'
+            ? '임시 비밀번호로 로그인한 계정입니다. 계속 사용하려면 새 비밀번호로 변경해야 합니다.'
+            : 'This account signed in with a temporary password. Please set a new password before continuing.'
+        }}
+      </p>
+
+      <div class="login-hint" style="margin-bottom: 12px;">
+        {{ currentRoleLabel }}
+      </div>
+
+      <div v-if="isLoadingUser" class="login-hint">
+        {{ preferences.language === 'ko' ? '사용자 정보를 불러오는 중입니다...' : 'Loading user information...' }}
+      </div>
+
+      <form v-else class="login-form" @submit.prevent="submitPasswordChange">
+        <label>
+          <span>{{ preferences.language === 'ko' ? '새 비밀번호' : 'New Password' }}</span>
+          <input
+            v-model="passwordForm.newPassword"
+            type="password"
+            autocomplete="new-password"
+          />
+        </label>
+
+        <label>
+          <span>{{ preferences.language === 'ko' ? '새 비밀번호 확인' : 'Confirm New Password' }}</span>
+          <input
+            v-model="passwordForm.newPasswordConfirm"
+            type="password"
+            autocomplete="new-password"
+          />
+        </label>
+
+        <button type="submit" :disabled="isSubmitting">
+          {{
+            isSubmitting
+              ? (preferences.language === 'ko' ? '변경 중...' : 'Saving...')
+              : (preferences.language === 'ko' ? '비밀번호 변경' : 'Change Password')
+          }}
+        </button>
+      </form>
+
+      <div v-if="passwordError" class="login-error">{{ passwordError }}</div>
+      <div v-if="passwordSuccess" class="login-hint">{{ passwordSuccess }}</div>
+    </section>
+  </main>
+
+  <!-- 비밀번호 변경이 필요 없을 때는 기존 프로필 화면을 보여줍니다. -->
+  <section v-else class="app-screen profile-page">
+    <section class="profile-summary">
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
             <div class="page-panel__eyebrow">
-              {{ preferences.language === 'ko' ? '보안 안내' : 'Security Notice' }}
+              {{ resolveDefaultCopy('Identity', preferences.language) }}
             </div>
-            <h3>
-              {{ preferences.language === 'ko' ? '비밀번호를 먼저 변경해 주세요' : 'Please change your password first' }}
-            </h3>
+            <h3>{{ resolveDefaultCopy('Operator Snapshot', preferences.language) }}</h3>
           </div>
-          <span class="page-panel__chip">{{ currentRoleLabel }}</span>
+          <span class="page-panel__chip">{{ resolveDefaultCopy('ADMIN', preferences.language) }}</span>
         </div>
-
-        <p style="margin-bottom: 20px; color: var(--color-text-secondary, #666);">
-          {{
-            preferences.language === 'ko'
-              ? '임시 비밀번호로 로그인한 계정입니다. 계속 사용하려면 새 비밀번호로 변경해야 합니다.'
-              : 'This account signed in with a temporary password. Please set a new password before continuing.'
-          }}
-        </p>
-
-        <div v-if="isLoadingUser" class="page-feed">
-          <div class="page-feed__item">
-            <strong class="page-feed__text">
-              {{ preferences.language === 'ko' ? '사용자 정보를 불러오는 중입니다...' : 'Loading user information...' }}
-            </strong>
+        <div class="profile-kv">
+          <div v-for="[label, value] in identity" :key="label" class="profile-kv__row">
+            <span>{{ resolveDefaultCopy(label, preferences.language) }}</span>
+            <strong>{{ resolveDefaultCopy(value, preferences.language) }}</strong>
           </div>
         </div>
+      </article>
 
-        <form v-else class="settings-form" @submit.prevent="submitPasswordChange">
-          <!-- 현재 비밀번호 입력 -->
-<!-- 강제 비밀번호 변경이 아닐 때만 현재 비밀번호를 입력받습니다. -->
-<label v-if="!session.passwordChangeRequired">
-  <span>{{ preferences.language === 'ko' ? '현재 비밀번호' : 'Current Password' }}</span>
-  <input
-    v-model="passwordForm.currentPassword"
-    type="password"
-    autocomplete="current-password"
-  />
-</label>
-
-
-          <!-- 새 비밀번호 입력 -->
-          <label>
-            <span>{{ preferences.language === 'ko' ? '새 비밀번호' : 'New Password' }}</span>
-            <input
-              v-model="passwordForm.newPassword"
-              type="password"
-              autocomplete="new-password"
-            />
-          </label>
-
-          <!-- 새 비밀번호 확인 입력 -->
-          <label>
-            <span>{{ preferences.language === 'ko' ? '새 비밀번호 확인' : 'Confirm New Password' }}</span>
-            <input
-              v-model="passwordForm.newPasswordConfirm"
-              type="password"
-              autocomplete="new-password"
-            />
-          </label>
-
-          <!-- 에러 문구 -->
-          <div v-if="passwordError" class="login-error">
-            {{ passwordError }}
+      <article class="page-panel">
+        <div class="page-panel__head">
+          <div>
+            <div class="page-panel__eyebrow">
+              {{ resolveDefaultCopy('Contact & Credentials', preferences.language) }}
+            </div>
+            <h3>{{ resolveDefaultCopy('Access Details', preferences.language) }}</h3>
           </div>
-
-          <!-- 성공 문구 -->
-          <div v-if="passwordSuccess" class="login-hint">
-            {{ passwordSuccess }}
+          <span class="page-panel__chip">{{ resolveDefaultCopy('ACTIVE', preferences.language) }}</span>
+        </div>
+        <div class="profile-kv">
+          <div v-for="[label, value] in contact" :key="label" class="profile-kv__row">
+            <span>{{ resolveDefaultCopy(label, preferences.language) }}</span>
+            <strong>{{ resolveDefaultCopy(value, preferences.language) }}</strong>
           </div>
-
-          <!-- 저장 버튼 -->
-          <button
-            class="page-button page-button--primary"
-            type="submit"
-            :disabled="isSubmitting"
-          >
-            {{ isSubmitting
-              ? (preferences.language === 'ko' ? '변경 중...' : 'Saving...')
-              : (preferences.language === 'ko' ? '비밀번호 변경' : 'Change Password') }}
-          </button>
-        </form>
+        </div>
       </article>
     </section>
 
-    <!-- 비밀번호 변경이 필요 없을 때는 기존 프로필 화면을 보여줍니다. -->
-    <template v-else>
-      <section class="profile-summary">
-        <article class="page-panel">
-          <div class="page-panel__head">
-            <div><div class="page-panel__eyebrow">{{ resolveDefaultCopy('Identity', preferences.language) }}</div><h3>{{ resolveDefaultCopy('Operator Snapshot', preferences.language) }}</h3></div>
-            <span class="page-panel__chip">{{ resolveDefaultCopy('ADMIN', preferences.language) }}</span>
-          </div>
-          <div class="profile-kv">
-            <div v-for="[label, value] in identity" :key="label" class="profile-kv__row"><span>{{ resolveDefaultCopy(label, preferences.language) }}</span><strong>{{ resolveDefaultCopy(value, preferences.language) }}</strong></div>
-          </div>
-        </article>
+    <section class="page-metrics">
+      <article class="page-metric">
+        <span class="page-metric__label">{{ resolveDefaultCopy('Recommendation Adoption', preferences.language) }}</span>
+        <strong class="page-metric__value">84.2%</strong>
+        <span class="page-metric__meta">{{ resolveDefaultCopy('+6.4% QoQ', preferences.language) }}</span>
+      </article>
 
-        <article class="page-panel">
-          <div class="page-panel__head">
-            <div><div class="page-panel__eyebrow">{{ resolveDefaultCopy('Contact & Credentials', preferences.language) }}</div><h3>{{ resolveDefaultCopy('Access Details', preferences.language) }}</h3></div>
-            <span class="page-panel__chip">{{ resolveDefaultCopy('ACTIVE', preferences.language) }}</span>
-          </div>
-          <div class="profile-kv">
-            <div v-for="[label, value] in contact" :key="label" class="profile-kv__row"><span>{{ resolveDefaultCopy(label, preferences.language) }}</span><strong>{{ resolveDefaultCopy(value, preferences.language) }}</strong></div>
-          </div>
-        </article>
-      </section>
+      <article class="page-metric">
+        <span class="page-metric__label">{{ resolveDefaultCopy('Recovery Success Rate', preferences.language) }}</span>
+        <strong class="page-metric__value">91.8%</strong>
+        <span class="page-metric__meta">{{ resolveDefaultCopy('ETA restored in 42h avg', preferences.language) }}</span>
+      </article>
 
-      <section class="page-metrics">
-        <article class="page-metric"><span class="page-metric__label">{{ resolveDefaultCopy('Recommendation Adoption', preferences.language) }}</span><strong class="page-metric__value">84.2%</strong><span class="page-metric__meta">{{ resolveDefaultCopy('+6.4% QoQ', preferences.language) }}</span></article>
-        <article class="page-metric"><span class="page-metric__label">{{ resolveDefaultCopy('Recovery Success Rate', preferences.language) }}</span><strong class="page-metric__value">91.8%</strong><span class="page-metric__meta">{{ resolveDefaultCopy('ETA restored in 42h avg', preferences.language) }}</span></article>
-        <article class="page-metric"><span class="page-metric__label">{{ resolveDefaultCopy('Open Governance Reviews', preferences.language) }}</span><strong class="page-metric__value">07</strong><span class="page-metric__meta">{{ resolveDefaultCopy('2 overdue escalations', preferences.language) }}</span></article>
-        <article class="page-metric"><span class="page-metric__label">{{ resolveDefaultCopy('Active Collaboration Rooms', preferences.language) }}</span><strong class="page-metric__value">13</strong><span class="page-metric__meta">{{ resolveDefaultCopy('5 critical channels pinned', preferences.language) }}</span></article>
-      </section>
+      <article class="page-metric">
+        <span class="page-metric__label">{{ resolveDefaultCopy('Open Governance Reviews', preferences.language) }}</span>
+        <strong class="page-metric__value">07</strong>
+        <span class="page-metric__meta">{{ resolveDefaultCopy('2 overdue escalations', preferences.language) }}</span>
+      </article>
 
-      <section class="page-panels">
-        <article class="page-panel">
-          <div class="page-panel__head">
-            <div><div class="page-panel__eyebrow">{{ resolveDefaultCopy('Organization Context', preferences.language) }}</div><h3>{{ resolveDefaultCopy('Auth Organization Entity', preferences.language) }}</h3></div>
-            <span class="page-panel__chip">{{ resolveDefaultCopy('ORG_ADMIN', preferences.language) }}</span>
-          </div>
-          <div class="profile-kv">
-            <div v-for="[label, value] in orgRows" :key="label" class="profile-kv__row"><span>{{ resolveDefaultCopy(label, preferences.language) }}</span><strong>{{ resolveDefaultCopy(value, preferences.language) }}</strong></div>
-          </div>
-        </article>
+      <article class="page-metric">
+        <span class="page-metric__label">{{ resolveDefaultCopy('Active Collaboration Rooms', preferences.language) }}</span>
+        <strong class="page-metric__value">13</strong>
+        <span class="page-metric__meta">{{ resolveDefaultCopy('5 critical channels pinned', preferences.language) }}</span>
+      </article>
+    </section>
 
-        <article class="page-panel">
-          <div class="page-panel__head">
-            <div><div class="page-panel__eyebrow">{{ resolveDefaultCopy('Login History', preferences.language) }}</div><h3>{{ resolveDefaultCopy('Auth Access Trace', preferences.language) }}</h3></div>
-            <span class="page-panel__chip">{{ resolveDefaultCopy('LOGIN_HISTORY', preferences.language) }}</span>
-          </div>
-          <div class="page-feed">
-            <div v-for="[label, text] in history" :key="label" class="page-feed__item">
-              <span class="page-feed__label">{{ resolveDefaultCopy(label, preferences.language) }}</span>
-              <strong class="page-feed__text">{{ resolveDefaultCopy(text, preferences.language) }}</strong>
+    <section class="page-panels">
+      <article class="page-panel">
+        <div class="page-panel__head">
+          <div>
+            <div class="page-panel__eyebrow">
+              {{ resolveDefaultCopy('Organization Context', preferences.language) }}
             </div>
+            <h3>{{ resolveDefaultCopy('Auth Organization Entity', preferences.language) }}</h3>
           </div>
-          <button class="page-button page-button--danger" type="button" @click="session.signOut()">{{ resolveDefaultCopy('SIGN_OUT', preferences.language) }}</button>
-        </article>
-      </section>
-    </template>
+          <span class="page-panel__chip">{{ resolveDefaultCopy('ORG_ADMIN', preferences.language) }}</span>
+        </div>
+        <div class="profile-kv">
+          <div v-for="[label, value] in orgRows" :key="label" class="profile-kv__row">
+            <span>{{ resolveDefaultCopy(label, preferences.language) }}</span>
+            <strong>{{ resolveDefaultCopy(value, preferences.language) }}</strong>
+          </div>
+        </div>
+      </article>
+
+      <article class="page-panel">
+        <div class="page-panel__head">
+          <div>
+            <div class="page-panel__eyebrow">
+              {{ resolveDefaultCopy('Login History', preferences.language) }}
+            </div>
+            <h3>{{ resolveDefaultCopy('Auth Access Trace', preferences.language) }}</h3>
+          </div>
+          <span class="page-panel__chip">{{ resolveDefaultCopy('LOGIN_HISTORY', preferences.language) }}</span>
+        </div>
+
+        <div class="page-feed">
+          <div v-for="[label, text] in history" :key="label" class="page-feed__item">
+            <span class="page-feed__label">{{ resolveDefaultCopy(label, preferences.language) }}</span>
+            <strong class="page-feed__text">{{ resolveDefaultCopy(text, preferences.language) }}</strong>
+          </div>
+        </div>
+
+        <button
+          class="page-button page-button--danger"
+          type="button"
+          @click="session.signOut()"
+        >
+          {{ resolveDefaultCopy('SIGN_OUT', preferences.language) }}
+        </button>
+      </article>
+    </section>
   </section>
 </template>

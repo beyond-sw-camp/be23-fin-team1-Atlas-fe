@@ -108,10 +108,8 @@ export async function changePassword(
   await apiClient.patch(`/api/auth/users/${userId}/password`, payload)
 }
 
-// 최초 ORG_ADMIN 생성 요청입니다.
-// 관리자가 새 조직의 최초 대표자 계정을 만들 때 사용합니다.
 export interface CreateInitialOrgAdminPayload {
-  loginId: string
+  // 로그인 ID는 서버가 자동 생성하므로 프론트에서는 보내지 않습니다.
   firstName: string
   middleName?: string
   lastName: string
@@ -120,11 +118,11 @@ export interface CreateInitialOrgAdminPayload {
   jobTitle?: string
 }
 
-// 최초 ORG_ADMIN 생성 응답입니다.
-// 임시 비밀번호와 passwordChangeRequired 상태를 함께 받습니다.
 export interface CreateInitialOrgAdminResponse {
   userPublicId: string
   organizationPublicId: string
+  // 서버가 자동 생성한 로그인 ID를 응답으로 받습니다.
+  loginId: string
   temporaryPassword: string
   passwordChangeRequired: boolean
 }
@@ -142,10 +140,8 @@ export async function createInitialOrgAdmin(
   return response.data
 }
 
-// 조직 직원 생성 요청입니다.
-// ORG_ADMIN 이 자기 조직 직원 계정을 만들 때 사용합니다.
 export interface CreateOrganizationUserPayload {
-  loginId: string
+  // 로그인 ID는 서버가 자동 생성하므로 프론트에서는 보내지 않습니다.
   firstName: string
   middleName?: string
   lastName: string
@@ -154,11 +150,11 @@ export interface CreateOrganizationUserPayload {
   jobTitle?: string
 }
 
-// 조직 직원 생성 응답입니다.
-// 임시 비밀번호와 passwordChangeRequired 상태를 함께 받습니다.
 export interface CreateOrganizationUserResponse {
   userPublicId: string
   organizationPublicId: string
+  // 서버가 자동 생성한 로그인 ID를 응답으로 받습니다.
+  loginId: string
   temporaryPassword: string
   passwordChangeRequired: boolean
 }
