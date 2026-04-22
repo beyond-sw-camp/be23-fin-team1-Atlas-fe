@@ -272,7 +272,7 @@ onBeforeUnmount(() => header.clearActions())
             </div>
             <span class="page-panel__chip">{{ filteredLots.length }}</span>
           </div>
-          <div class="page-table terminal-page__table lots-page__table">
+          <div class="page-table terminal-page__table is-nine-cols lots-page__table">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
             </div>
@@ -383,5 +383,13 @@ onBeforeUnmount(() => header.clearActions())
   letter-spacing: 0.05em;
   text-transform: uppercase;
   border-bottom: 1px solid var(--color-surface-container-high);
+}
+/* LOT 테이블 9컬럼 커스텀 너비 — 글자 안 겹치게 */
+.page-table.is-nine-cols .page-table__row {
+  grid-template-columns: 1.4fr 1.2fr 1.2fr 0.9fr 1fr 1fr 1fr 1fr 0.8fr;
+  min-width: 900px;
+}
+.page-table {
+  overflow-x: auto;
 }
 </style>

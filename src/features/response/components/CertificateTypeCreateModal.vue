@@ -16,9 +16,10 @@ const emit = defineEmits<{
 const form = ref<CreateCertificateTypeRequestDto>({
   certificateCode: '',
   certificateName: '',
-  scopeType: 'GENERAL', // 기본값, 백엔드 Enum에 맞게 수정 가능
+  scopeType: 'GENERAL',
   requiredYn: false,
-  activeYn: true
+  activeYn: true,
+  issuerName: ''
 })
 
 const isSubmitting = ref(false)
@@ -30,6 +31,7 @@ const content = computed(() => {
         desc: '서버 마스터 데이터에 새로운 인증 자격/유형을 추가합니다.',
         certCode: '인증 코드 (예: ISO-9001)',
         certName: '인증명 (예: 품질경영시스템)',
+        issuer: '발급 기관 (예: ISO, MFDS)',
         scope: '인증 범위 (Scope)',
         required: '필수 여부 (Required)',
         active: '활성화 (Active)',
@@ -41,6 +43,7 @@ const content = computed(() => {
         desc: 'Register a new certificate type to the master DB.',
         certCode: 'Cert Code (e.g., ISO-9001)',
         certName: 'Cert Name (e.g., Quality Mgmt)',
+        issuer: 'Issuer Organization (e.g., ISO, MFDS)',
         scope: 'Scope Type',
         required: 'Required',
         active: 'Active',
@@ -61,6 +64,7 @@ async function handleSubmit() {
     alert(props.language === 'ko' ? '새 인증 유형이 성공적으로 등록되었습니다.' : 'New certificate type registered successfully.')
     form.value.certificateCode = ''
     form.value.certificateName = ''
+    form.value.issuerName = ''
     form.value.scopeType = 'GENERAL'
     form.value.requiredYn = false
     form.value.activeYn = true
@@ -95,6 +99,13 @@ async function handleSubmit() {
         <label>
           <span>{{ content.certName }}</span>
           <input v-model="form.certificateName" type="text" placeholder="품질경영시스템" required :disabled="isSubmitting" />
+        </label>
+      </div>
+
+      <div class="terminal-form-group">
+        <label>
+          <span>{{ content.issuer }}</span>
+          <input v-model="form.issuerName" type="text" placeholder="e.g. ISO, MFDS, KTC" :disabled="isSubmitting" />
         </label>
       </div>
 

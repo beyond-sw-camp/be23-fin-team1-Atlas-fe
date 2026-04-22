@@ -124,6 +124,12 @@ export async function getSupplier(supplierPublicId: string) {
   return response.data
 }
 
+// 내 협력사 정보 조회 (SUPPLIER 전용)
+export async function getMySupplier() {
+  const response = await apiClient.get<SupplierResponseDto>('/api/supply/suppliers/me')
+  return response.data
+}
+
 // 협력사 등록
 export async function createSupplier(data: CreateSupplierRequestDto) {
   const response = await apiClient.post<SupplierResponseDto>('/api/supply/suppliers', data)

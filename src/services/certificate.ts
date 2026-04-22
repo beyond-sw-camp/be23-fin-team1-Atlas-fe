@@ -16,6 +16,7 @@ export interface CertificateTypeResponseDto {
   certificateName?: string
   certificateCode?: string
   description?: string
+  issuerName?: string
 }
 
 export interface CreateCertificateTypeRequestDto {
@@ -24,6 +25,7 @@ export interface CreateCertificateTypeRequestDto {
   scopeType: string
   requiredYn: boolean
   activeYn?: boolean
+  issuerName?: string
 }
 
 export interface SupplierCertificateResponseDto {
@@ -42,11 +44,12 @@ export interface SupplierCertificateResponseDto {
 
 export interface CertificateHistoryResponseDto {
   publicId: string
-  preStatus: string
-  status: string
+  actionType: string
+  beforeStatus: string
+  afterStatus: string
   reason?: string
-  changedByUserPublicId?: string
-  createdAt: string
+  actorPublicId?: string
+  recordedAt: string
 }
 
 /* ── 전체 인증서 페이징 조회 (신규 추가된 API) ── */
