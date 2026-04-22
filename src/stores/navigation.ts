@@ -7,8 +7,28 @@ import type { OrganizationType, PageKey } from '../types'
 import { useAtlasPreferencesStore } from './preferences'
 import { useAtlasUiStore } from './ui'
 
+const ADMIN_HIDDEN_PAGE_KEYS = new Set<PageKey>([
+  'ordersDesk',
+  'supplierControl',
+  'items',
+  'lots',
+  'shipments',
+  'settlements',
+  'logisticsNodes',
+  'returns',
+  'certificateWatch',
+  'documents',
+  'evaluation',
+  'vendorKpi',
+  'acceptance',
+])
+
 function getNavItemsForOrganization(organization: OrganizationType) {
-  return NAV_ITEMS.filter((item) => item.organizations.includes(organization))
+  return NAV_ITEMS.filter((item) => {
+    if (!item.organizations.includes(organization)) return false
+    if (organization === 'admin' && ADMIN_HIDDEN_PAGE_KEYS.has(item.key)) return false
+    return true
+  })
 }
 
 export const useAtlasNavigationStore = defineStore('atlasNavigation', () => {

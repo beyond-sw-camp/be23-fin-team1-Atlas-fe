@@ -1,10 +1,28 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch, watchEffect } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { createOrganization } from '../../../services/organization'
+import {
+  createItemCategory,
+  getItemCategories,
+  type CreateItemCategoryRequestDto,
+  type ItemCategoryResponseDto,
+} from '../../../services/item'
 import { createInitialOrgAdmin } from '../../../services/user'
 import PhoneField from '../../../components/forms/PhoneField.vue'
+
+type SettingsTabKey = 'organization' | 'users' | 'categories'
+
+type CategoryTreeNode = {
+  publicId: string
+  parentCategoryPublicId: string | null
+  categoryName: string
+  pathLabel: string
+  level: number
+  status: string
+  hasChildren: boolean
+}
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
@@ -13,32 +31,36 @@ const CONTENT = {
   ko: {
     eyebrow: '플랫폼 / 관리',
     title: '플랫폼관리',
-    tabs: ['조직', '사용자'],
+    tabs: {
+      organization: '조직',
+      users: '사용자',
+      categories: '카테고리',
+    },
     resetLabel: '초기화',
     saveLabel: '저장',
-    inviteLabel: '조직 관리자 생성',
-    keyLabel: '키 생성',
-    exportLabel: '전체 데이터 내보내기',
-    resetDangerLabel: '설정 초기화',
   },
   en: {
     eyebrow: 'Platform / Management',
     title: 'Platform Management',
-    tabs: ['Organization', 'Users'],
+    tabs: {
+      organization: 'Organization',
+      users: 'Users',
+      categories: 'Categories',
+    },
     resetLabel: 'RESET',
     saveLabel: 'SAVE CHANGES',
-    inviteLabel: 'CREATE ORG ADMIN',
-    keyLabel: 'GENERATE KEY',
-    exportLabel: 'EXPORT ALL DATA',
-    resetDangerLabel: 'RESET SETTINGS',
   },
-}
+} as const
 
 const content = computed(() => CONTENT[preferences.language])
-const activeTab = ref<string>(content.value.tabs[0])
+const activeTab = ref<SettingsTabKey>('organization')
+const tabEntries = computed(() => [
+  { key: 'organization' as const, label: content.value.tabs.organization },
+  { key: 'users' as const, label: content.value.tabs.users },
+  { key: 'categories' as const, label: content.value.tabs.categories },
+])
 
 watchEffect(() => {
-  activeTab.value = content.value.tabs[0]
   header.setActions([
     { key: 'settings-reset', label: content.value.resetLabel, tone: 'secondary' },
     { key: 'settings-save', label: content.value.saveLabel, tone: 'primary' },
@@ -49,13 +71,9 @@ onBeforeUnmount(() => {
   header.clearActions()
 })
 
-// 조직 생성 폼 값입니다.
-// 관리자가 새 조직을 만들 때 입력하는 정보입니다.
 const organizationForm = reactive({
   organizationType: 'SUPPLIER' as 'BUYER' | 'SUPPLIER',
-  // 한글 조직명입니다.
   organizationName: '',
-  // 영문 조직명입니다.
   organizationEnglishName: '',
   businessNo: '',
   contactFirstName: '',
@@ -65,9 +83,6 @@ const organizationForm = reactive({
   contactPhone: '',
 })
 
-
-// 최초 ORG_ADMIN 생성 폼 값입니다.
-// 로그인 ID는 서버가 자동 생성하므로 프론트에서는 입력받지 않습니다.
 const initialOrgAdminForm = reactive({
   firstName: '',
   middleName: '',
@@ -77,56 +92,309 @@ const initialOrgAdminForm = reactive({
   jobTitle: '',
 })
 
-// 방금 생성된 조직 publicId를 저장합니다.
-// 최초 ORG_ADMIN 생성 API 호출에 필요합니다.
 const createdOrganizationPublicId = ref('')
-
-// 최초 ORG_ADMIN 생성 후 서버가 자동 생성한 로그인 ID입니다.
 const createdOrgAdminLoginId = ref('')
-
-// 최초 ORG_ADMIN 생성 후 받은 임시 비밀번호입니다.
 const createdOrgAdminTempPassword = ref('')
 
-// 조직 생성 중 상태입니다.
 const isCreatingOrganization = ref(false)
-
-// 최초 ORG_ADMIN 생성 중 상태입니다.
 const isCreatingOrgAdmin = ref(false)
 
-// 조직 생성 에러 문구입니다.
 const organizationCreateError = ref('')
-
-// 조직 생성 성공 문구입니다.
 const organizationCreateSuccess = ref('')
-
-// 최초 ORG_ADMIN 생성 에러 문구입니다.
 const orgAdminCreateError = ref('')
-
-// 최초 ORG_ADMIN 생성 성공 문구입니다.
 const orgAdminCreateSuccess = ref('')
 
-// 조직 담당자 연락처 유효성 여부입니다.
 const organizationContactPhoneValid = ref(false)
-
-// 최초 ORG_ADMIN 연락처 유효성 여부입니다.
 const initialOrgAdminPhoneValid = ref(false)
 
-// 새 조직을 생성합니다.
-// 성공하면 organizationPublicId 를 저장해서 다음 단계인 ORG_ADMIN 생성에 씁니다.
+const itemCategories = ref<ItemCategoryResponseDto[]>([])
+const itemCategoriesLoaded = ref(false)
+const itemCategoriesLoading = ref(false)
+const itemCategorySubmitting = ref(false)
+const itemCategoryError = ref('')
+const itemCategorySuccess = ref('')
+const selectedCategoryPublicId = ref('')
+const expandedCategoryIds = ref<string[]>([])
+
+const itemCategoryForm = reactive({
+  categoryName: '',
+  sortOrder: 1,
+})
+
+const categoryCopy = computed(() =>
+  preferences.language === 'ko'
+    ? {
+        structureEyebrow: 'CATEGORY STRUCTURE',
+        structureTitle: '카테고리 구조',
+        structureDescription: '왼쪽 구조에서 부모 노드를 선택한 뒤, 오른쪽에서 하위 카테고리를 추가합니다.',
+        rootLabel: '최상위 카테고리',
+        rootDescription: '선택 시 루트 카테고리를 생성합니다.',
+        editorEyebrow: 'NODE EDITOR',
+        createRootTitle: '최상위 카테고리 생성',
+        createChildTitle: '하위 카테고리 추가',
+        createDescription: '선택된 노드 아래로 새 카테고리를 추가합니다.',
+        currentParentLabel: '현재 부모',
+        nextLevelLabel: '생성 레벨',
+        nameLabel: '새 카테고리명',
+        sortOrderLabel: '정렬 순서',
+        submitLabel: '하위 카테고리 추가',
+        submitRootLabel: '최상위 카테고리 생성',
+        empty: '등록된 카테고리가 없습니다.',
+        statusActive: '활성',
+        statusDeactive: '비활성',
+        statusDelete: '삭제',
+      }
+    : {
+        structureEyebrow: 'CATEGORY STRUCTURE',
+        structureTitle: 'Category Structure',
+        structureDescription: 'Choose a parent node on the left, then add a child category from the editor.',
+        rootLabel: 'Top-level category',
+        rootDescription: 'Create a root category without selecting a parent.',
+        editorEyebrow: 'NODE EDITOR',
+        createRootTitle: 'Create Root Category',
+        createChildTitle: 'Add Child Category',
+        createDescription: 'Add a new category under the selected parent node.',
+        currentParentLabel: 'Current Parent',
+        nextLevelLabel: 'Next Level',
+        nameLabel: 'New Category Name',
+        sortOrderLabel: 'Sort Order',
+        submitLabel: 'Add Child Category',
+        submitRootLabel: 'Create Root Category',
+        empty: 'No categories registered.',
+        statusActive: 'Active',
+        statusDeactive: 'Inactive',
+        statusDelete: 'Deleted',
+      },
+)
+
+const categoryTreeNodes = computed<CategoryTreeNode[]>(() => {
+  const categoryMap = new Map(
+    itemCategories.value.map((category) => [category.publicId, category]),
+  )
+  const parentIds = new Set(
+    itemCategories.value
+      .map((category) => category.parentCategoryPublicId)
+      .filter((value): value is string => !!value),
+  )
+
+  function buildPath(category: ItemCategoryResponseDto) {
+    const names: string[] = []
+    const visited = new Set<string>()
+    let current: ItemCategoryResponseDto | undefined = category
+
+    while (current && !visited.has(current.publicId)) {
+      visited.add(current.publicId)
+      names.unshift(current.categoryName)
+      current = current.parentCategoryPublicId
+        ? categoryMap.get(current.parentCategoryPublicId)
+        : undefined
+    }
+
+    return names.join(' > ')
+  }
+
+  return itemCategories.value
+    .map((category) => ({
+      publicId: category.publicId,
+      parentCategoryPublicId: category.parentCategoryPublicId,
+      categoryName: category.categoryName,
+      pathLabel: buildPath(category),
+      level: category.categoryLevel,
+      status: category.status,
+      hasChildren: parentIds.has(category.publicId),
+    }))
+    .sort(
+      (left, right) =>
+        left.pathLabel.localeCompare(
+          right.pathLabel,
+          preferences.language === 'ko' ? 'ko-KR' : 'en-US',
+        ),
+    )
+})
+
+const selectedCategoryNode = computed(
+  () => categoryTreeNodes.value.find((category) => category.publicId === selectedCategoryPublicId.value) ?? null,
+)
+
+const visibleCategoryNodes = computed(() => {
+  const expanded = new Set(expandedCategoryIds.value)
+
+  return categoryTreeNodes.value.filter((category) => {
+    let currentParentId = category.parentCategoryPublicId
+
+    while (currentParentId) {
+      if (!expanded.has(currentParentId)) return false
+
+      const parent = categoryTreeNodes.value.find((node) => node.publicId === currentParentId)
+      currentParentId = parent?.parentCategoryPublicId ?? null
+    }
+
+    return true
+  })
+})
+
+const selectedParentLabel = computed(() =>
+  selectedCategoryNode.value ? selectedCategoryNode.value.pathLabel : categoryCopy.value.rootLabel,
+)
+
+const nextCategoryLevel = computed(() => (selectedCategoryNode.value ? selectedCategoryNode.value.level + 1 : 1))
+
+function categoryStatusText(status: string) {
+  if (status === 'ACTIVE') return categoryCopy.value.statusActive
+  if (status === 'DEACTIVE') return categoryCopy.value.statusDeactive
+  return categoryCopy.value.statusDelete
+}
+
+function isCategoryExpanded(categoryPublicId: string) {
+  return expandedCategoryIds.value.includes(categoryPublicId)
+}
+
+function toggleCategoryExpanded(categoryPublicId: string) {
+  if (isCategoryExpanded(categoryPublicId)) {
+    expandedCategoryIds.value = expandedCategoryIds.value.filter((value) => value !== categoryPublicId)
+    return
+  }
+
+  expandedCategoryIds.value = [...expandedCategoryIds.value, categoryPublicId]
+}
+
+function expandCategoryAncestors(categoryPublicId: string) {
+  const expanded = new Set(expandedCategoryIds.value)
+  let current = categoryTreeNodes.value.find((category) => category.publicId === categoryPublicId)
+
+  while (current?.parentCategoryPublicId) {
+    expanded.add(current.parentCategoryPublicId)
+    current = categoryTreeNodes.value.find((category) => category.publicId === current?.parentCategoryPublicId)
+  }
+
+  expandedCategoryIds.value = [...expanded]
+}
+
+function selectCategoryNode(categoryPublicId: string) {
+  selectedCategoryPublicId.value = categoryPublicId
+  expandCategoryAncestors(categoryPublicId)
+}
+
+async function loadItemCategories() {
+  try {
+    itemCategoriesLoading.value = true
+    itemCategoryError.value = ''
+
+    const response = await getItemCategories(0, 100)
+
+    itemCategories.value = response.content.sort(
+      (a, b) =>
+        a.categoryLevel - b.categoryLevel ||
+        a.sortOrder - b.sortOrder ||
+        a.categoryName.localeCompare(
+          b.categoryName,
+          preferences.language === 'ko' ? 'ko-KR' : 'en-US',
+        ),
+    )
+    itemCategoriesLoaded.value = true
+  } catch (error: any) {
+    itemCategoryError.value =
+      error?.payload?.message ||
+      error?.message ||
+      (preferences.language === 'ko'
+        ? '카테고리 목록을 불러오지 못했습니다.'
+        : 'Failed to load categories.')
+  } finally {
+    itemCategoriesLoading.value = false
+  }
+}
+
+function resetCategoryForm() {
+  itemCategoryForm.categoryName = ''
+  itemCategoryForm.sortOrder = 1
+}
+
+async function submitItemCategory() {
+  itemCategoryError.value = ''
+  itemCategorySuccess.value = ''
+
+  if (!itemCategoryForm.categoryName.trim()) {
+    itemCategoryError.value =
+      preferences.language === 'ko'
+        ? '카테고리명을 입력해 주세요.'
+        : 'Enter category name.'
+    return
+  }
+
+  if (itemCategoryForm.sortOrder < 0) {
+    itemCategoryError.value =
+      preferences.language === 'ko'
+        ? '정렬 순서는 0 이상이어야 합니다.'
+        : 'Sort order must be 0 or more.'
+    return
+  }
+
+  try {
+    itemCategorySubmitting.value = true
+
+    const savedCategory = await createItemCategory({
+      parentCategoryPublicId: selectedCategoryPublicId.value || undefined,
+      categoryName: itemCategoryForm.categoryName.trim(),
+      sortOrder: itemCategoryForm.sortOrder,
+    } satisfies CreateItemCategoryRequestDto)
+
+    itemCategorySuccess.value =
+      preferences.language === 'ko'
+        ? '카테고리가 등록되었습니다.'
+        : 'Category created.'
+
+    resetCategoryForm()
+    await loadItemCategories()
+    selectCategoryNode(savedCategory.publicId)
+  } catch (error: any) {
+    itemCategoryError.value =
+      error?.payload?.message ||
+      error?.message ||
+      (preferences.language === 'ko'
+        ? '카테고리 등록에 실패했습니다.'
+        : 'Failed to create category.')
+  } finally {
+    itemCategorySubmitting.value = false
+  }
+}
+
+watch(
+  activeTab,
+  (tab) => {
+    if (tab === 'categories' && !itemCategoriesLoaded.value) {
+      void loadItemCategories()
+    }
+  },
+  { immediate: true },
+)
+
+watch(itemCategories, (categories) => {
+  if (
+    selectedCategoryPublicId.value &&
+    !categories.some((category) => category.publicId === selectedCategoryPublicId.value)
+  ) {
+    selectedCategoryPublicId.value = ''
+  }
+})
+
+watch(selectedCategoryPublicId, (categoryPublicId) => {
+  if (!categoryPublicId) return
+  expandCategoryAncestors(categoryPublicId)
+})
+
 async function submitOrganization() {
   organizationCreateError.value = ''
   organizationCreateSuccess.value = ''
 
-if (
-  !organizationForm.organizationName ||
-  !organizationForm.organizationEnglishName ||
-  !organizationForm.businessNo ||
-  !organizationForm.contactFirstName ||
-  !organizationForm.contactLastName ||
-  !organizationForm.contactEmail ||
-  !organizationForm.contactPhone
-) {
-
+  if (
+    !organizationForm.organizationName ||
+    !organizationForm.organizationEnglishName ||
+    !organizationForm.businessNo ||
+    !organizationForm.contactFirstName ||
+    !organizationForm.contactLastName ||
+    !organizationForm.contactEmail ||
+    !organizationForm.contactPhone
+  ) {
     organizationCreateError.value =
       preferences.language === 'ko'
         ? '조직 생성에 필요한 항목을 모두 입력해 주세요.'
@@ -134,7 +402,6 @@ if (
     return
   }
 
-  // 연락처 형식이 올바른지 먼저 검사합니다.
   if (!organizationContactPhoneValid.value) {
     organizationCreateError.value =
       preferences.language === 'ko'
@@ -146,29 +413,24 @@ if (
   try {
     isCreatingOrganization.value = true
 
-const response = await createOrganization({
-  organizationType: organizationForm.organizationType,
-  // 한글 조직명을 보냅니다.
-  organizationName: organizationForm.organizationName,
-  // 영문 조직명도 같이 보내야 백엔드 검증을 통과합니다.
-  organizationEnglishName: organizationForm.organizationEnglishName,
-  businessNo: organizationForm.businessNo,
-  contactFirstName: organizationForm.contactFirstName,
-  contactMiddleName: organizationForm.contactMiddleName,
-  contactLastName: organizationForm.contactLastName,
-  contactEmail: organizationForm.contactEmail,
-  contactPhone: organizationForm.contactPhone,
-})
-
+    const response = await createOrganization({
+      organizationType: organizationForm.organizationType,
+      organizationName: organizationForm.organizationName,
+      organizationEnglishName: organizationForm.organizationEnglishName,
+      businessNo: organizationForm.businessNo,
+      contactFirstName: organizationForm.contactFirstName,
+      contactMiddleName: organizationForm.contactMiddleName,
+      contactLastName: organizationForm.contactLastName,
+      contactEmail: organizationForm.contactEmail,
+      contactPhone: organizationForm.contactPhone,
+    })
 
     createdOrganizationPublicId.value = response.organizationPublicId
-
     organizationCreateSuccess.value =
       preferences.language === 'ko'
         ? `조직이 생성되었습니다. 조직 ID: ${response.organizationPublicId}`
         : `Organization created. ID: ${response.organizationPublicId}`
 
-    // 조직이 새로 만들어지면 이전 대표자 생성 결과는 비웁니다.
     orgAdminCreateError.value = ''
     orgAdminCreateSuccess.value = ''
     createdOrgAdminLoginId.value = ''
@@ -184,13 +446,9 @@ const response = await createOrganization({
   }
 }
 
-// 방금 생성한 조직의 최초 ORG_ADMIN 계정을 생성합니다.
-// 성공하면 자동 생성된 로그인 ID와 임시 비밀번호를 화면에 보여줍니다.
 async function submitInitialOrgAdmin() {
   orgAdminCreateError.value = ''
   orgAdminCreateSuccess.value = ''
-
-  // 새 결과를 보여주기 전에 이전 결과를 먼저 비웁니다.
   createdOrgAdminLoginId.value = ''
   createdOrgAdminTempPassword.value = ''
 
@@ -202,7 +460,6 @@ async function submitInitialOrgAdmin() {
     return
   }
 
-  // 로그인 ID는 서버가 자동 생성하므로 이름/이메일/연락처만 검사합니다.
   if (
     !initialOrgAdminForm.firstName ||
     !initialOrgAdminForm.lastName ||
@@ -216,7 +473,6 @@ async function submitInitialOrgAdmin() {
     return
   }
 
-  // 연락처 형식이 올바른지 먼저 검사합니다.
   if (!initialOrgAdminPhoneValid.value) {
     orgAdminCreateError.value =
       preferences.language === 'ko'
@@ -228,25 +484,17 @@ async function submitInitialOrgAdmin() {
   try {
     isCreatingOrgAdmin.value = true
 
-    const response = await createInitialOrgAdmin(
-      createdOrganizationPublicId.value,
-      {
-        // 로그인 ID는 서버가 자동 생성하므로 이름/연락처 정보만 보냅니다.
-        firstName: initialOrgAdminForm.firstName,
-        middleName: initialOrgAdminForm.middleName,
-        lastName: initialOrgAdminForm.lastName,
-        email: initialOrgAdminForm.email,
-        phone: initialOrgAdminForm.phone,
-        jobTitle: initialOrgAdminForm.jobTitle,
-      },
-    )
+    const response = await createInitialOrgAdmin(createdOrganizationPublicId.value, {
+      firstName: initialOrgAdminForm.firstName,
+      middleName: initialOrgAdminForm.middleName,
+      lastName: initialOrgAdminForm.lastName,
+      email: initialOrgAdminForm.email,
+      phone: initialOrgAdminForm.phone,
+      jobTitle: initialOrgAdminForm.jobTitle,
+    })
 
-    // 서버가 자동 생성한 로그인 ID를 저장합니다.
     createdOrgAdminLoginId.value = response.loginId
-
-    // 서버가 생성한 임시 비밀번호를 저장합니다.
     createdOrgAdminTempPassword.value = response.temporaryPassword
-
     orgAdminCreateSuccess.value =
       preferences.language === 'ko'
         ? '최초 조직 관리자 계정이 생성되었습니다.'
@@ -283,17 +531,17 @@ async function submitInitialOrgAdmin() {
 
     <nav class="settings-page__tabs" aria-label="settings tabs">
       <button
-        v-for="tab in content.tabs"
-        :key="tab"
-        :class="['settings-page__tab', { 'is-active': activeTab === tab }]"
+        v-for="tab in tabEntries"
+        :key="tab.key"
+        :class="['settings-page__tab', { 'is-active': activeTab === tab.key }]"
         type="button"
-        @click="activeTab = tab"
+        @click="activeTab = tab.key"
       >
-        {{ tab }}
+        {{ tab.label }}
       </button>
     </nav>
 
-    <section v-if="activeTab === content.tabs[0]" class="settings-page__panel">
+    <section v-if="activeTab === 'organization'" class="settings-page__panel">
       <div class="settings-page__grid">
         <article class="page-panel">
           <div class="page-panel__head">
@@ -307,27 +555,20 @@ async function submitInitialOrgAdmin() {
             <label>
               <span>{{ preferences.language === 'ko' ? '조직 유형' : 'Organization Type' }}</span>
               <select v-model="organizationForm.organizationType">
-                <option value="BUYER">
-                  {{ preferences.language === 'ko' ? '발주사' : 'BUYER' }}
-                </option>
-                <option value="SUPPLIER">
-                  {{ preferences.language === 'ko' ? '협력사' : 'SUPPLIER' }}
-                </option>
+                <option value="BUYER">{{ preferences.language === 'ko' ? '발주사' : 'BUYER' }}</option>
+                <option value="SUPPLIER">{{ preferences.language === 'ko' ? '협력사' : 'SUPPLIER' }}</option>
               </select>
             </label>
 
             <label>
-  <span>{{ preferences.language === 'ko' ? '조직명' : 'Organization Name' }}</span>
-  <input v-model="organizationForm.organizationName" type="text" />
-</label>
+              <span>{{ preferences.language === 'ko' ? '조직명' : 'Organization Name' }}</span>
+              <input v-model="organizationForm.organizationName" type="text" />
+            </label>
 
-<!-- 조직 영문명 입력칸입니다. -->
-<label>
-  <span>{{ preferences.language === 'ko' ? '조직 영문명' : 'Organization English Name' }}</span>
-  <input v-model="organizationForm.organizationEnglishName" type="text" />
-</label>
-
-
+            <label>
+              <span>{{ preferences.language === 'ko' ? '조직 영문명' : 'Organization English Name' }}</span>
+              <input v-model="organizationForm.organizationEnglishName" type="text" />
+            </label>
 
             <label>
               <span>{{ preferences.language === 'ko' ? '사업자번호' : 'Business No' }}</span>
@@ -388,7 +629,7 @@ async function submitInitialOrgAdmin() {
       </div>
     </section>
 
-    <section v-else-if="activeTab === content.tabs[1]" class="settings-page__panel">
+    <section v-else-if="activeTab === 'users'" class="settings-page__panel">
       <div class="settings-page__grid">
         <article class="page-panel">
           <div class="page-panel__head">
@@ -473,6 +714,133 @@ async function submitInitialOrgAdmin() {
                   ? (preferences.language === 'ko' ? '생성 중...' : 'Creating...')
                   : (preferences.language === 'ko' ? '조직 관리자 생성' : 'Create Org Admin')
               }}
+            </button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section v-else class="settings-page__panel">
+      <div class="settings-page__grid">
+        <article class="page-panel">
+          <div class="page-panel__head">
+            <div>
+              <div class="page-panel__eyebrow">{{ categoryCopy.structureEyebrow }}</div>
+              <h3>{{ categoryCopy.structureTitle }}</h3>
+              <p class="settings-page__copy">{{ categoryCopy.structureDescription }}</p>
+            </div>
+          </div>
+
+          <div class="settings-category__tree">
+            <div
+              :class="['settings-category__node', 'is-root', { 'is-active': !selectedCategoryPublicId }]"
+            >
+              <span class="settings-category__node-toggle settings-category__node-toggle--spacer"></span>
+              <button
+                class="settings-category__node-main"
+                type="button"
+                @click="selectedCategoryPublicId = ''"
+              >
+                <span class="settings-category__node-ribbon"></span>
+                <span class="settings-category__node-copy">
+                  <strong>{{ categoryCopy.rootLabel }}</strong>
+                  <span>{{ categoryCopy.rootDescription }}</span>
+                </span>
+              </button>
+            </div>
+
+            <div v-if="itemCategoriesLoading && !categoryTreeNodes.length" class="page-feed">
+              <div class="page-feed__item">
+                <span class="page-feed__label">{{ preferences.language === 'ko' ? '로딩 중' : 'Loading' }}</span>
+                <strong class="page-feed__text">...</strong>
+              </div>
+            </div>
+
+            <div v-else-if="!categoryTreeNodes.length" class="page-feed">
+              <div class="page-feed__item">
+                <span class="page-feed__label">{{ categoryCopy.structureTitle }}</span>
+                <strong class="page-feed__text">{{ categoryCopy.empty }}</strong>
+              </div>
+            </div>
+
+            <div
+              v-for="category in visibleCategoryNodes"
+              :key="category.publicId"
+              :class="['settings-category__node', { 'is-active': selectedCategoryPublicId === category.publicId }]"
+              :style="{ '--category-level': String(Math.max(category.level - 1, 0)) }"
+            >
+              <button
+                v-if="category.hasChildren"
+                :class="['settings-category__node-toggle', { 'is-expanded': isCategoryExpanded(category.publicId) }]"
+                type="button"
+                :aria-label="isCategoryExpanded(category.publicId) ? 'Collapse category' : 'Expand category'"
+                @click="toggleCategoryExpanded(category.publicId)"
+              >
+                <span aria-hidden="true">›</span>
+              </button>
+              <span v-else class="settings-category__node-toggle settings-category__node-toggle--spacer"></span>
+              <button
+                class="settings-category__node-main"
+                type="button"
+                @click="selectCategoryNode(category.publicId)"
+              >
+              <span class="settings-category__node-ribbon"></span>
+              <span class="settings-category__node-copy">
+                <strong>{{ category.categoryName }}</strong>
+                <span>{{ category.pathLabel }}</span>
+              </span>
+              <span class="settings-category__node-status">{{ categoryStatusText(category.status) }}</span>
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <article class="page-panel">
+          <div class="page-panel__head">
+            <div>
+              <div class="page-panel__eyebrow">{{ categoryCopy.editorEyebrow }}</div>
+              <h3>{{ selectedCategoryNode ? categoryCopy.createChildTitle : categoryCopy.createRootTitle }}</h3>
+              <p class="settings-page__copy">{{ categoryCopy.createDescription }}</p>
+            </div>
+          </div>
+
+          <div class="page-feed settings-category__context">
+            <div class="page-feed__item">
+              <span class="page-feed__label">{{ categoryCopy.currentParentLabel }}</span>
+              <strong class="page-feed__text">{{ selectedParentLabel }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">{{ categoryCopy.nextLevelLabel }}</span>
+              <strong class="page-feed__text">{{ nextCategoryLevel }}</strong>
+            </div>
+          </div>
+
+          <div class="settings-form">
+            <label>
+              <span>{{ categoryCopy.nameLabel }}</span>
+              <input v-model="itemCategoryForm.categoryName" type="text" maxlength="100" />
+            </label>
+
+            <label>
+              <span>{{ categoryCopy.sortOrderLabel }}</span>
+              <input v-model.number="itemCategoryForm.sortOrder" type="number" min="0" />
+            </label>
+
+            <div v-if="itemCategoryError" class="login-error">
+              {{ itemCategoryError }}
+            </div>
+
+            <div v-if="itemCategorySuccess" class="login-hint">
+              {{ itemCategorySuccess }}
+            </div>
+
+            <button
+              class="page-button page-button--primary"
+              type="button"
+              :disabled="itemCategorySubmitting"
+              @click="submitItemCategory"
+            >
+              {{ selectedCategoryNode ? categoryCopy.submitLabel : categoryCopy.submitRootLabel }}
             </button>
           </div>
         </article>
