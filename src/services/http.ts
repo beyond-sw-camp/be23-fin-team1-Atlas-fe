@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 
+
 export interface ApiErrorPayload {
   message?: string
   code?: string
@@ -46,6 +47,16 @@ const USER_PUBLIC_ID_STORAGE_KEY = 'atlas-user-public-id'
 const ORGANIZATION_PUBLIC_ID_STORAGE_KEY = 'atlas-organization-public-id'
 const ORGANIZATION_TYPE_STORAGE_KEY = 'atlas-organization-type'
 const USER_ROLE_STORAGE_KEY = 'atlas-user-role'
+
+// 401 응답이 왔을 때 session store의 로그아웃 함수를 나중에 연결해 둘 자리입니다.
+// http.ts 에서 session store를 직접 import하면 순환 참조가 생길 수 있어서,
+// 함수만 등록받아 쓰는 방식으로 분리합니다.
+let unauthorizedHandler: null | (() => void) = null
+
+// session store에서 401 처리 함수를 등록할 때 사용합니다.
+export function registerUnauthorizedHandler(handler: () => void) {
+  unauthorizedHandler = handler
+}
 
 // 값이 있을 때만 헤더를 붙이는 작은 헬퍼 함수입니다.
 // 값이 없으면 헤더를 아예 넣지 않습니다.
@@ -110,15 +121,39 @@ apiClient.interceptors.request.use(
 
 
 
-// Add a response interceptor for unified error formatting
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError<ApiErrorPayload>) => {
     if (error.response) {
-      const payload = error.response.data                                                                                               
+      const payload = error.response.data
       const message = payload?.message || `API request failed with status ${error.response.status}`
+
+      // 어떤 요청에서 401이 났는지 확인하려고 요청 URL을 꺼냅니다.
+      const requestUrl = error.config?.url ?? ''
+
+      // 현재 access token 이 저장된 상태인지 확인합니다.
+      // 로그인도 안 한 상태의 401과 구분하려고 씁니다.
+      const hasAccessToken = Boolean(window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY))
+
+      // 로그인/토큰 재발급 요청 자체에서 난 401은 자동 로그아웃 처리에서 제외합니다.
+      const isLoginRequest = requestUrl.includes('/api/auth/login')
+      const isRefreshRequest = requestUrl.includes('/api/auth/refresh')
+
+      // 이미 로그인한 상태에서 일반 API 요청이 401로 실패하면
+      // 세션 만료로 보고 자동 로그아웃을 실행합니다.
+      if (
+        error.response.status === 401 &&
+        hasAccessToken &&
+        !isLoginRequest &&
+        !isRefreshRequest
+      ) {
+        unauthorizedHandler?.()
+      }
+
       throw new ApiError(error.response.status, message, payload)
     }
+
     throw error
-  }
+  },
 )
+
