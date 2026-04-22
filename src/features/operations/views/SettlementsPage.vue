@@ -407,7 +407,11 @@ async function loadShipmentOptions() {
   isShipmentOptionsLoading.value = true
 
   try {
-    const response = await getShipments(0, 100)
+const response = await getShipments({
+  page: 0,
+  size: 100,
+  sort: 'id,desc',
+})
     shipmentOptions.value = response.content ?? []
   } catch (err) {
     console.error('Failed to load shipments:', err)
