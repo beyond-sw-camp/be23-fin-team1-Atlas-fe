@@ -366,7 +366,7 @@ const currentRoleLabel = computed(() => {
               <strong class="page-feed__text">{{ resolveDefaultCopy(text, preferences.language) }}</strong>
             </div>
           </div>
-          <button class="page-button page-button--danger" type="button" @click="session.signOut">{{ resolveDefaultCopy('SIGN_OUT', preferences.language) }}</button>
+          <button class="page-button page-button--danger" type="button" @click="session.signOut()">{{ resolveDefaultCopy('SIGN_OUT', preferences.language) }}</button>
         </article>
       </section>
     </template>
