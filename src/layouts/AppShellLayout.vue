@@ -11,32 +11,51 @@ import { useAtlasNavigationStore } from '../stores/navigation'
 import { useAtlasPreferencesStore } from '../stores/preferences'
 import { useAtlasSessionStore } from '../stores/session'
 import { useAtlasUiStore } from '../stores/ui'
-import { useAtlasToastStore } from '../stores/toast'
 import { useAtlasChatStore } from '../stores/chat'
 
+// 현재 라우트 정보입니다.
 const route = useRoute()
+
+// 화면 상단 헤더 액션에 쓰는 스토어입니다.
 const header = useAtlasHeaderStore()
+
+// 현재 페이지 제목과 설명을 보여줄 때 쓰는 스토어입니다.
 const navigation = useAtlasNavigationStore()
+
+// 테마와 화면 크기 변수에 쓰는 스토어입니다.
 const preferences = useAtlasPreferencesStore()
+
+// 로그인 상태와 강제 비밀번호 변경 상태를 읽는 세션 스토어입니다.
 const session = useAtlasSessionStore()
+
+// 모바일 사이드바 상태를 관리하는 UI 스토어입니다.
 const ui = useAtlasUiStore()
 
-// 채팅 STOMP 클라이언트에 알림 구독이 통합됨 — 별도 연결 불필요
+// 채팅과 알림 연결을 담당하는 스토어입니다.
 const chatStore = useAtlasChatStore()
 
-// 인증 완료 시 채팅/알림 통합 WebSocket 연결 시작
-watch(() => session.isAuthenticated, (isAuth) => {
-  if (isAuth) {
-    chatStore.connectStomp()
-  } else {
-    chatStore.disconnectStomp()
-  }
-}, { immediate: true })
+// 로그인 상태와 강제 비밀번호 변경 상태를 함께 감시합니다.
+// 강제 비밀번호 변경 중에는 일반 앱 화면을 쓰지 않으므로 채팅 연결도 열지 않습니다.
+watch(
+  [() => session.isAuthenticated, () => session.passwordChangeRequired],
+  ([isAuth, mustChangePassword]) => {
+    // 로그인되어 있고, 강제 비밀번호 변경 상태가 아닐 때만 연결합니다.
+    if (isAuth && !mustChangePassword) {
+      chatStore.connectStomp()
+    } else {
+      // 로그아웃 상태이거나 비밀번호 변경 전용 화면이면 연결을 끊습니다.
+      chatStore.disconnectStomp()
+    }
+  },
+  { immediate: true },
+)
 
+// 창 크기가 바뀌면 모바일 레이아웃 상태를 다시 맞춥니다.
 onMounted(() => {
   window.addEventListener('resize', ui.syncViewportLayout)
 })
 
+// 레이아웃을 떠날 때 리스너와 채팅 연결을 정리합니다.
 onBeforeUnmount(() => {
   window.removeEventListener('resize', ui.syncViewportLayout)
   chatStore.disconnectStomp()
@@ -45,22 +64,44 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    :class="['app-shell', `theme-${preferences.theme}`, { 'is-mobile-sidebar-open': ui.mobileSidebarOpen }, ...preferences.screenClasses]"
+    :class="[
+      'app-shell',
+      `theme-${preferences.theme}`,
+      { 'is-mobile-sidebar-open': ui.mobileSidebarOpen },
+      ...preferences.screenClasses,
+    ]"
     :style="preferences.screenVars"
   >
+    <!-- 로그인 전에는 기존 로그인 화면을 보여줍니다. -->
     <LoginGate v-if="!session.isAuthenticated" />
+
+    <!-- 로그인은 되었지만 강제 비밀번호 변경 상태면
+         로그인 화면처럼 단순한 화면만 보여줍니다. -->
+    <RouterView
+      v-else-if="session.passwordChangeRequired"
+      :key="route.fullPath"
+    />
+
+    <!-- 일반 로그인 상태에서는 기존 앱 셸을 그대로 보여줍니다. -->
     <template v-else>
       <AppTopbar />
       <AppSidebar />
+
       <main class="app-main">
         <div v-if="!route.meta.hidePageHead" class="app-main__head">
           <div class="app-main__head-row">
             <h1>{{ navigation.pageLabel }}</h1>
+
             <div v-if="header.actions.length" class="app-main__head-actions">
               <button
                 v-for="action in header.actions"
                 :key="action.key"
-                :class="['page-button', action.tone === 'secondary' ? 'page-button--secondary' : 'page-button--primary']"
+                :class="[
+                  'page-button',
+                  action.tone === 'secondary'
+                    ? 'page-button--secondary'
+                    : 'page-button--primary',
+                ]"
                 type="button"
                 @click="action.onClick?.()"
               >
@@ -68,10 +109,13 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </div>
+
           <p>{{ navigation.pageSubtitle }}</p>
         </div>
+
         <RouterView :key="route.fullPath" />
       </main>
+
       <ChatPanel />
       <AppToastContainer />
     </template>
