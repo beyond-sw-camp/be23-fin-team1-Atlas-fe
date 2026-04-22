@@ -4,6 +4,7 @@ import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { createOrganization } from '../../../services/organization'
 import { createInitialOrgAdmin } from '../../../services/user'
+import PhoneField from '../../../components/forms/PhoneField.vue'
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
@@ -60,7 +61,6 @@ const organizationForm = reactive({
   contactLastName: '',
   contactEmail: '',
   contactPhone: '',
-  tierLevel: 1,
 })
 
 // 최초 ORG_ADMIN 생성 폼 값입니다.
@@ -99,6 +99,8 @@ const orgAdminCreateSuccess = ref('')
 
 // 최초 ORG_ADMIN 생성 후 받은 임시 비밀번호입니다.
 const createdOrgAdminTempPassword = ref('')
+const organizationContactPhoneValid = ref(false)
+const initialOrgAdminPhoneValid = ref(false)
 
 
 // 새 조직을 생성합니다.
@@ -122,6 +124,14 @@ async function submitOrganization() {
     return
   }
 
+  if (!organizationContactPhoneValid.value) {
+    organizationCreateError.value =
+      preferences.language === 'ko'
+        ? '담당자 연락처 형식이 올바르지 않습니다.'
+        : 'The contact phone number format is invalid.'
+    return
+  }
+
   try {
     isCreatingOrganization.value = true
 
@@ -134,10 +144,6 @@ async function submitOrganization() {
       contactLastName: organizationForm.contactLastName,
       contactEmail: organizationForm.contactEmail,
       contactPhone: organizationForm.contactPhone,
-      tierLevel:
-        organizationForm.organizationType === 'SUPPLIER'
-          ? organizationForm.tierLevel
-          : null,
     })
 
     createdOrganizationPublicId.value = response.organizationPublicId
@@ -187,6 +193,14 @@ async function submitInitialOrgAdmin() {
       preferences.language === 'ko'
         ? '최초 관리자 생성에 필요한 항목을 모두 입력해 주세요.'
         : 'Please fill in all required admin fields.'
+    return
+  }
+
+  if (!initialOrgAdminPhoneValid.value) {
+    orgAdminCreateError.value =
+      preferences.language === 'ko'
+        ? '연락처 형식이 올바르지 않습니다.'
+        : 'The phone number format is invalid.'
     return
   }
 
@@ -290,7 +304,7 @@ async function submitInitialOrgAdmin() {
         </label>
 
         <label>
-          <span>{{ preferences.language === 'ko' ? '담당자 중간이름' : 'Contact Middle Name' }}</span>
+          <span>{{ preferences.language === 'ko' ? '담당자 중간이름 (선택)' : 'Contact Middle Name (OPTIONAL)' }}</span>
           <input v-model="organizationForm.contactMiddleName" type="text" />
         </label>
 
@@ -306,12 +320,11 @@ async function submitInitialOrgAdmin() {
 
         <label>
           <span>{{ preferences.language === 'ko' ? '담당자 연락처' : 'Contact Phone' }}</span>
-          <input v-model="organizationForm.contactPhone" type="text" />
-        </label>
-
-        <label v-if="organizationForm.organizationType === 'SUPPLIER'">
-          <span>{{ preferences.language === 'ko' ? '티어 레벨' : 'Tier Level' }}</span>
-          <input v-model.number="organizationForm.tierLevel" type="number" min="1" />
+          <PhoneField
+            v-model="organizationForm.contactPhone"
+            v-model:valid="organizationContactPhoneValid"
+            :language="preferences.language"
+          />
         </label>
 
         <div v-if="organizationCreateError" class="login-error">
@@ -342,87 +355,92 @@ async function submitInitialOrgAdmin() {
 </section>
 
     <section v-else-if="activeTab === content.tabs[1]" class="settings-page__panel">
-  <article class="page-panel">
-    <div class="page-panel__head">
-      <div>
-        <div class="page-panel__eyebrow">ORG ADMIN</div>
-        <h3>{{ preferences.language === 'ko' ? '최초 조직 관리자 생성' : 'Create Initial Org Admin' }}</h3>
-      </div>
-    </div>
-
-    <div class="settings-form">
-      <label>
-        <span>{{ preferences.language === 'ko' ? '대상 조직 ID' : 'Target Organization ID' }}</span>
-        <input :value="createdOrganizationPublicId" type="text" readonly />
-      </label>
-
-      <label>
-        <span>{{ preferences.language === 'ko' ? '로그인 ID' : 'Login ID' }}</span>
-        <input v-model="initialOrgAdminForm.loginId" type="text" />
-      </label>
-
-      <label>
-        <span>{{ preferences.language === 'ko' ? '이름' : 'First Name' }}</span>
-        <input v-model="initialOrgAdminForm.firstName" type="text" />
-      </label>
-
-      <label>
-        <span>{{ preferences.language === 'ko' ? '중간이름' : 'Middle Name' }}</span>
-        <input v-model="initialOrgAdminForm.middleName" type="text" />
-      </label>
-
-      <label>
-        <span>{{ preferences.language === 'ko' ? '성' : 'Last Name' }}</span>
-        <input v-model="initialOrgAdminForm.lastName" type="text" />
-      </label>
-
-      <label>
-        <span>{{ preferences.language === 'ko' ? '이메일' : 'Email' }}</span>
-        <input v-model="initialOrgAdminForm.email" type="email" />
-      </label>
-
-      <label>
-        <span>{{ preferences.language === 'ko' ? '연락처' : 'Phone' }}</span>
-        <input v-model="initialOrgAdminForm.phone" type="text" />
-      </label>
-
-      <label>
-        <span>{{ preferences.language === 'ko' ? '직책' : 'Job Title' }}</span>
-        <input v-model="initialOrgAdminForm.jobTitle" type="text" />
-      </label>
-
-      <div v-if="orgAdminCreateError" class="login-error">
-        {{ orgAdminCreateError }}
-      </div>
-
-      <div v-if="orgAdminCreateSuccess" class="login-hint">
-        {{ orgAdminCreateSuccess }}
-      </div>
-
-      <div v-if="createdOrgAdminTempPassword" class="page-feed">
-        <div class="page-feed__item">
-          <span class="page-feed__label">
-            {{ preferences.language === 'ko' ? '임시 비밀번호' : 'Temporary Password' }}
-          </span>
-          <strong class="page-feed__text">{{ createdOrgAdminTempPassword }}</strong>
+  <div class="settings-page__grid">
+    <article class="page-panel">
+      <div class="page-panel__head">
+        <div>
+          <div class="page-panel__eyebrow">ORG ADMIN</div>
+          <h3>{{ preferences.language === 'ko' ? '최초 조직 관리자 생성' : 'Create Initial Org Admin' }}</h3>
         </div>
       </div>
 
-      <button
-        class="page-button page-button--primary"
-        type="button"
-        :disabled="isCreatingOrgAdmin || !createdOrganizationPublicId"
-        @click="submitInitialOrgAdmin"
-      >
-        {{
-          isCreatingOrgAdmin
-            ? (preferences.language === 'ko' ? '생성 중...' : 'Creating...')
-            : (preferences.language === 'ko' ? '조직 관리자 생성' : 'Create Org Admin')
-        }}
-      </button>
-    </div>
-  </article>
+      <div class="settings-form">
+        <label>
+          <span>{{ preferences.language === 'ko' ? '대상 조직 ID' : 'Target Organization ID' }}</span>
+          <input :value="createdOrganizationPublicId" type="text" readonly />
+        </label>
+
+        <label>
+          <span>{{ preferences.language === 'ko' ? '로그인 ID' : 'Login ID' }}</span>
+          <input v-model="initialOrgAdminForm.loginId" type="text" />
+        </label>
+
+        <label>
+          <span>{{ preferences.language === 'ko' ? '이름' : 'First Name' }}</span>
+          <input v-model="initialOrgAdminForm.firstName" type="text" />
+        </label>
+
+        <label>
+          <span>{{ preferences.language === 'ko' ? '중간이름 (선택)' : 'Middle Name (OPTIONAL)' }}</span>
+          <input v-model="initialOrgAdminForm.middleName" type="text" />
+        </label>
+
+        <label>
+          <span>{{ preferences.language === 'ko' ? '성' : 'Last Name' }}</span>
+          <input v-model="initialOrgAdminForm.lastName" type="text" />
+        </label>
+
+        <label>
+          <span>{{ preferences.language === 'ko' ? '이메일' : 'Email' }}</span>
+          <input v-model="initialOrgAdminForm.email" type="email" />
+        </label>
+
+        <label>
+          <span>{{ preferences.language === 'ko' ? '연락처' : 'Phone' }}</span>
+          <PhoneField
+            v-model="initialOrgAdminForm.phone"
+            v-model:valid="initialOrgAdminPhoneValid"
+            :language="preferences.language"
+          />
+        </label>
+
+        <label>
+          <span>{{ preferences.language === 'ko' ? '직책' : 'Job Title' }}</span>
+          <input v-model="initialOrgAdminForm.jobTitle" type="text" />
+        </label>
+
+        <div v-if="orgAdminCreateError" class="login-error">
+          {{ orgAdminCreateError }}
+        </div>
+
+        <div v-if="orgAdminCreateSuccess" class="login-hint">
+          {{ orgAdminCreateSuccess }}
+        </div>
+
+        <div v-if="createdOrgAdminTempPassword" class="page-feed">
+          <div class="page-feed__item">
+            <span class="page-feed__label">
+              {{ preferences.language === 'ko' ? '임시 비밀번호' : 'Temporary Password' }}
+            </span>
+            <strong class="page-feed__text">{{ createdOrgAdminTempPassword }}</strong>
+          </div>
+        </div>
+
+        <button
+          class="page-button page-button--primary"
+          type="button"
+          :disabled="isCreatingOrgAdmin || !createdOrganizationPublicId"
+          @click="submitInitialOrgAdmin"
+        >
+          {{
+            isCreatingOrgAdmin
+              ? (preferences.language === 'ko' ? '생성 중...' : 'Creating...')
+              : (preferences.language === 'ko' ? '조직 관리자 생성' : 'Create Org Admin')
+          }}
+        </button>
+      </div>
+    </article>
+  </div>
     </section>
   </section>
 </template>
-

@@ -19,7 +19,6 @@ export interface OrganizationListItem {
   contactEmail: string
   contactPhone: string
   status: string
-  tierLevel?: number | null
   createdAt?: string
 }
 
@@ -52,7 +51,6 @@ export interface CreateOrganizationPayload {
   contactLastName: string
   contactEmail: string
   contactPhone: string
-  tierLevel?: number | null
 }
 
 // 조직 생성 응답입니다.
@@ -71,4 +69,3 @@ export async function createOrganization(
 
   return response.data
 }
-
