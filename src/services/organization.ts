@@ -73,3 +73,39 @@ export async function createOrganization(
 
   return response.data
 }
+
+export interface OrganizationDetailResponse {
+  // 조직 공개 ID 입니다.
+  organizationPublicId: string
+  // 조직 내부 ID 입니다.
+  organizationId: number
+  // 조직 유형입니다.
+  organizationType: 'BUYER' | 'SUPPLIER' | 'ADMIN'
+  // 조직명입니다.
+  organizationName: string
+  // 조직 영문명입니다.
+  organizationEnglishName: string
+  // 사업자번호입니다.
+  businessNo?: string | null
+  // 담당자 이름입니다.
+  contactFirstName: string
+  // 담당자 중간이름입니다.
+  contactMiddleName?: string | null
+  // 담당자 성입니다.
+  contactLastName: string
+  // 담당자 이메일입니다.
+  contactEmail?: string | null
+  // 담당자 연락처입니다.
+  contactPhone: string
+  // 조직 상태입니다.
+  status: string
+}
+
+// 현재 로그인한 사용자의 조직 상세를 조회합니다.
+export async function getMyOrganizationDetail(): Promise<OrganizationDetailResponse> {
+  const response = await apiClient.get<OrganizationDetailResponse>(
+    '/api/auth/organizations/me',
+  )
+
+  return response.data
+}
