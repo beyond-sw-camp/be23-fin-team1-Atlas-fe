@@ -826,8 +826,98 @@ input {
 .app-topbar__actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
+  flex: 1;
+  min-width: 0;
 }
+
+.app-session-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 42px;
+  padding: 6px 12px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.2);
+  background: rgb(var(--surface-container-low-rgb, 242 244 244) / 0.72);
+  white-space: nowrap;
+}
+
+.theme-dark .app-session-controls {
+  background: rgb(var(--surface-container-low-rgb, 27 27 27) / 0.92);
+  border-color: rgb(var(--outline-variant-rgb, 71 71 71) / 0.3);
+}
+
+.app-session-controls__meta {
+  display: grid;
+  gap: 2px;
+}
+
+.app-session-controls__label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant, #474747);
+}
+
+.app-session-controls__time {
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+
+/* 로그인 연장은 안쪽 작은 박스가 아니라 텍스트 버튼처럼 둡니다. */
+.app-session-controls__action {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.app-session-controls__action:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+
+.app-session-controls__meta {
+  display: grid;
+  gap: 2px;
+}
+
+.app-session-controls__label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant, #474747);
+}
+
+.app-session-controls__time {
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+
+.app-session-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.theme-dark .app-session-button {
+  background: rgb(var(--surface-container-low-rgb, 27 27 27) / 0.92);
+  border-color: rgb(var(--outline-variant-rgb, 71 71 71) / 0.3);
+}
+
 
 .app-language-select {
   position: relative;
@@ -886,8 +976,11 @@ input {
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 280px;
+  flex: 1 1 320px;
+  min-width: 240px;
+  max-width: 420px;
 }
+
 
 .app-search .material-symbols-outlined {
   position: absolute;
@@ -898,7 +991,7 @@ input {
 }
 
 .app-search input {
-  width: 240px;
+  width: 100%;
   height: 36px;
   padding: 0 12px 0 34px;
   border: 0;
@@ -911,6 +1004,7 @@ input {
   text-transform: none;
   outline: none;
 }
+
 
 .app-search input::placeholder {
   color: var(--on-surface-variant, #474747);
@@ -3021,6 +3115,24 @@ input {
     justify-content: flex-start;
     gap: 10px;
   }
+    .app-search {
+    order: 1;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .app-language-select {
+    order: 2;
+  }
+
+  .app-session-controls {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
 
   .app-topbar__actions > .app-icon-button {
     display: none;
