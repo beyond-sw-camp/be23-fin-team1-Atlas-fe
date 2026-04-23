@@ -3,11 +3,15 @@ import { computed, onBeforeUnmount, reactive, ref, watch, watchEffect } from 'vu
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { createOrganization } from '../../../services/organization'
+import { useActorScope } from '../../../composables/useActorScope'
 import {
   createItemCategory,
+  deleteItemCategory,
   getItemCategories,
+  updateItemCategory,
   type CreateItemCategoryRequestDto,
   type ItemCategoryResponseDto,
+  type UpdateItemCategoryRequestDto,
 } from '../../../services/item'
 import { createInitialOrgAdmin } from '../../../services/user'
 import PhoneField from '../../../components/forms/PhoneField.vue'
@@ -20,6 +24,7 @@ type CategoryTreeNode = {
   categoryName: string
   pathLabel: string
   level: number
+  sortOrder: number
   status: string
   hasChildren: boolean
 }
@@ -121,6 +126,26 @@ const itemCategoryForm = reactive({
   sortOrder: 1,
 })
 
+const actor = useActorScope()
+
+const isAdminCategoryActor = computed(
+  () => actor.isAdminRole.value)
+
+const itemCategoryUpdating = ref(false)
+const itemCategoryDeleting = ref(false)
+const editingCategoryPublicId = ref('')
+
+type CategoryParentOption = {
+  publicId: string
+  label: string
+}
+
+const itemCategoryEditForm = reactive({
+  parentCategoryPublicId: '',
+  categoryName: '',
+  sortOrder: 1,
+})
+
 const categoryCopy = computed(() =>
   preferences.language === 'ko'
     ? {
@@ -171,6 +196,7 @@ const categoryTreeNodes = computed<CategoryTreeNode[]>(() => {
   const categoryMap = new Map(
     itemCategories.value.map((category) => [category.publicId, category]),
   )
+
   const parentIds = new Set(
     itemCategories.value
       .map((category) => category.parentCategoryPublicId)
@@ -193,24 +219,48 @@ const categoryTreeNodes = computed<CategoryTreeNode[]>(() => {
     return names.join(' > ')
   }
 
-  return itemCategories.value
-    .map((category) => ({
-      publicId: category.publicId,
-      parentCategoryPublicId: category.parentCategoryPublicId,
-      categoryName: category.categoryName,
-      pathLabel: buildPath(category),
-      level: category.categoryLevel,
-      status: category.status,
-      hasChildren: parentIds.has(category.publicId),
-    }))
-    .sort(
-      (left, right) =>
-        left.pathLabel.localeCompare(
-          right.pathLabel,
-          preferences.language === 'ko' ? 'ko-KR' : 'en-US',
-        ),
+  const childrenMap = new Map<string | null, ItemCategoryResponseDto[]>()
+
+  for (const category of itemCategories.value) {
+    const key = category.parentCategoryPublicId ?? null
+    const siblings = childrenMap.get(key) ?? []
+    siblings.push(category)
+    childrenMap.set(key, siblings)
+  }
+
+  const compareCategories = (left: ItemCategoryResponseDto, right: ItemCategoryResponseDto) =>
+    left.sortOrder - right.sortOrder ||
+    left.categoryName.localeCompare(
+      right.categoryName,
+      preferences.language === 'ko' ? 'ko-KR' : 'en-US',
     )
+
+  const result: CategoryTreeNode[] = []
+
+  function visit(parentCategoryPublicId: string | null) {
+    const children = childrenMap.get(parentCategoryPublicId)
+    if (!children) return
+
+    for (const category of [...children].sort(compareCategories)) {
+      result.push({
+        publicId: category.publicId,
+        parentCategoryPublicId: category.parentCategoryPublicId,
+        categoryName: category.categoryName,
+        pathLabel: buildPath(category),
+        level: category.categoryLevel,
+        sortOrder: category.sortOrder,
+        status: category.status,
+        hasChildren: parentIds.has(category.publicId),
+      })
+
+      visit(category.publicId)
+    }
+  }
+
+  visit(null)
+  return result
 })
+
 
 const selectedCategoryNode = computed(
   () => categoryTreeNodes.value.find((category) => category.publicId === selectedCategoryPublicId.value) ?? null,
@@ -238,6 +288,58 @@ const selectedParentLabel = computed(() =>
 )
 
 const nextCategoryLevel = computed(() => (selectedCategoryNode.value ? selectedCategoryNode.value.level + 1 : 1))
+
+function collectDescendantCategoryIds(categoryPublicId: string) {
+  const descendants = new Set<string>()
+  const stack = itemCategories.value
+    .filter((category) => category.parentCategoryPublicId === categoryPublicId)
+    .map((category) => category.publicId)
+
+  while (stack.length) {
+    const currentId = stack.pop()
+    if (!currentId || descendants.has(currentId)) continue
+
+    descendants.add(currentId)
+
+    itemCategories.value
+      .filter((category) => category.parentCategoryPublicId === currentId)
+      .forEach((category) => stack.push(category.publicId))
+  }
+
+  return descendants
+}
+
+const blockedParentCategoryIds = computed(() => {
+  const targetCategory = selectedCategoryNode.value
+  const blocked = new Set<string>()
+
+  if (!targetCategory) return blocked
+
+  blocked.add(targetCategory.publicId)
+  collectDescendantCategoryIds(targetCategory.publicId).forEach((id) => blocked.add(id))
+
+  return blocked
+})
+
+const editableParentCategoryOptions = computed<CategoryParentOption[]>(() => {
+  const targetCategory = selectedCategoryNode.value
+  if (!targetCategory) return []
+
+  return [
+    {
+      publicId: '',
+      label: categoryCopy.value.rootLabel,
+    },
+    ...categoryTreeNodes.value
+      .filter((category) => category.publicId !== targetCategory.publicId)
+      .map((category) => ({
+        publicId: category.publicId,
+        label: category.pathLabel,
+      })),
+  ]
+})
+
+
 
 function categoryStatusText(status: string) {
   if (status === 'ACTIVE') return categoryCopy.value.statusActive
@@ -282,15 +384,7 @@ async function loadItemCategories() {
 
     const response = await getItemCategories(0, 100)
 
-    itemCategories.value = response.content.sort(
-      (a, b) =>
-        a.categoryLevel - b.categoryLevel ||
-        a.sortOrder - b.sortOrder ||
-        a.categoryName.localeCompare(
-          b.categoryName,
-          preferences.language === 'ko' ? 'ko-KR' : 'en-US',
-        ),
-    )
+    itemCategories.value = response.content
     itemCategoriesLoaded.value = true
   } catch (error: any) {
     itemCategoryError.value =
@@ -307,6 +401,136 @@ async function loadItemCategories() {
 function resetCategoryForm() {
   itemCategoryForm.categoryName = ''
   itemCategoryForm.sortOrder = 1
+}
+
+function resetCategoryEditForm() {
+  editingCategoryPublicId.value = ''
+  itemCategoryEditForm.parentCategoryPublicId = ''
+  itemCategoryEditForm.categoryName = ''
+  itemCategoryEditForm.sortOrder = 1
+}
+
+function startCategoryEdit() {
+  const targetCategory = selectedCategoryNode.value
+  if (!targetCategory) return
+
+  itemCategoryError.value = ''
+  itemCategorySuccess.value = ''
+
+  if (targetCategory.hasChildren) {
+    itemCategoryError.value =
+      preferences.language === 'ko'
+        ? '하위 카테고리가 있는 카테고리는 수정할 수 없습니다.'
+        : 'Categories with child categories cannot be edited.'
+    return
+  }
+
+  editingCategoryPublicId.value = targetCategory.publicId
+  itemCategoryEditForm.parentCategoryPublicId = targetCategory.parentCategoryPublicId ?? ''
+  itemCategoryEditForm.categoryName = targetCategory.categoryName
+  itemCategoryEditForm.sortOrder = targetCategory.sortOrder
+}
+
+function cancelCategoryEdit() {
+  resetCategoryEditForm()
+}
+
+async function submitCategoryEdit() {
+  const targetCategory = selectedCategoryNode.value
+  if (!targetCategory || editingCategoryPublicId.value !== targetCategory.publicId) return
+
+  itemCategoryError.value = ''
+  itemCategorySuccess.value = ''
+
+  const categoryName = itemCategoryEditForm.categoryName.trim()
+  const sortOrder = Number(itemCategoryEditForm.sortOrder)
+
+  if (!categoryName) {
+    itemCategoryError.value =
+      preferences.language === 'ko' ? '카테고리명을 입력해 주세요.' : 'Enter category name.'
+    return
+  }
+
+  if (!Number.isFinite(sortOrder) || sortOrder < 0) {
+    itemCategoryError.value =
+      preferences.language === 'ko'
+        ? '정렬 순서는 0 이상이어야 합니다.'
+        : 'Sort order must be 0 or more.'
+    return
+  }
+
+  try {
+    itemCategoryUpdating.value = true
+
+    await updateItemCategory(targetCategory.publicId, {
+      parentCategoryPublicId: itemCategoryEditForm.parentCategoryPublicId || undefined,
+      categoryName,
+      sortOrder,
+    } satisfies UpdateItemCategoryRequestDto)
+
+    itemCategorySuccess.value =
+      preferences.language === 'ko' ? '카테고리가 수정되었습니다.' : 'Category updated.'
+
+    await loadItemCategories()
+    selectCategoryNode(targetCategory.publicId)
+    cancelCategoryEdit()
+  } catch (error: any) {
+    itemCategoryError.value =
+      error?.payload?.message ||
+      error?.message ||
+      (preferences.language === 'ko'
+        ? '카테고리 수정에 실패했습니다.'
+        : 'Failed to update category.')
+  } finally {
+    itemCategoryUpdating.value = false
+  }
+}
+
+async function deleteSelectedCategory() {
+  const targetCategory = selectedCategoryNode.value
+  if (!targetCategory) return
+
+  itemCategoryError.value = ''
+  itemCategorySuccess.value = ''
+
+  if (targetCategory.hasChildren) {
+    itemCategoryError.value =
+      preferences.language === 'ko'
+        ? '하위 카테고리가 있는 카테고리는 삭제할 수 없습니다.'
+        : 'Categories with child categories cannot be deleted.'
+    return
+  }
+
+  const confirmed = window.confirm(
+    preferences.language === 'ko'
+      ? `'${targetCategory.categoryName}' 카테고리를 삭제하시겠습니까?`
+      : `Delete '${targetCategory.categoryName}' category?`,
+  )
+
+  if (!confirmed) return
+
+  const nextSelectedCategoryPublicId = targetCategory.parentCategoryPublicId ?? ''
+
+  try {
+    itemCategoryDeleting.value = true
+    await deleteItemCategory(targetCategory.publicId)
+
+    itemCategorySuccess.value =
+      preferences.language === 'ko' ? '카테고리가 삭제되었습니다.' : 'Category deleted.'
+
+    cancelCategoryEdit()
+    await loadItemCategories()
+    selectedCategoryPublicId.value = nextSelectedCategoryPublicId
+  } catch (error: any) {
+    itemCategoryError.value =
+      error?.payload?.message ||
+      error?.message ||
+      (preferences.language === 'ko'
+        ? '카테고리 삭제에 실패했습니다.'
+        : 'Failed to delete category.')
+  } finally {
+    itemCategoryDeleting.value = false
+  }
 }
 
 async function submitItemCategory() {
@@ -370,6 +594,13 @@ watch(
 
 watch(itemCategories, (categories) => {
   if (
+    editingCategoryPublicId.value &&
+    !categories.some((category) => category.publicId === editingCategoryPublicId.value)
+  ) {
+    cancelCategoryEdit()
+  }
+
+  if (
     selectedCategoryPublicId.value &&
     !categories.some((category) => category.publicId === selectedCategoryPublicId.value)
   ) {
@@ -378,10 +609,17 @@ watch(itemCategories, (categories) => {
 })
 
 watch(selectedCategoryPublicId, (categoryPublicId) => {
-  if (!categoryPublicId) return
+  if (!categoryPublicId) {
+    cancelCategoryEdit()
+    return
+  }
+
+  if (editingCategoryPublicId.value && editingCategoryPublicId.value !== categoryPublicId) {
+    cancelCategoryEdit()
+  }
+
   expandCategoryAncestors(categoryPublicId)
 })
-
 async function submitOrganization() {
   organizationCreateError.value = ''
   organizationCreateSuccess.value = ''
@@ -796,49 +1034,153 @@ async function submitInitialOrgAdmin() {
         </article>
 
         <article class="page-panel">
-          <div class="page-panel__head">
-            <div>
-              <div class="page-panel__eyebrow">{{ categoryCopy.editorEyebrow }}</div>
-              <h3>{{ selectedCategoryNode ? categoryCopy.createChildTitle : categoryCopy.createRootTitle }}</h3>
-              <p class="settings-page__copy">{{ categoryCopy.createDescription }}</p>
-            </div>
-          </div>
+  <div class="page-panel__head">
+    <div>
+      <div class="page-panel__eyebrow">{{ categoryCopy.editorEyebrow }}</div>
+      <h3>{{ selectedCategoryNode ? categoryCopy.createChildTitle : categoryCopy.createRootTitle }}</h3>
+      <p class="settings-page__copy">{{ categoryCopy.createDescription }}</p>
+    </div>
+  </div>
 
-          <div class="page-feed settings-category__context">
-            <div class="page-feed__item">
-              <span class="page-feed__label">{{ categoryCopy.currentParentLabel }}</span>
-              <strong class="page-feed__text">{{ selectedParentLabel }}</strong>
-            </div>
-            <div class="page-feed__item">
-              <span class="page-feed__label">{{ categoryCopy.nextLevelLabel }}</span>
-              <strong class="page-feed__text">{{ nextCategoryLevel }}</strong>
-            </div>
-          </div>
+  <div class="page-feed settings-category__context">
+    <div class="page-feed__item">
+      <span class="page-feed__label">{{ categoryCopy.currentParentLabel }}</span>
+      <strong class="page-feed__text">{{ selectedParentLabel }}</strong>
+    </div>
+    <div class="page-feed__item">
+      <span class="page-feed__label">{{ categoryCopy.nextLevelLabel }}</span>
+      <strong class="page-feed__text">{{ nextCategoryLevel }}</strong>
+    </div>
+  </div>
 
-          <div class="settings-form">
-            <label>
-              <span>{{ categoryCopy.nameLabel }}</span>
-              <input v-model="itemCategoryForm.categoryName" type="text" maxlength="100" />
-            </label>
+  <div v-if="itemCategoryError" class="login-error">
+    {{ itemCategoryError }}
+  </div>
 
-            <div v-if="itemCategoryError" class="login-error">
-              {{ itemCategoryError }}
-            </div>
+  <div v-if="itemCategorySuccess" class="login-hint">
+    {{ itemCategorySuccess }}
+  </div>
 
-            <div v-if="itemCategorySuccess" class="login-hint">
-              {{ itemCategorySuccess }}
-            </div>
+  <div
+    v-if="isAdminCategoryActor && selectedCategoryNode"
+    class="page-feed settings-category__action-summary"
+  >
+    <div class="page-feed__item">
+      <span class="page-feed__label">
+        {{ preferences.language === 'ko' ? '선택 카테고리' : 'Selected Category' }}
+      </span>
+      <strong class="page-feed__text">{{ selectedCategoryNode.categoryName }}</strong>
+    </div>
 
-            <button
-              class="page-button page-button--primary"
-              type="button"
-              :disabled="itemCategorySubmitting"
-              @click="submitItemCategory"
-            >
-              {{ selectedCategoryNode ? categoryCopy.submitLabel : categoryCopy.submitRootLabel }}
-            </button>
-          </div>
-        </article>
+    <div class="settings-category__action-buttons">
+      <button
+        class="page-button page-button--secondary"
+        type="button"
+        :disabled="itemCategoryUpdating || itemCategoryDeleting"
+        @click="startCategoryEdit"
+      >
+        {{ preferences.language === 'ko' ? '수정' : 'Edit' }}
+      </button>
+
+      <button
+        class="page-button page-button--danger"
+        type="button"
+        :disabled="itemCategoryUpdating || itemCategoryDeleting"
+        @click="deleteSelectedCategory"
+      >
+        {{ preferences.language === 'ko' ? '삭제' : 'Delete' }}
+      </button>
+    </div>
+  </div>
+
+  <div
+    v-if="
+      isAdminCategoryActor &&
+      selectedCategoryNode &&
+      editingCategoryPublicId === selectedCategoryNode.publicId
+    "
+    class="settings-category__inline-editor"
+  >
+    <div class="page-panel__head">
+      <div>
+        <div class="page-panel__eyebrow">CATEGORY EDIT</div>
+        <h3>{{ preferences.language === 'ko' ? '카테고리 수정' : 'Edit Category' }}</h3>
+        <p class="settings-page__copy">
+          {{
+            preferences.language === 'ko'
+              ? '현재 페이지에서 바로 이름과 정렬 순서를 수정합니다.'
+              : 'Update the category name and sort order inline.'
+          }}
+        </p>
+      </div>
+    </div>
+
+    <div class="settings-form">
+    <label>
+        <span>{{ preferences.language === 'ko' ? '부모 카테고리' : 'Parent Category' }}</span>
+        <select v-model="itemCategoryEditForm.parentCategoryPublicId">
+          <option
+            v-for="option in editableParentCategoryOptions"
+            :key="option.publicId || 'root'"
+            :value="option.publicId"
+          >
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+      <label>
+        <span>{{ preferences.language === 'ko' ? '카테고리명' : 'Category Name' }}</span>
+        <input v-model="itemCategoryEditForm.categoryName" type="text" maxlength="100" />
+      </label>
+
+      <label>
+        <span>{{ preferences.language === 'ko' ? '정렬 순서' : 'Sort Order' }}</span>
+        <input v-model.number="itemCategoryEditForm.sortOrder" type="number" min="0" />
+      </label>
+
+      <div class="settings-category__inline-actions">
+        <button
+          class="page-button page-button--secondary"
+          type="button"
+          :disabled="itemCategoryUpdating"
+          @click="cancelCategoryEdit"
+        >
+          {{ preferences.language === 'ko' ? '취소' : 'Cancel' }}
+        </button>
+
+        <button
+          class="page-button page-button--primary"
+          type="button"
+          :disabled="itemCategoryUpdating"
+          @click="submitCategoryEdit"
+        >
+          {{
+            itemCategoryUpdating
+              ? (preferences.language === 'ko' ? '수정 중...' : 'Updating...')
+              : (preferences.language === 'ko' ? '수정 저장' : 'Save Changes')
+          }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-form">
+    <label>
+      <span>{{ categoryCopy.nameLabel }}</span>
+      <input v-model="itemCategoryForm.categoryName" type="text" maxlength="100" />
+    </label>
+
+    <button
+      class="page-button page-button--primary"
+      type="button"
+      :disabled="itemCategorySubmitting"
+      @click="submitItemCategory"
+    >
+      {{ selectedCategoryNode ? categoryCopy.submitLabel : categoryCopy.submitRootLabel }}
+    </button>
+  </div>
+</article>
+
       </div>
     </section>
   </section>
