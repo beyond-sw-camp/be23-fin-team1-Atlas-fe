@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useAtlasSessionStore } from '../../stores/session'
 import type { ScreenTheme, PageKey } from '../../types'
 import { UI_COPY } from '../../config/appCopy'
 import { useAtlasNavigationStore } from '../../stores/navigation'
@@ -19,6 +20,8 @@ const preferences = useAtlasPreferencesStore()
 const ui = useAtlasUiStore()
 const chat = useAtlasChatStore()
 const notificationStore = useAtlasNotificationStore()
+const session = useAtlasSessionStore()
+
 
 // 검색창 입력값입니다.
 const searchKeyword = ref('')
@@ -246,17 +249,7 @@ function buildItemKey(item: IntegratedSearchItem, index: number) {
     </div>
 
     <div class="app-topbar__actions">
-      <label class="app-language-select">
-        <select :value="preferences.language" @change="handleLanguageChange">
-          <option value="ko">KO</option>
-          <option value="en">EN</option>
-        </select>
-      </label>
-
-      <span class="app-topbar__badge app-topbar__badge--neutral">
-        {{ navigation.organizationLabel }}
-      </span>
-
+      <!-- 검색창은 제일 앞에 둡니다. -->
       <div ref="searchLayerRef" class="app-search">
         <span class="material-symbols-outlined">search</span>
         <input
@@ -269,22 +262,27 @@ function buildItemKey(item: IntegratedSearchItem, index: number) {
         />
 
         <div v-if="shouldShowSearchPanel" class="app-search__panel">
+          <!-- 두 글자보다 짧으면 안내만 보여줍니다. -->
           <div v-if="searchKeyword.trim().length < 2" class="app-search__state">
             두 글자 이상 입력하세요.
           </div>
 
+          <!-- 검색 중이면 로딩 문구를 보여줍니다. -->
           <div v-else-if="isSearching" class="app-search__state">
             검색 중...
           </div>
 
+          <!-- 검색 에러가 있으면 에러 문구를 보여줍니다. -->
           <div v-else-if="searchError" class="app-search__state app-search__state--error">
             {{ searchError }}
           </div>
 
+          <!-- 결과가 없으면 결과 없음 문구를 보여줍니다. -->
           <div v-else-if="!hasSearchResults" class="app-search__state">
             검색 결과가 없습니다.
           </div>
 
+          <!-- 결과가 있으면 목록을 보여줍니다. -->
           <template v-else>
             <section
               v-for="section in visibleSections"
@@ -317,6 +315,44 @@ function buildItemKey(item: IntegratedSearchItem, index: number) {
         </div>
       </div>
 
+      <!-- 언어 선택은 검색창 오른쪽에 둡니다. -->
+      <label class="app-language-select">
+        <select :value="preferences.language" @change="handleLanguageChange">
+          <option value="ko">KO</option>
+          <option value="en">EN</option>
+        </select>
+      </label>
+
+         <!-- 남은 시간과 로그인 연장은 바깥 박스 하나로만 묶습니다. -->
+      <div v-if="session.isAuthenticated" class="app-session-controls">
+        <!-- 왼쪽에는 안내 문구와 시간을 보여줍니다. -->
+        <div class="app-session-controls__meta">
+          <span class="app-session-controls__label">
+            {{ preferences.language === 'ko' ? '' : 'Remaining' }}
+          </span>
+
+          <strong class="app-session-controls__time">
+            {{ session.sessionRemainingLabel }}
+          </strong>
+        </div>
+        
+        <!-- 로그인 연장은 박스 없는 텍스트 버튼처럼 둡니다. -->
+        <button
+          class="app-session-controls__action"
+          type="button"
+          :disabled="session.isRefreshingSession"
+          @click="session.extendSession()"
+        >
+          {{
+            session.isRefreshingSession
+              ? (preferences.language === 'ko' ? '연장 중...' : 'Extending...')
+              : (preferences.language === 'ko' ? '로그인 연장' : 'Extend Session')
+          }}
+        </button>
+      </div>
+
+
+      <!-- 아래 아이콘 버튼들은 그대로 둡니다. -->
       <button class="app-icon-button" type="button" @click="toggleTheme">
         <span class="material-symbols-outlined">contrast</span>
       </button>
