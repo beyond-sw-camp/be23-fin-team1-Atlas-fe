@@ -44,10 +44,17 @@ export async function getOrganizations(
 // 관리자 조직 생성 요청 바디입니다.
 export interface CreateOrganizationPayload {
   organizationType: 'BUYER' | 'SUPPLIER'
+
   // 화면에 입력한 조직명입니다.
   organizationName: string
+
   // 자동 로그인 ID slug 생성에 쓸 영문 조직명입니다.
   organizationEnglishName: string
+
+  // 백엔드가 필수로 받는 조직 코드입니다.
+  // 영문 대문자/숫자만 2~10자여야 합니다.
+  organizationAlias: string
+
   businessNo: string
   contactFirstName: string
   contactMiddleName?: string
@@ -55,6 +62,7 @@ export interface CreateOrganizationPayload {
   contactEmail: string
   contactPhone: string
 }
+
 
 
 // 조직 생성 응답입니다.
