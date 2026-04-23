@@ -2700,12 +2700,19 @@ input {
 }
 
 .risk-rules-page__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 20px;
   padding-bottom: 20px;
   border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.16);
+}
+
+.risk-rules-page__headline {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.risk-rules-page__headline-copy {
+  min-width: 0;
 }
 
 .risk-rules-page__eyebrow {
@@ -2721,6 +2728,10 @@ input {
   font-size: 1.85rem;
   font-weight: 700;
   letter-spacing: -0.04em;
+}
+
+.risk-rules-page__create-button {
+  flex: 0 0 auto;
 }
 
 .risk-rules-page__metrics {
@@ -3120,7 +3131,6 @@ input {
   .documents-page__filter,
   .recommendations-page__header,
   .governance-page__header,
-  .risk-rules-page__header,
   .risk-rules-page__filter,
   .recommendations-page__filter {
     flex-direction: column;
@@ -3358,6 +3368,61 @@ input {
 }
 
 @media (max-width: 720px) {
+  input[type='search'],
+  .app-search input,
+  .supplier-network-registry__search input,
+  .documents-page__search input,
+  .recommendations-page__search input,
+  .risk-rules-page__search input,
+  .terminal-page__search input,
+  .chat-room-list__search input {
+    font-size: 16px;
+  }
+
+  .risk-rules-page__headline {
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  .risk-rules-page__tabs {
+    justify-content: flex-end;
+  }
+
+  .risk-rules-page__title {
+    font-size: 1.45rem;
+  }
+
+  .risk-rules-page__create-button {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 0.64rem;
+    white-space: nowrap;
+  }
+
+  .risk-rules-page__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+  }
+
+  .risk-rules-metric {
+    min-height: 92px;
+    padding: 14px 14px 12px;
+    gap: 4px;
+  }
+
+  .risk-rules-metric__label {
+    font-size: 0.56rem;
+    letter-spacing: 0.06em;
+  }
+
+  .risk-rules-metric__value {
+    font-size: 1.65rem;
+  }
+
+  .risk-rules-metric__meta {
+    font-size: 0.66rem;
+  }
+
   .base-modal {
     padding: 12px;
   }
@@ -6005,4 +6070,3 @@ input {
 .settings-category__inline-actions .page-button {
   margin-top: 0;
 }
-
