@@ -4,6 +4,7 @@ import { getReturnRequests, type ReturnRequestResponseDto } from '../../../servi
 import { getOrganizations, type OrganizationListItem } from '../../../services/organization'
 import ReturnCreateModal from '../components/ReturnCreateModal.vue'
 import ReturnTimelineModal from '../components/ReturnTimelineModal.vue'
+import { useAtlasChatStore } from '../../../stores/chat'
 
 // Language & Theme state (mocking global store for now)
 const currentLanguage = ref<'ko' | 'en'>('ko')
@@ -126,6 +127,28 @@ function openTimeline(ret: ReturnRequestResponseDto) {
 function handleCreateSuccess() {
   isCreateModalOpen.value = false
   fetchReturns()
+}
+
+// 채팅으로 반품 업무 공유
+const chatStore = useAtlasChatStore()
+function handleOpenChat(returnData: ReturnRequestResponseDto) {
+  // 타임라인 모달 닫기
+  isTimelineModalOpen.value = false
+  
+  // 채팅 패널 열기
+  if (!chatStore.isPanelOpen) {
+    chatStore.togglePanel()
+  }
+  
+  // 현재 열린 채팅방이 있으면 Reference 메시지 전송
+  // 없으면 패널만 열어서 사용자가 방을 선택하도록 유도
+  if (chatStore.currentRoomPublicId) {
+    chatStore.sendReferenceMessage(
+      'RETURN_REQUEST',
+      returnData.returnNumber,
+      `반품 요청: ${returnData.returnNumber} (${returnTypeText(returnData.returnType)})`
+    )
+  }
 }
 
 // 반품 유형 한글 변환
@@ -274,10 +297,10 @@ const columns = computed(() => {
               <span>
                 <button
                   type="button"
-                  style="all: unset; cursor: pointer; color: var(--color-primary); font-weight: 600; font-size: 0.875rem;"
+                  class="page-button page-button--secondary lots-page__detail-button"
                   @click="openTimeline(item)"
                 >
-                  {{ content.btnDetail }} →
+                  {{ content.btnDetail }}
                 </button>
               </span>
             </div>
@@ -298,8 +321,10 @@ const columns = computed(() => {
       :is-open="isTimelineModalOpen"
       :language="currentLanguage"
       :target-return="selectedReturn"
+      :org-name-map="orgNameMap"
       @close="isTimelineModalOpen = false"
       @status-changed="fetchReturns"
+      @open-chat="handleOpenChat"
     />
   </section>
 </template>
