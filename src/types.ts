@@ -55,9 +55,7 @@ export interface SpringPage<T> {
   totalElements: number
   totalPages: number
   size: number
-  number: number
+  page: number
   first: boolean
   last: boolean
-  numberOfElements: number
-  empty: boolean
 }
