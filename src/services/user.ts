@@ -9,6 +9,18 @@ export interface PageResponse<T> {
   first: boolean
   last: boolean
 }
+// 로그인/보안 이력 조회에 공통으로 쓰는 기간 필터입니다.
+export interface HistoryQueryParams {
+  // 페이지 번호입니다.
+  page?: number
+  // 한 번에 가져올 개수입니다.
+  size?: number
+  // 조회 시작일입니다. 예: 2026-04-01
+  from?: string
+  // 조회 종료일입니다. 예: 2026-04-23
+  to?: string
+}
+
 
 export interface UserListItem {
   userId: number
@@ -170,3 +182,102 @@ export async function createOrganizationUser(
 
   return response.data
 }
+
+export interface UpdateUserPayload {
+  // 이름입니다.
+  firstName: string
+  // 중간이름은 선택값입니다.
+  middleName?: string
+  // 성입니다.
+  lastName: string
+  // 이메일입니다.
+  email: string
+  // 연락처입니다.
+  phone: string
+  // 직책은 선택값입니다.
+  jobTitle?: string
+}
+
+// 현재 사용자 정보를 수정합니다.
+// 백엔드 PATCH /api/auth/users/{userId} 와 연결됩니다.
+export async function updateUser(
+  userId: number,
+  payload: UpdateUserPayload,
+): Promise<UserDetailResponse> {
+  const response = await apiClient.patch<UserDetailResponse>(
+    `/api/auth/users/${userId}`,
+    payload,
+  )
+
+  return response.data
+}
+
+export interface LoginHistoryListItem {
+  // 로그인 이력 고유 ID입니다.
+  loginHistoryId: number
+  // 사용자 내부 ID입니다.
+  userId: number
+  // 로그인 시각입니다.
+  loginAt: string
+  // 실패 사유입니다. null 이면 성공 로그인입니다.
+  failureReason?: string | null
+  // 접속 IP 입니다.
+  ipAddress: string
+  // 사용자 브라우저 정보입니다.
+  userAgent: string
+  // 사용자 공개 ID 입니다.
+  userPublicId: string
+}
+
+// 내 로그인 이력을 페이지 형태로 조회합니다.
+// from, to 를 주면 기간 필터까지 같이 보냅니다.
+export async function getMyLoginHistories(
+  params: HistoryQueryParams = {},
+): Promise<PageResponse<LoginHistoryListItem>> {
+  const response = await apiClient.get<PageResponse<LoginHistoryListItem>>(
+    '/api/auth/login-histories/me',
+    {
+      params,
+    },
+  )
+
+  return response.data
+}
+
+
+// 보안 이력 한 줄 응답 형태입니다.
+export interface SecurityHistoryListItem {
+  // 보안 이력 고유 ID입니다.
+  securityHistoryId: number
+  // 사용자 내부 ID입니다.
+  userId: number
+  // 사용자 공개 ID입니다.
+  userPublicId: string
+  // 내부 이벤트 타입입니다.
+  eventType: string
+  // 화면에 보여줄 요약 문구입니다.
+  summary: string
+  // 요청 IP입니다.
+  ipAddress?: string | null
+  // 브라우저 정보입니다.
+  userAgent?: string | null
+  // 발생 시각입니다.
+  occurredAt: string
+}
+
+// 내 보안 이력을 페이지 형태로 조회합니다.
+// from, to 를 주면 기간 필터까지 같이 보냅니다.
+export async function getMySecurityHistories(
+  params: HistoryQueryParams = {},
+): Promise<PageResponse<SecurityHistoryListItem>> {
+  const response = await apiClient.get<PageResponse<SecurityHistoryListItem>>(
+    '/api/auth/security-histories/me',
+    {
+      params,
+    },
+  )
+
+  return response.data
+}
+
+
