@@ -2,7 +2,12 @@
 import { computed, onBeforeUnmount, reactive, ref, watch, watchEffect } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
-import { createOrganization } from '../../../services/organization'
+import {
+  createOrganization,
+  getOrganizations,
+  type OrganizationListItem,
+} from '../../../services/organization'
+
 import { useActorScope } from '../../../composables/useActorScope'
 import {
   createItemCategory,
@@ -80,6 +85,11 @@ const organizationForm = reactive({
   organizationType: 'SUPPLIER' as 'BUYER' | 'SUPPLIER',
   organizationName: '',
   organizationEnglishName: '',
+
+  // 조직 생성 API의 필수값입니다.
+  // 영문 대문자/숫자 2~10자 규칙으로 입력받습니다.
+  organizationAlias: '',
+
   businessNo: '',
   contactFirstName: '',
   contactMiddleName: '',
@@ -87,6 +97,7 @@ const organizationForm = reactive({
   contactEmail: '',
   contactPhone: '',
 })
+
 
 const initialOrgAdminForm = reactive({
   firstName: '',
@@ -98,6 +109,15 @@ const initialOrgAdminForm = reactive({
 })
 
 const createdOrganizationPublicId = ref('')
+// 조직 드롭다운에 보여줄 목록입니다.
+const organizationOptions = ref<OrganizationListItem[]>([])
+
+// 조직 목록 로딩 상태입니다.
+const isLoadingOrganizationOptions = ref(false)
+
+// 사용자가 드롭다운에서 고른 조직 publicId 입니다.
+const selectedOrganizationPublicId = ref('')
+
 const createdOrgAdminLoginId = ref('')
 const createdOrgAdminTempPassword = ref('')
 
@@ -585,12 +605,20 @@ async function submitItemCategory() {
 watch(
   activeTab,
   (tab) => {
+    // 카테고리 탭에 처음 들어갈 때만 목록을 읽습니다.
     if (tab === 'categories' && !itemCategoriesLoaded.value) {
       void loadItemCategories()
+    }
+
+    // 사용자 탭에 들어가면 조직 드롭다운 목록을 읽습니다.
+    // 이미 읽은 뒤면 또 부르지 않게 길이로 한 번 막습니다.
+    if (tab === 'users' && !organizationOptions.value.length) {
+      void loadOrganizationOptions()
     }
   },
   { immediate: true },
 )
+
 
 watch(itemCategories, (categories) => {
   if (
@@ -629,6 +657,7 @@ async function submitOrganization() {
     !organizationForm.organizationEnglishName ||
     !organizationForm.businessNo ||
     !organizationForm.contactFirstName ||
+    !organizationForm.organizationAlias ||
     !organizationForm.contactLastName ||
     !organizationForm.contactEmail ||
     !organizationForm.contactPhone
@@ -651,23 +680,35 @@ async function submitOrganization() {
   try {
     isCreatingOrganization.value = true
 
-    const response = await createOrganization({
-      organizationType: organizationForm.organizationType,
-      organizationName: organizationForm.organizationName,
-      organizationEnglishName: organizationForm.organizationEnglishName,
-      businessNo: organizationForm.businessNo,
-      contactFirstName: organizationForm.contactFirstName,
-      contactMiddleName: organizationForm.contactMiddleName,
-      contactLastName: organizationForm.contactLastName,
-      contactEmail: organizationForm.contactEmail,
-      contactPhone: organizationForm.contactPhone,
-    })
+const response = await createOrganization({
+  organizationType: organizationForm.organizationType,
+  organizationName: organizationForm.organizationName,
+  organizationEnglishName: organizationForm.organizationEnglishName,
 
-    createdOrganizationPublicId.value = response.organizationPublicId
-    organizationCreateSuccess.value =
-      preferences.language === 'ko'
-        ? `조직이 생성되었습니다. 조직 ID: ${response.organizationPublicId}`
-        : `Organization created. ID: ${response.organizationPublicId}`
+  // 조직 코드를 같이 보내야 백엔드 검증을 통과합니다.
+  organizationAlias: organizationForm.organizationAlias,
+
+  businessNo: organizationForm.businessNo,
+  contactFirstName: organizationForm.contactFirstName,
+  contactMiddleName: organizationForm.contactMiddleName,
+  contactLastName: organizationForm.contactLastName,
+  contactEmail: organizationForm.contactEmail,
+  contactPhone: organizationForm.contactPhone,
+})
+
+
+   createdOrganizationPublicId.value = response.organizationPublicId
+
+// 새로 만든 조직은 드롭다운에서 바로 선택되게 맞춥니다.
+selectedOrganizationPublicId.value = response.organizationPublicId
+
+organizationCreateSuccess.value =
+  preferences.language === 'ko'
+    ? '조직이 생성되었습니다.'
+    : 'Organization created.'
+// 새 조직이 추가됐으니 목록도 다시 읽습니다.
+await loadOrganizationOptions()
+
 
     orgAdminCreateError.value = ''
     orgAdminCreateSuccess.value = ''
@@ -683,6 +724,29 @@ async function submitOrganization() {
     isCreatingOrganization.value = false
   }
 }
+// 관리자 사용자 생성용 조직 목록을 불러옵니다.
+async function loadOrganizationOptions() {
+  try {
+    isLoadingOrganizationOptions.value = true
+
+    const response = await getOrganizations({
+      page: 0,
+      size: 100,
+    })
+
+    // 화면에는 조직명만 보이게 하지만,
+    // 내부적으로는 publicId를 value로 씁니다.
+    organizationOptions.value = [...response.content].sort((a, b) =>
+      a.organizationName.localeCompare(
+        b.organizationName,
+        preferences.language === 'ko' ? 'ko-KR' : 'en-US',
+      ),
+    )
+  } finally {
+    isLoadingOrganizationOptions.value = false
+  }
+}
+
 
 async function submitInitialOrgAdmin() {
   orgAdminCreateError.value = ''
@@ -690,11 +754,12 @@ async function submitInitialOrgAdmin() {
   createdOrgAdminLoginId.value = ''
   createdOrgAdminTempPassword.value = ''
 
-  if (!createdOrganizationPublicId.value) {
+if (!selectedOrganizationPublicId.value) {
+
     orgAdminCreateError.value =
       preferences.language === 'ko'
-        ? '먼저 조직을 생성해 주세요.'
-        : 'Please create the organization first.'
+        ? '조직을 선택해 주세요.'
+: 'Please select an organization.'
     return
   }
 
@@ -722,7 +787,8 @@ async function submitInitialOrgAdmin() {
   try {
     isCreatingOrgAdmin.value = true
 
-    const response = await createInitialOrgAdmin(createdOrganizationPublicId.value, {
+    const response = await createInitialOrgAdmin(selectedOrganizationPublicId.value, {
+
       firstName: initialOrgAdminForm.firstName,
       middleName: initialOrgAdminForm.middleName,
       lastName: initialOrgAdminForm.lastName,
@@ -807,6 +873,19 @@ async function submitInitialOrgAdmin() {
               <span>{{ preferences.language === 'ko' ? '조직 영문명' : 'Organization English Name' }}</span>
               <input v-model="organizationForm.organizationEnglishName" type="text" />
             </label>
+            <label>
+  <span>{{ preferences.language === 'ko' ? '조직 코드' : 'Organization Code' }}</span>
+
+  <!-- 백엔드 규칙:
+       영문 대문자/숫자만, 2~10자 -->
+  <input
+    v-model="organizationForm.organizationAlias"
+    type="text"
+    maxlength="10"
+    placeholder="예: ATLAS1"
+  />
+</label>
+
 
             <label>
               <span>{{ preferences.language === 'ko' ? '사업자번호' : 'Business No' }}</span>
@@ -879,9 +958,27 @@ async function submitInitialOrgAdmin() {
 
           <div class="settings-form">
             <label>
-              <span>{{ preferences.language === 'ko' ? '대상 조직 ID' : 'Target Organization ID' }}</span>
-              <input :value="createdOrganizationPublicId" type="text" readonly />
-            </label>
+  <span>{{ preferences.language === 'ko' ? '대상 조직' : 'Target Organization' }}</span>
+
+  <select v-model="selectedOrganizationPublicId">
+    <option value="">
+      {{
+        isLoadingOrganizationOptions
+          ? (preferences.language === 'ko' ? '조직 목록 불러오는 중...' : 'Loading organizations...')
+          : (preferences.language === 'ko' ? '조직을 선택하세요.' : 'Select an organization.')
+      }}
+    </option>
+
+    <option
+      v-for="organization in organizationOptions"
+      :key="organization.organizationPublicId"
+      :value="organization.organizationPublicId"
+    >
+      {{ organization.organizationName }}
+    </option>
+  </select>
+</label>
+
 
             <label>
               <span>{{ preferences.language === 'ko' ? '이름' : 'First Name' }}</span>
@@ -944,7 +1041,8 @@ async function submitInitialOrgAdmin() {
             <button
               class="page-button page-button--primary"
               type="button"
-              :disabled="isCreatingOrgAdmin || !createdOrganizationPublicId"
+              :disabled="isCreatingOrgAdmin || !selectedOrganizationPublicId"
+
               @click="submitInitialOrgAdmin"
             >
               {{
