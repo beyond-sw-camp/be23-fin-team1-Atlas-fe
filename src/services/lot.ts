@@ -81,13 +81,13 @@ export async function updateLot(publicId: string, data: UpdateLotRequestDto): Pr
 }
 
 export async function updateLotStatus(publicId: string, lotStatus: string): Promise<LotResponseDto> {
-  // 실제 DTO 맞추기 위해 전달 (백엔드 구조에 따라 reason 등이 필요할 수 있으나 스펙기준)
-  const response = await apiClient.patch<LotResponseDto>(`/api/supply/lots/${publicId}/status`, { lotStatus, reason: `Status changed to ${lotStatus}` })
+  const response = await apiClient.patch<LotResponseDto>(`/api/supply/lots/${publicId}/status`, { lotStatus, reason: `상태 변경` })
   return response.data
 }
 
-export async function updateLotQuality(publicId: string, qualityStatus: string): Promise<LotResponseDto> {
-  const response = await apiClient.patch<LotResponseDto>(`/api/supply/lots/${publicId}/quality`, { qualityStatus, reason: `Quality changed to ${qualityStatus}` })
+export async function updateLotQuality(publicId: string, qualityStatus: string, customReason?: string): Promise<LotResponseDto> {
+  const reason = customReason || `품질 상태 변경`
+  const response = await apiClient.patch<LotResponseDto>(`/api/supply/lots/${publicId}/quality`, { qualityStatus, reason })
   return response.data
 }
 
