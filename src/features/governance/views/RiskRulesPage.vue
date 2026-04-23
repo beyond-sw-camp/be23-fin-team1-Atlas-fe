@@ -495,7 +495,6 @@ async function handleToggleRule(ruleId: string, nextEnabled: boolean) {
 watchEffect(() => {
   selectedTab.value = content.value.tabs[0]
   header.setActions([
-    { key: 'risk-rules-export', label: preferences.language === 'ko' ? '내보내기' : 'EXPORT', tone: 'secondary' },
     { key: 'risk-rules-add', label: preferences.language === 'ko' ? '규칙 추가' : 'ADD RULE', tone: 'primary' },
   ])
 })
@@ -520,13 +519,14 @@ onBeforeUnmount(() => {
 <template>
   <section class="app-screen risk-rules-page">
     <header class="risk-rules-page__header">
-      <div>
-        <div class="risk-rules-page__eyebrow">{{ content.eyebrow }}</div>
-        <h2 class="risk-rules-page__title">{{ content.title }}</h2>
-      </div>
-      <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button">{{ content.exportLabel }}</button>
-        <button class="page-button page-button--primary" type="button">{{ content.createLabel }}</button>
+      <div class="risk-rules-page__headline">
+        <div class="risk-rules-page__headline-copy">
+          <div class="risk-rules-page__eyebrow">{{ content.eyebrow }}</div>
+          <h2 class="risk-rules-page__title">{{ content.title }}</h2>
+        </div>
+        <button class="page-button page-button--primary risk-rules-page__create-button" type="button">
+          {{ content.createLabel }}
+        </button>
       </div>
     </header>
 
