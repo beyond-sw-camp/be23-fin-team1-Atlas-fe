@@ -5759,3 +5759,34 @@ input {
     min-width: 0;
   }
 }
+
+.settings-category__action-summary {
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.settings-category__action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-category__inline-editor {
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.2);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.65);
+}
+
+.settings-category__inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-category__action-buttons .page-button,
+.settings-category__inline-actions .page-button {
+  margin-top: 0;
+}
+

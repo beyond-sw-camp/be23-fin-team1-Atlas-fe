@@ -38,15 +38,14 @@ import {
   type SubPurchaseOrderResponseDto,
 } from '../../../services/subPurchaseOrder'
 
-// 기존 Orders 페이지 레이아웃은 유지하고,
-// 기존 더미 데이터만 실제 발주 / 서브발주 API 데이터로 연결합니다.
 type OrderTabKey =
-  | 'ALL'
+  | 'ALL' 
   | 'CREATED'
-  | 'ACCEPTED'
   | 'PARTIALLY_CONFIRMED'
   | 'CONFIRMED'
   | 'REJECTED'
+  | 'CANCELLED'
+  | 'COMPLETED'
 
 type OrderQueueEntry = {
   kind: 'PO' | 'SUB_PO'
@@ -93,10 +92,11 @@ const TABLE_COLUMNS = [
 const TAB_OPTIONS: { key: OrderTabKey; label: string }[] = [
   { key: 'ALL', label: '전체' },
   { key: 'CREATED', label: '확인 대기' },
-  { key: 'ACCEPTED', label: '수락' },
   { key: 'PARTIALLY_CONFIRMED', label: '부분 확정' },
   { key: 'CONFIRMED', label: '확정' },
   { key: 'REJECTED', label: '반려' },
+  { key: 'CANCELLED', label: '취소' },
+  { key: 'COMPLETED', label: '완료' },
 ]
 
 const header = useAtlasHeaderStore()
@@ -124,6 +124,7 @@ const orderConfirmQtyMap = ref<Record<string, string>>({})
 
 let createLineSeed = 1
 
+// 발주 품목 행 1개를 기본값으로 생성합니다.
 function createEmptyOrderLine(): CreateOrderLineForm {
   return {
     id: createLineSeed++,
@@ -137,6 +138,8 @@ function createEmptyOrderLine(): CreateOrderLineForm {
 const createModalOpen = ref(false)
 const createLoading = ref(false)
 const createErrorMessage = ref('')
+
+// 발주 등록 모달에서 사용하는 입력 폼 상태입니다.
 const createForm = ref({
   poNumber: '',
   supplierPublicId: '',
@@ -376,7 +379,8 @@ watchEffect(() => {
   header.setActions(nextActions)
 })
 
-
+// 협력사가 바뀌면 해당 협력사의 품목만 다시 불러옵니다.
+// 기존에 선택했던 품목은 협력사 소속이 달라질 수 있으므로 초기화합니다.
 watch(
   () => createForm.value.supplierPublicId,
   async (supplierPublicId) => {
@@ -396,6 +400,7 @@ watch(
         size: 100,
       })
 
+      // 협력사에 등록된 ACTIVE 품목만 이름순으로 정렬해서 드롭다운에 노출합니다.
       supplierItemOptions.value = [...response.content].sort((a, b) =>
         a.itemName.localeCompare(b.itemName, 'ko-KR'),
       )
@@ -506,8 +511,6 @@ function poStatusText(value: PoStatus) {
   switch (value) {
     case 'CREATED':
       return '확인 대기'
-    case 'ACCEPTED':
-      return '수락'
     case 'PARTIALLY_CONFIRMED':
       return '부분 확정'
     case 'CONFIRMED':
@@ -771,7 +774,7 @@ async function loadOrderDashboard() {
   }
 }
 
-
+// 발주 등록 모달을 초기 상태로 되돌립니다.
 function resetCreateOrderForm() {
   createErrorMessage.value = ''
   supplierItemOptions.value = []
@@ -787,29 +790,35 @@ function resetCreateOrderForm() {
   }
 }
 
+// 신규 발주 모달을 엽니다.
 function openCreateOrderModal() {
   resetCreateOrderForm()
   createModalOpen.value = true
 }
 
+// 신규 발주 모달을 닫습니다.
 function closeCreateOrderModal() {
   createModalOpen.value = false
 }
 
+// 발주 품목 행을 1개 추가합니다.
 function addCreateOrderLine() {
   createForm.value.lines.push(createEmptyOrderLine())
 }
 
+// 품목 행은 최소 1개를 유지하고, 그 외 행만 삭제합니다.
 function removeCreateOrderLine(lineId: number) {
   if (createForm.value.lines.length === 1) return
   createForm.value.lines = createForm.value.lines.filter((line) => line.id !== lineId)
 }
 
+// 발주 등록 전에 필수값과 입력값을 검증합니다.
 function validateCreateOrderForm() {
   if (!createForm.value.poNumber.trim()) return '발주번호를 입력하세요.'
   if (!createForm.value.supplierPublicId) return '협력사를 선택하세요.'
   if (!createForm.value.dueDate) return '납기일을 입력하세요.'
 
+    // 품목이 선택된 행만 실제 발주 대상입니다.
   const selectedLines = createForm.value.lines.filter((line) => !!line.itemPublicId)
 
   if (!selectedLines.length) return '발주 품목을 1개 이상 선택하세요.'
@@ -817,12 +826,14 @@ function validateCreateOrderForm() {
   const duplicatedItemIds = new Set<string>()
 
   for (const line of selectedLines) {
+    // 같은 품목을 중복해서 담지 못하도록 막습니다.
     if (duplicatedItemIds.has(line.itemPublicId)) {
       return '같은 품목을 중복으로 담을 수 없습니다.'
     }
 
     duplicatedItemIds.add(line.itemPublicId)
 
+     // 수량과 단가는 0보다 커야 합니다.
     if (!line.orderedQty || line.orderedQty <= 0) {
       return '발주 수량은 0보다 커야 합니다.'
     }
@@ -840,6 +851,7 @@ function validateCreateOrderForm() {
   return ''
 }
 
+// 검증을 통과한 발주 폼을 API 요청 DTO 형태로 변환하여 등록합니다.
 async function submitCreateOrder() {
   const validationMessage = validateCreateOrderForm()
 
@@ -872,6 +884,7 @@ async function submitCreateOrder() {
     await createPurchaseOrder(payload)
     createModalOpen.value = false
 
+    // 등록 후 목록을 다시 조회해 화면을 최신 상태로 맞춥니다.
     await loadOrderDashboard()
   } catch (error) {
     createErrorMessage.value = normalizeErrorMessage(
