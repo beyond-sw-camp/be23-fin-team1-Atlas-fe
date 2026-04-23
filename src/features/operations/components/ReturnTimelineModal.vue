@@ -21,6 +21,17 @@ const isLoading = ref(false)
 const isUpdating = ref(false)
 const reasonText = ref('')
 
+// 사유 펼침 상태 관리
+const expandedHistoryIds = ref<Set<string>>(new Set())
+
+function toggleHistoryReason(id: string) {
+  if (expandedHistoryIds.value.has(id)) {
+    expandedHistoryIds.value.delete(id)
+  } else {
+    expandedHistoryIds.value.add(id)
+  }
+}
+
 // 현재 로그인한 사용자의 조직 publicId
 const myOrgPublicId = window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
 
@@ -253,22 +264,28 @@ function handleOpenChat() {
           <div class="page-panel__eyebrow">{{ content.timeline }}</div>
         </div>
         
-        <div class="page-feed" style="max-height: 240px; overflow-y: auto;">
+        <div class="page-feed">
           <div v-if="isLoading" style="text-align: center; padding: 16px; color: var(--color-on-surface-variant); font-style: italic;">Loading...</div>
           <div v-else-if="histories.length === 0" style="text-align: center; padding: 16px; color: var(--color-on-surface-variant); font-style: italic;">{{ content.empty }}</div>
           
           <div v-else v-for="h in histories" :key="h.id" class="page-feed__item">
             <span class="page-feed__label">{{ formatDate(h.recordedAt) }}</span>
-            <strong class="page-feed__text">
+            <strong 
+              class="page-feed__text" 
+              :style="h.reason ? 'cursor: pointer; display: flex; align-items: center;' : 'display: flex; align-items: center;'" 
+              @click="h.reason && toggleHistoryReason(h.id)"
+            >
               <span style="opacity: 0.5; margin-right: 4px;">[{{ formatStatus(h.beforeStatus) }}]</span>
               →
               <span :class="{'text-critical': h.afterStatus === 'REJECTED', 'text-nominal': h.afterStatus === 'COMPLETED' || h.afterStatus === 'APPROVED'}" style="margin-left: 4px;">
                 {{ formatStatus(h.afterStatus) }}
               </span>
+              <span v-if="h.reason" style="font-size: 0.7rem; color: var(--color-primary); margin-left: auto;">
+                {{ expandedHistoryIds.has(h.id) ? '▲' : '▼' }} {{ language === 'ko' ? '사유 보기' : 'View Reason' }}
+              </span>
             </strong>
-            <div v-if="h.reason" class="page-feed__reason">
+            <div v-if="h.reason && expandedHistoryIds.has(h.id)" class="page-feed__reason">
               "{{ h.reason }}"
-              <span v-if="h.recordedBy" class="page-feed__by">— {{ h.recordedBy }}</span>
             </div>
           </div>
         </div>
