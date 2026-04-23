@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { ko, enUS } from 'date-fns/locale'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
+import '@vuepic/vue-datepicker/dist/main.css'
 import PhoneField from '../../../components/forms/PhoneField.vue'
 import BaseModal from '../../shared/components/BaseModal.vue'
 import {
@@ -80,6 +83,25 @@ const securityHistoryFilter = reactive({
   to: '',
 })
 
+// 날짜 범위 선택기 값입니다.
+// 문자열 날짜만 쓰면 시간 정보가 끼지 않습니다.
+type DateRangeValue = string[] | null
+
+// 빠른 기간 버튼 타입입니다.
+type QuickRange = '7d' | '1m' | '6m' | 'all' | ''
+
+// 로그인 이력 날짜 범위 선택 값입니다.
+const loginHistoryRange = ref<DateRangeValue>(null)
+
+// 보안 이력 날짜 범위 선택 값입니다.
+const securityHistoryRange = ref<DateRangeValue>(null)
+
+// 로그인 이력 빠른 기간 버튼 선택 상태입니다.
+const loginHistoryQuickRange = ref<QuickRange>('all')
+
+// 보안 이력 빠른 기간 버튼 선택 상태입니다.
+const securityHistoryQuickRange = ref<QuickRange>('all')
+
 // 사용자 수정과 비밀번호 변경에 필요한 내부 userId입니다.
 const currentUserId = ref<number | null>(null)
 
@@ -127,6 +149,33 @@ const passwordForm = reactive({
   newPasswordConfirm: '',
 })
 
+// 달력 언어를 현재 화면 언어에 맞춥니다.
+const datePickerLocale = computed(() => {
+  if (preferences.language === 'ko') {
+    return ko
+  }
+
+  return enUS
+})
+
+// 입력칸과 달력 표시 형식을 언어에 맞춥니다.
+const datePickerFormats = computed(() => ({
+  // 입력칸에는 날짜만 보이게 합니다.
+  input: preferences.language === 'ko' ? 'yyyy-MM-dd' : 'MM/dd/yyyy',
+
+  // 아래 미리보기에도 날짜만 보이게 합니다.
+  preview: preferences.language === 'ko' ? 'yyyy-MM-dd' : 'MM/dd/yyyy',
+
+  // 달력 상단 월 표기를 언어에 맞춥니다.
+  month: preferences.language === 'ko' ? 'M월' : 'LLL',
+
+  // 달력 상단 연도 표기를 언어에 맞춥니다.
+  year: preferences.language === 'ko' ? 'yyyy년' : 'yyyy',
+
+  // 요일 표기도 언어에 맞춥니다.
+  weekDay: preferences.language === 'ko' ? 'EEE' : 'EEE',
+}))
+
 // 사용자 상세 값을 수정 폼에 그대로 채웁니다.
 function syncProfileForm(detail: UserDetailResponse) {
   profileForm.firstName = detail.firstName ?? ''
@@ -136,36 +185,36 @@ function syncProfileForm(detail: UserDetailResponse) {
   profileForm.phone = detail.phone ?? ''
   profileForm.jobTitle = detail.jobTitle ?? ''
 
-  // 기존 값이 있으면 일단 유효 상태로 시작합니다.
+  // 기존 연락처가 있으면 처음에는 유효한 값으로 봅니다.
   profilePhoneValid.value = Boolean(detail.phone)
 }
 
 // 페이지에 필요한 데이터를 모두 읽습니다.
 async function loadProfileData() {
   try {
-    // 로딩 시작 전에 상태를 정리합니다.
+    // 로딩 시작 전에 메시지를 정리합니다.
     isLoadingProfile.value = true
     profileError.value = ''
     profileSuccess.value = ''
 
-    // 먼저 로그인 사용자 기본 식별 정보를 읽습니다.
+    // 로그인 사용자 기본 정보를 먼저 읽습니다.
     const myInfoResponse = await getMyInfo()
     myInfo.value = myInfoResponse
 
-    // 사용자 상세 정보는 프로필 화면의 핵심이라 필수로 읽습니다.
+    // 프로필 상세 정보도 바로 읽습니다.
     const detailResponse = await getUserDetailByPublicId(myInfoResponse.userPublicId)
     userDetail.value = detailResponse
     currentUserId.value = detailResponse.userId
     syncProfileForm(detailResponse)
 
-    // 조직 정보는 실패해도 프로필 전체를 막지는 않게 따로 읽습니다.
+    // 조직 정보는 실패해도 프로필 전체를 막지 않게 분리합니다.
     try {
       organizationDetail.value = await getMyOrganizationDetail()
     } catch {
       organizationDetail.value = null
     }
 
-    // 로그인 이력도 실패하면 빈 목록으로 둡니다.
+    // 로그인 이력도 실패하면 빈 배열로 둡니다.
     try {
       const loginHistoryResponse = await getMyLoginHistories({ page: 0, size: 20 })
       loginHistories.value = loginHistoryResponse.content
@@ -173,14 +222,14 @@ async function loadProfileData() {
       loginHistories.value = []
     }
 
-    // 보안 이력도 실패하면 빈 목록으로 둡니다.
+    // 보안 이력도 실패하면 빈 배열로 둡니다.
     try {
       const securityHistoryResponse = await getMySecurityHistories({ page: 0, size: 20 })
       securityHistories.value = securityHistoryResponse.content
     } catch {
       securityHistories.value = []
     }
-  } catch (error) {
+  } catch {
     profileError.value =
       preferences.language === 'ko'
         ? '사용자 정보를 불러오지 못했습니다. 다시 로그인해 주세요.'
@@ -193,7 +242,7 @@ async function loadProfileData() {
 
 // 수정 모드를 시작합니다.
 function startEdit() {
-  // 수정 시작 전에 현재 값을 다시 폼에 맞춥니다.
+  // 수정 시작 전에 현재 값을 폼에 다시 넣습니다.
   if (userDetail.value) {
     syncProfileForm(userDetail.value)
   }
@@ -217,7 +266,7 @@ function cancelEdit() {
 
 // 기본 정보 저장입니다.
 async function submitProfileUpdate() {
-  // 내부 userId가 없으면 수정 요청을 보낼 수 없습니다.
+  // 내부 userId가 없으면 요청을 보낼 수 없습니다.
   if (!currentUserId.value) {
     profileError.value =
       preferences.language === 'ko'
@@ -229,7 +278,7 @@ async function submitProfileUpdate() {
   profileError.value = ''
   profileSuccess.value = ''
 
-  // 필수 입력값을 먼저 검사합니다.
+  // 필수 값이 비었는지 먼저 확인합니다.
   if (
     !profileForm.firstName.trim() ||
     !profileForm.lastName.trim() ||
@@ -243,7 +292,7 @@ async function submitProfileUpdate() {
     return
   }
 
-  // 연락처 형식도 검사합니다.
+  // 연락처 형식도 같이 확인합니다.
   if (!profilePhoneValid.value) {
     profileError.value =
       preferences.language === 'ko'
@@ -255,7 +304,7 @@ async function submitProfileUpdate() {
   try {
     isSavingProfile.value = true
 
-    // 실제 사용자 수정 API를 호출합니다.
+    // 실제 수정 API를 호출합니다.
     const updatedUser = await updateUser(currentUserId.value, {
       firstName: profileForm.firstName.trim(),
       middleName: profileForm.middleName.trim() || undefined,
@@ -265,17 +314,17 @@ async function submitProfileUpdate() {
       jobTitle: profileForm.jobTitle.trim() || undefined,
     })
 
-    // 화면 데이터도 최신 값으로 갱신합니다.
+    // 저장 후 화면 데이터도 새 값으로 바꿉니다.
     userDetail.value = updatedUser
     syncProfileForm(updatedUser)
     isEditing.value = false
 
-    // 저장 후 보안 이력을 다시 읽으면 최신 수정 줄이 바로 보입니다.
+    // 보안 이력도 다시 읽어서 최신 상태로 맞춥니다.
     try {
       const securityHistoryResponse = await getMySecurityHistories({ page: 0, size: 20 })
       securityHistories.value = securityHistoryResponse.content
     } catch {
-      // 여기 실패는 프로필 저장 자체를 막지 않습니다.
+      // 이 부분은 실패해도 저장 자체는 유지합니다.
     }
 
     profileSuccess.value =
@@ -298,7 +347,7 @@ async function submitPasswordChange() {
   passwordError.value = ''
   passwordSuccess.value = ''
 
-  // 내부 userId가 없으면 비밀번호 변경 요청을 보낼 수 없습니다.
+  // 내부 userId가 없으면 비밀번호 변경을 할 수 없습니다.
   if (!currentUserId.value) {
     passwordError.value =
       preferences.language === 'ko'
@@ -307,7 +356,7 @@ async function submitPasswordChange() {
     return
   }
 
-  // 새 비밀번호 입력 여부를 먼저 확인합니다.
+  // 새 비밀번호 입력 여부를 확인합니다.
   if (!passwordForm.newPassword || !passwordForm.newPasswordConfirm) {
     passwordError.value =
       preferences.language === 'ko'
@@ -316,7 +365,7 @@ async function submitPasswordChange() {
     return
   }
 
-  // 새 비밀번호와 확인 값이 서로 다르면 막습니다.
+  // 두 값이 다르면 변경하지 않습니다.
   if (passwordForm.newPassword !== passwordForm.newPasswordConfirm) {
     passwordError.value =
       preferences.language === 'ko'
@@ -328,7 +377,7 @@ async function submitPasswordChange() {
   try {
     isSubmittingPassword.value = true
 
-    // 강제 변경 상태이므로 현재 비밀번호는 빈 값으로 보냅니다.
+    // 강제 변경 상황이라 현재 비밀번호는 빈 값으로 보냅니다.
     await changePassword(currentUserId.value, {
       currentPassword: '',
       newPassword: passwordForm.newPassword,
@@ -339,12 +388,12 @@ async function submitPasswordChange() {
     session.passwordChangeRequired = false
     window.sessionStorage.setItem('atlas-password-change-required', 'false')
 
-    // 입력값도 비웁니다.
+    // 입력값을 비웁니다.
     passwordForm.currentPassword = ''
     passwordForm.newPassword = ''
     passwordForm.newPasswordConfirm = ''
 
-    // 비밀번호 변경 후 프로필과 이력을 다시 읽습니다.
+    // 프로필 데이터를 다시 읽습니다.
     await loadProfileData()
 
     // 접근 가능한 첫 화면으로 이동합니다.
@@ -422,13 +471,13 @@ const visibleSecurityHistories = computed(() => {
 // 보안 이력이 5개 이상이면 더보기 버튼을 보여줍니다.
 const canShowMoreSecurityHistories = computed(() => securityHistories.value.length > 4)
 
-// 날짜 문자열을 보기 좋게 바꿉니다.
+// 날짜와 시간을 보기 좋게 보여줍니다.
+// 이 함수는 이력 목록용이라 시간까지 포함합니다.
 function formatDateTime(value?: string) {
   if (!value) return '-'
 
   const date = new Date(value)
 
-  // 날짜 파싱이 안 되면 원본을 그대로 보여줍니다.
   if (Number.isNaN(date.getTime())) {
     return value
   }
@@ -444,13 +493,12 @@ function formatDateTime(value?: string) {
   }).format(date)
 }
 
-// 로그인 이력 첫 줄에는 시간만 간단히 보여줍니다.
+// 로그인 이력 카드 첫 줄에는 시간만 간단히 보여줍니다.
 function formatLoginTimeOnly(value?: string) {
   if (!value) return '-'
 
   const date = new Date(value)
 
-  // 날짜 파싱이 안 되면 원본을 그대로 보여줍니다.
   if (Number.isNaN(date.getTime())) {
     return value
   }
@@ -466,16 +514,94 @@ function formatLoginTimeOnly(value?: string) {
 }
 
 // 브라우저 문자열이 너무 길면 대표 이름만 보여줍니다.
+// 브라우저 이름과 버전을 같이 보여줍니다.
+// 예: Chrome 135, Edge 134, Firefox 126, Safari 17
 function formatUserAgent(value?: string | null) {
+  // user-agent 가 없으면 표시할 수 없습니다.
   if (!value) return '-'
 
-  if (value.includes('Edg/')) return 'Edge'
-  if (value.includes('Chrome/')) return 'Chrome'
-  if (value.includes('Firefox/')) return 'Firefox'
-  if (value.includes('Safari/') && !value.includes('Chrome/')) return 'Safari'
+  // 정규식에서 첫 번째 버전만 뽑아 쓰기 위한 함수입니다.
+  const pickVersion = (pattern: RegExp) => {
+    const match = value.match(pattern)
+    return match?.[1] || ''
+  }
 
-  return value.length > 40 ? `${value.slice(0, 40)}...` : value
+  // Edge 는 Chrome 문자열도 같이 들어 있어서 먼저 검사합니다.
+  if (value.includes('Edg/')) {
+    const version = pickVersion(/Edg\/([0-9.]+)/)
+    return version ? `Edge ${version}` : 'Edge'
+  }
+
+  // Chrome 계열 브라우저는 Chrome 버전을 보여줍니다.
+  if (value.includes('Chrome/')) {
+    const version = pickVersion(/Chrome\/([0-9.]+)/)
+    return version ? `Chrome ${version}` : 'Chrome'
+  }
+
+  // Firefox 버전을 보여줍니다.
+  if (value.includes('Firefox/')) {
+    const version = pickVersion(/Firefox\/([0-9.]+)/)
+    return version ? `Firefox ${version}` : 'Firefox'
+  }
+
+  // Safari 는 Version/x.y.z 형태의 버전을 같이 봐야 합니다.
+  if (value.includes('Safari/') && !value.includes('Chrome/')) {
+    const version = pickVersion(/Version\/([0-9.]+)/)
+    return version ? `Safari ${version}` : 'Safari'
+  }
+
+  // 규칙에 안 걸리면 너무 길지 않게만 잘라서 보여줍니다.
+  return value.length > 60 ? `${value.slice(0, 60)}...` : value
 }
+
+
+// 브라우저 문자열에서 운영체제 이름만 간단히 뽑습니다.
+// 운영체제 이름과 버전을 같이 보여줍니다.
+// 예: Windows 10/11, macOS 10.15.7, Android 14, iOS 17.4
+function formatClientOs(value?: string | null) {
+  // user-agent 가 없으면 표시할 수 없습니다.
+  if (!value) return '-'
+
+  // Windows 버전은 NT 버전 기준으로 사람이 읽기 쉽게 바꿉니다.
+  const windowsMatch = value.match(/Windows NT ([0-9.]+)/)
+  if (windowsMatch) {
+    const ntVersion = windowsMatch[1]
+
+    // Windows UA 는 10과 11이 둘 다 NT 10.0 으로 잡히는 경우가 많습니다.
+    if (ntVersion === '10.0') return 'Windows 10/11'
+    if (ntVersion === '6.3') return 'Windows 8.1'
+    if (ntVersion === '6.2') return 'Windows 8'
+    if (ntVersion === '6.1') return 'Windows 7'
+
+    return `Windows ${ntVersion}`
+  }
+
+  // macOS 버전은 밑줄을 점으로 바꿔서 보여줍니다.
+  const macMatch = value.match(/Mac OS X ([0-9_]+)/)
+  if (macMatch) {
+    const version = macMatch[1].replace(/_/g, '.')
+    return `macOS ${version}`
+  }
+
+  // Android 버전은 그대로 보여줍니다.
+  const androidMatch = value.match(/Android ([0-9.]+)/)
+  if (androidMatch) {
+    return `Android ${androidMatch[1]}`
+  }
+
+  // iPhone, iPad 의 iOS 버전도 점으로 바꿔서 보여줍니다.
+  const iosMatch = value.match(/OS ([0-9_]+) like Mac OS X/)
+  if (iosMatch) {
+    const version = iosMatch[1].replace(/_/g, '.')
+    return `iOS ${version}`
+  }
+
+  // Linux 는 보통 세부 버전이 잘 안 잡혀서 이름만 보여줍니다.
+  if (value.includes('Linux')) return 'Linux'
+
+  return 'Other'
+}
+
 
 // 로그인 실패 사유 코드를 화면용 문구로 바꿉니다.
 function formatLoginFailureReason(reason?: string | null) {
@@ -516,6 +642,46 @@ function formatLoginFailureReason(reason?: string | null) {
     default:
       return reason
   }
+}
+
+// Date 값을 백엔드용 문자열 날짜로 바꿉니다.
+function formatDateInputValue(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+// 선택된 날짜 범위를 필터에 넣습니다.
+// 시작일과 종료일이 모두 있으면 true를 돌려줍니다.
+function syncRangeToFilter(range: DateRangeValue, filter: { from: string; to: string }) {
+  if (!range) {
+    filter.from = ''
+    filter.to = ''
+    return false
+  }
+
+  const from = range[0] ?? ''
+  const to = range[1] ?? ''
+
+  filter.from = from
+  filter.to = to
+
+  return Boolean(from && to)
+}
+
+// 빠른 기간 버튼이 선택됐을 때 진한 색을 줍니다.
+function getQuickRangeButtonStyle(isActive: boolean) {
+  if (isActive) {
+    return {
+      backgroundColor: '#111827',
+      borderColor: '#111827',
+      color: '#ffffff',
+    }
+  }
+
+  return {}
 }
 
 // 로그인 이력 모달 목록을 기간 조건으로 다시 읽습니다.
@@ -570,31 +736,141 @@ async function openSecurityHistoryModal() {
   await loadSecurityHistoryModalItems()
 }
 
-// 로그인 이력 기간 필터를 적용합니다.
-async function applyLoginHistoryFilter() {
-  await loadLoginHistoryModalItems()
+// 로그인 이력 날짜 범위를 직접 바꾸면 바로 반영합니다.
+async function handleLoginHistoryRangeChange(range: DateRangeValue) {
+  // 직접 선택했으니 빠른 버튼 강조는 해제합니다.
+  loginHistoryQuickRange.value = ''
+
+  // 현재 선택한 값을 저장합니다.
+  loginHistoryRange.value = range
+
+  // 필터에도 같은 값을 넣습니다.
+  const isCompletedRange = syncRangeToFilter(range, loginHistoryFilter)
+
+  // 값을 지웠으면 전체 조회로 바로 돌아갑니다.
+  if (!range) {
+    await loadLoginHistoryModalItems()
+    return
+  }
+
+  // 시작일과 종료일이 모두 선택됐을 때만 바로 조회합니다.
+  if (isCompletedRange) {
+    await loadLoginHistoryModalItems()
+  }
 }
 
-// 보안 이력 기간 필터를 적용합니다.
-async function applySecurityHistoryFilter() {
-  await loadSecurityHistoryModalItems()
+// 보안 이력 날짜 범위를 직접 바꾸면 바로 반영합니다.
+async function handleSecurityHistoryRangeChange(range: DateRangeValue) {
+  // 직접 선택했으니 빠른 버튼 강조는 해제합니다.
+  securityHistoryQuickRange.value = ''
+
+  // 현재 선택한 값을 저장합니다.
+  securityHistoryRange.value = range
+
+  // 필터에도 같은 값을 넣습니다.
+  const isCompletedRange = syncRangeToFilter(range, securityHistoryFilter)
+
+  // 값을 지웠으면 전체 조회로 바로 돌아갑니다.
+  if (!range) {
+    await loadSecurityHistoryModalItems()
+    return
+  }
+
+  // 시작일과 종료일이 모두 선택됐을 때만 바로 조회합니다.
+  if (isCompletedRange) {
+    await loadSecurityHistoryModalItems()
+  }
 }
 
-// 로그인 이력 기간 필터를 초기화하고 다시 조회합니다.
+// 로그인 이력 기간 필터를 전체로 되돌립니다.
 async function resetLoginHistoryFilter() {
+  loginHistoryQuickRange.value = 'all'
+  loginHistoryRange.value = null
   loginHistoryFilter.from = ''
   loginHistoryFilter.to = ''
   await loadLoginHistoryModalItems()
 }
 
-// 보안 이력 기간 필터를 초기화하고 다시 조회합니다.
+// 보안 이력 기간 필터를 전체로 되돌립니다.
 async function resetSecurityHistoryFilter() {
+  securityHistoryQuickRange.value = 'all'
+  securityHistoryRange.value = null
   securityHistoryFilter.from = ''
   securityHistoryFilter.to = ''
   await loadSecurityHistoryModalItems()
 }
 
-// 페이지에 들어오면 데이터부터 읽습니다.
+// 로그인 이력 빠른 기간 버튼을 적용합니다.
+async function setLoginHistoryQuickRange(range: QuickRange) {
+  loginHistoryQuickRange.value = range
+
+  // 전체는 필터를 비우고 바로 다시 조회합니다.
+  if (range === 'all') {
+    await resetLoginHistoryFilter()
+    return
+  }
+
+  const to = new Date()
+  const from = new Date()
+
+  if (range === '7d') {
+    from.setDate(from.getDate() - 7)
+  } else if (range === '1m') {
+    from.setMonth(from.getMonth() - 1)
+  } else if (range === '6m') {
+    from.setMonth(from.getMonth() - 6)
+  }
+
+  const fromText = formatDateInputValue(from)
+  const toText = formatDateInputValue(to)
+
+  // 선택기 값도 같이 바꿉니다.
+  loginHistoryRange.value = [fromText, toText]
+
+  // 실제 API용 필터도 바로 맞춥니다.
+  loginHistoryFilter.from = fromText
+  loginHistoryFilter.to = toText
+
+  // 버튼 클릭 후 바로 조회합니다.
+  await loadLoginHistoryModalItems()
+}
+
+// 보안 이력 빠른 기간 버튼을 적용합니다.
+async function setSecurityHistoryQuickRange(range: QuickRange) {
+  securityHistoryQuickRange.value = range
+
+  // 전체는 필터를 비우고 바로 다시 조회합니다.
+  if (range === 'all') {
+    await resetSecurityHistoryFilter()
+    return
+  }
+
+  const to = new Date()
+  const from = new Date()
+
+  if (range === '7d') {
+    from.setDate(from.getDate() - 7)
+  } else if (range === '1m') {
+    from.setMonth(from.getMonth() - 1)
+  } else if (range === '6m') {
+    from.setMonth(from.getMonth() - 6)
+  }
+
+  const fromText = formatDateInputValue(from)
+  const toText = formatDateInputValue(to)
+
+  // 선택기 값도 같이 바꿉니다.
+  securityHistoryRange.value = [fromText, toText]
+
+  // 실제 API용 필터도 바로 맞춥니다.
+  securityHistoryFilter.from = fromText
+  securityHistoryFilter.to = toText
+
+  // 버튼 클릭 후 바로 조회합니다.
+  await loadSecurityHistoryModalItems()
+}
+
+// 페이지가 열리면 데이터부터 읽습니다.
 onMounted(() => {
   header.clearActions()
   loadProfileData()
@@ -900,7 +1176,7 @@ onBeforeUnmount(() => {
         </article>
       </section>
 
-      <!-- 아래쪽 2칸은 로그인 이력과 보안 이력으로 맞춥니다. -->
+      <!-- 아래쪽 2칸은 로그인 이력과 보안 이력입니다. -->
       <section class="profile-summary" style="margin-top: 20px;">
         <article class="page-panel">
           <div class="page-panel__head">
@@ -922,7 +1198,7 @@ onBeforeUnmount(() => {
               :key="history.loginHistoryId"
               class="page-feed__item"
             >
-              <!-- 첫 줄은 상태만 색을 주고 시간은 검정색으로 둡니다. -->
+              <!-- 첫 줄은 성공/실패와 시간만 보여줍니다. -->
               <span class="page-feed__label" style="font-weight: 700; color: #111827;">
                 <span :style="{ color: history.failureReason ? '#dc2626' : '#16a34a' }">
                   {{
@@ -934,16 +1210,23 @@ onBeforeUnmount(() => {
                 / {{ formatLoginTimeOnly(history.loginAt) }}
               </span>
 
-              <!-- 둘째 줄은 IP, 브라우저, 실패 사유를 검정색으로 보여줍니다. -->
-              <strong class="page-feed__text" style="color: #111827;">
-                IP {{ history.ipAddress || '-' }}
-                <template v-if="history.userAgent">
-                  · {{ formatUserAgent(history.userAgent) }}
-                </template>
-                <template v-if="history.failureReason">
-                  · {{ preferences.language === 'ko' ? '실패 사유' : 'Reason' }} = {{ formatLoginFailureReason(history.failureReason) }}
-                </template>
-              </strong>
+          <!-- 로그인 이력 모달의 둘째 줄입니다. -->
+<!-- 카드와 같은 형식으로 맞춰 둡니다. -->
+<strong class="page-feed__text" style="color: #111827;">
+  IP {{ history.ipAddress || '-' }}
+
+  <!-- user-agent 가 있으면 OS와 브라우저 정보를 보여줍니다. -->
+  <template v-if="history.userAgent">
+    ·  {{ formatClientOs(history.userAgent) }}
+    ·  {{ formatUserAgent(history.userAgent) }}
+  </template>
+
+  <!-- 실패 이력이면 실패 사유도 같이 보여줍니다. -->
+  <template v-if="history.failureReason">
+    · {{ preferences.language === 'ko' ? '실패 사유' : 'Reason' }} = {{ formatLoginFailureReason(history.failureReason) }}
+  </template>
+</strong>
+
             </div>
 
             <div v-if="loginHistories.length === 0" class="page-feed__item">
@@ -1036,78 +1319,142 @@ onBeforeUnmount(() => {
           : 'Select a period to view login history.'"
         size="lg"
       >
-        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
-          <label style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px;">
-            <span>{{ preferences.language === 'ko' ? '시작일' : 'From' }}</span>
-            <input v-model="loginHistoryFilter.from" type="date" />
+        <div
+          style="
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: end;
+            margin-bottom: 16px;
+          "
+        >
+          <!-- 기간 선택기는 한 개만 보여주고 폭도 줄입니다. -->
+          <label
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 6px;
+              width: 320px;
+              max-width: 100%;
+            "
+          >
+            <span>{{ preferences.language === 'ko' ? '기간' : 'Period' }}</span>
+
+            <VueDatePicker
+              v-model="loginHistoryRange"
+              range
+              model-type="yyyy-MM-dd"
+              :locale="datePickerLocale"
+              :formats="datePickerFormats"
+              :enable-time-picker="false"
+              :hide-navigation="['time']"
+              :clearable="true"
+              auto-apply
+              :placeholder="preferences.language === 'ko' ? '기간 선택' : 'Select period'"
+              @update:model-value="handleLoginHistoryRangeChange"
+            />
           </label>
 
-          <label style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px;">
-            <span>{{ preferences.language === 'ko' ? '종료일' : 'To' }}</span>
-            <input v-model="loginHistoryFilter.to" type="date" />
-          </label>
-        </div>
-
-        <div class="design-trigger-row" style="margin-bottom: 16px;">
-          <button class="page-button page-button--primary" type="button" @click="applyLoginHistoryFilter">
-            {{ preferences.language === 'ko' ? '적용' : 'Apply' }}
-          </button>
-
-          <button class="page-button page-button--secondary" type="button" @click="resetLoginHistoryFilter">
-            {{ preferences.language === 'ko' ? '초기화' : 'Reset' }}
-          </button>
-        </div>
-
-        <div v-if="isLoadingLoginHistoryModal" class="login-hint">
-          {{ preferences.language === 'ko' ? '로그인 이력을 불러오는 중입니다...' : 'Loading login history...' }}
-        </div>
-
-        <div v-else class="page-feed">
+          <!-- 빠른 기간 버튼은 오른쪽에 붙입니다. -->
           <div
-            v-for="history in loginHistoryModalItems"
-            :key="history.loginHistoryId"
-            class="page-feed__item"
+            style="
+              display: flex;
+              gap: 8px;
+              flex-wrap: wrap;
+              padding-bottom: 2px;
+            "
           >
-            <!-- 모달도 상태만 색을 주고 날짜/시간은 검정색으로 둡니다. -->
-            <span class="page-feed__label" style="font-weight: 700; color: #111827;">
-              <span :style="{ color: history.failureReason ? '#dc2626' : '#16a34a' }">
-                {{
-                  history.failureReason
-                    ? (preferences.language === 'ko' ? '실패' : 'Failed')
-                    : (preferences.language === 'ko' ? '성공' : 'Success')
-                }}
-              </span>
-              / {{ formatDateTime(history.loginAt) }}
-            </span>
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :style="getQuickRangeButtonStyle(loginHistoryQuickRange === '7d')"
+              @click="setLoginHistoryQuickRange('7d')"
+            >
+              {{ preferences.language === 'ko' ? '1주' : '1W' }}
+            </button>
 
-            <!-- 모달 안 둘째 줄도 검정색으로 고정합니다. -->
-            <strong class="page-feed__text" style="color: #111827;">
-              IP {{ history.ipAddress || '-' }}
-              <template v-if="history.userAgent">
-                · {{ formatUserAgent(history.userAgent) }}
-              </template>
-              <template v-if="history.failureReason">
-                · {{ preferences.language === 'ko' ? '실패 사유' : 'Reason' }} = {{ formatLoginFailureReason(history.failureReason) }}
-              </template>
-            </strong>
-          </div>
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :style="getQuickRangeButtonStyle(loginHistoryQuickRange === '1m')"
+              @click="setLoginHistoryQuickRange('1m')"
+            >
+              {{ preferences.language === 'ko' ? '1개월' : '1M' }}
+            </button>
 
-          <div v-if="loginHistoryModalItems.length === 0" class="page-feed__item">
-            <strong class="page-feed__text">
-              {{ preferences.language === 'ko' ? '조건에 맞는 로그인 이력이 없습니다.' : 'No login history matches the selected period.' }}
-            </strong>
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :style="getQuickRangeButtonStyle(loginHistoryQuickRange === '6m')"
+              @click="setLoginHistoryQuickRange('6m')"
+            >
+              {{ preferences.language === 'ko' ? '6개월' : '6M' }}
+            </button>
+
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :style="getQuickRangeButtonStyle(loginHistoryQuickRange === 'all')"
+              @click="setLoginHistoryQuickRange('all')"
+            >
+              {{ preferences.language === 'ko' ? '전체' : 'ALL' }}
+            </button>
           </div>
         </div>
 
-        <template #footer>
-          <button
-            class="page-button page-button--secondary"
-            type="button"
-            @click="loginHistoryModalOpen = false"
+        <!-- 목록은 그대로 두고, 로딩 때는 위에만 덮어서 모달 높이가 안 출렁이게 합니다. -->
+        <div style="position: relative; min-height: 320px;">
+          <div class="page-feed" :style="{ opacity: isLoadingLoginHistoryModal ? 0.45 : 1 }">
+            <div
+              v-for="history in loginHistoryModalItems"
+              :key="history.loginHistoryId"
+              class="page-feed__item"
+            >
+              <span class="page-feed__label" style="font-weight: 700; color: #111827;">
+                <span :style="{ color: history.failureReason ? '#dc2626' : '#16a34a' }">
+                  {{
+                    history.failureReason
+                      ? (preferences.language === 'ko' ? '실패' : 'Failed')
+                      : (preferences.language === 'ko' ? '성공' : 'Success')
+                  }}
+                </span>
+                / {{ formatDateTime(history.loginAt) }}
+              </span>
+
+              <strong class="page-feed__text" style="color: #111827;">
+                IP {{ history.ipAddress || '-' }}
+                <template v-if="history.userAgent">
+                  · {{ formatClientOs(history.userAgent) }}
+                  · {{ formatUserAgent(history.userAgent) }}
+                </template>
+                <template v-if="history.failureReason">
+                  · {{ preferences.language === 'ko' ? '실패 사유' : 'Reason' }} = {{ formatLoginFailureReason(history.failureReason) }}
+                </template>
+              </strong>
+            </div>
+
+            <div v-if="loginHistoryModalItems.length === 0 && !isLoadingLoginHistoryModal" class="page-feed__item">
+              <strong class="page-feed__text">
+                {{ preferences.language === 'ko' ? '조건에 맞는 로그인 이력이 없습니다.' : 'No login history matches the selected period.' }}
+              </strong>
+            </div>
+          </div>
+
+          <div
+            v-if="isLoadingLoginHistoryModal"
+            class="login-hint"
+            style="
+              position: absolute;
+              inset: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: rgba(255, 255, 255, 0.6);
+            "
           >
-            {{ preferences.language === 'ko' ? '닫기' : 'Close' }}
-          </button>
-        </template>
+            {{ preferences.language === 'ko' ? '로그인 이력을 불러오는 중입니다...' : 'Loading login history...' }}
+          </div>
+        </div>
       </BaseModal>
 
       <!-- 보안 이력 더보기 모달입니다. -->
@@ -1119,72 +1466,137 @@ onBeforeUnmount(() => {
           : 'Select a period to view security history.'"
         size="lg"
       >
-        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
-          <label style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px;">
-            <span>{{ preferences.language === 'ko' ? '시작일' : 'From' }}</span>
-            <input v-model="securityHistoryFilter.from" type="date" />
+        <div
+          style="
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: end;
+            margin-bottom: 16px;
+          "
+        >
+          <!-- 기간 선택기는 한 개만 보여주고 폭도 줄입니다. -->
+          <label
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 6px;
+              width: 320px;
+              max-width: 100%;
+            "
+          >
+            <span>{{ preferences.language === 'ko' ? '기간' : 'Period' }}</span>
+
+            <VueDatePicker
+              v-model="securityHistoryRange"
+              range
+              model-type="yyyy-MM-dd"
+              :locale="datePickerLocale"
+              :formats="datePickerFormats"
+              :enable-time-picker="false"
+              :hide-navigation="['time']"
+              :clearable="true"
+              auto-apply
+              :placeholder="preferences.language === 'ko' ? '기간 선택' : 'Select period'"
+              @update:model-value="handleSecurityHistoryRangeChange"
+            />
           </label>
 
-          <label style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px;">
-            <span>{{ preferences.language === 'ko' ? '종료일' : 'To' }}</span>
-            <input v-model="securityHistoryFilter.to" type="date" />
-          </label>
-        </div>
-
-        <div class="design-trigger-row" style="margin-bottom: 16px;">
-          <button class="page-button page-button--primary" type="button" @click="applySecurityHistoryFilter">
-            {{ preferences.language === 'ko' ? '적용' : 'Apply' }}
-          </button>
-
-          <button class="page-button page-button--secondary" type="button" @click="resetSecurityHistoryFilter">
-            {{ preferences.language === 'ko' ? '초기화' : 'Reset' }}
-          </button>
-        </div>
-
-        <div v-if="isLoadingSecurityHistoryModal" class="login-hint">
-          {{ preferences.language === 'ko' ? '보안 이력을 불러오는 중입니다...' : 'Loading security history...' }}
-        </div>
-
-        <div v-else class="page-feed">
+          <!-- 빠른 기간 버튼은 오른쪽에 붙입니다. -->
           <div
-            v-for="history in securityHistoryModalItems"
-            :key="history.securityHistoryId"
-            class="page-feed__item"
+            style="
+              display: flex;
+              gap: 8px;
+              flex-wrap: wrap;
+              padding-bottom: 2px;
+            "
           >
-            <span class="page-feed__label">
-              {{ formatDateTime(history.occurredAt) }}
-            </span>
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :style="getQuickRangeButtonStyle(securityHistoryQuickRange === '7d')"
+              @click="setSecurityHistoryQuickRange('7d')"
+            >
+              {{ preferences.language === 'ko' ? '1주' : '1W' }}
+            </button>
 
-            <strong class="page-feed__text">
-              {{ history.summary }}
-            </strong>
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :style="getQuickRangeButtonStyle(securityHistoryQuickRange === '1m')"
+              @click="setSecurityHistoryQuickRange('1m')"
+            >
+              {{ preferences.language === 'ko' ? '1개월' : '1M' }}
+            </button>
 
-            <span class="page-feed__label">
-              IP: {{ history.ipAddress || '-' }}
-            </span>
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :style="getQuickRangeButtonStyle(securityHistoryQuickRange === '6m')"
+              @click="setSecurityHistoryQuickRange('6m')"
+            >
+              {{ preferences.language === 'ko' ? '6개월' : '6M' }}
+            </button>
 
-            <span class="page-feed__label">
-              {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
-              {{ formatUserAgent(history.userAgent) }}
-            </span>
-          </div>
-
-          <div v-if="securityHistoryModalItems.length === 0" class="page-feed__item">
-            <strong class="page-feed__text">
-              {{ preferences.language === 'ko' ? '조건에 맞는 보안 이력이 없습니다.' : 'No security history matches the selected period.' }}
-            </strong>
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :style="getQuickRangeButtonStyle(securityHistoryQuickRange === 'all')"
+              @click="setSecurityHistoryQuickRange('all')"
+            >
+              {{ preferences.language === 'ko' ? '전체' : 'ALL' }}
+            </button>
           </div>
         </div>
 
-        <template #footer>
-          <button
-            class="page-button page-button--secondary"
-            type="button"
-            @click="securityHistoryModalOpen = false"
+        <!-- 목록은 그대로 두고, 로딩 때는 위에만 덮어서 모달 높이가 안 출렁이게 합니다. -->
+        <div style="position: relative; min-height: 320px;">
+          <div class="page-feed" :style="{ opacity: isLoadingSecurityHistoryModal ? 0.45 : 1 }">
+            <div
+              v-for="history in securityHistoryModalItems"
+              :key="history.securityHistoryId"
+              class="page-feed__item"
+            >
+              <span class="page-feed__label">
+                {{ formatDateTime(history.occurredAt) }}
+              </span>
+
+              <strong class="page-feed__text">
+                {{ history.summary }}
+              </strong>
+
+              <span class="page-feed__label">
+                IP: {{ history.ipAddress || '-' }}
+              </span>
+
+              <span class="page-feed__label">
+                {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
+                {{ formatUserAgent(history.userAgent) }}
+              </span>
+            </div>
+
+            <div v-if="securityHistoryModalItems.length === 0 && !isLoadingSecurityHistoryModal" class="page-feed__item">
+              <strong class="page-feed__text">
+                {{ preferences.language === 'ko' ? '조건에 맞는 보안 이력이 없습니다.' : 'No security history matches the selected period.' }}
+              </strong>
+            </div>
+          </div>
+
+          <div
+            v-if="isLoadingSecurityHistoryModal"
+            class="login-hint"
+            style="
+              position: absolute;
+              inset: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: rgba(255, 255, 255, 0.6);
+            "
           >
-            {{ preferences.language === 'ko' ? '닫기' : 'Close' }}
-          </button>
-        </template>
+            {{ preferences.language === 'ko' ? '보안 이력을 불러오는 중입니다...' : 'Loading security history...' }}
+          </div>
+        </div>
       </BaseModal>
     </template>
   </section>
