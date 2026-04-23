@@ -4,6 +4,7 @@ import { BaseModal } from '../../shared'
 import { createReturn, type CreateReturnRequestDto, type CreateReturnItemDto } from '../../../services/return'
 import { getOrganizations, type OrganizationListItem } from '../../../services/organization'
 import { getItems, type ItemResponseDto } from '../../../services/item'
+import { getPurchaseOrders, getPurchaseOrder, type PurchaseOrderSummaryResponseDto, type PurchaseOrderItemResponseDto } from '../../../services/purchaseOrder'
 
 const props = defineProps<{
   isOpen: boolean
@@ -15,22 +16,27 @@ const emit = defineEmits<{
   success: []
 }>()
 
-// 실제 조직 목록을 담아둘 상태입니다.
+// 조직 목록
 const organizations = ref<OrganizationListItem[]>([])
-
-// 조직 목록 로딩 상태입니다.
 const isOrganizationsLoading = ref(false)
 
-// 요청 조직 드롭다운에 보여줄 목록입니다.
-// 우선은 전체 조직을 보여주고, 필요하면 나중에 BUYER만 필터링할 수 있습니다.
-const requestOrganizations = computed(() => organizations.value)
+// 로그인한 사용자의 조직 정보
+const myOrganization = ref<OrganizationListItem | null>(null)
+const myOrgType = ref<string>('') // 'BUYER' | 'SUPPLIER' | 'ADMIN'
 
-// 대상 조직은 협력사(SUPPLIER)만 보여줍니다.
-const targetOrganizations = computed(() =>
-  organizations.value.filter((org) => org.organizationType === 'SUPPLIER'),
-)
+// 대상 조직 드롭다운: 로그인한 조직이 SUPPLIER이면 BUYER만, BUYER이면 SUPPLIER만 보여줍니다.
+const targetOrganizations = computed(() => {
+  if (myOrgType.value === 'SUPPLIER') {
+    return organizations.value.filter((org) => org.organizationType === 'BUYER')
+  }
+  // BUYER이거나 기타인 경우 SUPPLIER만 보여줍니다.
+  return organizations.value.filter((org) => org.organizationType === 'SUPPLIER')
+})
 
-const items = ref<ItemResponseDto[]>([])
+// 품목 목록 (발주 기반으로 필터링됨)
+const items = ref<ItemResponseDto[]>()
+const poItems = ref<{ itemPublicId: string; itemName: string; unit: string; orderedQty: number; poNumber: string }[]>([])
+const isLoadingPoItems = ref(false)
 
 function createEmptyItem(): CreateReturnItemDto {
   return {
@@ -43,8 +49,15 @@ function createEmptyItem(): CreateReturnItemDto {
   }
 }
 
+// 반품 번호 자동 생성
+function generateReturnNumber(): string {
+  const year = new Date().getFullYear()
+  const random4 = Math.floor(1000 + Math.random() * 9000)
+  return `RT-${year}-${random4}`
+}
+
 const form = ref<CreateReturnRequestDto>({
-  returnNumber: `RT-${Date.now()}`,
+  returnNumber: generateReturnNumber(),
   sourceShipmentPublicId: '',
   requestOrganizationPublicId: '',
   requestOrganizationName: '',
@@ -58,22 +71,20 @@ const form = ref<CreateReturnRequestDto>({
 
 const isSubmitting = ref(false)
 
-// 조직 목록을 실제 API에서 불러옵니다.
+// 조직 목록 로드 및 로그인한 사용자 조직 자동 세팅
 async function loadOrganizations() {
   try {
     isOrganizationsLoading.value = true
-
-    // 드롭다운 용도라서 넉넉하게 100개 정도 먼저 가져옵니다.
-    const response = await getOrganizations({
-      page: 0,
-      size: 100,
-    })
-
+    const response = await getOrganizations({ page: 0, size: 100 })
     organizations.value = response.content ?? []
 
-    // 로그인한 조직이 있으면 요청 조직 기본값으로 먼저 채워줍니다.
+    // 세션에서 로그인한 조직 정보 가져오기
     const currentOrganizationPublicId =
       window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
+    const currentOrganizationType =
+      window.sessionStorage.getItem('atlas-organization-type') ?? ''
+
+    myOrgType.value = currentOrganizationType
 
     if (currentOrganizationPublicId) {
       const currentOrganization = organizations.value.find(
@@ -81,6 +92,7 @@ async function loadOrganizations() {
       )
 
       if (currentOrganization) {
+        myOrganization.value = currentOrganization
         form.value.requestOrganizationPublicId = currentOrganization.organizationPublicId
         form.value.requestOrganizationName = currentOrganization.organizationName
       }
@@ -93,6 +105,7 @@ async function loadOrganizations() {
   }
 }
 
+// 품목 목록 로드 (전체 - fallback용)
 async function loadItems() {
   try {
     const res = await getItems({ page: 0, size: 200 })
@@ -105,70 +118,147 @@ async function loadItems() {
   }
 }
 
+// 대상 조직 선택 시 해당 조직과의 발주(PO) 품목만 로드
+async function loadPoItemsByTargetOrg(targetOrgPublicId: string) {
+  isLoadingPoItems.value = true
+  poItems.value = []
+  // 기존 선택된 품목 초기화
+  form.value.items = [createEmptyItem()]
+  
+  try {
+    // viewType: 로그인한 조직이 SUPPLIER이면 SUPPLIER 뷰, 아니면 BUYER 뷰
+    const viewType = myOrgType.value === 'SUPPLIER' ? 'SUPPLIER' : 'BUYER'
+    // SUPPLIER 뷰에서는 supplierPublicId가 필요 없음 (본인 기준)
+    // BUYER 뷰에서는 supplierPublicId로 특정 협력사 발주 필터링
+    const params = viewType === 'BUYER'
+      ? { viewType, supplierPublicId: targetOrgPublicId, page: 0, size: 100 }
+      : { viewType, page: 0, size: 100 }
+    
+    const poRes = await getPurchaseOrders(params as any)
+    const poList = poRes.content || []
+    
+    // 각 PO의 상세 조회하여 품목 수집
+    const allPoItems: typeof poItems.value = []
+    const seen = new Set<string>() // 중복 품목 방지
+    
+    for (const po of poList) {
+      try {
+        const detail = await getPurchaseOrder(po.poPublicId)
+        if (detail.items) {
+          for (const item of detail.items) {
+            if (!seen.has(item.itemPublicId)) {
+              seen.add(item.itemPublicId)
+              allPoItems.push({
+                itemPublicId: item.itemPublicId,
+                itemName: item.itemName,
+                unit: item.unit,
+                orderedQty: item.orderedQty,
+                poNumber: po.poNumber,
+              })
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`PO 상세 조회 실패: ${po.poPublicId}`, e)
+      }
+    }
+    
+    poItems.value = allPoItems
+  } catch (error) {
+    console.error('Failed to load PO items', error)
+    poItems.value = []
+  } finally {
+    isLoadingPoItems.value = false
+  }
+}
 
 const content = computed(() => {
   return props.language === 'ko'
     ? {
-        title: '신규 반품(Return) 생성',
+        title: '신규 반품 요청',
         desc: '발주 또는 출하된 품목에 대해 반품을 요청합니다.',
-        returnNo: '반품 번호 (Return No.)',
-        reqOrg: '요청 조직 (본사/창고)',
-        targetOrg: '대상 조직 (협력사)',
+        returnNo: '반품 번호',
+        reqOrg: '요청 조직',
+        targetOrg: '대상 조직 (반품 수신처)',
         type: '반품 유형',
-        reason: '반품 사유 (전체)',
+        reason: '반품 사유',
         items: '반품 대상 품목',
         item: '품목',
-        lot: 'LOT 번호 (선택)',
+        lot: 'LOT (선택)',
         qty: '수량',
         unit: '단위',
         itemReason: '상세 사유',
         addBtn: '+ 품목 추가',
         delBtn: '삭제',
         cancel: '취소',
-        submit: '반품 요청'
+        submit: '반품 요청',
+        selectPlaceholder: '선택',
+        autoGenerated: '자동생성',
+        autoSet: '자동설정',
+        required: '*',
       }
     : {
         title: 'Create Return Request',
         desc: 'Request a return for ordered or shipped items.',
         returnNo: 'Return No.',
-        reqOrg: 'Request Org (Hub/Warehouse)',
-        targetOrg: 'Target Org (Supplier)',
+        reqOrg: 'Request Organization',
+        targetOrg: 'Target Organization',
         type: 'Return Type',
-        reason: 'Return Reason (Overall)',
+        reason: 'Return Reason',
         items: 'Return Items',
         item: 'Item',
-        lot: 'LOT No. (Optional)',
+        lot: 'LOT (Optional)',
         qty: 'Qty',
         unit: 'Unit',
         itemReason: 'Detail Reason',
         addBtn: '+ Add Item',
         delBtn: 'Del',
-        cancel: 'CANCEL',
-        submit: 'SUBMIT REQUEST'
+        cancel: 'Cancel',
+        submit: 'Submit Request',
+        selectPlaceholder: 'Select',
+        autoGenerated: 'Auto',
+        autoSet: 'Auto',
+        required: '*',
       }
+})
+
+// 반품 유형 옵션
+const returnTypeOptions = computed(() => {
+  return props.language === 'ko'
+    ? [
+        { value: 'DEFECTIVE', label: '불량' },
+        { value: 'DAMAGE', label: '파손' },
+        { value: 'MISDELIVERY', label: '오배송' },
+        { value: 'SIMPLE_RETURN', label: '단순 반품' },
+      ]
+    : [
+        { value: 'DEFECTIVE', label: 'Defective' },
+        { value: 'DAMAGE', label: 'Damage' },
+        { value: 'MISDELIVERY', label: 'Misdelivery' },
+        { value: 'SIMPLE_RETURN', label: 'Simple Return' },
+      ]
 })
 
 function handleTargetOrgChange(e: Event) {
   const val = (e.target as HTMLSelectElement).value
   const found = targetOrganizations.value.find((o) => o.organizationPublicId === val)
-
   if (found) {
     form.value.targetOrganizationName = found.organizationName
+    // 대상 조직 변경 시 해당 조직과의 발주 품목을 로드
+    loadPoItemsByTargetOrg(found.organizationPublicId)
   }
 }
-
-function handleReqOrgChange(e: Event) {
-  const val = (e.target as HTMLSelectElement).value
-  const found = requestOrganizations.value.find((o) => o.organizationPublicId === val)
-
-  if (found) {
-    form.value.requestOrganizationName = found.organizationName
-  }
-}
-
 
 function handleItemChange(index: number, e: Event) {
   const val = (e.target as HTMLSelectElement).value
+  // poItems에서 먼저 검색
+  const foundPo = poItems.value.find(i => i.itemPublicId === val)
+  if (foundPo) {
+    form.value.items[index].itemName = foundPo.itemName
+    form.value.items[index].unit = foundPo.unit
+    return
+  }
+  // fallback: 전체 품목에서 검색
   const found = items.value.find(i => i.publicId === val)
   if (found) {
     form.value.items[index].itemName = found.itemName
@@ -185,13 +275,24 @@ function removeItem(index: number) {
     form.value.items.splice(index, 1)
   }
 }
-// 모달이 열릴 때마다 조직 목록을 다시 불러옵니다.
-// 처음 열릴 때도 바로 실행되게 immediate 를 켭니다.
+
+// 모달이 열릴 때마다 폼 초기화 및 데이터 로드
 watch(
   () => props.isOpen,
   (isOpen) => {
     if (isOpen) {
-      form.value.items = [createEmptyItem()]
+      form.value = {
+        returnNumber: generateReturnNumber(),
+        sourceShipmentPublicId: '',
+        requestOrganizationPublicId: '',
+        requestOrganizationName: '',
+        targetOrganizationPublicId: '',
+        targetOrganizationName: '',
+        returnType: 'DEFECTIVE',
+        returnReason: '',
+        attachmentPublicIds: [],
+        items: [createEmptyItem()]
+      }
       loadOrganizations()
       loadItems()
     }
@@ -199,11 +300,13 @@ watch(
   { immediate: true },
 )
 
-
-
 async function handleSubmit() {
   if (!form.value.targetOrganizationPublicId) {
-    alert(props.language === 'ko' ? '대상 조직(협력사)을 선택해주세요.' : 'Please select target organization.')
+    alert(props.language === 'ko' ? '대상 조직을 선택해주세요.' : 'Please select target organization.')
+    return
+  }
+  if (!form.value.returnReason.trim()) {
+    alert(props.language === 'ko' ? '반품 사유를 입력해주세요.' : 'Please enter a return reason.')
     return
   }
   if (form.value.items.some(i => !i.itemPublicId || i.returnQty <= 0)) {
@@ -234,107 +337,113 @@ async function handleSubmit() {
     @update:model-value="emit('close')"
   >
     <form @submit.prevent="handleSubmit" class="return-create-modal__form">
+      
+      <!-- 반품 번호 (자동 생성, Read-only) -->
       <div class="terminal-grid-2">
         <div class="terminal-form-group">
           <label>
-            <span>{{ content.returnNo }}</span>
-            <input v-model="form.returnNumber" type="text" required :disabled="isSubmitting" />
+            <span>{{ content.returnNo }} <em class="required-mark">{{ content.required }}</em> <em class="auto-calc-mark">{{ content.autoGenerated }}</em></span>
+            <input v-model="form.returnNumber" type="text" required readonly disabled class="readonly-field" />
           </label>
         </div>
         <div class="terminal-form-group">
           <label>
-            <span>{{ content.type }}</span>
+            <span>{{ content.type }} <em class="required-mark">{{ content.required }}</em></span>
             <select v-model="form.returnType" :disabled="isSubmitting">
-              <option value="DEFECTIVE">불량 (DEFECTIVE)</option>
-              <option value="DAMAGE">파손 (DAMAGE)</option>
-              <option value="MISDELIVERY">오배송 (MISDELIVERY)</option>
-              <option value="SIMPLE_RETURN">단순변심 (SIMPLE_RETURN)</option>
+              <option v-for="opt in returnTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
           </label>
         </div>
       </div>
 
+      <!-- 요청 조직 (자동 세팅, Read-only) / 대상 조직 -->
       <div class="terminal-grid-2">
         <div class="terminal-form-group">
           <label>
-            <span>{{ content.reqOrg }}</span>
+            <span>{{ content.reqOrg }} <em class="required-mark">{{ content.required }}</em> <em class="auto-calc-mark">{{ content.autoSet }}</em></span>
+            <input
+              :value="myOrganization?.organizationName || '로딩 중...'"
+              type="text"
+              readonly
+              disabled
+              class="readonly-field"
+            />
+          </label>
+        </div>
+        <div class="terminal-form-group">
+          <label>
+            <span>{{ content.targetOrg }} <em class="required-mark">{{ content.required }}</em></span>
             <select
-              v-model="form.requestOrganizationPublicId"
-              @change="handleReqOrgChange"
+              v-model="form.targetOrganizationPublicId"
+              @change="handleTargetOrgChange"
               required
               :disabled="isSubmitting || isOrganizationsLoading"
             >
-              <option value="" disabled>선택</option>
+              <option value="" disabled>{{ content.selectPlaceholder }}</option>
               <option
-                v-for="org in requestOrganizations"
+                v-for="org in targetOrganizations"
                 :key="org.organizationPublicId"
                 :value="org.organizationPublicId"
               >
                 {{ org.organizationName }}
               </option>
             </select>
-
-
-          </label>
-        </div>
-        <div class="terminal-form-group">
-          <label>
-            <span>{{ content.targetOrg }}</span>
-              <select v-model="form.targetOrganizationPublicId" @change="handleTargetOrgChange" required :disabled="isSubmitting || isOrganizationsLoading">
-                <option value="" disabled>선택</option>
-                  <option
-                    v-for="org in targetOrganizations"
-                    :key="org.organizationPublicId"
-                    :value="org.organizationPublicId"
-                  >
-                    {{ org.organizationName }}
-                  </option>
-              </select>
-
           </label>
         </div>
       </div>
 
+      <!-- 반품 사유 -->
       <div class="terminal-form-group">
         <label>
-          <span>{{ content.reason }}</span>
-          <textarea v-model="form.returnReason" rows="2" placeholder="..." required :disabled="isSubmitting"></textarea>
+          <span>{{ content.reason }} <em class="required-mark">{{ content.required }}</em></span>
+          <textarea v-model="form.returnReason" rows="2" :placeholder="language === 'ko' ? '반품 사유를 입력해주세요...' : 'Enter the reason for return...'" required :disabled="isSubmitting"></textarea>
         </label>
       </div>
 
+      <!-- 반품 대상 품목 섹션 -->
       <div class="items-section">
         <div class="items-header">
-          <span>{{ content.items }}</span>
+          <span>{{ content.items }} <em class="required-mark">{{ content.required }}</em></span>
           <button type="button" class="btn-add-item" @click="addItem" :disabled="isSubmitting">{{ content.addBtn }}</button>
         </div>
         
         <div class="item-row" v-for="(item, index) in form.items" :key="index">
           <div class="item-col item-col--name">
-            <span>{{ content.item }}</span>
-            <select v-model="item.itemPublicId" @change="(e) => handleItemChange(index, e)" required :disabled="isSubmitting">
-              <option value="" disabled>선택</option>
-              <option v-for="i in items" :key="i.publicId" :value="i.publicId">{{ i.itemName }}</option>
+            <span>{{ content.item }} <em class="required-mark">{{ content.required }}</em></span>
+            <select 
+              v-model="item.itemPublicId" 
+              @change="(e) => handleItemChange(index, e)" 
+              required 
+              :disabled="isSubmitting || isLoadingPoItems || !form.targetOrganizationPublicId"
+            >
+              <option value="" disabled>
+                {{ isLoadingPoItems ? (language === 'ko' ? '발주 품목 로딩 중...' : 'Loading PO items...') : !form.targetOrganizationPublicId ? (language === 'ko' ? '대상 조직을 먼저 선택하세요' : 'Select target org first') : content.selectPlaceholder }}
+              </option>
+              <!-- 발주 기반 품목 (대상 조직 선택 시) -->
+              <option v-for="i in poItems" :key="i.itemPublicId" :value="i.itemPublicId">
+                {{ i.itemName }} ({{ language === 'ko' ? '발주' : 'PO' }}: {{ i.poNumber }}, {{ i.orderedQty }}{{ i.unit }})
+              </option>
             </select>
           </div>
           
           <div class="item-col item-col--lot">
             <span>{{ content.lot }}</span>
-            <input v-model="item.lotPublicId" type="text" placeholder="lot-..." :disabled="isSubmitting" />
+            <input v-model="item.lotPublicId" type="text" placeholder="LOT-..." :disabled="isSubmitting" />
           </div>
 
           <div class="item-col item-col--qty">
-            <span>{{ content.qty }}</span>
-            <input v-model.number="item.returnQty" type="number" min="0.01" step="0.01" required :disabled="isSubmitting" />
+            <span>{{ content.qty }} <em class="required-mark">{{ content.required }}</em></span>
+            <input v-model.number="item.returnQty" type="number" min="1" step="1" required :disabled="isSubmitting" />
           </div>
           
           <div class="item-col item-col--unit">
             <span>{{ content.unit }}</span>
-            <input v-model="item.unit" type="text" readonly disabled />
+            <input v-model="item.unit" type="text" readonly disabled class="readonly-field" />
           </div>
 
           <div class="item-col item-col--reason">
             <span>{{ content.itemReason }}</span>
-            <input v-model="item.detailReason" type="text" placeholder="..." :disabled="isSubmitting" />
+            <input v-model="item.detailReason" type="text" :placeholder="language === 'ko' ? '상세 사유...' : 'Detail...'" :disabled="isSubmitting" />
           </div>
           
           <button v-if="form.items.length > 1" type="button" class="btn-remove-item" @click="removeItem(index)" :disabled="isSubmitting">
@@ -391,6 +500,21 @@ async function handleSubmit() {
   color: var(--color-on-surface-variant, #919191);
 }
 
+.required-mark {
+  color: #EF4444;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.auto-calc-mark {
+  font-style: normal;
+  font-size: 0.65rem;
+  color: var(--color-primary);
+  opacity: 0.8;
+  margin-left: 4px;
+  text-transform: uppercase;
+}
+
 .terminal-form-group input[type="text"],
 .terminal-form-group input[type="number"],
 .terminal-form-group select,
@@ -410,6 +534,12 @@ async function handleSubmit() {
   resize: vertical;
 }
 
+.readonly-field {
+  border-bottom-style: dashed !important;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .terminal-form-group input:disabled,
 .terminal-form-group select:disabled,
 .terminal-form-group textarea:disabled,
@@ -417,6 +547,10 @@ async function handleSubmit() {
 .item-col select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.readonly-field:disabled {
+  opacity: 0.7;
 }
 
 .terminal-form-group select option,

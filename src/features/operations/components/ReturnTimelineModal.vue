@@ -7,11 +7,13 @@ const props = defineProps<{
   isOpen: boolean
   targetReturn: ReturnRequestResponseDto | null
   language: 'ko' | 'en'
+  orgNameMap?: Record<string, string>
 }>()
 
 const emit = defineEmits<{
   close: []
   statusChanged: []
+  openChat: [returnData: ReturnRequestResponseDto]
 }>()
 
 const histories = ref<ReturnStatusHistoryResponseDto[]>([])
@@ -19,26 +21,52 @@ const isLoading = ref(false)
 const isUpdating = ref(false)
 const reasonText = ref('')
 
+// 현재 로그인한 사용자의 조직 publicId
+const myOrgPublicId = window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
+
+// 현재 사용자가 대상 조직(반품을 수신하는 측)인지 확인
+const isTargetOrg = computed(() => {
+  if (!props.targetReturn) return false
+  return props.targetReturn.targetOrganizationPublicId === myOrgPublicId
+})
+
 const content = computed(() => {
   return props.language === 'ko'
     ? {
-        title: '반품 상태 및 이력',
+        title: '반품 상태 이력',
         desc: '선택한 반품 항목의 상태 전환 및 감사 이력(Audit Trail)을 확인합니다.',
         currentStatus: '현재 상태',
+        returnInfo: '반품 정보',
+        returnNo: '반품 번호',
+        returnType: '반품 유형',
+        reqOrg: '요청 조직',
+        targetOrg: '대상 조직',
+        reason: '반품 사유',
+        timeline: '상태 변경 이력',
         empty: '이력이 존재하지 않습니다.',
-        actApprove: '승인 (Approve)',
-        actReject: '반려 (Reject)',
-        actTransit: '회수 중 (In Transit)',
-        actReceive: '입고 (Receive)',
-        actComplete: '완료 (Complete)',
+        actApprove: '승인',
+        actReject: '반려',
+        actTransit: '회수 중 처리',
+        actReceive: '입고 완료 처리',
+        actComplete: '처리 완료',
         reasonPlaceholder: '상태 변경 사유를 입력하세요 (필수)',
         reasonAlert: '상태 변경 사유를 반드시 입력해주세요.',
-        close: '닫기'
+        chatBtn: '채팅으로 업무 공유',
+        close: '닫기',
+        statusActions: '상태 변경',
+        itemsTitle: '반품 품목 목록',
       }
     : {
-        title: 'Return Status & Audit Trail',
+        title: 'Return Audit Trail',
         desc: 'View status transitions and audit trail for the selected return request.',
         currentStatus: 'Current Status',
+        returnInfo: 'Return Info',
+        returnNo: 'Return No.',
+        returnType: 'Return Type',
+        reqOrg: 'Request Org',
+        targetOrg: 'Target Org',
+        reason: 'Reason',
+        timeline: 'Status History',
         empty: 'No history found.',
         actApprove: 'Approve',
         actReject: 'Reject',
@@ -47,9 +75,72 @@ const content = computed(() => {
         actComplete: 'Complete',
         reasonPlaceholder: 'Enter reason for status change (Required)',
         reasonAlert: 'Reason is required to change status.',
-        close: 'CLOSE'
+        chatBtn: 'Share via Chat',
+        close: 'Close',
+        statusActions: 'Status Actions',
+        itemsTitle: 'Return Items',
       }
 })
+
+// 상태 한글 매핑
+function formatStatus(status: string): string {
+  if (!status) return props.language === 'ko' ? '초기' : 'INITIAL'
+  if (props.language !== 'ko') return status
+  const map: Record<string, string> = {
+    REQUESTED: '요청됨',
+    APPROVED: '승인됨',
+    REJECTED: '반려됨',
+    IN_TRANSIT: '회수 중',
+    RECEIVED: '입고 완료',
+    COMPLETED: '처리 완료'
+  }
+  return map[status] || status
+}
+
+// 조직명 조회 헬퍼
+function getOrgName(publicId: string | undefined): string {
+  if (!publicId) return '-'
+  if (props.orgNameMap && props.orgNameMap[publicId]) {
+    return props.orgNameMap[publicId]
+  }
+  return publicId.slice(0, 8) + '...'
+}
+
+// 반품 유형 한글 매핑
+function formatReturnType(type: string): string {
+  if (props.language !== 'ko') return type
+  const map: Record<string, string> = {
+    DAMAGE: '파손',
+    DEFECTIVE: '불량',
+    MISDELIVERY: '오배송',
+    SIMPLE_RETURN: '단순 반품'
+  }
+  return map[type] || type
+}
+
+// 상태별 톤 색상 결정
+function getStatusTone(status: string): string {
+  switch (status) {
+    case 'REQUESTED': return 'warning'
+    case 'APPROVED': return 'nominal'
+    case 'REJECTED': return 'critical'
+    case 'IN_TRANSIT': return 'info'
+    case 'RECEIVED': return 'info'
+    case 'COMPLETED': return 'nominal'
+    default: return ''
+  }
+}
+
+// 날짜 포맷터 (LOT 추적 이력과 동일)
+function formatDate(dateStr: string): string {
+  if (!dateStr) return '-'
+  const d = new Date(dateStr)
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  return `${month}-${day} ${hours}:${minutes}`
+}
 
 watch(() => props.isOpen, async (newVal) => {
   if (newVal && props.targetReturn) {
@@ -66,15 +157,6 @@ watch(() => props.isOpen, async (newVal) => {
   }
 })
 
-const currentStatusMap: Record<string, string> = {
-  REQUESTED: '요청됨',
-  APPROVED: '승인됨',
-  REJECTED: '반려됨',
-  IN_TRANSIT: '회수 중',
-  RECEIVED: '입고 완료',
-  COMPLETED: '처리 완료'
-}
-
 async function doUpdateStatus(nextStatus: 'APPROVED'|'REJECTED'|'IN_TRANSIT'|'RECEIVED'|'COMPLETED') {
   if (!props.targetReturn) return
   if (!reasonText.value.trim()) {
@@ -90,11 +172,17 @@ async function doUpdateStatus(nextStatus: 'APPROVED'|'REJECTED'|'IN_TRANSIT'|'RE
     })
     histories.value = await getReturnHistories(props.targetReturn.publicId)
     reasonText.value = ''
-    emit('statusChanged') // Notify parent to refresh list
+    emit('statusChanged')
   } catch (err: any) {
     alert(err.message || 'Status update failed.')
   } finally {
     isUpdating.value = false
+  }
+}
+
+function handleOpenChat() {
+  if (props.targetReturn) {
+    emit('openChat', props.targetReturn)
   }
 }
 </script>
@@ -102,46 +190,93 @@ async function doUpdateStatus(nextStatus: 'APPROVED'|'REJECTED'|'IN_TRANSIT'|'RE
 <template>
   <BaseModal
     :model-value="isOpen"
-    :title="content.title"
+    :title="targetReturn ? `${targetReturn.returnNumber} ${content.title}` : content.title"
     :description="content.desc"
     size="md"
     @update:model-value="emit('close')"
   >
     <div class="timeline-container" v-if="targetReturn">
       
-      <!-- 현재 상태 블록 -->
-      <div class="current-status">
-        <span class="label">{{ content.currentStatus }}</span>
-        <div class="status-badge" :class="targetReturn.returnStatus.toLowerCase()">
-          {{ currentStatusMap[targetReturn.returnStatus] || targetReturn.returnStatus }}
+      <!-- 현재 상태 블록 (LOT 추적 이력 스타일과 통일) -->
+      <div class="current-status-block">
+        <div class="current-status-block__row">
+          <span class="current-status-block__label">{{ content.currentStatus }}</span>
+          <span :class="['status-badge', `is-${getStatusTone(targetReturn.returnStatus)}`]">
+            {{ formatStatus(targetReturn.returnStatus) }}
+          </span>
         </div>
       </div>
 
-      <!-- 타임라인 -->
-      <div class="timeline">
-        <div v-if="isLoading" class="timeline-loading">Loading...</div>
-        <div v-else-if="histories.length === 0" class="timeline-empty">{{ content.empty }}</div>
-        <div v-else class="timeline-item" v-for="h in histories" :key="h.id">
-          <div class="timeline-item__dot"></div>
-          <div class="timeline-item__content">
-            <div class="timeline-item__header">
-              <span class="status-from">{{ currentStatusMap[h.beforeStatus] || h.beforeStatus }}</span>
-              <span class="arrow">&rarr;</span>
-              <span class="status-to">{{ currentStatusMap[h.afterStatus] || h.afterStatus }}</span>
-            </div>
-            <div class="timeline-item__meta">
-              <span>{{ new Date(h.recordedAt).toLocaleString() }}</span>
-              <span>by {{ h.recordedBy }}</span>
-            </div>
-            <div class="timeline-item__reason" v-if="h.reason">
+      <!-- 반품 정보 요약 카드 -->
+      <div class="info-card">
+        <div class="info-card__eyebrow">{{ content.returnInfo }}</div>
+        <div class="info-card__grid">
+          <div class="info-card__item">
+            <span class="info-card__label">{{ content.returnType }}</span>
+            <span class="info-card__value">{{ formatReturnType(targetReturn.returnType) }}</span>
+          </div>
+          <div class="info-card__item">
+            <span class="info-card__label">{{ content.reqOrg }}</span>
+            <span class="info-card__value">{{ targetReturn.requestOrganizationName || getOrgName(targetReturn.requestOrganizationPublicId) }}</span>
+          </div>
+          <div class="info-card__item">
+            <span class="info-card__label">{{ content.targetOrg }}</span>
+            <span class="info-card__value">{{ targetReturn.targetOrganizationName || getOrgName(targetReturn.targetOrganizationPublicId) }}</span>
+          </div>
+          <div class="info-card__item info-card__item--full">
+            <span class="info-card__label">{{ content.reason }}</span>
+            <span class="info-card__value">{{ targetReturn.returnReason || '-' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 반품 품목 목록 -->
+      <div class="info-card" v-if="targetReturn.items && targetReturn.items.length > 0">
+        <div class="info-card__eyebrow">{{ content.itemsTitle }}</div>
+        <div class="items-list">
+          <div class="items-list__row items-list__row--head">
+            <span>{{ language === 'ko' ? '품목' : 'Item' }}</span>
+            <span>{{ language === 'ko' ? '수량' : 'Qty' }}</span>
+            <span>{{ language === 'ko' ? '상세 사유' : 'Detail' }}</span>
+          </div>
+          <div class="items-list__row" v-for="item in targetReturn.items" :key="item.id">
+            <span>{{ item.itemName || item.itemPublicId?.slice(0, 8) }}</span>
+            <span>{{ item.returnQty }} {{ item.unit }}</span>
+            <span>{{ item.detailReason || '-' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 타임라인 (LOT 추적 이력과 동일한 page-feed 스타일) -->
+      <div class="page-panel" style="background: var(--color-surface-container-lowest); border: 1px solid var(--color-surface-container-high); padding: 16px;">
+        <div class="page-panel__head" style="margin-bottom: 12px;">
+          <div class="page-panel__eyebrow">{{ content.timeline }}</div>
+        </div>
+        
+        <div class="page-feed" style="max-height: 240px; overflow-y: auto;">
+          <div v-if="isLoading" style="text-align: center; padding: 16px; color: var(--color-on-surface-variant); font-style: italic;">Loading...</div>
+          <div v-else-if="histories.length === 0" style="text-align: center; padding: 16px; color: var(--color-on-surface-variant); font-style: italic;">{{ content.empty }}</div>
+          
+          <div v-else v-for="h in histories" :key="h.id" class="page-feed__item">
+            <span class="page-feed__label">{{ formatDate(h.recordedAt) }}</span>
+            <strong class="page-feed__text">
+              <span style="opacity: 0.5; margin-right: 4px;">[{{ formatStatus(h.beforeStatus) }}]</span>
+              →
+              <span :class="{'text-critical': h.afterStatus === 'REJECTED', 'text-nominal': h.afterStatus === 'COMPLETED' || h.afterStatus === 'APPROVED'}" style="margin-left: 4px;">
+                {{ formatStatus(h.afterStatus) }}
+              </span>
+            </strong>
+            <div v-if="h.reason" class="page-feed__reason">
               "{{ h.reason }}"
+              <span v-if="h.recordedBy" class="page-feed__by">— {{ h.recordedBy }}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 관리자 액션 블록 -->
-      <div class="action-block" v-if="targetReturn.returnStatus !== 'COMPLETED' && targetReturn.returnStatus !== 'REJECTED'">
+      <!-- 관리자 액션 블록 (대상 조직만 승인/반려 가능) -->
+      <div class="action-block" v-if="targetReturn.returnStatus !== 'COMPLETED' && targetReturn.returnStatus !== 'REJECTED' && isTargetOrg">
+        <div class="action-block__eyebrow">{{ content.statusActions }}</div>
         <textarea 
           v-model="reasonText" 
           :placeholder="content.reasonPlaceholder" 
@@ -167,6 +302,13 @@ async function doUpdateStatus(nextStatus: 'APPROVED'|'REJECTED'|'IN_TRANSIT'|'RE
         </div>
       </div>
 
+      <!-- 채팅으로 업무 공유 버튼 -->
+      <div class="chat-action">
+        <button class="btn btn-chat" type="button" @click="handleOpenChat">
+          💬 {{ content.chatBtn }}
+        </button>
+      </div>
+
     </div>
   </BaseModal>
 </template>
@@ -175,112 +317,177 @@ async function doUpdateStatus(nextStatus: 'APPROVED'|'REJECTED'|'IN_TRANSIT'|'RE
 .timeline-container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   margin-top: 16px;
 }
 
-.current-status {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* 현재 상태 블록 */
+.current-status-block {
   padding: 16px;
   background: var(--color-surface-container-lowest);
   border: 1px solid var(--color-surface-container-high);
 }
 
-.current-status .label {
-  font-size: 0.875rem;
+.current-status-block__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.current-status-block__label {
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--color-on-surface-variant);
   text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
 }
 
 .status-badge {
   font-size: 0.875rem;
+  font-weight: 700;
+  padding: 4px 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.status-badge.is-warning { color: #F59E0B; background: rgba(245, 158, 11, 0.1); }
+.status-badge.is-nominal { color: #10B981; background: rgba(16, 185, 129, 0.1); }
+.status-badge.is-critical { color: #EF4444; background: rgba(239, 68, 68, 0.1); }
+.status-badge.is-info { color: #3B82F6; background: rgba(59, 130, 246, 0.1); }
+
+/* 정보 카드 */
+.info-card {
+  padding: 16px;
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-surface-container-high);
+}
+
+.info-card__eyebrow {
+  font-size: 0.65rem;
   font-weight: 600;
-  padding: 4px 12px;
-  background: var(--color-surface-container);
-  color: var(--color-on-surface);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-on-surface-variant);
+  margin-bottom: 12px;
 }
-.status-badge.approved { color: #10B981; background: rgba(16, 185, 129, 0.1); }
-.status-badge.in_transit { color: #3B82F6; background: rgba(59, 130, 246, 0.1); }
-.status-badge.received { color: #8B5CF6; background: rgba(139, 92, 246, 0.1); }
-.status-badge.completed { color: #6366F1; background: rgba(99, 102, 241, 0.1); }
-.status-badge.rejected { color: #EF4444; background: rgba(239, 68, 68, 0.1); }
 
-.timeline {
+.info-card__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.info-card__item {
   display: flex;
   flex-direction: column;
-  position: relative;
-  border-left: 2px solid var(--color-surface-container-high);
-  margin-left: 8px;
-  padding-left: 24px;
-  gap: 16px;
+  gap: 2px;
 }
 
-.timeline-item {
-  position: relative;
+.info-card__item--full {
+  grid-column: 1 / -1;
 }
 
-.timeline-item__dot {
-  position: absolute;
-  left: -31px;
-  top: 4px;
-  width: 12px;
-  height: 12px;
-  background: var(--color-primary);
-  border: 2px solid var(--color-surface);
+.info-card__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
 }
 
-.timeline-item__content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.timeline-item__header {
+.info-card__value {
   font-size: 0.875rem;
-  font-weight: 600;
   color: var(--color-on-surface);
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
-.arrow {
+/* 품목 리스트 */
+.items-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.items-list__row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--color-surface-container-high);
+}
+
+.items-list__row--head {
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--color-on-surface-variant);
 }
 
-.timeline-item__meta {
-  font-size: 0.75rem;
-  color: var(--color-on-surface-variant);
-  display: flex;
-  gap: 8px;
+.items-list__row:last-child {
+  border-bottom: none;
 }
 
-.timeline-item__reason {
+/* 타임라인 (LOT 추적 이력과 동일 스타일) */
+.page-feed__item {
+  padding: 12px;
+  background: var(--color-surface-container);
+  margin-bottom: 8px;
+}
+
+.page-feed__label {
+  font-size: 0.7rem;
+  color: var(--color-on-surface-variant);
+  letter-spacing: 0.05em;
+}
+
+.page-feed__text {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--color-on-surface);
   margin-top: 4px;
-  font-size: 0.875rem;
+}
+
+.page-feed__reason {
+  margin-top: 6px;
+  font-size: 0.8rem;
   color: var(--color-on-surface);
-  background: var(--color-surface-container);
+  background: var(--color-surface-container-lowest);
   padding: 8px;
   font-style: italic;
   border-left: 2px solid var(--color-primary);
 }
 
+.page-feed__by {
+  font-size: 0.7rem;
+  color: var(--color-on-surface-variant);
+  font-style: normal;
+}
+
+.text-critical { color: #EF4444 !important; font-weight: 700; }
+.text-nominal { color: #10B981 !important; font-weight: 700; }
+
+/* 액션 블록 */
 .action-block {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--color-surface-container-high);
+  padding: 16px;
+  border: 1px solid var(--color-surface-container-high);
+  background: var(--color-surface-container-lowest);
+}
+
+.action-block__eyebrow {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-on-surface-variant);
 }
 
 .action-reason {
   font-family: inherit;
   font-size: 0.875rem;
   padding: 12px;
-  background: var(--color-surface-container-lowest);
+  background: var(--color-surface-container);
   border: 1px solid var(--color-surface-container-high);
   color: var(--color-on-surface);
   resize: vertical;
@@ -298,7 +505,7 @@ async function doUpdateStatus(nextStatus: 'APPROVED'|'REJECTED'|'IN_TRANSIT'|'RE
 
 .btn {
   font-family: inherit;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   font-weight: 600;
   padding: 8px 16px;
   cursor: pointer;
@@ -314,4 +521,30 @@ async function doUpdateStatus(nextStatus: 'APPROVED'|'REJECTED'|'IN_TRANSIT'|'RE
 .btn-approve { background: #10B981; color: #fff; }
 .btn-reject { background: #EF4444; color: #fff; }
 .btn-success { background: #6366F1; color: #fff; }
+
+/* 채팅 공유 버튼 */
+.chat-action {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-surface-container-high);
+}
+
+.btn-chat {
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 10px 24px;
+  cursor: pointer;
+  border: 1px solid var(--color-surface-container-high);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+  transition: all 0.2s;
+  letter-spacing: 0.03em;
+}
+.btn-chat:hover {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}
 </style>
