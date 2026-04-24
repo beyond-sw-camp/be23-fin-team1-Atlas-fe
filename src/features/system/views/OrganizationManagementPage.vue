@@ -10,7 +10,14 @@ import {
   type OrganizationDetailResponse,
   type OrganizationListItem,
 } from '../../../services/organization'
+import {
+  uploadOrganizationUsersExcel,
+  type OrganizationUserExcelUploadResponse,
+} from '../../../services/user'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+
+// 조직관리 내부 탭 종류입니다.
+type OrganizationManagementTabKey = 'organization' | 'members'
 
 // 현재 언어 설정을 읽습니다.
 const preferences = useAtlasPreferencesStore()
@@ -31,6 +38,9 @@ const isOrgAdminManager = computed(() => actor.isOrgAdminRole.value)
 
 // 조직 수정은 조직 대표자만 할 수 있습니다.
 const canEditOrganization = computed(() => actor.isOrgAdminRole.value)
+
+// 조직관리 페이지 안에서 현재 어떤 탭을 보고 있는지 저장합니다.
+const activeTab = ref<OrganizationManagementTabKey>('organization')
 
 // 플랫폼 관리자가 보는 조직 목록입니다.
 const organizationRows = ref<OrganizationListItem[]>([])
@@ -59,6 +69,18 @@ const pageSuccess = ref('')
 // 연락처 유효성 상태입니다.
 const organizationPhoneValid = ref(false)
 
+// 사원 엑셀 업로드 중 상태입니다.
+const isUploadingMembers = ref(false)
+
+// 사원 업로드 에러 문구입니다.
+const memberUploadError = ref('')
+
+// 사원 업로드 성공 문구입니다.
+const memberUploadSuccess = ref('')
+
+// 사원 업로드 결과입니다.
+const memberUploadResult = ref<OrganizationUserExcelUploadResponse | null>(null)
+
 // 조직 수정 폼입니다.
 const organizationForm = reactive({
   organizationName: '',
@@ -83,6 +105,8 @@ const copy = computed(() =>
         myOrganizationDescription: '조직 대표자는 자신의 조직 정보만 수정할 수 있습니다.',
         readOnlyDescription: '플랫폼 관리자는 조직 정보를 조회만 할 수 있습니다.',
         detailTitle: '조직 상세',
+        memberTitle: '사원관리',
+        memberDescription: '조직 대표자는 엑셀 파일로 자기 조직 사원을 일괄 등록할 수 있습니다.',
         noPermission: '조직관리 권한이 없습니다.',
         loadingList: '조직 목록을 불러오는 중입니다...',
         loadingDetail: '조직 정보를 불러오는 중입니다...',
@@ -93,6 +117,21 @@ const copy = computed(() =>
         unavailableButton: '상세불가',
         saveButton: '저장',
         savingButton: '저장 중...',
+        organizationTab: '조직',
+        membersTab: '사원관리',
+        memberExcelFile: '사원 엑셀 파일',
+        uploadHint: '엑셀 첫 줄 헤더는 firstName, middleName, lastName, email, phone, jobTitle, departmentPublicId 순서여야 합니다.',
+        uploadingMembers: '업로드 중...',
+        totalCount: '총 건수',
+        successCount: '성공 건수',
+        failCount: '실패 건수',
+        rowNumber: '줄',
+        rowResult: '결과',
+        loginId: '로그인 ID',
+        temporaryPassword: '임시 비밀번호',
+        message: '메시지',
+        success: '성공',
+        fail: '실패',
         organizationType: '조직 유형',
         organizationStatus: '상태',
         organizationName: '조직명',
@@ -116,6 +155,7 @@ const copy = computed(() =>
         missingOrganizationId: '목록 응답에 organizationId가 없어 상세보기를 할 수 없습니다.',
         saveSuccess: '조직 정보가 수정되었습니다.',
         saveFailed: '조직 정보 수정에 실패했습니다.',
+        memberUploadFailed: '사원 엑셀 업로드에 실패했습니다.',
       }
     : {
         eyebrow: 'ORGANIZATION',
@@ -128,6 +168,9 @@ const copy = computed(() =>
         readOnlyDescription:
           'Platform admins can view organization information only.',
         detailTitle: 'Organization Detail',
+        memberTitle: 'Member Management',
+        memberDescription:
+          'Organization owners can upload member excel files for their own organization.',
         noPermission: 'You do not have permission to manage organizations.',
         loadingList: 'Loading organizations...',
         loadingDetail: 'Loading organization detail...',
@@ -138,6 +181,22 @@ const copy = computed(() =>
         unavailableButton: 'Unavailable',
         saveButton: 'Save',
         savingButton: 'Saving...',
+        organizationTab: 'Organization',
+        membersTab: 'Members',
+        memberExcelFile: 'Member Excel File',
+        uploadHint:
+          'The first excel header row must be firstName, middleName, lastName, email, phone, jobTitle, departmentPublicId.',
+        uploadingMembers: 'Uploading...',
+        totalCount: 'Total',
+        successCount: 'Success',
+        failCount: 'Fail',
+        rowNumber: 'Row',
+        rowResult: 'Result',
+        loginId: 'Login ID',
+        temporaryPassword: 'Temporary Password',
+        message: 'Message',
+        success: 'Success',
+        fail: 'Fail',
         organizationType: 'Organization Type',
         organizationStatus: 'Status',
         organizationName: 'Organization Name',
@@ -162,6 +221,7 @@ const copy = computed(() =>
           'The organization list response does not include organizationId, so detail view is unavailable.',
         saveSuccess: 'Organization information has been updated.',
         saveFailed: 'Failed to update organization information.',
+        memberUploadFailed: 'Failed to upload member excel file.',
       },
 )
 
@@ -210,10 +270,16 @@ function formatOrganizationStatus(value?: string) {
   return 'Active'
 }
 
-// 화면 메시지를 비웁니다.
+// 조직 메시지를 비웁니다.
 function resetMessages() {
   pageError.value = ''
   pageSuccess.value = ''
+}
+
+// 사원 업로드 메시지를 비웁니다.
+function resetMemberMessages() {
+  memberUploadError.value = ''
+  memberUploadSuccess.value = ''
 }
 
 // 상세 데이터를 수정 폼에 그대로 채웁니다.
@@ -253,8 +319,6 @@ async function loadOrganizationList() {
     })
 
     organizationRows.value = response.content
-
-    // 처음에는 아무 조직도 자동 선택하지 않습니다.
     selectedOrganizationId.value = null
     selectedOrganizationDetail.value = null
   } catch (error: any) {
@@ -275,12 +339,8 @@ async function loadOrganizationDetailById(organizationId: number) {
   }
 
   try {
-    // 어떤 조직을 눌렀는지 먼저 선택 상태로 표시합니다.
     selectedOrganizationId.value = organizationId
-
-    // 이전 상세는 비우고 새로 읽습니다.
     selectedOrganizationDetail.value = null
-
     isLoadingOrganizationDetail.value = true
     resetMessages()
 
@@ -289,7 +349,6 @@ async function loadOrganizationDetailById(organizationId: number) {
     selectedOrganizationDetail.value = detail
     syncOrganizationForm(detail)
   } catch (error: any) {
-    // 상세 조회 실패 시 선택 상태를 다시 풀어 줍니다.
     selectedOrganizationId.value = null
     selectedOrganizationDetail.value = null
     pageError.value =
@@ -361,7 +420,6 @@ async function submitOrganizationUpdate() {
   resetMessages()
   normalizeOrganizationAlias()
 
-  // 필수값부터 확인합니다.
   if (
     !organizationForm.organizationName.trim() ||
     !organizationForm.organizationEnglishName.trim() ||
@@ -374,13 +432,11 @@ async function submitOrganizationUpdate() {
     return
   }
 
-  // 조직 코드 규칙도 같이 확인합니다.
   if (!/^[A-Z0-9]{2,10}$/.test(organizationForm.organizationAlias)) {
     pageError.value = copy.value.validationAlias
     return
   }
 
-  // 연락처 형식도 확인합니다.
   if (!organizationPhoneValid.value) {
     pageError.value = copy.value.validationPhone
     return
@@ -404,11 +460,9 @@ async function submitOrganizationUpdate() {
       },
     )
 
-    // 저장 후 오른쪽 상세도 최신값으로 맞춥니다.
     selectedOrganizationDetail.value = saved
     syncOrganizationForm(saved)
 
-    // 조직 대표자 화면이면 목록은 없으므로 아래 코드는 관리자 화면 대비용입니다.
     organizationRows.value = organizationRows.value.map((row) =>
       hasOrganizationId(row) && row.organizationId === saved.organizationId
         ? {
@@ -431,6 +485,53 @@ async function submitOrganizationUpdate() {
   }
 }
 
+// 조직 대표자가 엑셀 파일로 자기 조직 사원을 일괄 등록합니다.
+async function handleMemberExcelUpload(event: Event) {
+  // 파일 input 요소를 가져옵니다.
+  const input = event.target as HTMLInputElement
+
+  // 선택한 첫 번째 파일을 꺼냅니다.
+  const file = input.files?.[0]
+
+  // 파일이 없으면 아무것도 하지 않습니다.
+  if (!file) {
+    return
+  }
+
+  try {
+    // 이전 메시지를 먼저 비웁니다.
+    resetMemberMessages()
+    memberUploadResult.value = null
+
+    // 업로드 시작 상태로 바꿉니다.
+    isUploadingMembers.value = true
+
+    // 백엔드 업로드 API를 호출합니다.
+    const result = await uploadOrganizationUsersExcel(file)
+
+    // 결과를 화면에 저장합니다.
+    memberUploadResult.value = result
+
+    // 성공 문구를 보여줍니다.
+    memberUploadSuccess.value =
+      preferences.language === 'ko'
+        ? `업로드가 완료되었습니다. 성공 ${result.successCount}건 / 실패 ${result.failCount}건`
+        : `Upload completed. Success ${result.successCount} / Fail ${result.failCount}`
+  } catch (error: any) {
+    // 실패 문구를 보여줍니다.
+    memberUploadError.value =
+      error?.payload?.message ||
+      error?.message ||
+      copy.value.memberUploadFailed
+  } finally {
+    // 업로드 종료 상태로 돌립니다.
+    isUploadingMembers.value = false
+
+    // 같은 파일도 다시 선택할 수 있게 input 값을 비웁니다.
+    input.value = ''
+  }
+}
+
 // 페이지가 열리면 바로 데이터를 읽습니다.
 onMounted(() => {
   void loadPage()
@@ -439,7 +540,6 @@ onMounted(() => {
 
 <template>
   <section class="app-screen">
-    <!-- 권한이 없으면 안내만 보여줍니다. -->
     <article v-if="!canManageOrganization" class="page-panel">
       <div class="page-panel__head">
         <div>
@@ -453,7 +553,6 @@ onMounted(() => {
       </div>
     </article>
 
-    <!-- 권한이 있으면 실제 조직관리 화면을 보여줍니다. -->
     <template v-else>
       <div
         style="
@@ -462,7 +561,6 @@ onMounted(() => {
           gap: 20px;
         "
       >
-        <!-- 플랫폼 관리자일 때만 왼쪽 조직 목록을 보여줍니다. -->
         <article v-if="isAdminManager" class="page-panel">
           <div class="page-panel__head">
             <div>
@@ -472,12 +570,10 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- 목록 로딩 중 문구입니다. -->
           <div v-if="isLoadingOrganizations" class="login-hint">
             {{ copy.loadingList }}
           </div>
 
-          <!-- 목록이 없을 때 문구입니다. -->
           <div v-else-if="organizationRows.length === 0" class="page-feed">
             <div class="page-feed__item">
               <span class="page-feed__label">{{ copy.listTitle }}</span>
@@ -485,7 +581,6 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- 조직 목록입니다. -->
           <div v-else class="page-feed">
             <div
               v-for="row in organizationRows"
@@ -496,18 +591,15 @@ onMounted(() => {
                 backgroundColor: isSelectedRow(row) ? 'rgba(17, 24, 39, 0.04)' : undefined,
               }"
             >
-              <!-- 첫 줄은 조직 유형과 상태를 보여줍니다. -->
               <span class="page-feed__label">
                 {{ formatOrganizationType(row.organizationType) }} ·
                 {{ formatOrganizationStatus(row.status) }}
               </span>
 
-              <!-- 둘째 줄은 조직 이름입니다. -->
               <strong class="page-feed__text">
                 {{ row.organizationName }}
               </strong>
 
-              <!-- 셋째 줄은 연락처와 이메일입니다. -->
               <span class="page-feed__label">
                 {{ copy.listPhone }}: {{ row.contactPhone || '-' }}
               </span>
@@ -516,7 +608,6 @@ onMounted(() => {
                 {{ copy.listEmail }}: {{ row.contactEmail || '-' }}
               </span>
 
-              <!-- 목록 행에서 organizationId가 있을 때만 상세보기 가능합니다. -->
               <button
                 class="page-button page-button--secondary"
                 type="button"
@@ -536,24 +627,47 @@ onMounted(() => {
           </div>
         </article>
 
-        <!-- 오른쪽 상세/조회 영역입니다. -->
         <article class="page-panel">
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">{{ copy.eyebrow }}</div>
-              <h3>{{ copy.detailTitle }}</h3>
+              <h3>{{ activeTab === 'members' ? copy.memberTitle : copy.detailTitle }}</h3>
               <p class="settings-page__copy">
                 {{
-                  isAdminManager
-                    ? copy.readOnlyDescription
-                    : copy.myOrganizationDescription
+                  activeTab === 'members'
+                    ? copy.memberDescription
+                    : isAdminManager
+                      ? copy.readOnlyDescription
+                      : copy.myOrganizationDescription
                 }}
               </p>
+
+              <div
+                v-if="isOrgAdminManager"
+                style="display: flex; gap: 8px; margin-top: 12px;"
+              >
+                <button
+                  class="page-button"
+                  type="button"
+                  :class="activeTab === 'organization' ? 'page-button--primary' : 'page-button--secondary'"
+                  @click="activeTab = 'organization'"
+                >
+                  {{ copy.organizationTab }}
+                </button>
+
+                <button
+                  class="page-button"
+                  type="button"
+                  :class="activeTab === 'members' ? 'page-button--primary' : 'page-button--secondary'"
+                  @click="activeTab = 'members'"
+                >
+                  {{ copy.membersTab }}
+                </button>
+              </div>
             </div>
 
-            <!-- 현재 보고 있는 조직의 상태와 유형을 칩으로 보여줍니다. -->
             <div
-              v-if="selectedOrganizationDetail"
+              v-if="selectedOrganizationDetail && activeTab === 'organization'"
               style="display: flex; gap: 8px; flex-wrap: wrap;"
             >
               <span class="page-panel__chip">
@@ -565,31 +679,26 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- 에러/성공 메시지는 상세 데이터가 없어도 먼저 보여줍니다. -->
-          <div v-if="pageError" class="login-error" style="margin-bottom: 12px;">
+          <div v-if="pageError && activeTab === 'organization'" class="login-error" style="margin-bottom: 12px;">
             {{ pageError }}
           </div>
 
-          <div v-if="pageSuccess" class="login-hint" style="margin-bottom: 12px;">
+          <div v-if="pageSuccess && activeTab === 'organization'" class="login-hint" style="margin-bottom: 12px;">
             {{ pageSuccess }}
           </div>
 
-          <!-- 상세 로딩 중 문구입니다. -->
-          <div v-if="isLoadingOrganizationDetail" class="login-hint">
+          <div v-if="isLoadingOrganizationDetail && activeTab === 'organization'" class="login-hint">
             {{ copy.loadingDetail }}
           </div>
 
-          <!-- 선택된 조직이 아직 없을 때 문구입니다. -->
-          <div v-else-if="!selectedOrganizationDetail" class="page-feed">
+          <div v-else-if="!selectedOrganizationDetail && activeTab === 'organization'" class="page-feed">
             <div class="page-feed__item">
               <span class="page-feed__label">{{ copy.detailTitle }}</span>
               <strong class="page-feed__text">{{ copy.chooseOrganization }}</strong>
             </div>
           </div>
 
-          <!-- 실제 상세 영역입니다. -->
-          <template v-else>
-            <!-- 공통 요약 정보입니다. -->
+          <template v-else-if="activeTab === 'organization' && selectedOrganizationDetail">
             <div class="page-feed" style="margin-bottom: 16px;">
               <div class="page-feed__item">
                 <span class="page-feed__label">{{ copy.organizationName }}</span>
@@ -611,7 +720,6 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- 플랫폼 관리자는 읽기 전용으로만 봅니다. -->
             <div v-if="!canEditOrganization" class="profile-kv">
               <div class="profile-kv__row">
                 <span>{{ copy.organizationEnglishName }}</span>
@@ -654,7 +762,6 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- 조직 대표자만 수정 폼을 봅니다. -->
             <div v-else class="settings-form">
               <label>
                 <span>{{ copy.organizationName }}</span>
@@ -719,6 +826,75 @@ onMounted(() => {
               >
                 {{ isSavingOrganization ? copy.savingButton : copy.saveButton }}
               </button>
+            </div>
+          </template>
+
+          <template v-else-if="activeTab === 'members' && canEditOrganization">
+            <div class="settings-form">
+              <label>
+                <span>{{ copy.memberExcelFile }}</span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  :disabled="isUploadingMembers"
+                  @change="handleMemberExcelUpload"
+                />
+              </label>
+
+              <div class="login-hint" style="margin-top: 8px;">
+                {{ copy.uploadHint }}
+              </div>
+
+              <div v-if="memberUploadError" class="login-error">
+                {{ memberUploadError }}
+              </div>
+
+              <div v-if="memberUploadSuccess" class="login-hint">
+                {{ memberUploadSuccess }}
+              </div>
+
+              <div v-if="isUploadingMembers" class="login-hint">
+                {{ copy.uploadingMembers }}
+              </div>
+
+              <div v-if="memberUploadResult" class="page-feed">
+                <div class="page-feed__item">
+                  <span class="page-feed__label">{{ copy.totalCount }}</span>
+                  <strong class="page-feed__text">{{ memberUploadResult.totalCount }}</strong>
+                </div>
+
+                <div class="page-feed__item">
+                  <span class="page-feed__label">{{ copy.successCount }}</span>
+                  <strong class="page-feed__text">{{ memberUploadResult.successCount }}</strong>
+                </div>
+
+                <div class="page-feed__item">
+                  <span class="page-feed__label">{{ copy.failCount }}</span>
+                  <strong class="page-feed__text">{{ memberUploadResult.failCount }}</strong>
+                </div>
+              </div>
+
+              <div v-if="memberUploadResult?.results?.length" class="page-table" style="margin-top: 16px;">
+                <div class="page-table__row page-table__row--head">
+                  <span>{{ copy.rowNumber }}</span>
+                  <span>{{ copy.rowResult }}</span>
+                  <span>{{ copy.loginId }}</span>
+                  <span>{{ copy.temporaryPassword }}</span>
+                  <span>{{ copy.message }}</span>
+                </div>
+
+                <div
+                  v-for="row in memberUploadResult.results"
+                  :key="`${row.rowNumber}-${row.loginId || row.message}`"
+                  class="page-table__row"
+                >
+                  <span>{{ row.rowNumber }}</span>
+                  <span>{{ row.success ? copy.success : copy.fail }}</span>
+                  <span>{{ row.loginId || '-' }}</span>
+                  <span>{{ row.temporaryPassword || '-' }}</span>
+                  <span>{{ row.message || '-' }}</span>
+                </div>
+              </div>
             </div>
           </template>
         </article>
