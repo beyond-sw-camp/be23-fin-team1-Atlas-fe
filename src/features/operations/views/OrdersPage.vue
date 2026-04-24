@@ -70,9 +70,10 @@ type OrderQueueEntry = {
   kind: 'PO' | 'SUB_PO'
   publicId: string
   number: string
-  text: string
-  value: string
+  counterpartyName: string
+  itemLabel: string
   orderedAt: string
+  direction: 'ISSUED' | 'RECEIVED'
 }
 
 type CreateOrderLineForm = {
@@ -222,8 +223,6 @@ function createEmptyEditNewLine(): EditNewOrderLine {
 }
 
 const createForm = ref({
-  currencyCode: 'KRW' as CurrencyCode,
-  memo: '',
   lines: [createEmptyOrderLine()],
 })
 
@@ -238,6 +237,8 @@ const downstreamSupplierOptions = computed(() =>
 )
 
 const currentCurrency = computed<CurrencyCode | null>(() => {
+  if (!actor.isBuyerOrganization.value) return null
+
   const codes = Array.from(
     new Set(
       purchaseOrders.value
@@ -245,68 +246,41 @@ const currentCurrency = computed<CurrencyCode | null>(() => {
         .filter((value): value is CurrencyCode => !!value),
     ),
   )
+
   return codes.length === 1 ? codes[0] : null
 })
+
+const issuedTotalAmount = computed(() =>
+  actor.isSupplierOrganization.value
+    ? sentSubOrders.value.reduce((sum, subOrder) => sum + toNumber(subOrder.totalAmount), 0)
+    : purchaseOrders.value.reduce((sum, order) => sum + toNumber(order.totalAmount), 0),
+)
 
 const dashboardMetrics = computed(() => {
   const summary = dashboardSummary.value
 
   if (actor.isBuyerOrganization.value) {
     return [
-      {
-        label: '총 발주',
-        value: formatNumber(summary?.issuedOrderCount ?? 0),
-        meta: '메인 발주사 전체 발주',
-        tone: 'nominal',
-      },
-      {
-        label: '확인 대기',
-        value: formatNumber(summary?.pendingOrderCount ?? 0),
-        meta: '확인 대기 중인 발주',
-        tone: 'warning',
-      },
-      {
-        label: '납기 완료',
-        value: formatNumber(summary?.completedOrderCount ?? 0),
-        meta: '완료 처리된 발주',
-        tone: 'info',
-      },
-      {
-        label: '총 금액',
-        value: formatPlainAmount(summary?.totalAmount ?? 0),
-        meta: '전체 발주 금액',
-        tone: 'critical',
-      },
+      { label: '총 발주', value: formatNumber(summary?.issuedOrderCount ?? 0), meta: '메인 발주사 전체 발주', tone: 'nominal' },
+      { label: '확인 대기', value: formatNumber(summary?.pendingOrderCount ?? 0), meta: '확인 대기 중인 발주', tone: 'warning' },
+      { label: '납기 완료', value: formatNumber(summary?.completedOrderCount ?? 0), meta: '완료 처리된 발주', tone: 'info' },
+      { label: '총 금액', value: formatDashboardAmount(issuedTotalAmount.value), meta: '발주 기준 총 금액', tone: 'critical' },
     ]
   }
 
   return [
-    {
-      label: '총 발주',
-      value: formatNumber(summary?.totalOrderCount ?? 0),
-      meta: '발주 + 수주 전체 건수',
-      tone: 'nominal',
-    },
-    {
-      label: '발주 수',
-      value: formatNumber(summary?.issuedOrderCount ?? 0),
-      meta: '협력사가 발행한 서브발주',
-      tone: 'warning',
-    },
-    {
-      label: '수주 수',
-      value: formatNumber(summary?.receivedOrderCount ?? 0),
-      meta: '협력사가 받은 발주',
-      tone: 'info',
-    },
-    {
-      label: '총 금액',
-      value: formatPlainAmount(summary?.totalAmount ?? 0),
-      meta: '전체 주문 금액',
-      tone: 'critical',
-    },
+    { label: '총 발주', value: formatNumber(summary?.totalOrderCount ?? 0), tone: 'nominal' },
+    { label: '발주 수', value: formatNumber(summary?.issuedOrderCount ?? 0), tone: 'warning' },
+    { label: '수주 수', value: formatNumber(summary?.receivedOrderCount ?? 0), tone: 'info' },
+    { label: '총 금액 (발주 기준)', value: formatDashboardAmount(issuedTotalAmount.value), tone: 'critical' },
   ]
 })
+
+function getSubOrderItemLabel(subOrder: SubPurchaseOrderResponseDto) {
+  if (!(subOrder.items ?? []).length) return '-'
+  if ((subOrder.items ?? []).length === 1) return subOrder.items?.[0].itemName ?? '-'
+  return `${subOrder.items?.[0].itemName ?? '-'} 외 ${(subOrder.items?.length ?? 1) - 1}건`
+}
 
 function getExpectedDueDate(items: Array<{ expectedDueDate: string | null }>) {
   const dates = items.map((item) => item.expectedDueDate).filter(Boolean).sort()
@@ -394,11 +368,12 @@ const queueEntries = computed<OrderQueueEntry[]>(() => {
       kind: 'PO' as const,
       publicId: order.poPublicId,
       number: order.poNumber,
-      text: actor.isSupplierOrganization.value
-        ? `[수주] ${order.buyerOrganizationPublicId} / ${getOrderItemLabel(order)}`
-        : `[발주] ${order.supplierName} / ${getOrderItemLabel(order)}`,
-      value: formatAmount(toNumber(order.totalAmount), order.currencyCode),
+      counterpartyName: actor.isSupplierOrganization.value
+        ? order.buyerOrganizationPublicId
+        : order.supplierName,
+      itemLabel: getOrderItemLabel(order),
       orderedAt: order.orderedAt,
+      direction: actor.isSupplierOrganization.value ? ('RECEIVED' as const) : ('ISSUED' as const),
     }))
 
   const pendingSubOrders =
@@ -409,26 +384,37 @@ const queueEntries = computed<OrderQueueEntry[]>(() => {
             kind: 'SUB_PO' as const,
             publicId: subOrder.subPoPublicId,
             number: subOrder.subPoNumber,
-            text: `[수주] ${subOrder.issuerSupplierName} -> ${subOrder.supplierName}`,
-            value: formatPlainAmount(toNumber(subOrder.totalAmount)),
+            counterpartyName: subOrder.issuerSupplierName,
+            itemLabel: getSubOrderItemLabel(subOrder),
             orderedAt: subOrder.orderedAt,
+            direction: 'RECEIVED' as const,
           }))
       : []
 
-  return [...pendingOrders, ...pendingSubOrders]
-    .sort((a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime())
-    .slice(0, 6)
+  return [...pendingOrders, ...pendingSubOrders].sort(
+    (a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime(),
+  )
 })
+
 
 const categoryRows = computed(() => {
   const totals = new Map<string, number>()
 
-  purchaseOrders.value.forEach((order) => {
-    order.items.forEach((item) => {
-      const categoryName = itemMap.value[item.itemPublicId]?.categoryName ?? '미분류'
-      totals.set(categoryName, (totals.get(categoryName) ?? 0) + toNumber(item.lineAmount))
+  if (actor.isSupplierOrganization.value) {
+    sentSubOrders.value.forEach((subOrder) => {
+      ;(subOrder.items ?? []).forEach((item) => {
+        const categoryName = itemMap.value[item.itemPublicId]?.categoryName ?? '미분류'
+        totals.set(categoryName, (totals.get(categoryName) ?? 0) + toNumber(item.lineAmount))
+      })
     })
-  })
+  } else {
+    purchaseOrders.value.forEach((order) => {
+      order.items.forEach((item) => {
+        const categoryName = itemMap.value[item.itemPublicId]?.categoryName ?? '미분류'
+        totals.set(categoryName, (totals.get(categoryName) ?? 0) + toNumber(item.lineAmount))
+      })
+    })
+  }
 
   const rows = Array.from(totals.entries())
     .sort((a, b) => b[1] - a[1])
@@ -446,13 +432,21 @@ const categoryRows = computed(() => {
 const topCounterpartyRows = computed(() => {
   const totals = new Map<string, { orderCount: number; totalAmount: number }>()
 
-  orderRows.value.forEach((row) => {
-    const key = row.counterpartyName || '-'
-    const current = totals.get(key) ?? { orderCount: 0, totalAmount: 0 }
-    current.orderCount += 1
-    current.totalAmount += toNumber(row.totalAmount)
-    totals.set(key, current)
-  })
+  if (actor.isSupplierOrganization.value) {
+    sentSubOrders.value.forEach((subOrder) => {
+      const current = totals.get(subOrder.supplierName) ?? { orderCount: 0, totalAmount: 0 }
+      current.orderCount += 1
+      current.totalAmount += toNumber(subOrder.totalAmount)
+      totals.set(subOrder.supplierName, current)
+    })
+  } else {
+    purchaseOrders.value.forEach((order) => {
+      const current = totals.get(order.supplierName) ?? { orderCount: 0, totalAmount: 0 }
+      current.orderCount += 1
+      current.totalAmount += toNumber(order.totalAmount)
+      totals.set(order.supplierName, current)
+    })
+  }
 
   return Array.from(totals.entries())
     .sort((a, b) => b[1].totalAmount - a[1].totalAmount)
@@ -678,6 +672,18 @@ function handleCreateLineItemNameChange(line: CreateOrderLineForm) {
   line.selectedSupplierPublicId = ''
 }
 
+function selectCreateLineItemName(line: CreateOrderLineForm, itemName: string) {
+  line.selectedItemName = itemName
+  line.itemKeyword = itemName
+  line.selectedSupplierPublicId = ''
+
+  const supplierOptions = supplierOptionsOf(line)
+
+  if (supplierOptions.length === 1) {
+    line.selectedSupplierPublicId = supplierOptions[0].supplierPublicId
+  }
+}
+
 async function loadSupplierOptions() {
   try {
     const response = await getSuppliers({ page: 0, size: 100 })
@@ -833,8 +839,6 @@ async function loadOrderDashboard() {
 function resetCreateOrderForm() {
   createErrorMessage.value = ''
   createForm.value = {
-    currencyCode: 'KRW',
-    memo: '',
     lines: [createEmptyOrderLine()],
   }
 }
@@ -849,7 +853,27 @@ function closeCreateOrderModal() {
 }
 
 function addCreateOrderLine() {
-  createForm.value.lines.push(createEmptyOrderLine())
+  createForm.value.lines.unshift(createEmptyOrderLine())
+}
+
+function selectedCreateLineItem(line: CreateOrderLineForm) {
+  if (!line.selectedItemName) return null
+
+  if (line.selectedSupplierPublicId) {
+    return (
+      line.itemOptions.find(
+        (item) =>
+          item.itemName === line.selectedItemName &&
+          item.supplierPublicId === line.selectedSupplierPublicId,
+      ) ?? null
+    )
+  }
+
+  return line.itemOptions.find((item) => item.itemName === line.selectedItemName) ?? null
+}
+
+function matchingSupplierCount(line: CreateOrderLineForm) {
+  return supplierOptionsOf(line).length
 }
 
 function removeCreateOrderLine(lineId: number) {
@@ -925,8 +949,6 @@ async function submitCreateOrder() {
     createErrorMessage.value = ''
 
     await createPurchaseOrdersBatch({
-      currencyCode: createForm.value.currencyCode,
-      memo: createForm.value.memo,
       lines: createForm.value.lines.map((line) => ({
         supplierPublicId: line.selectedSupplierPublicId,
         itemPublicId: resolveSelectedItemPublicId(line)!,
@@ -1550,7 +1572,7 @@ onBeforeUnmount(() => header.clearActions())
         <div class="terminal-page__eyebrow">공급망 운영 / 발주 관리</div>
         <h2 class="terminal-page__title">발주 관리</h2>
         <p class="terminal-page__subtitle">
-          발주와 수주 흐름을 한 화면에서 조회하고 처리합니다.
+          발주와 수주 현황을 조회하고 처리합니다.
         </p>
       </div>
 
@@ -1580,11 +1602,92 @@ onBeforeUnmount(() => header.clearActions())
       >
         <span class="page-metric__label">{{ metric.label }}</span>
         <strong class="page-metric__value">{{ metric.value }}</strong>
-        <span class="page-metric__meta">{{ metric.meta }}</span>
       </article>
     </section>
 
-    <section class="terminal-page__content">
+    <section class="orders-page__insight-grid">
+      <article class="page-panel">
+        <div class="page-panel__head">
+          <div>
+            <div class="page-panel__eyebrow">APPROVAL</div>
+            <h3>확인 대기함</h3>
+          </div>
+        </div>
+
+        <div v-if="queueEntries.length" class="page-feed orders-page__insight-feed">
+          <div
+            v-for="queueEntry in queueEntries"
+            :key="`${queueEntry.kind}-${queueEntry.publicId}`"
+            class="page-feed__item"
+          >
+            <button
+              class="orders-page__queue-button"
+              type="button"
+              @click="
+                queueEntry.kind === 'PO'
+                  ? openOrderDetailById(queueEntry.publicId)
+                  : openSubOrderDetail(queueEntry.publicId, 'RECEIVED')
+              "
+            >
+              <span class="page-feed__label">{{ queueEntry.number }}</span>
+              <strong class="page-feed__text">{{ queueEntry.counterpartyName }}</strong>
+              <span class="orders-page__queue-subtext">{{ queueEntry.itemLabel }}</span>
+            </button>
+          </div>
+        </div>
+
+        <p v-else class="orders-page__empty">확인 대기 건이 없습니다.</p>
+      </article>
+
+      <article class="page-panel">
+        <div class="page-panel__head">
+          <div>
+            <div class="page-panel__eyebrow">VALUE</div>
+            <h3>카테고리별 금액</h3>
+          </div>
+        </div>
+
+        <div v-if="categoryRows.length" class="page-feed orders-page__insight-feed">
+          <div
+            v-for="category in categoryRows"
+            :key="category.label"
+            class="page-feed__item"
+          >
+            <span class="page-feed__label">{{ category.label }}</span>
+            <strong class="page-feed__text">{{ category.value }}</strong>
+            <div class="orders-page__bar">
+              <span :style="{ width: category.width }" />
+            </div>
+          </div>
+        </div>
+
+        <p v-else class="orders-page__empty">표시할 카테고리 금액이 없습니다.</p>
+      </article>
+
+      <article class="page-panel">
+        <div class="page-panel__head">
+          <div>
+            <div class="page-panel__eyebrow">COUNTERPARTY</div>
+            <h3>주요 거래처</h3>
+          </div>
+        </div>
+
+        <div v-if="topCounterpartyRows.length" class="page-feed orders-page__insight-feed">
+          <div
+            v-for="counterparty in topCounterpartyRows"
+            :key="counterparty.name"
+            class="page-feed__item"
+          >
+            <span class="page-feed__label">{{ counterparty.name }}</span>
+            <strong class="page-feed__text">{{ counterparty.text }}</strong>
+          </div>
+        </div>
+
+        <p v-else class="orders-page__empty">표시할 거래처 집계가 없습니다.</p>
+      </article>
+    </section>
+
+    <section class="terminal-page__content orders-page__content">
       <div class="terminal-page__main">
         <section class="terminal-page__filter">
           <label class="terminal-page__search">
@@ -1596,30 +1699,37 @@ onBeforeUnmount(() => header.clearActions())
             />
           </label>
 
-          <div class="terminal-page__tabs">
+          <div class="orders-page__filter-actions">
             <button
               v-for="direction in DIRECTION_OPTIONS"
               :key="direction.key"
-              :class="['terminal-page__tab', { 'is-active': directionFilter === direction.key }]"
+              :class="[
+                'page-button',
+                directionFilter === direction.key ? 'page-button--primary' : 'page-button--secondary',
+                'orders-page__filter-button',
+              ]"
               type="button"
               @click="directionFilter = direction.key"
             >
               {{ direction.label }}
             </button>
+
+            <div class="orders-page__status-box">
+              <select v-model="activeTabKey" class="orders-page__status-box-select">
+                <option
+                  v-for="tab in TAB_OPTIONS"
+                  :key="tab.key"
+                  :value="tab.key"
+                >
+                  {{ tab.label }}
+                </option>
+              </select>
+            </div>
           </div>
 
-          <div class="terminal-page__tabs">
-            <button
-              v-for="tab in TAB_OPTIONS"
-              :key="tab.key"
-              :class="['terminal-page__tab', { 'is-active': activeTabKey === tab.key }]"
-              type="button"
-              @click="activeTabKey = tab.key"
-            >
-              {{ tab.label }}
-            </button>
-          </div>
+
         </section>
+                 
 
         <article class="page-panel">
           <div class="page-panel__head">
@@ -1679,87 +1789,7 @@ onBeforeUnmount(() => header.clearActions())
         </article>
       </div>
 
-      <aside class="terminal-page__aside">
-        <article class="page-panel">
-          <div class="page-panel__head">
-            <div>
-              <div class="page-panel__eyebrow">APPROVAL</div>
-              <h3>확인 대기함</h3>
-            </div>
-          </div>
-
-          <div v-if="queueEntries.length" class="page-feed">
-            <div
-              v-for="queueEntry in queueEntries"
-              :key="`${queueEntry.kind}-${queueEntry.publicId}`"
-              class="page-feed__item"
-            >
-              <button
-                class="orders-page__queue-button"
-                type="button"
-                @click="
-                  queueEntry.kind === 'PO'
-                    ? openOrderDetailById(queueEntry.publicId)
-                    : openSubOrderDetail(queueEntry.publicId, 'RECEIVED')
-                "
-              >
-                <span class="page-feed__label">{{ queueEntry.number }}</span>
-                <strong class="page-feed__text">{{ queueEntry.text }}</strong>
-              </button>
-              <span>{{ queueEntry.value }}</span>
-            </div>
-          </div>
-
-          <p v-else class="orders-page__empty">확인 대기 건이 없습니다.</p>
-        </article>
-
-        <article class="page-panel">
-          <div class="page-panel__head">
-            <div>
-              <div class="page-panel__eyebrow">VALUE</div>
-              <h3>카테고리별 금액</h3>
-            </div>
-          </div>
-
-          <div v-if="categoryRows.length" class="page-feed">
-            <div
-              v-for="category in categoryRows"
-              :key="category.label"
-              class="page-feed__item"
-            >
-              <span class="page-feed__label">{{ category.label }}</span>
-              <strong class="page-feed__text">{{ category.value }}</strong>
-              <div class="orders-page__bar">
-                <span :style="{ width: category.width }" />
-              </div>
-            </div>
-          </div>
-
-          <p v-else class="orders-page__empty">표시할 카테고리 금액이 없습니다.</p>
-        </article>
-
-        <article class="page-panel">
-          <div class="page-panel__head">
-            <div>
-              <div class="page-panel__eyebrow">COUNTERPARTY</div>
-              <h3>주요 거래처</h3>
-            </div>
-          </div>
-
-          <div v-if="topCounterpartyRows.length" class="page-feed">
-            <div
-              v-for="counterparty in topCounterpartyRows"
-              :key="counterparty.name"
-              class="page-feed__item"
-            >
-              <span class="page-feed__label">{{ counterparty.name }}</span>
-              <strong class="page-feed__text">{{ counterparty.text }}</strong>
-            </div>
-          </div>
-
-          <p v-else class="orders-page__empty">표시할 거래처 집계가 없습니다.</p>
-        </article>
-      </aside>
+      
     </section>
   </section>
 
@@ -1770,24 +1800,7 @@ onBeforeUnmount(() => header.clearActions())
     size="lg"
     @close="closeCreateOrderModal"
   >
-    <div class="orders-page__form">
-      <div class="orders-page__form-grid">
-        <label class="orders-page__form-field">
-          <span>통화</span>
-          <select v-model="createForm.currencyCode">
-            <option value="KRW">KRW</option>
-            <option value="USD">USD</option>
-            <option value="EUR">EUR</option>
-            <option value="JPY">JPY</option>
-          </select>
-        </label>
-
-        <label class="orders-page__form-field">
-          <span>메모</span>
-          <input v-model="createForm.memo" type="text" placeholder="발주 메모를 입력하세요." />
-        </label>
-      </div>
-
+    <div class="orders-page__form orders-page__create-modal-body">
       <div class="orders-page__section-head">
         <strong>발주 품목</strong>
         <button class="page-button page-button--secondary" type="button" @click="addCreateOrderLine">
@@ -1866,6 +1879,42 @@ onBeforeUnmount(() => header.clearActions())
               <input v-model.number="line.orderedQty" type="number" min="1" step="1" />
             </label>
           </div>
+
+          <div v-if="selectedCreateLineItem(line)" class="orders-page__item-preview">
+            <strong class="orders-page__item-preview-title">품목 상세</strong>
+
+            <div class="orders-page__item-preview-grid">
+              <div>
+                <span>품목 코드</span>
+                <strong>{{ selectedCreateLineItem(line)?.itemCode }}</strong>
+              </div>
+              <div>
+                <span>카테고리</span>
+                <strong>{{ selectedCreateLineItem(line)?.categoryName }}</strong>
+              </div>
+              <div>
+                <span>협력사</span>
+                <strong>
+                  {{
+                    selectedCreateLineItem(line)?.supplierName ??
+                    `후보 ${matchingSupplierCount(line)}곳`
+                  }}
+                </strong>
+              </div>
+              <div>
+                <span>단위</span>
+                <strong>{{ selectedCreateLineItem(line)?.unit }}</strong>
+              </div>
+              <div>
+                <span>규격</span>
+                <strong>{{ selectedCreateLineItem(line)?.spec || '-' }}</strong>
+              </div>
+              <div>
+                <span>보관기한</span>
+                <strong>{{ selectedCreateLineItem(line)?.shelfLifeDays }}일</strong>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1885,6 +1934,7 @@ onBeforeUnmount(() => header.clearActions())
         </button>
       </div>
     </div>
+
   </BaseModal>
 
   <BaseModal
