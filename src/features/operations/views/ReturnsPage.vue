@@ -107,6 +107,13 @@ async function fetchReturns() {
   try {
     const res = await getReturnRequests({ page: 0, size: 50 })
     returns.value = res.content
+    // 만약 타임라인 모달이 열려있다면 선택된 반품 정보도 같이 업데이트 (새로고침)
+    if (selectedReturn.value) {
+      const updated = returns.value.find(r => r.publicId === selectedReturn.value!.publicId)
+      if (updated) {
+        selectedReturn.value = updated
+      }
+    }
   } catch (error) {
     console.error('Failed to load returns:', error)
   } finally {
@@ -129,27 +136,7 @@ function handleCreateSuccess() {
   fetchReturns()
 }
 
-// 채팅으로 반품 업무 공유
-const chatStore = useAtlasChatStore()
-function handleOpenChat(returnData: ReturnRequestResponseDto) {
-  // 타임라인 모달 닫기
-  isTimelineModalOpen.value = false
-  
-  // 채팅 패널 열기
-  if (!chatStore.isPanelOpen) {
-    chatStore.togglePanel()
-  }
-  
-  // 현재 열린 채팅방이 있으면 Reference 메시지 전송
-  // 없으면 패널만 열어서 사용자가 방을 선택하도록 유도
-  if (chatStore.currentRoomPublicId) {
-    chatStore.sendReferenceMessage(
-      'RETURN_REQUEST',
-      returnData.returnNumber,
-      `반품 요청: ${returnData.returnNumber} (${returnTypeText(returnData.returnType)})`
-    )
-  }
-}
+// 채팅으로 반품 업무 공유 기능 제거됨
 
 // 반품 유형 한글 변환
 function returnTypeText(type: string): string {
@@ -324,7 +311,6 @@ const columns = computed(() => {
       :org-name-map="orgNameMap"
       @close="isTimelineModalOpen = false"
       @status-changed="fetchReturns"
-      @open-chat="handleOpenChat"
     />
   </section>
 </template>

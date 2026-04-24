@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { BaseModal } from '../../shared'
 import { getReturnHistories, updateReturnStatus, type ReturnStatusHistoryResponseDto, type ReturnRequestResponseDto } from '../../../services/return'
+import { getShipment, createShipment } from '../../../services/shipment'
 
 const props = defineProps<{
   isOpen: boolean
@@ -13,7 +14,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   statusChanged: []
-  openChat: [returnData: ReturnRequestResponseDto]
 }>()
 
 const histories = ref<ReturnStatusHistoryResponseDto[]>([])
@@ -181,6 +181,50 @@ async function doUpdateStatus(nextStatus: 'APPROVED'|'REJECTED'|'IN_TRANSIT'|'RE
       returnStatus: nextStatus,
       reason: reasonText.value.trim()
     })
+    
+    // 승인 시 자동으로 회수용 출하(Shipment) 생성
+    if (nextStatus === 'APPROVED' && props.targetReturn.sourceShipmentPublicId) {
+      try {
+        const originalShipment = await getShipment(props.targetReturn.sourceShipmentPublicId)
+        
+        let offsetDays = 3 // 기본값 3일
+        if (originalShipment.departureEta && originalShipment.arrivalEta) {
+          const diffMs = new Date(originalShipment.arrivalEta).getTime() - new Date(originalShipment.departureEta).getTime()
+          const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+          if (days > 0) offsetDays = days
+        }
+        
+        const now = new Date()
+        const departureDate = new Date(now)
+        const arrivalDate = new Date(now.getTime() + (offsetDays * 24 * 60 * 60 * 1000))
+        
+        const randomNum = Math.floor(1000 + Math.random() * 9000)
+        const newShipmentNumber = `SHP-RT-${now.getFullYear()}-${randomNum}`
+        
+        await createShipment({
+          shipmentNumber: newShipmentNumber,
+          poId: originalShipment.poId,
+          subPoId: originalShipment.subPoId,
+          carrierName: originalShipment.carrierName || '',
+          vehicleNo: '',
+          trackingNo: '',
+          originNodePublicId: originalShipment.destinationNodePublicId,
+          destinationNodePublicId: originalShipment.originNodePublicId,
+          departureEta: departureDate.toISOString().slice(0, 16),
+          arrivalEta: arrivalDate.toISOString().slice(0, 16),
+          temperatureRequired: originalShipment.temperatureRequired || false
+        })
+        
+        if (props.language === 'ko') {
+          alert(`반품 승인 완료. 회수용 출하(${newShipmentNumber})가 자동 생성되었습니다.`)
+        }
+      } catch (shipmentErr) {
+        console.error('Failed to create return shipment automatically:', shipmentErr)
+        // 출하 생성 실패 시에도 반품 승인은 이미 완료되었으므로 알림만 띄움
+        alert(props.language === 'ko' ? '반품은 승인되었으나 자동 출하 생성에 실패했습니다.' : 'Approved, but failed to auto-create shipment.')
+      }
+    }
+
     histories.value = await getReturnHistories(props.targetReturn.publicId)
     reasonText.value = ''
     emit('statusChanged')
@@ -188,12 +232,6 @@ async function doUpdateStatus(nextStatus: 'APPROVED'|'REJECTED'|'IN_TRANSIT'|'RE
     alert(err.message || 'Status update failed.')
   } finally {
     isUpdating.value = false
-  }
-}
-
-function handleOpenChat() {
-  if (props.targetReturn) {
-    emit('openChat', props.targetReturn)
   }
 }
 </script>
@@ -319,10 +357,9 @@ function handleOpenChat() {
         </div>
       </div>
 
-      <!-- 채팅으로 업무 공유 버튼 -->
-      <div class="chat-action">
-        <button class="btn btn-chat" type="button" @click="handleOpenChat">
-          💬 {{ content.chatBtn }}
+      <div class="return-timeline-modal__footer">
+        <button class="page-button page-button--secondary" type="button" @click="emit('close')">
+          {{ content.close }}
         </button>
       </div>
 
