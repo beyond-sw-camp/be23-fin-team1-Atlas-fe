@@ -5,7 +5,6 @@ import type { PageResponse } from './item'
 export type PurchaseOrderViewType = 'BUYER' | 'SUPPLIER'
 export type PoStatus =
   | 'CREATED'
-  | 'ACCEPTED'
   | 'PARTIALLY_CONFIRMED'
   | 'CONFIRMED'
   | 'REJECTED'
@@ -13,7 +12,7 @@ export type PoStatus =
   | 'COMPLETED'
   | 'DELETED'
 
-export type PriorityCode = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'
+export type SupplierStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'TERMINATED'
 export type CurrencyCode = 'KRW' | 'USD' | 'EUR' | 'JPY'
 export type PurchaseOrderItemStatus =
   | 'OPEN'
@@ -28,7 +27,6 @@ export interface GetPurchaseOrdersParams {
   supplierPublicId?: string
   keyword?: string
   poStatus?: PoStatus
-  priorityCode?: PriorityCode
   page?: number
   size?: number
 }
@@ -43,7 +41,6 @@ export interface CreatePurchaseOrderItemRequestDto {
 export interface CreatePurchaseOrderRequestDto {
   poNumber: string
   supplierPublicId: string
-  priorityCode?: PriorityCode
   dueDate: string
   currencyCode?: CurrencyCode
   memo?: string
@@ -58,6 +55,27 @@ export interface ChangePurchaseOrderStatusRequestDto {
   poStatus: Extract<PoStatus, 'CANCELLED' | 'COMPLETED'>
 }
 
+
+export interface OrderDashboardSummaryResponseDto {
+  totalOrderCount: number
+  pendingOrderCount: number
+  completedOrderCount: number
+  issuedOrderCount: number
+  receivedOrderCount: number
+  totalAmount: number
+}
+
+export interface CreatePurchaseOrderBatchLineRequestDto {
+  supplierPublicId: string
+  itemPublicId: string
+  orderedQty: number
+}
+
+export interface CreatePurchaseOrderBatchRequestDto {
+  currencyCode?: CurrencyCode
+  memo?: string
+  lines: CreatePurchaseOrderBatchLineRequestDto[]
+}
 export interface PurchaseOrderSummaryResponseDto {
   poPublicId: string
   poNumber: string
@@ -65,10 +83,9 @@ export interface PurchaseOrderSummaryResponseDto {
   supplierPublicId: string
   supplierCode: string
   supplierName: string
+  supplierStatus: SupplierStatus
   poStatus: PoStatus
-  priorityCode: PriorityCode | null
   orderedAt: string
-  dueDate: string
   totalAmount: number
   currencyCode: CurrencyCode
   createdAt: string
@@ -85,8 +102,10 @@ export interface PurchaseOrderItemResponseDto {
   confirmedQty: number | null
   unitPrice: number
   lineAmount: number
-  requiredDate: string | null
   itemStatus: PurchaseOrderItemStatus
+  expectedDueDate: string | null
+  leadTimeDays: number | null
+  partialConfirmationAllowed: boolean | null
   createdAt: string
   updatedAt: string
 }
@@ -95,6 +114,21 @@ export interface PurchaseOrderDetailResponseDto extends PurchaseOrderSummaryResp
   memo: string | null
   createdByUserPublicId: string
   items: PurchaseOrderItemResponseDto[]
+}
+
+export async function getOrderDashboardSummary() {
+  const response = await apiClient.get<OrderDashboardSummaryResponseDto>(
+    '/api/supply/purchase-order/dashboard',
+  )
+  return response.data
+}
+
+export async function createPurchaseOrdersBatch(data: CreatePurchaseOrderBatchRequestDto) {
+  const response = await apiClient.post<PurchaseOrderDetailResponseDto[]>(
+    '/api/supply/purchase-order/batch',
+    data,
+  )
+  return response.data
 }
 
 // 발주 목록 조회

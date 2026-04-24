@@ -78,7 +78,6 @@ async function loadSuppliers() {
         supplierOptions.value = [{
           supplierCode: myInfo.supplierCode,
           supplierName: myInfo.supplierName,
-          tierLevel: myInfo.tierLevel,
           onTimeRate: null,
           supplierScore: null,
           qualityScore: null,

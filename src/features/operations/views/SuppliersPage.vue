@@ -5,12 +5,15 @@ import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
   createSupplier,
+  getConnectedSupplierDetail,
+  getConnectedSupplierSummary,
   getSupplier,
   getSuppliers,
+  type ConnectedSupplierDetailResponseDto,
+  type ConnectedSupplierSummaryResponseDto,
   type CreateSupplierRequestDto,
   type SupplierListResponseDto,
   type SupplierResponseDto,
-  type SupplierTierLevel,
 } from '../../../services/supplier'
 import { getOrganizations, type OrganizationListItem } from '../../../services/organization'
 import { useAtlasSessionStore } from '../../../stores/session'
@@ -19,23 +22,25 @@ import { useActorScope } from '../../../composables/useActorScope'
 
 
 
-type SupplierTabKey = 'ALL' | 'ACTIVE' | 'AT_RISK' | 'UNDER_REVIEW'
+type SupplierTabKey = 'ALL' | 'ACTIVE' | 'AT_RISK'
 
 type SupplierTableRow = {
   supplierCode: string
   supplierName: string
   publicId?: string
   supplierStatus: string
-  approvalStatus?: string
+  relationStatus: string
+  purchaseOrderCount: number | null
+  cumulativeAmount: number | null
   detail: SupplierResponseDto | null
   cells: string[]
 }
+
 
 type CreateSupplierFormState = {
   organizationPublicId: string
   supplierCode: string
   supplierName: string
-  tierLevel: SupplierTierLevel
   primaryContactName: string
   primaryContactEmail: string
   primaryContactPhone: string
@@ -54,31 +59,28 @@ let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 // 협력사 조직은 백엔드 검색이 막혀 있어서 로컬 검색만 유지합니다.
 const useServerSearch = computed(() => session.organizationType !== 'SUPPLIER')
 
-
-// 화면 문구와 더미 지표는 기존 레이아웃 유지용으로 그대로 둡니다.
 // 총 협력사 개수만 실제 API 응답으로 덮어씁니다.
 const CONTENT = {
   ko: {
     eyebrow: '공급망 운영 / 협력사 관리',
     title: '협력사 관리',
-    subtitle: '국가, 품질, 납기, 누적 거래 기준으로 협력사 현황을 관리합니다.',
+    subtitle: '품질, 납기, 누적 거래 기준으로 협력사 현황을 관리합니다.',
     metrics: [
-      { label: '총 협력사', value: '0', meta: '22개 국가', tone: 'nominal' },
-      { label: '위험 협력사', value: '7', meta: '성과 이탈', tone: 'warning' },
-      { label: '평균 납기 준수', value: '88%', meta: '최근 90일', tone: 'info' },
-      { label: '평균 리드타임', value: '18일', meta: '글로벌 평균', tone: 'nominal' },
+      { label: '총 거래 협력사', value: '0', tone: 'nominal' },
+      { label: '위험 협력사', value: '0', tone: 'warning' },
+      { label: '평균 납기 준수율 (최근 90일)', value: '0%', tone: 'info' },
+      { label: '평균 리드타임', value: '0일', tone: 'nominal' },
     ],
     tabs: [
       { key: 'ALL', label: '전체' },
       { key: 'ACTIVE', label: '정상' },
       { key: 'AT_RISK', label: '위험' },
-      { key: 'UNDER_REVIEW', label: '검토 중' },
     ] as { key: SupplierTabKey; label: string }[],
     searchPlaceholder: '협력사명, 코드, 담당자 검색...',
     exportLabel: '내보내기',
     createLabel: '협력사 등록',
     tableTitle: '협력사 레지스트리',
-    columns: ['ID', '협력사', '협력사 단계', '납기율', '협력사 점수', '품질 점수', '발주 건수', '누적 금액', '상태'],
+    columns: ['ID', '협력사', '거래 상태','납기율', '협력사 점수', '품질 점수', '발주 건수', '누적 금액', '상세'],
     topTitle: '상위 성과 협력사',
     riskTitle: '주의 필요',
     regionTitle: '권역별 지출',
@@ -90,22 +92,21 @@ const CONTENT = {
     title: 'Supplier Directory',
     subtitle: 'Operate supplier portfolio by country, quality, lead time, and cumulative trading amount.',
     metrics: [
-      { label: 'TOTAL SUPPLIERS', value: '0', meta: '22 COUNTRIES', tone: 'nominal' },
-      { label: 'AT RISK', value: '7', meta: 'PERFORMANCE GAP', tone: 'warning' },
-      { label: 'ON-TIME RATE', value: '88%', meta: 'ROLLING 90 DAYS', tone: 'info' },
-      { label: 'AVG LEAD TIME', value: '18d', meta: 'GLOBAL AVG', tone: 'nominal' },
+      { label: 'TOTAL TRADING SUPPLIERS', value: '0', tone: 'nominal' },
+      { label: 'AT RISK', value: '0', tone: 'warning' },
+      { label: 'AVERAGE ON-TIME RATE (ROLLING 90 DAYS)', value: '0%', tone: 'info' },
+      { label: 'AVG LEAD TIME', value: '0d', tone: 'nominal' },
     ],
     tabs: [
       { key: 'ALL', label: 'ALL' },
       { key: 'ACTIVE', label: 'ACTIVE' },
       { key: 'AT_RISK', label: 'AT RISK' },
-      { key: 'UNDER_REVIEW', label: 'UNDER REVIEW' },
     ] as { key: SupplierTabKey; label: string }[],
     searchPlaceholder: 'Search supplier, code, or contact...',
     exportLabel: 'EXPORT',
     createLabel: 'ADD SUPPLIER',
     tableTitle: 'Supplier Registry',
-    columns: ['ID', 'SUPPLIER', 'LEVEL', 'ON-TIME RATE', 'SUPPLIER SCORE', 'QUALITY SCORE', 'PO COUNT', 'CUMULATIVE AMOUNT', 'STATUS'],
+    columns: ['ID', 'SUPPLIER', 'RELATION STATUS', 'ON-TIME RATE', 'SUPPLIER SCORE', 'QUALITY SCORE', 'PO COUNT', 'CUMULATIVE AMOUNT', 'DETAIL'],
     topTitle: 'Top Performers',
     riskTitle: 'Needs Attention',
     regionTitle: 'Spend By Region',
@@ -167,7 +168,9 @@ const errorMessage = ref('')
 const detailModalOpen = ref(false)
 const detailLoading = ref(false)
 const detailErrorMessage = ref('')
-const selectedSupplier = ref<SupplierResponseDto | null>(null)
+const connectedSummary = ref<ConnectedSupplierSummaryResponseDto | null>(null)
+const selectedSupplier = ref<ConnectedSupplierDetailResponseDto | null>(null)
+const organizationNameMap = ref<Record<string, string>>({})
 
 // 관리자 전용 협력사 등록 모달 상태입니다.
 const createModalOpen = ref(false)
@@ -179,7 +182,6 @@ const createForm = ref<CreateSupplierFormState>({
   organizationPublicId: '',
   supplierCode: '',
   supplierName: '',
-  tierLevel: 'TIER1',
   primaryContactName: '',
   primaryContactEmail: '',
   primaryContactPhone: '',
@@ -211,22 +213,6 @@ function formatDate(value: string | undefined) {
   return new Date(value).toLocaleString('ko-KR')
 }
 
-function tierText(value: SupplierTierLevel) {
-  if (preferences.language === 'ko') {
-    switch (value) {
-      case 'TIER1':
-        return '1차'
-      case 'TIER2':
-        return '2차'
-      case 'TIER3':
-        return '3차'
-      default:
-        return value
-    }
-  }
-
-  return value.replace('TIER', 'TIER ')
-}
 
 function supplierStatusText(value: string) {
   if (preferences.language !== 'ko') return value
@@ -249,41 +235,121 @@ function supplierStatusText(value: string) {
   }
 }
 
+function relationStatusText(value: string) {
+  if (preferences.language !== 'ko') return value
+  switch (value) {
+    case 'REQUESTED': return '연결 요청'
+    case 'ACTIVE': return '연결 유지'
+    case 'PAUSED': return '일시 중지'
+    case 'ENDED': return '종료'
+    default: return value
+  }
+}
+
+function orderRoleText(value: 'ISSUED' | 'RECEIVED') {
+  if (preferences.language !== 'ko') return value
+  return value === 'ISSUED' ? '발주' : '수주'
+}
+
+function subPoStatusText(value: string) {
+  if (preferences.language !== 'ko') return value
+
+  switch (value) {
+    case 'CREATED':
+      return '생성'
+    case 'PARTIALLY_CONFIRMED':
+      return '일부 확정'
+    case 'CONFIRMED':
+      return '전체 확정'
+    case 'REJECTED':
+      return '거절'
+    case 'CANCELLED':
+      return '취소'
+    case 'COMPLETED':
+      return '완료'
+    case 'DELETED':
+      return '삭제'
+    default:
+      return value
+  }
+}
+
+
 // 협력사 목록 API 응답을 기존 테이블 행 구조로 변환합니다.
 // 목록 API는 SupplierListResponseDto 를 내려주므로 상세 DTO가 아니라 목록 DTO 기준으로 받습니다.
 function toDisplayRow(supplier: SupplierListResponseDto): SupplierTableRow {
-  const supplierStatus = supplier.detail?.supplierStatus ?? supplier.status
-  const approvalStatus = supplier.detail?.approvalStatus
+  const supplierStatus = supplier.detail?.supplierStatus ?? 'INACTIVE'
+  const relationStatus = supplier.relationStatus ?? 'REQUESTED'
 
   return {
     supplierCode: supplier.supplierCode,
     supplierName: supplier.supplierName,
     publicId: supplier.detail?.publicId,
     supplierStatus,
-    approvalStatus,
+    relationStatus,
+    purchaseOrderCount: supplier.purchaseOrderCount,
+    cumulativeAmount: supplier.cumulativeAmount,
     detail: supplier.detail,
     cells: [
       supplier.supplierCode || '-',
       supplier.supplierName || '-',
-      tierText(supplier.tierLevel),
+      relationStatusText(relationStatus),
       formatPercent(supplier.onTimeRate),
       formatNumber(supplier.supplierScore),
       formatNumber(supplier.qualityScore),
       formatNumber(supplier.purchaseOrderCount),
       formatAmount(supplier.cumulativeAmount),
-      supplierStatusText(supplierStatus),
     ],
   }
 }
 
 
+async function fetchConnectedSummary() {
+  if (session.organizationType !== 'SUPPLIER') {
+    connectedSummary.value = null
+    return
+  }
+  connectedSummary.value = await getConnectedSupplierSummary()
+}
+
+async function loadSupplierOrganizationNameMap() {
+  try {
+    const response = await getOrganizations({ organizationType: 'SUPPLIER', page: 0, size: 200 })
+    organizationNameMap.value = Object.fromEntries(
+      response.content.map((org) => [org.organizationPublicId, org.organizationName]),
+    )
+    if (actor.canCreateSupplier.value) {
+      supplierOrganizationOptions.value = response.content
+    }
+  } catch {
+    organizationNameMap.value = {}
+    supplierOrganizationOptions.value = []
+  }
+}
 
 // 총 협력사만 실제 데이터로 바꾸고 나머지 카드 값은 더미 유지합니다.
 const metrics = computed(() => {
   const base = content.value.metrics.map((metric) => ({ ...metric }))
-  base[0].value = String(rows.value.length)
+
+  base[0].value = formatNumber(connectedSummary.value?.connectedSupplierCount ?? rows.value.length)
+
+  base[1].value = formatNumber(
+    rows.value.filter(
+      (row) => row.supplierStatus === 'INACTIVE' || row.supplierStatus === 'SUSPENDED',
+    ).length,
+  )
+
+  base[2].value = formatPercent(connectedSummary.value?.averageOnTimeRate)
+
+  const averageLeadTimeDays = connectedSummary.value?.averageLeadTimeDays ?? 0
+  base[3].value =
+    preferences.language === 'ko'
+      ? `${averageLeadTimeDays}일`
+      : `${averageLeadTimeDays}d`
+
   return base
 })
+
 
 // 검색어를 받아서 협력사 목록을 다시 불러옵니다.
 // ADMIN / BUYER 는 keyword 를 서버 ES 검색으로 넘깁니다.
@@ -326,11 +392,9 @@ const filteredRows = computed(() => {
       case 'ALL':
         return true
       case 'ACTIVE':
-        return row.supplierStatus === 'ACTIVE'
+        return row.relationStatus === 'ACTIVE'
       case 'AT_RISK':
         return row.supplierStatus === 'INACTIVE' || row.supplierStatus === 'SUSPENDED'
-      case 'UNDER_REVIEW':
-        return row.approvalStatus === 'REQUESTED' || row.approvalStatus === 'REJECTED'
       default:
         return true
     }
@@ -365,11 +429,19 @@ onBeforeUnmount(() => {
 
 onMounted(() => {
   void fetchSupplierRows()
-
-  if (actor.canCreateSupplier.value) {
-    void loadSupplierOrganizations()
-  }
+  void fetchConnectedSummary()
+  void loadSupplierOrganizationNameMap()
 })
+
+function toDetailResponse(supplier: SupplierResponseDto): ConnectedSupplierDetailResponseDto {
+  return {
+    ...supplier,
+    onTimeRate: null,
+    purchaseOrderCount: 0,
+    cumulativeAmount: 0,
+    orders: [],
+  }
+}
 
 async function openSupplierDetail(publicId: string) {
   detailModalOpen.value = true
@@ -378,13 +450,27 @@ async function openSupplierDetail(publicId: string) {
   selectedSupplier.value = null
 
   try {
-    selectedSupplier.value = await getSupplier(publicId)
+    if (session.organizationType === 'SUPPLIER') {
+      selectedSupplier.value = await getConnectedSupplierDetail(publicId)
+    } else {
+      const supplier = await getSupplier(publicId)
+      selectedSupplier.value = toDetailResponse(supplier)
+    }
   } catch (error: any) {
     detailErrorMessage.value = error.message ?? '협력사 상세 정보를 불러오지 못했습니다.'
   } finally {
     detailLoading.value = false
   }
 }
+
+
+
+
+const selectedSupplierOrganizationName = computed(() => {
+  const organizationPublicId = selectedSupplier.value?.organizationPublicId
+  if (!organizationPublicId) return '-'
+  return organizationNameMap.value[organizationPublicId] ?? organizationPublicId
+})
 
 function closeSupplierDetail() {
   detailModalOpen.value = false
@@ -400,7 +486,6 @@ function resetCreateForm() {
     organizationPublicId: '',
     supplierCode: '',
     supplierName: '',
-    tierLevel: 'TIER1',
     primaryContactName: '',
     primaryContactEmail: '',
     primaryContactPhone: '',
@@ -468,7 +553,6 @@ async function submitCreateSupplier() {
       organizationPublicId: createForm.value.organizationPublicId,
       supplierCode: createForm.value.supplierCode.trim(),
       supplierName: createForm.value.supplierName.trim(),
-      tierLevel: createForm.value.tierLevel,
       primaryContactName: createForm.value.primaryContactName.trim(),
       primaryContactEmail: createForm.value.primaryContactEmail.trim(),
       primaryContactPhone: createForm.value.primaryContactPhone.trim(),
@@ -516,7 +600,6 @@ async function submitCreateSupplier() {
       <article v-for="metric in metrics" :key="metric.label" :class="['page-metric', `is-${metric.tone}`]">
         <span class="page-metric__label">{{ metric.label }}</span>
         <strong class="page-metric__value">{{ metric.value }}</strong>
-        <span class="page-metric__meta">{{ metric.meta }}</span>
       </article>
     </section>
 
@@ -542,18 +625,6 @@ async function submitCreateSupplier() {
         </section>
 
         <article class="page-panel">
-          <div class="page-panel__head">
-            <div>
-              <div class="page-panel__eyebrow">SUPPLIER</div>
-              <h3>{{ content.tableTitle }}</h3>
-            </div>
-            <span class="page-panel__chip">{{ filteredRows.length }}</span>
-          </div>
-
-          <p v-if="errorMessage" style="margin: 0 0 12px; color: var(--color-error);">
-            {{ errorMessage }}
-          </p>
-
           <div class="page-table terminal-page__table is-ten-cols">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
@@ -561,20 +632,26 @@ async function submitCreateSupplier() {
 
             <div v-for="row in filteredRows" :key="row.publicId ?? row.supplierCode" class="page-table__row">
               <span v-for="(cell, index) in row.cells" :key="`${row.publicId ?? row.supplierCode}-${index}`">
+                {{ cell }}
+              </span>
+              <span>
                 <button
-                  v-if="index === 1 && row.publicId"
+                  v-if="row.publicId"
+                  class="page-button page-button--secondary"
                   type="button"
                   @click="openSupplierDetail(row.publicId)"
-                  style="all: unset; cursor: pointer; color: inherit;"
                 >
-                  {{ cell }}
+                  {{ preferences.language === 'ko' ? '상세' : 'DETAIL' }}
                 </button>
-                <template v-else>
-                  {{ cell }}
-                </template>
+                <template v-else>-</template>
               </span>
             </div>
           </div>
+
+
+          <p v-if="errorMessage" style="margin: 0 0 12px; color: var(--color-error);">
+            {{ errorMessage }}
+          </p>
         </article>
       </div>
 
@@ -682,20 +759,6 @@ async function submitCreateSupplier() {
     </label>
 
     <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">티어</span>
-      <div style="width: 100%; border-bottom: 2px solid var(--color-surface-container-high);">
-        <select
-          v-model="createForm.tierLevel"
-          style="font-family: inherit; font-size: inherit; width: 100%; appearance: auto; background: transparent; color: var(--color-on-surface); padding: 8px 0; border: none; outline: none;"
-        >
-          <option value="TIER1">TIER 1</option>
-          <option value="TIER2">TIER 2</option>
-          <option value="TIER3">TIER 3</option>
-        </select>
-      </div>
-    </label>
-
-    <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
       <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">담당자명</span>
       <input
         v-model="createForm.primaryContactName"
@@ -764,13 +827,8 @@ async function submitCreateSupplier() {
 
     <div v-else-if="selectedSupplier" class="page-feed">
       <div class="page-feed__item">
-        <span class="page-feed__label">PUBLIC ID</span>
-        <strong class="page-feed__text">{{ selectedSupplier.publicId }}</strong>
-      </div>
-
-      <div class="page-feed__item">
-        <span class="page-feed__label">ORGANIZATION PUBLIC ID</span>
-        <strong class="page-feed__text">{{ selectedSupplier.organizationPublicId }}</strong>
+        <span class="page-feed__label">ORGANIZATION NAME</span>
+        <strong class="page-feed__text">{{ selectedSupplierOrganizationName }}</strong>
       </div>
 
       <div class="page-feed__item">
@@ -784,18 +842,10 @@ async function submitCreateSupplier() {
       </div>
 
       <div class="page-feed__item">
-        <span class="page-feed__label">TIER</span>
-        <strong class="page-feed__text">{{ tierText(selectedSupplier.tierLevel) }}</strong>
-      </div>
-
-      <div class="page-feed__item">
         <span class="page-feed__label">SUPPLIER STATUS</span>
-        <strong class="page-feed__text">{{ supplierStatusText(selectedSupplier.supplierStatus) }}</strong>
-      </div>
-
-      <div class="page-feed__item">
-        <span class="page-feed__label">APPROVAL STATUS</span>
-        <strong class="page-feed__text">{{ selectedSupplier.approvalStatus }}</strong>
+        <strong class="page-feed__text">
+          {{ supplierStatusText(selectedSupplier.supplierStatus) }}
+        </strong>
       </div>
 
       <div class="page-feed__item">
@@ -818,9 +868,40 @@ async function submitCreateSupplier() {
         <strong class="page-feed__text">{{ formatDate(selectedSupplier.createdAt) }}</strong>
       </div>
 
-      <div class="page-feed__item">
-        <span class="page-feed__label">UPDATED AT</span>
-        <strong class="page-feed__text">{{ formatDate(selectedSupplier.updatedAt) }}</strong>
+      <div class="page-feed__item" style="display: block;">
+        <span class="page-feed__label">RELATED ORDERS</span>
+
+        <div
+          v-if="selectedSupplier.orders && selectedSupplier.orders.length > 0"
+          class="page-table"
+          style="margin-top: 8px;"
+        >
+          <div class="page-table__row page-table__row--head">
+            <span>{{ preferences.language === 'ko' ? '서브발주번호' : 'SUB PO NO' }}</span>
+            <span>{{ preferences.language === 'ko' ? '상위발주번호' : 'PARENT PO NO' }}</span>
+            <span>{{ preferences.language === 'ko' ? '구분' : 'ROLE' }}</span>
+            <span>{{ preferences.language === 'ko' ? '상태' : 'STATUS' }}</span>
+            <span>{{ preferences.language === 'ko' ? '발주일시' : 'ORDERED AT' }}</span>
+            <span>{{ preferences.language === 'ko' ? '금액' : 'AMOUNT' }}</span>
+          </div>
+
+          <div
+            v-for="order in selectedSupplier.orders"
+            :key="order.subPoPublicId"
+            class="page-table__row"
+          >
+            <span>{{ order.subPoNumber }}</span>
+            <span>{{ order.parentPoNumber }}</span>
+            <span>{{ orderRoleText(order.orderRole) }}</span>
+            <span>{{ subPoStatusText(order.subPoStatus) }}</span>
+            <span>{{ formatDate(order.orderedAt) }}</span>
+            <span>{{ formatAmount(order.totalAmount) }}</span>
+          </div>
+        </div>
+
+        <p v-else style="margin: 8px 0 0;">
+          {{ preferences.language === 'ko' ? '연결된 발주 이력이 없습니다.' : 'No related orders.' }}
+        </p>
       </div>
     </div>
   </BaseModal>
