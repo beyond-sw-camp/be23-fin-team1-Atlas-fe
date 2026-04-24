@@ -248,6 +248,8 @@ async function fetchAvailableUsers() {
       const jobTitle = user.jobTitle || user.job_title || ''
       const departmentName = user.departmentName || user.department_name || ''
       const departmentCode = user.departmentCode || user.department_code || ''
+      const profileAttachmentPublicId = user.profileAttachmentPublicId || user.profile_attachment_public_id || ''
+      const profileImageThumbPath = user.profileImageThumbPath || user.profile_image_thumb_path || ''
 
       return {
         userPublicId: user.userPublicId || user.user_public_id || user.publicId || user.public_id || user.id,
@@ -255,6 +257,8 @@ async function fetchAvailableUsers() {
         jobTitle,
         departmentName,
         departmentCode,
+        profileAttachmentPublicId,
+        profileImageThumbPath,
       }
     })
   } catch (e) {
