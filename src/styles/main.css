@@ -3375,7 +3375,8 @@ input {
   .recommendations-page__search input,
   .risk-rules-page__search input,
   .terminal-page__search input,
-  .chat-room-list__search input {
+  .chat-room-list__search input,
+  .chat-room-list__invite-search-input {
     font-size: 16px;
   }
 

@@ -7,11 +7,13 @@ import PhoneField from '../../../components/forms/PhoneField.vue'
 import BaseModal from '../../shared/components/BaseModal.vue'
 import {
   changePassword,
+  getDepartments,
   getMyInfo,
   getMyLoginHistories,
   getMySecurityHistories,
   getUserDetailByPublicId,
   updateUser,
+  type DepartmentOption,
   type LoginHistoryListItem,
   type MyInfoResponse,
   type SecurityHistoryListItem,
@@ -111,6 +113,9 @@ const isLoadingProfile = ref(false)
 // 기본 정보 저장 중 상태입니다.
 const isSavingProfile = ref(false)
 
+// 부서 목록 로딩 상태입니다.
+const isLoadingDepartmentOptions = ref(false)
+
 // 강제 비밀번호 변경 저장 중 상태입니다.
 const isSubmittingPassword = ref(false)
 
@@ -132,6 +137,9 @@ const passwordSuccess = ref('')
 // 연락처 유효성 상태입니다.
 const profilePhoneValid = ref(false)
 
+// 부서 드롭다운 옵션입니다.
+const departmentOptions = ref<DepartmentOption[]>([])
+
 // 기본 정보 수정 폼입니다.
 const profileForm = reactive({
   firstName: '',
@@ -140,6 +148,7 @@ const profileForm = reactive({
   email: '',
   phone: '',
   jobTitle: '',
+  departmentPublicId: '',
 })
 
 // 강제 비밀번호 변경 폼입니다.
@@ -184,9 +193,27 @@ function syncProfileForm(detail: UserDetailResponse) {
   profileForm.email = detail.email ?? ''
   profileForm.phone = detail.phone ?? ''
   profileForm.jobTitle = detail.jobTitle ?? ''
+  profileForm.departmentPublicId = detail.departmentPublicId ?? ''
 
   // 기존 연락처가 있으면 처음에는 유효한 값으로 봅니다.
   profilePhoneValid.value = Boolean(detail.phone)
+}
+
+async function loadDepartmentOptions() {
+  try {
+    isLoadingDepartmentOptions.value = true
+    const response = await getDepartments()
+    departmentOptions.value = [...response].sort((a, b) =>
+      a.departmentName.localeCompare(
+        b.departmentName,
+        preferences.language === 'ko' ? 'ko-KR' : 'en-US',
+      ),
+    )
+  } catch {
+    departmentOptions.value = []
+  } finally {
+    isLoadingDepartmentOptions.value = false
+  }
 }
 
 // 페이지에 필요한 데이터를 모두 읽습니다.
@@ -245,6 +272,10 @@ function startEdit() {
   // 수정 시작 전에 현재 값을 폼에 다시 넣습니다.
   if (userDetail.value) {
     syncProfileForm(userDetail.value)
+  }
+
+  if (departmentOptions.value.length === 0 && !isLoadingDepartmentOptions.value) {
+    loadDepartmentOptions()
   }
 
   profileError.value = ''
@@ -312,6 +343,7 @@ async function submitProfileUpdate() {
       email: profileForm.email.trim(),
       phone: profileForm.phone,
       jobTitle: profileForm.jobTitle.trim() || undefined,
+      departmentPublicId: profileForm.departmentPublicId || undefined,
     })
 
     // 저장 후 화면 데이터도 새 값으로 바꿉니다.
@@ -448,6 +480,16 @@ const currentRoleLabel = computed(() => {
 // 조직 타입은 조직 상세 값이 있으면 그 값을 우선 씁니다.
 const currentOrganizationTypeLabel = computed(() => {
   return organizationDetail.value?.organizationType || session.organizationType || '-'
+})
+
+const currentDepartmentLabel = computed(() => {
+  if (!userDetail.value?.departmentName) return '-'
+
+  if (!userDetail.value.departmentCode) {
+    return userDetail.value.departmentName
+  }
+
+  return `${userDetail.value.departmentName} (${userDetail.value.departmentCode})`
 })
 
 // 역할 분기용 값입니다.
@@ -874,6 +916,7 @@ async function setSecurityHistoryQuickRange(range: QuickRange) {
 onMounted(() => {
   header.clearActions()
   loadProfileData()
+  loadDepartmentOptions()
 })
 
 // 페이지를 떠날 때도 헤더 액션을 비웁니다.
@@ -1037,6 +1080,11 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="profile-kv__row">
+              <span>{{ preferences.language === 'ko' ? '부서' : 'Department' }}</span>
+              <strong>{{ currentDepartmentLabel }}</strong>
+            </div>
+
+            <div class="profile-kv__row">
               <span>{{ preferences.language === 'ko' ? '권한' : 'Role' }}</span>
               <strong>{{ currentRoleLabel }}</strong>
             </div>
@@ -1075,6 +1123,26 @@ onBeforeUnmount(() => {
             <label>
               <span>{{ preferences.language === 'ko' ? '직책' : 'Job Title' }}</span>
               <input v-model="profileForm.jobTitle" type="text" />
+            </label>
+
+            <label>
+              <span>{{ preferences.language === 'ko' ? '부서' : 'Department' }}</span>
+              <select v-model="profileForm.departmentPublicId">
+                <option value="">
+                  {{
+                    isLoadingDepartmentOptions
+                      ? (preferences.language === 'ko' ? '부서 목록 불러오는 중...' : 'Loading departments...')
+                      : (preferences.language === 'ko' ? '부서를 선택하세요.' : 'Select a department.')
+                  }}
+                </option>
+                <option
+                  v-for="department in departmentOptions"
+                  :key="department.departmentPublicId"
+                  :value="department.departmentPublicId"
+                >
+                  {{ department.departmentName }} ({{ department.departmentCode }})
+                </option>
+              </select>
             </label>
 
             <div class="page-feed" style="margin-top: 12px;">
