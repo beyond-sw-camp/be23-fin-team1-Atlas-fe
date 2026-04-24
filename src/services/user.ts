@@ -316,3 +316,65 @@ export async function getMySecurityHistories(
 
   return response.data
 }
+
+
+// 사원 엑셀 업로드 한 줄 결과입니다.
+export interface OrganizationUserExcelUploadRowResult {
+  // 몇 번째 줄인지 보여줍니다.
+  rowNumber: number
+
+  // 성공 여부입니다.
+  success: boolean
+
+  // 성공 시 생성된 사용자 공개 ID 입니다.
+  userPublicId?: string
+
+  // 성공 시 자동 생성된 로그인 ID 입니다.
+  loginId?: string
+
+  // 성공 시 자동 생성된 임시 비밀번호 입니다.
+  temporaryPassword?: string
+
+  // 실패 시 에러 문구입니다.
+  message?: string
+}
+
+// 사원 엑셀 업로드 전체 결과입니다.
+export interface OrganizationUserExcelUploadResponse {
+  // 총 처리 건수입니다.
+  totalCount: number
+
+  // 성공 건수입니다.
+  successCount: number
+
+  // 실패 건수입니다.
+  failCount: number
+
+  // 줄별 처리 결과입니다.
+  results: OrganizationUserExcelUploadRowResult[]
+}
+
+// 조직 대표자가 엑셀 파일로 자기 조직 사원을 일괄 등록합니다.
+export async function uploadOrganizationUsersExcel(
+  file: File,
+): Promise<OrganizationUserExcelUploadResponse> {
+  // multipart/form-data 로 보내기 위해 FormData 를 만듭니다.
+  const formData = new FormData()
+
+  // 백엔드에서 @RequestParam("file") 로 받으므로 key 이름은 file 이어야 합니다.
+  formData.append('file', file)
+
+  // 파일 업로드 요청은 JSON 헤더를 제거해야 브라우저가 multipart boundary 를 자동으로 붙입니다.
+  const response = await apiClient.post<OrganizationUserExcelUploadResponse>(
+    '/api/auth/org-admin/users/upload',
+    formData,
+    {
+      headers: {
+        'Content-Type': undefined,
+      },
+    },
+  )
+
+  return response.data
+}
+
