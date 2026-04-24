@@ -246,11 +246,15 @@ async function fetchAvailableUsers() {
       }
       
       const jobTitle = user.jobTitle || user.job_title || ''
+      const departmentName = user.departmentName || user.department_name || ''
+      const departmentCode = user.departmentCode || user.department_code || ''
 
       return {
         userPublicId: user.userPublicId || user.user_public_id || user.publicId || user.public_id || user.id,
         displayName,
         jobTitle,
+        departmentName,
+        departmentCode,
       }
     })
   } catch (e) {

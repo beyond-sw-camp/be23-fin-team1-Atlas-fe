@@ -5,7 +5,8 @@ export interface PageResponse<T> {
   totalElements: number
   totalPages: number
   size: number
-  number: number
+  page?: number
+  number?: number
   first: boolean
   last: boolean
 }
@@ -22,6 +23,12 @@ export interface HistoryQueryParams {
 }
 
 
+export interface UserDepartmentSummary {
+  departmentPublicId?: string | null
+  departmentCode?: string | null
+  departmentName?: string | null
+}
+
 export interface UserListItem {
   userId: number
   userPublicId: string
@@ -37,6 +44,8 @@ export interface UserListItem {
   status: string
   createdAt?: string
 }
+
+export interface UserListItem extends UserDepartmentSummary {}
 
 export interface MyInfoResponse {
   organizationPublicId: string
@@ -91,6 +100,15 @@ export interface UserDetailResponse {
   createdAt?: string
 }
 
+export interface UserDetailResponse extends UserDepartmentSummary {}
+
+export interface DepartmentOption {
+  departmentPublicId: string
+  departmentCode: string
+  departmentName: string
+  status: string
+}
+
 // 비밀번호 변경 요청 바디 형태입니다.
 // 현재 비밀번호와 새 비밀번호 2개를 같이 보냅니다.
 export interface ChangePasswordPayload {
@@ -108,6 +126,11 @@ export async function getUserDetailByPublicId(
     `/api/auth/users/public/${userPublicId}`,
   )
 
+  return response.data
+}
+
+export async function getDepartments(): Promise<DepartmentOption[]> {
+  const response = await apiClient.get<DepartmentOption[]>('/api/auth/departments')
   return response.data
 }
 
@@ -160,6 +183,7 @@ export interface CreateOrganizationUserPayload {
   email: string
   phone: string
   jobTitle?: string
+  departmentPublicId: string
 }
 
 export interface CreateOrganizationUserResponse {
@@ -196,6 +220,8 @@ export interface UpdateUserPayload {
   phone: string
   // 직책은 선택값입니다.
   jobTitle?: string
+  // 부서 공개 ID 입니다.
+  departmentPublicId?: string
 }
 
 // 현재 사용자 정보를 수정합니다.
@@ -279,5 +305,4 @@ export async function getMySecurityHistories(
 
   return response.data
 }
-
 

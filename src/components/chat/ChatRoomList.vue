@@ -103,6 +103,7 @@ function toggleCreateRoomMode() {
           v-model="userSearchQuery"
           type="text"
           placeholder="초대할 사용자 검색..."
+          class="chat-room-list__invite-search-input"
           style="width: 100%; padding: 8px 0; background: transparent; border: none; color: inherit; outline: none;"
         />
       </div>
