@@ -60,8 +60,8 @@ function getSenderName(senderPublicId: string | null | undefined): string {
 
 /** 시스템 메시지 본문의 publicId를 표시명으로 치환 */
 function resolveSystemMessage(body: string): string {
-  // publicId 패턴: 26자리 ULID (부분 매치)
-  return body.replace(/01[A-Z0-9]{24}/g, (id) => getSenderName(id))
+  // publicId 패턴: 26자리 영문대소문자/숫자 조합
+  return body.replace(/[0-9A-Za-z]{26}/g, (id) => getSenderName(id))
 }
 
 /** 업무 참조 카드 전송 핸들러 — ChatInput에서 3개 인자를 받아 상위로 전달 */
@@ -78,6 +78,13 @@ function handleDeleteMessage(messagePublicId: string) {
 function handleInviteUser(userPublicId: string) {
   chatStore.inviteUser(userPublicId)
   isInviting.value = false
+}
+
+async function toggleInvite() {
+  isInviting.value = !isInviting.value
+  if (isInviting.value && chatStore.availableUsers.length === 0) {
+    await chatStore.fetchAvailableUsers()
+  }
 }
 
 /** 채팅방 나가기 핸들러 */
@@ -167,7 +174,7 @@ async function handleRenameRoom() {
         class="chat-room__invite-btn" 
         type="button" 
         style="background: transparent; border: none; color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px;"
-        @click="isInviting = !isInviting"
+        @click="toggleInvite"
         title="초대하기">
         <span class="material-symbols-outlined">person_add</span>
       </button>

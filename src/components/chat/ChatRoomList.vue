@@ -107,9 +107,9 @@ function toggleCreateRoomMode() {
         />
       </div>
       <div style="max-height: 120px; overflow-y: auto; margin-bottom: 16px; font-size: 0.875rem;">
-        <label v-for="user in filteredAvailableUsers" :key="user.userPublicId" style="display: block; padding: 4px 0; cursor: pointer; color: var(--color-on-surface, #FFFFFF);">
+        <label v-for="user in filteredAvailableUsers" :key="user.userPublicId" style="display: block; padding: 4px 0; cursor: pointer; color: inherit;">
           <input type="checkbox" :value="user.userPublicId" v-model="selectedUsers" style="margin-right: 8px;" />
-          {{ user.displayName }} <span v-if="user.jobTitle" style="color: var(--color-on-surface-variant, #C6C6C6); font-size: 0.75rem;">({{ user.jobTitle }})</span>
+          {{ user.displayName }} <span v-if="user.jobTitle" style="color: #666666; font-size: 0.75rem;">({{ user.jobTitle }})</span>
         </label>
         <div v-if="filteredAvailableUsers.length === 0" style="padding: 8px 0; color: var(--color-on-surface-variant, #C6C6C6); font-size: 0.75rem; text-align: center;">검색 결과가 없습니다.</div>
       </div>
