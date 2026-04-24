@@ -1,16 +1,20 @@
 import { apiClient } from './http'
 
+export interface AttachmentFileDto {
+  publicId: string
+  originalFileName: string
+  fileSize: number
+  contentType: string
+  fileUrl?: string
+  fileThumbPath?: string | null
+  filePath?: string | null
+}
+
 export interface AttachmentUploadResponseDto {
   attachmentPublicId: string
   refType: string
   refPublicId: string
-  files: Array<{
-    publicId: string
-    originalFileName: string
-    fileSize: number
-    contentType: string
-    fileUrl: string
-  }>
+  files: AttachmentFileDto[]
 }
 
 /**
@@ -41,12 +45,24 @@ export async function uploadAttachment(file: File, refType: string, refPublicId:
   return response.data
 }
 
+export async function uploadUserProfileImage(
+  file: File,
+  userPublicId: string,
+): Promise<AttachmentUploadResponseDto> {
+  return uploadAttachment(file, 'USER_ACCOUNT', userPublicId)
+}
+
 /**
  * 첨부파일 상세 정보 조회 (파일 URL 등 획득)
  */
 export async function getAttachment(publicId: string): Promise<AttachmentUploadResponseDto> {
   const response = await apiClient.get<AttachmentUploadResponseDto>(`/api/files/attachments/${publicId}`)
   return response.data
+}
+
+export async function getAttachmentOriginalImagePath(publicId: string): Promise<string | null> {
+  const response = await getAttachment(publicId)
+  return response.files[0]?.filePath ?? null
 }
 
 // 구버전 호환용 (필요시 제거 가능)

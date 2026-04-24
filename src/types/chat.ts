@@ -53,6 +53,8 @@ export interface ChatParticipant {
   jobTitle?: string
   departmentName?: string
   departmentCode?: string
+  profileAttachmentPublicId?: string
+  profileImageThumbPath?: string
 }
 
 /** 채팅방 정보 (프론트 전용 — 백엔드 API 미확정) */

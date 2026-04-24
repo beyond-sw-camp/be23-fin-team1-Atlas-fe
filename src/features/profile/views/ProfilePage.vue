@@ -5,6 +5,7 @@ import { VueDatePicker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 import PhoneField from '../../../components/forms/PhoneField.vue'
 import BaseModal from '../../shared/components/BaseModal.vue'
+import { getAttachmentOriginalImagePath, uploadUserProfileImage } from '../../../services/file'
 import {
   changePassword,
   getDepartments,
@@ -27,6 +28,7 @@ import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasNavigationStore } from '../../../stores/navigation'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSessionStore } from '../../../stores/session'
+import { notifyProfileImageUpdated } from '../../../utils/profileImageEvents'
 
 // 이 페이지에서는 헤더 액션을 따로 쓰지 않아서 비워 둡니다.
 const header = useAtlasHeaderStore()
@@ -61,17 +63,26 @@ const loginHistoryModalOpen = ref(false)
 // 보안 이력 더보기 모달 열림 상태입니다.
 const securityHistoryModalOpen = ref(false)
 
+// 프로필 이미지 보기 모달 열림 상태입니다.
+const profileImageViewerOpen = ref(false)
+
 // 로그인 이력 모달 안에서 보여줄 전체 목록입니다.
 const loginHistoryModalItems = ref<LoginHistoryListItem[]>([])
 
 // 보안 이력 모달 안에서 보여줄 전체 목록입니다.
 const securityHistoryModalItems = ref<SecurityHistoryListItem[]>([])
 
+// 프로필 원본 이미지 URL 입니다.
+const profileImageViewerSrc = ref('')
+
 // 로그인 이력 모달 로딩 상태입니다.
 const isLoadingLoginHistoryModal = ref(false)
 
 // 보안 이력 모달 로딩 상태입니다.
 const isLoadingSecurityHistoryModal = ref(false)
+
+// 프로필 이미지 원본 로딩 상태입니다.
+const isLoadingProfileImageViewer = ref(false)
 
 // 로그인 이력 기간 필터입니다.
 const loginHistoryFilter = reactive({
@@ -116,6 +127,9 @@ const isSavingProfile = ref(false)
 // 부서 목록 로딩 상태입니다.
 const isLoadingDepartmentOptions = ref(false)
 
+// 프로필 이미지 업로드 상태입니다.
+const isUploadingProfileImage = ref(false)
+
 // 강제 비밀번호 변경 저장 중 상태입니다.
 const isSubmittingPassword = ref(false)
 
@@ -134,11 +148,17 @@ const passwordError = ref('')
 // 비밀번호 변경 성공 문구입니다.
 const passwordSuccess = ref('')
 
+// 프로필 이미지 보기 에러 문구입니다.
+const profileImageViewerError = ref('')
+
 // 연락처 유효성 상태입니다.
 const profilePhoneValid = ref(false)
 
 // 부서 드롭다운 옵션입니다.
 const departmentOptions = ref<DepartmentOption[]>([])
+
+// 프로필 이미지 파일 입력 ref 입니다.
+const profileImageInput = ref<HTMLInputElement | null>(null)
 
 // 기본 정보 수정 폼입니다.
 const profileForm = reactive({
@@ -213,6 +233,107 @@ async function loadDepartmentOptions() {
     departmentOptions.value = []
   } finally {
     isLoadingDepartmentOptions.value = false
+  }
+}
+
+function triggerProfileImagePicker() {
+  profileImageInput.value?.click()
+}
+
+async function handleProfileImageSelected(event: Event) {
+  const input = event.target as HTMLInputElement | null
+  const file = input?.files?.[0]
+
+  if (!file || !userDetail.value?.userPublicId || !currentUserId.value) {
+    if (input) input.value = ''
+    return
+  }
+
+  if (!file.type.startsWith('image/')) {
+    profileError.value =
+      preferences.language === 'ko'
+        ? '이미지 파일만 업로드할 수 있습니다.'
+        : 'Only image files can be uploaded.'
+
+    input.value = ''
+    return
+  }
+
+  try {
+    isUploadingProfileImage.value = true
+    profileError.value = ''
+    profileSuccess.value = ''
+
+    const uploadResponse = await uploadUserProfileImage(file, userDetail.value.userPublicId)
+    const attachmentPublicId = uploadResponse.attachmentPublicId
+    const fileThumbPath = uploadResponse.files[0]?.fileThumbPath
+
+    if (!attachmentPublicId || !fileThumbPath) {
+      throw new Error('Invalid profile upload response')
+    }
+
+    const updatedUser = await updateUser(currentUserId.value, {
+      profileAttachmentPublicId: attachmentPublicId,
+      profileImageThumbPath: fileThumbPath,
+    })
+
+    userDetail.value = updatedUser
+    syncProfileForm(updatedUser)
+
+    if (myInfo.value) {
+      myInfo.value = {
+        ...myInfo.value,
+        profileAttachmentPublicId: updatedUser.profileAttachmentPublicId ?? attachmentPublicId,
+        profileImageThumbPath: updatedUser.profileImageThumbPath ?? fileThumbPath,
+      }
+    }
+
+    notifyProfileImageUpdated()
+
+    profileSuccess.value =
+      preferences.language === 'ko'
+        ? '프로필 이미지가 수정되었습니다.'
+        : 'Profile image has been updated.'
+  } catch {
+    profileError.value =
+      preferences.language === 'ko'
+        ? '프로필 이미지 업로드에 실패했습니다.'
+        : 'Failed to upload the profile image.'
+  } finally {
+    isUploadingProfileImage.value = false
+    if (input) {
+      input.value = ''
+    }
+  }
+}
+
+async function openProfileImageViewer() {
+  if (!userDetail.value?.profileAttachmentPublicId) {
+    return
+  }
+
+  try {
+    profileImageViewerOpen.value = true
+    isLoadingProfileImageViewer.value = true
+    profileImageViewerError.value = ''
+    profileImageViewerSrc.value = ''
+
+    const originalImagePath = await getAttachmentOriginalImagePath(
+      userDetail.value.profileAttachmentPublicId,
+    )
+
+    if (!originalImagePath) {
+      throw new Error('Original image not found')
+    }
+
+    profileImageViewerSrc.value = originalImagePath
+  } catch {
+    profileImageViewerError.value =
+      preferences.language === 'ko'
+        ? '원본 프로필 이미지를 불러오지 못했습니다.'
+        : 'Could not load the original profile image.'
+  } finally {
+    isLoadingProfileImageViewer.value = false
   }
 }
 
@@ -491,6 +612,9 @@ const currentDepartmentLabel = computed(() => {
 
   return `${userDetail.value.departmentName} (${userDetail.value.departmentCode})`
 })
+
+const profileThumbnailUrl = computed(() => userDetail.value?.profileImageThumbPath ?? '')
+const canOpenProfileImageViewer = computed(() => Boolean(userDetail.value?.profileAttachmentPublicId))
 
 // 역할 분기용 값입니다.
 const isAdmin = computed(() => myInfo.value?.role === 'ADMIN')
@@ -1047,11 +1171,36 @@ onBeforeUnmount(() => {
               </div>
               <h3>{{ preferences.language === 'ko' ? '프로필' : 'Profile' }}</h3>
             </div>
-
-            <span class="page-panel__chip">
-              {{ isEditing ? (preferences.language === 'ko' ? '수정 중' : 'Editing') : currentRoleLabel }}
-            </span>
+            <div class="profile-panel__head-side">
+              <button
+                class="profile-hero__avatar-button"
+                type="button"
+                :disabled="!canOpenProfileImageViewer"
+                :title="canOpenProfileImageViewer
+                  ? (preferences.language === 'ko' ? '원본 이미지 보기' : 'Open original image')
+                  : (preferences.language === 'ko' ? '등록된 프로필 이미지가 없습니다.' : 'No profile image uploaded.')"
+                @click="openProfileImageViewer"
+              >
+                <span class="profile-hero__avatar-frame" aria-hidden="true">
+                  <img
+                    v-if="profileThumbnailUrl"
+                    :src="profileThumbnailUrl"
+                    :alt="fullName"
+                    class="profile-hero__avatar-image"
+                  />
+                  <span v-else class="material-symbols-outlined profile-hero__avatar-icon">person</span>
+                </span>
+              </button>
+            </div>
           </div>
+
+          <input
+            ref="profileImageInput"
+            type="file"
+            accept="image/*"
+            style="display: none;"
+            @change="handleProfileImageSelected"
+          />
 
           <div v-if="!isEditing" class="profile-kv">
             <div class="profile-kv__row">
@@ -1090,7 +1239,51 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div v-else class="settings-form">
+          <div v-else>
+            <div class="profile-hero profile-hero--edit">
+              <div class="profile-hero__avatar-stack">
+                <button
+                  class="profile-hero__avatar-button"
+                  type="button"
+                  :disabled="!canOpenProfileImageViewer"
+                  :title="canOpenProfileImageViewer
+                    ? (preferences.language === 'ko' ? '원본 이미지 보기' : 'Open original image')
+                    : (preferences.language === 'ko' ? '등록된 프로필 이미지가 없습니다.' : 'No profile image uploaded.')"
+                  @click="openProfileImageViewer"
+                >
+                  <span class="profile-hero__avatar-frame" aria-hidden="true">
+                    <img
+                      v-if="profileThumbnailUrl"
+                      :src="profileThumbnailUrl"
+                      :alt="fullName"
+                      class="profile-hero__avatar-image"
+                    />
+                    <span v-else class="material-symbols-outlined profile-hero__avatar-icon">person</span>
+                  </span>
+                </button>
+
+                <button
+                  class="page-button page-button--secondary profile-hero__upload-button"
+                  type="button"
+                  :disabled="isUploadingProfileImage"
+                  @click="triggerProfileImagePicker"
+                >
+                  {{
+                    isUploadingProfileImage
+                      ? (preferences.language === 'ko' ? '업로드 중...' : 'Uploading...')
+                      : (preferences.language === 'ko' ? '이미지 변경' : 'Change Image')
+                  }}
+                </button>
+              </div>
+
+              <div class="profile-hero__summary">
+                <div class="profile-hero__title-row">
+                  <strong>{{ fullName }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-form">
             <label>
               <span>{{ preferences.language === 'ko' ? '성' : 'Last Name' }}</span>
               <input v-model="profileForm.lastName" type="text" />
@@ -1160,6 +1353,7 @@ onBeforeUnmount(() => {
                 <strong class="page-feed__text">{{ currentRoleLabel }}</strong>
               </div>
             </div>
+            </div>
           </div>
         </article>
 
@@ -1171,10 +1365,6 @@ onBeforeUnmount(() => {
               </div>
               <h3>{{ preferences.language === 'ko' ? '조직 정보' : 'Organization Info' }}</h3>
             </div>
-
-            <span class="page-panel__chip">
-              {{ currentOrganizationTypeLabel }}
-            </span>
           </div>
 
           <div v-if="organizationDetail" class="profile-kv">
@@ -1377,6 +1567,32 @@ onBeforeUnmount(() => {
           {{ preferences.language === 'ko' ? '로그아웃' : 'Sign Out' }}
         </button>
       </div>
+
+      <BaseModal
+        v-model="profileImageViewerOpen"
+        :title="preferences.language === 'ko' ? '프로필 이미지' : 'Profile Image'"
+        :description="preferences.language === 'ko'
+          ? '원본 프로필 이미지를 확인합니다.'
+          : 'View the original profile image.'"
+        size="lg"
+      >
+        <div class="profile-image-viewer">
+          <div v-if="isLoadingProfileImageViewer" class="login-hint">
+            {{ preferences.language === 'ko' ? '원본 이미지를 불러오는 중입니다...' : 'Loading original image...' }}
+          </div>
+
+          <div v-else-if="profileImageViewerError" class="login-error">
+            {{ profileImageViewerError }}
+          </div>
+
+          <img
+            v-else-if="profileImageViewerSrc"
+            :src="profileImageViewerSrc"
+            :alt="fullName"
+            class="profile-image-viewer__image"
+          />
+        </div>
+      </BaseModal>
 
       <!-- 로그인 이력 더보기 모달입니다. -->
       <BaseModal

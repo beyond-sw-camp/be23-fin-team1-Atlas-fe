@@ -1226,10 +1226,17 @@ input {
   height: 30px;
   background: var(--surface-container-high, #e4e9ea);
   border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
+  overflow: hidden;
   font-size: 0.64rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.app-sidebar__avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .theme-dark .app-sidebar__avatar {
@@ -1838,6 +1845,120 @@ input {
   gap: 10px;
 }
 
+.profile-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 0;
+  background: transparent;
+}
+
+.profile-hero__avatar-stack {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.profile-hero__avatar-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.profile-hero__avatar-button:disabled {
+  cursor: default;
+}
+
+.profile-hero__avatar-frame {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  background: var(--surface-container, #ebeeef);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.profile-hero__avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-hero__avatar-icon {
+  font-size: 40px;
+  color: var(--on-surface-variant, #596061);
+}
+
+.profile-hero__summary {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.profile-hero__title-row {
+  display: flex;
+  align-items: center;
+}
+
+.profile-hero__summary strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--on-surface, #2d3435);
+}
+
+.profile-hero__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+.profile-hero__meta-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.profile-hero__meta-item span {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--on-surface-variant, #596061);
+  text-transform: uppercase;
+}
+
+.profile-hero__meta-item strong {
+  min-width: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.profile-hero__upload-button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.62rem;
+}
+
+.profile-image-viewer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+}
+
+.profile-image-viewer__image {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+
 .profile-kv__row {
   display: flex;
   justify-content: space-between;
@@ -1858,6 +1979,13 @@ input {
 .profile-kv__row strong {
   text-align: right;
   font-size: 0.82rem;
+}
+
+.profile-panel__head-side {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex: 0 0 auto;
 }
 
 .no-roundness * {
@@ -3141,8 +3269,58 @@ input {
     width: 240px;
   }
 
+  .profile-hero {
+    padding: 0;
+  }
+
+  .profile-hero__avatar-stack {
+    gap: 8px;
+  }
+
   .app-main {
     margin-left: 240px;
+  }
+}
+
+@media (max-width: 720px) {
+  .page-panel__head {
+    align-items: flex-start;
+  }
+
+  .profile-panel__head-side {
+    justify-content: flex-end;
+  }
+
+  .profile-hero {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .profile-hero__avatar-frame {
+    width: 60px;
+    height: 60px;
+  }
+
+  .profile-hero__avatar-icon {
+    font-size: 34px;
+  }
+
+  .profile-hero__summary strong {
+    font-size: 0.96rem;
+  }
+
+  .profile-hero__title-row {
+    align-items: flex-start;
+  }
+
+  .profile-hero__meta-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .profile-kv__row strong {
+    text-align: left;
   }
 }
 
@@ -4915,6 +5093,43 @@ input {
   margin: 0;
   font-size: 0.78rem;
   font-weight: 600;
+}
+
+.chat-room-list__invite-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.chat-room-list__invite-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  overflow: hidden;
+  background: var(--surface-container, #ebeeef);
+  flex: 0 0 auto;
+}
+
+.chat-room-list__invite-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.chat-room-list__invite-avatar-icon {
+  font-size: 18px;
+  color: var(--on-surface-variant, #596061);
+}
+
+.chat-room-list__invite-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

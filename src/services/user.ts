@@ -29,6 +29,11 @@ export interface UserDepartmentSummary {
   departmentName?: string | null
 }
 
+export interface UserProfileImageSummary {
+  profileAttachmentPublicId?: string | null
+  profileImageThumbPath?: string | null
+}
+
 export interface UserListItem {
   userId: number
   userPublicId: string
@@ -45,13 +50,15 @@ export interface UserListItem {
   createdAt?: string
 }
 
-export interface UserListItem extends UserDepartmentSummary {}
+export interface UserListItem extends UserDepartmentSummary, UserProfileImageSummary {}
 
 export interface MyInfoResponse {
   organizationPublicId: string
   userPublicId: string
   role: 'USER' | 'ORG_ADMIN' | 'ADMIN'
 }
+
+export interface MyInfoResponse extends UserProfileImageSummary {}
 
 export interface GetUsersParams {
   keyword?: string
@@ -100,7 +107,7 @@ export interface UserDetailResponse {
   createdAt?: string
 }
 
-export interface UserDetailResponse extends UserDepartmentSummary {}
+export interface UserDetailResponse extends UserDepartmentSummary, UserProfileImageSummary {}
 
 export interface DepartmentOption {
   departmentPublicId: string
@@ -209,19 +216,23 @@ export async function createOrganizationUser(
 
 export interface UpdateUserPayload {
   // 이름입니다.
-  firstName: string
+  firstName?: string
   // 중간이름은 선택값입니다.
   middleName?: string
   // 성입니다.
-  lastName: string
+  lastName?: string
   // 이메일입니다.
-  email: string
+  email?: string
   // 연락처입니다.
-  phone: string
+  phone?: string
   // 직책은 선택값입니다.
   jobTitle?: string
   // 부서 공개 ID 입니다.
   departmentPublicId?: string
+  // 프로필 이미지 첨부 공개 ID 입니다.
+  profileAttachmentPublicId?: string
+  // 프로필 썸네일 경로입니다.
+  profileImageThumbPath?: string
 }
 
 // 현재 사용자 정보를 수정합니다.
@@ -305,4 +316,3 @@ export async function getMySecurityHistories(
 
   return response.data
 }
-
