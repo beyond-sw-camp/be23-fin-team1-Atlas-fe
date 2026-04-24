@@ -33,6 +33,7 @@ export type NavKey =
   | 'settings'
   | 'profile'
   | 'systemSpec'
+  | 'organizationManagement'
 
 
 export type PageKey = NavKey

@@ -32,6 +32,7 @@ import SettingsPage from '../features/system/views/SettingsPage.vue'
 import SystemSpecPage from '../features/system/views/SystemSpecPage.vue'
 import AppShellLayout from '../layouts/AppShellLayout.vue'
 import type { OrganizationType, PageKey } from '../types'
+import OrganizationManagementPage from '../features/system/views/OrganizationManagementPage.vue'
 
 const AUTH_ORG_STORAGE_KEY = 'atlas-organization'
 
@@ -67,6 +68,8 @@ const pageRoutes = [
   { path: 'settings', name: 'settings', component: SettingsPage, meta: { hidePageHead: true } },
   { path: 'profile', name: 'profile', component: ProfilePage },
   { path: 'system-spec', name: 'systemSpec', component: SystemSpecPage },
+    { path: 'organization-management', name: 'organizationManagement', component: OrganizationManagementPage, meta: { hidePageHead: true } },
+
 ]
 
 export const router = createRouter({
