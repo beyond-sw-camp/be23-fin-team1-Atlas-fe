@@ -1,8 +1,7 @@
 import { apiClient } from './http'
 
-export type SupplierTierLevel = 'TIER1' | 'TIER2' | 'TIER3'
 export type SupplierStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'TERMINATED'
-export type ApprovalStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED'
+export type SupplierRelationStatus = 'REQUESTED' | 'ACTIVE' | 'PAUSED' | 'ENDED'
 export type SupplierItemQualityGrade = 'AAA' | 'AA_PLUS' | 'AA' | 'A_PLUS' | 'A' | 'B' | 'C'
 
 export interface PageResponse<T> {
@@ -21,9 +20,7 @@ export interface SupplierResponseDto {
   organizationPublicId: string
   supplierCode: string
   supplierName: string
-  tierLevel: SupplierTierLevel
   supplierStatus: SupplierStatus
-  approvalStatus: ApprovalStatus
   primaryContactName: string
   primaryContactEmail: string
   primaryContactPhone: string
@@ -34,14 +31,13 @@ export interface SupplierResponseDto {
 export interface SupplierListResponseDto {
   supplierCode: string
   supplierName: string
-  tierLevel: SupplierTierLevel
   onTimeRate: number | null
   supplierScore: number | null
   qualityScore: number | null
   purchaseOrderCount: number | null
   totalAmount: number | null
   cumulativeAmount: number | null
-  status: string
+  relationStatus: SupplierRelationStatus | null
   detail: SupplierResponseDto | null
 }
 
@@ -49,7 +45,6 @@ export interface CreateSupplierRequestDto {
   organizationPublicId: string
   supplierCode: string
   supplierName: string
-  tierLevel: SupplierTierLevel
   primaryContactName: string
   primaryContactEmail: string
   primaryContactPhone: string
@@ -58,7 +53,6 @@ export interface CreateSupplierRequestDto {
 export interface UpdateSupplierRequestDto {
   supplierCode: string
   supplierName: string
-  tierLevel: SupplierTierLevel
   primaryContactName: string
   primaryContactEmail: string
   primaryContactPhone: string
@@ -67,8 +61,6 @@ export interface UpdateSupplierRequestDto {
 export interface GetSuppliersParams {
   // 백엔드 SupplierSearchDto 와 맞춘 검색 파라미터입니다.
   keyword?: string
-  tierLevel?: SupplierTierLevel
-  approvalStatus?: ApprovalStatus
   supplierStatus?: SupplierStatus
   organizationPublicId?: string
   itemPublicId?: string
@@ -102,18 +94,6 @@ export async function getSuppliers(
     {
       params,
     },
-  )
-  return response.data
-}
-
-// tier 별 협력사 목록 조회
-export async function getSuppliersByTierLevel(
-  tierLevel: SupplierTierLevel,
-  params: Omit<GetSuppliersParams, 'tierLevel'> = {},
-) {
-  const response = await apiClient.get<PageResponse<SupplierResponseDto>>(
-    `/api/supply/suppliers/tier/${tierLevel}`,
-    { params },
   )
   return response.data
 }
@@ -185,3 +165,41 @@ export async function createSupplierItemCapability(
   )
   return response.data
 }
+
+export interface ConnectedSupplierSummaryResponseDto {
+  connectedSupplierCount: number
+  averageOnTimeRate: number | null
+  averageLeadTimeDays: number
+}
+
+export interface ConnectedSupplierOrderResponseDto {
+  subPoPublicId: string
+  subPoNumber: string
+  parentPoNumber: string
+  orderRole: 'ISSUED' | 'RECEIVED'
+  subPoStatus: string
+  orderedAt: string
+  totalAmount: number
+}
+
+export interface ConnectedSupplierDetailResponseDto extends SupplierResponseDto {
+  onTimeRate: number | null
+  purchaseOrderCount: number
+  cumulativeAmount: number
+  orders: ConnectedSupplierOrderResponseDto[]
+}
+
+export async function getConnectedSupplierSummary() {
+  const response = await apiClient.get<ConnectedSupplierSummaryResponseDto>(
+    '/api/supply/suppliers/connections/summary',
+  )
+  return response.data
+}
+
+export async function getConnectedSupplierDetail(supplierPublicId: string) {
+  const response = await apiClient.get<ConnectedSupplierDetailResponseDto>(
+    `/api/supply/suppliers/${supplierPublicId}/connections/detail`,
+  )
+  return response.data
+}
+
