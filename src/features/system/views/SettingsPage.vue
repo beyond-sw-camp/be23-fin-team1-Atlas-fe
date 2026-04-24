@@ -7,6 +7,8 @@ import {
   getOrganizations,
   type OrganizationListItem,
 } from '../../../services/organization'
+import { createSupplier } from '../../../services/supplier'
+
 
 import { useActorScope } from '../../../composables/useActorScope'
 import {
@@ -649,9 +651,11 @@ watch(selectedCategoryPublicId, (categoryPublicId) => {
   expandCategoryAncestors(categoryPublicId)
 })
 async function submitOrganization() {
+  // 이전 에러와 성공 문구를 먼저 비웁니다.
   organizationCreateError.value = ''
   organizationCreateSuccess.value = ''
 
+  // 조직 생성에 필요한 필수값이 모두 들어왔는지 먼저 확인합니다.
   if (
     !organizationForm.organizationName ||
     !organizationForm.organizationEnglishName ||
@@ -669,6 +673,7 @@ async function submitOrganization() {
     return
   }
 
+  // 담당자 연락처 형식도 같이 확인합니다.
   if (!organizationContactPhoneValid.value) {
     organizationCreateError.value =
       preferences.language === 'ko'
@@ -680,43 +685,99 @@ async function submitOrganization() {
   try {
     isCreatingOrganization.value = true
 
-const response = await createOrganization({
-  organizationType: organizationForm.organizationType,
-  organizationName: organizationForm.organizationName,
-  organizationEnglishName: organizationForm.organizationEnglishName,
+    // 조직 코드는 앞뒤 공백을 제거하고 대문자로 맞춥니다.
+    const normalizedAlias = organizationForm.organizationAlias.trim().toUpperCase()
 
-  // 조직 코드를 같이 보내야 백엔드 검증을 통과합니다.
-  organizationAlias: organizationForm.organizationAlias,
+    // 1. 먼저 조직을 생성합니다.
+    const response = await createOrganization({
+      organizationType: organizationForm.organizationType,
+      organizationName: organizationForm.organizationName.trim(),
+      organizationEnglishName: organizationForm.organizationEnglishName.trim(),
+      organizationAlias: normalizedAlias,
+      businessNo: organizationForm.businessNo.trim(),
+      contactFirstName: organizationForm.contactFirstName.trim(),
+      contactMiddleName: organizationForm.contactMiddleName.trim(),
+      contactLastName: organizationForm.contactLastName.trim(),
+      contactEmail: organizationForm.contactEmail.trim(),
+      contactPhone: organizationForm.contactPhone.trim(),
+    })
 
-  businessNo: organizationForm.businessNo,
-  contactFirstName: organizationForm.contactFirstName,
-  contactMiddleName: organizationForm.contactMiddleName,
-  contactLastName: organizationForm.contactLastName,
-  contactEmail: organizationForm.contactEmail,
-  contactPhone: organizationForm.contactPhone,
-})
+    // 방금 만든 조직의 공개 ID를 저장합니다.
+    createdOrganizationPublicId.value = response.organizationPublicId
 
+    // 사용자 생성 드롭다운에서도 바로 선택되게 맞춥니다.
+    selectedOrganizationPublicId.value = response.organizationPublicId
 
-   createdOrganizationPublicId.value = response.organizationPublicId
+    // 2. 조직 타입이 협력사면 협력사 생성 API도 이어서 호출합니다.
+    if (organizationForm.organizationType === 'SUPPLIER') {
+      try {
+        // 협력사 담당자 이름은 이름/중간이름/성을 이어서 만듭니다.
+        const primaryContactName = [
+          organizationForm.contactFirstName,
+          organizationForm.contactMiddleName,
+          organizationForm.contactLastName,
+        ]
+          .filter((value) => value && value.trim())
+          .join(' ')
 
-// 새로 만든 조직은 드롭다운에서 바로 선택되게 맞춥니다.
-selectedOrganizationPublicId.value = response.organizationPublicId
+        await createSupplier({
+          // 방금 생성한 조직과 협력사를 연결하기 위한 공개 ID 입니다.
+          organizationPublicId: response.organizationPublicId,
 
-organizationCreateSuccess.value =
-  preferences.language === 'ko'
-    ? '조직이 생성되었습니다.'
-    : 'Organization created.'
-// 새 조직이 추가됐으니 목록도 다시 읽습니다.
-await loadOrganizationOptions()
+          // 협력사 코드는 조직 코드(alias)를 그대로 사용합니다.
+          supplierCode: normalizedAlias,
 
+          // 협력사 이름은 조직명을 그대로 사용합니다.
+          supplierName: organizationForm.organizationName.trim(),
 
+          // 대표 연락 담당자 이름입니다.
+          primaryContactName,
+
+          // 대표 연락 담당자 이메일입니다.
+          primaryContactEmail: organizationForm.contactEmail.trim(),
+
+          // 대표 연락 담당자 연락처입니다.
+          primaryContactPhone: organizationForm.contactPhone.trim(),
+        })
+      } catch (supplierError: any) {
+        // 협력사 생성이 왜 실패했는지 콘솔에도 같이 남깁니다.
+        console.error('협력사 생성 실패', supplierError)
+
+        organizationCreateError.value =
+          supplierError?.payload?.message ||
+          supplierError?.message ||
+          (preferences.language === 'ko'
+            ? '조직은 생성됐지만 협력사 생성은 실패했습니다.'
+            : 'Organization was created, but supplier creation failed.')
+
+        return
+      }
+    }
+
+    // 조직 타입에 따라 성공 문구를 다르게 보여줍니다.
+    organizationCreateSuccess.value =
+      preferences.language === 'ko'
+        ? organizationForm.organizationType === 'SUPPLIER'
+          ? '조직과 협력사가 함께 생성되었습니다.'
+          : '조직이 생성되었습니다.'
+        : organizationForm.organizationType === 'SUPPLIER'
+          ? 'Organization and supplier have been created.'
+          : 'Organization created.'
+
+    // 새 조직이 추가됐으니 조직 목록을 다시 읽습니다.
+    await loadOrganizationOptions()
+
+    // 조직 생성 후 초기 조직 관리자 생성 영역 메시지는 초기화합니다.
     orgAdminCreateError.value = ''
     orgAdminCreateSuccess.value = ''
     createdOrgAdminLoginId.value = ''
     createdOrgAdminTempPassword.value = ''
   } catch (error: any) {
+    console.error('조직 생성 실패', error)
+
     organizationCreateError.value =
       error?.payload?.message ||
+      error?.message ||
       (preferences.language === 'ko'
         ? '조직 생성에 실패했습니다.'
         : 'Failed to create organization.')
@@ -724,6 +785,8 @@ await loadOrganizationOptions()
     isCreatingOrganization.value = false
   }
 }
+
+
 // 관리자 사용자 생성용 조직 목록을 불러옵니다.
 async function loadOrganizationOptions() {
   try {
