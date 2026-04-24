@@ -171,6 +171,19 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     ko: { label: '설정', description: '조직, 사용자, 알림, API 키 정책', pageSubtitle: '시스템 전역 설정, 사용자, 보안 정책 관리' },
     en: { label: 'Settings', description: 'Organization, users, notifications, and API policies', pageSubtitle: 'Manage global system configuration, users, and security policies' },
   },
+    organizationManagement: {
+    ko: {
+      label: '조직관리',
+      description: '조직 목록 조회와 조직 정보 수정',
+      pageSubtitle: '플랫폼 관리자와 조직 대표자가 조직 정보를 관리합니다',
+    },
+    en: {
+      label: 'Organization Management',
+      description: 'View organizations and edit organization information',
+      pageSubtitle: 'Manage organization information as platform admin or organization owner',
+    },
+  },
+
   systemSpec: {
     ko: { label: '시스템 스펙', description: '디자인 스펙과 화면 규격 문서', pageSubtitle: 'Kinetic Blueprint 시스템 스펙 문서' },
     en: { label: 'System Spec', description: 'Design specification and screen standards', pageSubtitle: 'Kinetic Blueprint system specification reference' },

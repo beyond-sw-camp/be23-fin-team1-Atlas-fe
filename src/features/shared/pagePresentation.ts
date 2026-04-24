@@ -28,6 +28,13 @@ export const PAGE_SHELL_CLASSES: Record<PageKey, string[]> = {
   notificationsCenter: ['bg-background', 'text-on-surface', 'antialiased'],
   riskRules: ['bg-background', 'text-on-surface', 'antialiased'],
   settings: ['bg-background', 'text-on-surface', 'antialiased'],
+
+  // 프로필 화면 기본 배경 클래스입니다.
   profile: ['bg-background', 'text-on-surface', 'antialiased'],
+
+  // 새 조직관리 화면도 일반 페이지와 같은 배경 클래스를 씁니다.
+  organizationManagement: ['bg-background', 'text-on-surface', 'antialiased'],
+
+  // 시스템 스펙 화면은 기존 전용 배경을 유지합니다.
   systemSpec: ['bg-surface-container-lowest', 'text-on-surface', 'antialiased', 'no-roundness'],
 }
