@@ -123,6 +123,24 @@ export interface ChangePasswordPayload {
   newPassword: string
   newPasswordConfirm: string
 }
+// 인증코드 발송 요청 후 백엔드가 돌려주는 값입니다.
+export interface PasswordVerificationRequestResponse {
+  // 나중에 인증코드 확인 단계에서 다시 보낼 요청 ID 입니다.
+  verificationRequestId: string
+
+  // 인증코드 만료 시각입니다.
+  expiresAt: string
+}
+
+// 이메일 인증코드 확인 단계에서 보낼 요청 바디입니다.
+export interface PasswordVerificationConfirmPayload {
+  // 어떤 인증 요청인지 구분하는 ID 입니다.
+  verificationRequestId: string
+
+  // 이메일로 받은 6자리 인증코드입니다.
+  verificationCode: string
+}
+
 
 // userPublicId로 현재 사용자 상세를 조회합니다.
 // 여기서 내부 userId를 얻어서 비밀번호 변경 API에 사용합니다.
@@ -141,14 +159,30 @@ export async function getDepartments(): Promise<DepartmentOption[]> {
   return response.data
 }
 
-// userId 기준으로 비밀번호를 변경합니다.
-// 성공하면 응답 본문 없이 끝납니다.
-export async function changePassword(
+// 비밀번호 변경용 이메일 인증코드 발송을 요청합니다.
+export async function requestPasswordChangeVerification(
   userId: number,
   payload: ChangePasswordPayload,
-): Promise<void> {
-  await apiClient.patch(`/api/auth/users/${userId}/password`, payload)
+): Promise<PasswordVerificationRequestResponse> {
+  const response = await apiClient.post<PasswordVerificationRequestResponse>(
+    `/api/auth/users/${userId}/password/verification-request`,
+    payload,
+  )
+
+  return response.data
 }
+
+// 이메일 인증코드를 확인하고 실제 비밀번호 변경을 완료합니다.
+export async function confirmPasswordChangeVerification(
+  userId: number,
+  payload: PasswordVerificationConfirmPayload,
+): Promise<void> {
+  await apiClient.post(
+    `/api/auth/users/${userId}/password/verification-confirm`,
+    payload,
+  )
+}
+
 
 export interface CreateInitialOrgAdminPayload {
   // 로그인 ID는 서버가 자동 생성하므로 프론트에서는 보내지 않습니다.
