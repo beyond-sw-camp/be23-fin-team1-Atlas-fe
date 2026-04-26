@@ -7,12 +7,13 @@ import PhoneField from '../../../components/forms/PhoneField.vue'
 import BaseModal from '../../shared/components/BaseModal.vue'
 import { getAttachmentOriginalImagePath, uploadUserProfileImage } from '../../../services/file'
 import {
-  changePassword,
+  confirmPasswordChangeVerification,
   getDepartments,
   getMyInfo,
   getMyLoginHistories,
   getMySecurityHistories,
   getUserDetailByPublicId,
+  requestPasswordChangeVerification,
   updateUser,
   type DepartmentOption,
   type LoginHistoryListItem,
@@ -20,6 +21,7 @@ import {
   type SecurityHistoryListItem,
   type UserDetailResponse,
 } from '../../../services/user'
+
 import {
   getMyOrganizationDetail,
   type OrganizationDetailResponse,
@@ -130,8 +132,29 @@ const isLoadingDepartmentOptions = ref(false)
 // 프로필 이미지 업로드 상태입니다.
 const isUploadingProfileImage = ref(false)
 
-// 강제 비밀번호 변경 저장 중 상태입니다.
-const isSubmittingPassword = ref(false)
+// 이메일 인증코드 발송 단계 로딩 상태입니다.
+const isRequestingPasswordVerification = ref(false)
+
+// 이메일 인증코드 확인 단계 로딩 상태입니다.
+const isConfirmingPasswordVerification = ref(false)
+
+// 비밀번호 변경 관련 로딩 상태를 하나로 합쳐서 버튼 비활성화에 씁니다.
+const isSubmittingPassword = computed(() => {
+  return isRequestingPasswordVerification.value || isConfirmingPasswordVerification.value
+})
+
+// 백엔드가 내려준 비밀번호 변경 인증 요청 ID 입니다.
+const passwordVerificationRequestId = ref('')
+
+// 인증코드 만료 시각입니다.
+const passwordVerificationExpiresAt = ref('')
+
+// 사용자가 입력할 이메일 인증코드입니다.
+const passwordVerificationCode = ref('')
+
+// 인증코드 입력 단계인지 표시합니다.
+const passwordVerificationRequired = ref(false)
+
 
 // 조회 모드와 수정 모드를 나눕니다.
 const isEditing = ref(false)
@@ -186,6 +209,21 @@ const datePickerLocale = computed(() => {
 
   return enUS
 })
+// 인증코드 입력 단계 상태를 초기화합니다.
+function resetPasswordVerificationState() {
+  passwordVerificationRequestId.value = ''
+  passwordVerificationExpiresAt.value = ''
+  passwordVerificationCode.value = ''
+  passwordVerificationRequired.value = false
+}
+
+// 비밀번호 입력값을 한 번에 비웁니다.
+function clearPasswordForm() {
+  passwordForm.currentPassword = ''
+  passwordForm.newPassword = ''
+  passwordForm.newPasswordConfirm = ''
+}
+
 
 // 입력칸과 달력 표시 형식을 언어에 맞춥니다.
 const datePickerFormats = computed(() => ({
@@ -495,7 +533,8 @@ async function submitProfileUpdate() {
   }
 }
 
-// 강제 비밀번호 변경 처리입니다.
+// 비밀번호 변경 1단계입니다.
+// 새 비밀번호를 검증한 뒤 이메일 인증코드 발송을 요청합니다.
 async function submitPasswordChange() {
   passwordError.value = ''
   passwordSuccess.value = ''
@@ -518,7 +557,7 @@ async function submitPasswordChange() {
     return
   }
 
-  // 두 값이 다르면 변경하지 않습니다.
+  // 두 값이 다르면 인증 요청을 보내지 않습니다.
   if (passwordForm.newPassword !== passwordForm.newPasswordConfirm) {
     passwordError.value =
       preferences.language === 'ko'
@@ -528,42 +567,100 @@ async function submitPasswordChange() {
   }
 
   try {
-    isSubmittingPassword.value = true
+    isRequestingPasswordVerification.value = true
 
-    // 강제 변경 상황이라 현재 비밀번호는 빈 값으로 보냅니다.
-    await changePassword(currentUserId.value, {
-      currentPassword: '',
+    // 비밀번호 변경용 이메일 인증코드 발송을 요청합니다.
+    const response = await requestPasswordChangeVerification(currentUserId.value, {
+      currentPassword: passwordForm.currentPassword,
       newPassword: passwordForm.newPassword,
       newPasswordConfirm: passwordForm.newPasswordConfirm,
     })
 
-    // 강제 변경 상태를 해제합니다.
-    session.passwordChangeRequired = false
-    window.sessionStorage.setItem('atlas-password-change-required', 'false')
+    // 2단계 확인에서 쓸 요청 정보를 저장합니다.
+    passwordVerificationRequestId.value = response.verificationRequestId
+    passwordVerificationExpiresAt.value = response.expiresAt
+    passwordVerificationCode.value = ''
+    passwordVerificationRequired.value = true
 
-    // 입력값을 비웁니다.
-    passwordForm.currentPassword = ''
-    passwordForm.newPassword = ''
-    passwordForm.newPasswordConfirm = ''
-
-    // 프로필 데이터를 다시 읽습니다.
-    await loadProfileData()
-
-    // 접근 가능한 첫 화면으로 이동합니다.
-    const firstAvailablePage =
-      navigation.availableNavItems.find((item) => !item.hidden)?.key ?? 'profile'
-
-    navigation.navigateToPage(firstAvailablePage)
+    passwordSuccess.value =
+      preferences.language === 'ko'
+        ? '인증코드를 이메일로 보냈습니다. 3분 안에 입력해 주세요.'
+        : 'A verification code has been sent to your email. Please enter it within 3 minutes.'
   } catch (error: any) {
     passwordError.value =
       error?.payload?.message ||
       (preferences.language === 'ko'
-        ? '비밀번호 변경에 실패했습니다.'
-        : 'Failed to change password.')
+        ? '이메일 인증코드 발송에 실패했습니다.'
+        : 'Failed to send the email verification code.')
   } finally {
-    isSubmittingPassword.value = false
+    isRequestingPasswordVerification.value = false
   }
 }
+
+// 비밀번호 변경 2단계입니다.
+// 이메일 인증코드를 확인하고 실제 비밀번호 변경을 완료합니다.
+async function confirmPasswordChange() {
+  passwordError.value = ''
+  passwordSuccess.value = ''
+
+  // 내부 userId가 없으면 진행할 수 없습니다.
+  if (!currentUserId.value) {
+    passwordError.value =
+      preferences.language === 'ko'
+        ? '사용자 식별 정보를 찾지 못했습니다.'
+        : 'Could not find the current user id.'
+    return
+  }
+
+  // 먼저 인증 요청이 있어야 확인을 진행할 수 있습니다.
+  if (!passwordVerificationRequestId.value) {
+    passwordError.value =
+      preferences.language === 'ko'
+        ? '먼저 인증코드 발송을 요청해 주세요.'
+        : 'Please request a verification code first.'
+    return
+  }
+
+  // 사용자가 인증코드를 입력했는지 확인합니다.
+  if (!passwordVerificationCode.value.trim()) {
+    passwordError.value =
+      preferences.language === 'ko'
+        ? '이메일 인증코드를 입력해 주세요.'
+        : 'Please enter the email verification code.'
+    return
+  }
+
+  try {
+    isConfirmingPasswordVerification.value = true
+
+    // 이메일 인증코드를 검증하고 실제 비밀번호 변경을 완료합니다.
+    await confirmPasswordChangeVerification(currentUserId.value, {
+      verificationRequestId: passwordVerificationRequestId.value,
+      verificationCode: passwordVerificationCode.value.trim(),
+    })
+
+    // 인증 상태와 입력값을 모두 비웁니다.
+    resetPasswordVerificationState()
+    clearPasswordForm()
+
+    // 비밀번호가 바뀌면 기존 토큰이 더 이상 유효하지 않으므로
+    // 새 비밀번호로 다시 로그인하도록 로그아웃시킵니다.
+    session.signOut(
+      preferences.language === 'ko'
+        ? '비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.'
+        : 'Your password has been changed. Please sign in again with your new password.',
+    )
+  } catch (error: any) {
+    passwordError.value =
+      error?.payload?.message ||
+      (preferences.language === 'ko'
+        ? '이메일 인증 확인에 실패했습니다.'
+        : 'Failed to verify the email code.')
+  } finally {
+    isConfirmingPasswordVerification.value = false
+  }
+}
+
 
 // 화면에 보여줄 전체 이름입니다.
 const fullName = computed(() => {
@@ -1077,33 +1174,81 @@ onBeforeUnmount(() => {
         {{ preferences.language === 'ko' ? '사용자 정보를 불러오는 중입니다...' : 'Loading user information...' }}
       </div>
 
-      <form v-else class="login-form" @submit.prevent="submitPasswordChange">
-        <label>
-          <span>{{ preferences.language === 'ko' ? '새 비밀번호' : 'New Password' }}</span>
-          <input
-            v-model="passwordForm.newPassword"
-            type="password"
-            autocomplete="new-password"
-          />
-        </label>
+      <form
+  v-else
+  class="login-form"
+  @submit.prevent="passwordVerificationRequired ? confirmPasswordChange() : submitPasswordChange()"
+>
+  <label>
+    <span>{{ preferences.language === 'ko' ? '새 비밀번호' : 'New Password' }}</span>
+    <input
+      v-model="passwordForm.newPassword"
+      type="password"
+      autocomplete="new-password"
+      :disabled="passwordVerificationRequired || isSubmittingPassword"
+    />
+  </label>
 
-        <label>
-          <span>{{ preferences.language === 'ko' ? '새 비밀번호 확인' : 'Confirm New Password' }}</span>
-          <input
-            v-model="passwordForm.newPasswordConfirm"
-            type="password"
-            autocomplete="new-password"
-          />
-        </label>
+  <label>
+    <span>{{ preferences.language === 'ko' ? '새 비밀번호 확인' : 'Confirm New Password' }}</span>
+    <input
+      v-model="passwordForm.newPasswordConfirm"
+      type="password"
+      autocomplete="new-password"
+      :disabled="passwordVerificationRequired || isSubmittingPassword"
+    />
+  </label>
 
-        <button type="submit" :disabled="isSubmittingPassword">
-          {{
-            isSubmittingPassword
-              ? (preferences.language === 'ko' ? '변경 중...' : 'Saving...')
-              : (preferences.language === 'ko' ? '비밀번호 변경' : 'Change Password')
-          }}
-        </button>
-      </form>
+  <div v-if="passwordVerificationRequired" class="login-hint" style="margin-top: 4px;">
+    {{
+      preferences.language === 'ko'
+        ? `인증코드를 이메일로 보냈습니다. 만료 시각: ${formatDateTime(passwordVerificationExpiresAt)}`
+        : `A verification code has been sent to your email. Expires at: ${formatDateTime(passwordVerificationExpiresAt)}`
+    }}
+  </div>
+
+  <label v-if="passwordVerificationRequired">
+    <span>{{ preferences.language === 'ko' ? '이메일 인증코드' : 'Email Verification Code' }}</span>
+    <input
+      v-model="passwordVerificationCode"
+      type="text"
+      inputmode="numeric"
+      maxlength="6"
+      autocomplete="one-time-code"
+      :disabled="isSubmittingPassword"
+    />
+  </label>
+
+  <button type="submit" :disabled="isSubmittingPassword">
+    {{
+      passwordVerificationRequired
+        ? (
+            isConfirmingPasswordVerification
+              ? (preferences.language === 'ko' ? '확인 중...' : 'Verifying...')
+              : (preferences.language === 'ko' ? '인증 확인 후 변경' : 'Verify and Change Password')
+          )
+        : (
+            isRequestingPasswordVerification
+              ? (preferences.language === 'ko' ? '발송 중...' : 'Sending...')
+              : (preferences.language === 'ko' ? '인증코드 보내기' : 'Send Verification Code')
+          )
+    }}
+  </button>
+
+  <button
+    v-if="passwordVerificationRequired"
+    type="button"
+    :disabled="isSubmittingPassword"
+    @click="submitPasswordChange"
+  >
+    {{
+      isRequestingPasswordVerification
+        ? (preferences.language === 'ko' ? '재발송 중...' : 'Resending...')
+        : (preferences.language === 'ko' ? '인증코드 다시 보내기' : 'Resend Verification Code')
+    }}
+  </button>
+</form>
+
 
       <div v-if="passwordError" class="login-error">{{ passwordError }}</div>
       <div v-if="passwordSuccess" class="login-hint">{{ passwordSuccess }}</div>
