@@ -7,8 +7,10 @@ import {
   getOrganizationDetail,
   getOrganizations,
   updateOrganization,
+  updateOrganizationStatus,
   type OrganizationDetailResponse,
   type OrganizationListItem,
+  type OrganizationStatus,
 } from '../../../services/organization'
 import {
   uploadOrganizationUsersExcel,
@@ -39,6 +41,14 @@ const isOrgAdminManager = computed(() => actor.isOrgAdminRole.value)
 // 조직 수정은 조직 대표자만 할 수 있습니다.
 const canEditOrganization = computed(() => actor.isOrgAdminRole.value)
 
+// 조직 상태 변경은 플랫폼 관리자와 조직 대표자 모두 가능합니다.
+const canChangeOrganizationStatus = computed(() => {
+  return actor.isAdminRole.value || actor.isOrgAdminRole.value
+})
+
+// 조직 삭제는 플랫폼 관리자만 가능합니다.
+const canDeleteOrganization = computed(() => actor.isAdminRole.value)
+
 // 조직관리 페이지 안에서 현재 어떤 탭을 보고 있는지 저장합니다.
 const activeTab = ref<OrganizationManagementTabKey>('organization')
 
@@ -59,6 +69,9 @@ const isLoadingOrganizationDetail = ref(false)
 
 // 저장 버튼 로딩 상태입니다.
 const isSavingOrganization = ref(false)
+
+// 조직 상태 변경 버튼 로딩 상태입니다.
+const isUpdatingOrganizationStatus = ref(false)
 
 // 화면 에러 문구입니다.
 const pageError = ref('')
@@ -145,6 +158,17 @@ const copy = computed(() =>
         contactPhone: '담당자 연락처',
         listPhone: '연락처',
         listEmail: '이메일',
+        activateButton: '활성화',
+        deactivateButton: '비활성화',
+        deleteButton: '삭제',
+        updatingStatusButton: '처리 중...',
+        activateConfirm: '이 조직을 활성화하시겠습니까? 사용자 계정은 자동 복구되지 않습니다.',
+        deactivateConfirm: '이 조직을 비활성화하시겠습니까? 소속 사용자 계정도 함께 비활성화됩니다.',
+        deleteConfirm: '이 조직을 삭제 상태로 변경하시겠습니까? 소속 사용자 계정도 함께 삭제 상태가 됩니다.',
+        activateSuccess: '조직이 활성화되었습니다.',
+        deactivateSuccess: '조직이 비활성화되었습니다.',
+        deleteSuccess: '조직이 삭제 상태로 변경되었습니다.',
+        statusUpdateFailed: '조직 상태 변경에 실패했습니다.',
         validationRequired:
           '조직명, 영문명, 조직 코드, 담당자 이름, 담당자 성, 연락처는 필수입니다.',
         validationAlias:
@@ -210,6 +234,20 @@ const copy = computed(() =>
         contactPhone: 'Contact Phone',
         listPhone: 'Phone',
         listEmail: 'Email',
+        activateButton: 'Activate',
+        deactivateButton: 'Deactivate',
+        deleteButton: 'Delete',
+        updatingStatusButton: 'Updating...',
+        activateConfirm:
+          'Do you want to activate this organization? User accounts are not restored automatically.',
+        deactivateConfirm:
+          'Do you want to deactivate this organization? Member accounts will also be deactivated.',
+        deleteConfirm:
+          'Do you want to mark this organization as deleted? Member accounts will also be marked as deleted.',
+        activateSuccess: 'Organization activated.',
+        deactivateSuccess: 'Organization deactivated.',
+        deleteSuccess: 'Organization marked as deleted.',
+        statusUpdateFailed: 'Failed to update organization status.',
         validationRequired:
           'Organization name, English name, organization code, contact first name, contact last name, and phone are required.',
         validationAlias:
@@ -229,6 +267,11 @@ const copy = computed(() =>
 const selectedOrganizationLabel = computed(() => {
   return selectedOrganizationDetail.value?.organizationName || '-'
 })
+// 삭제 상태 조직은 기본 목록에서 숨깁니다.
+const visibleOrganizationRows = computed(() => {
+  return organizationRows.value.filter((row) => row.status !== 'DELETE')
+})
+
 
 // 목록 row 안에 organizationId가 실제로 있는지 확인합니다.
 function hasOrganizationId(row: OrganizationListItem) {
@@ -485,6 +528,83 @@ async function submitOrganizationUpdate() {
   }
 }
 
+// 조직 상태를 활성화, 비활성화, 삭제 중 하나로 변경합니다.
+async function submitOrganizationStatusUpdate(nextStatus: OrganizationStatus) {
+  if (!selectedOrganizationDetail.value) {
+    return
+  }
+
+  resetMessages()
+
+  // 상태별 확인 문구를 다르게 보여줍니다.
+  const confirmMessage =
+    nextStatus === 'ACTIVE'
+      ? copy.value.activateConfirm
+      : nextStatus === 'DEACTIVE'
+        ? copy.value.deactivateConfirm
+        : copy.value.deleteConfirm
+
+  if (!window.confirm(confirmMessage)) {
+    return
+  }
+
+  try {
+    isUpdatingOrganizationStatus.value = true
+
+    // 백엔드 조직 상태 변경 API를 호출합니다.
+    const saved = await updateOrganizationStatus(
+      selectedOrganizationDetail.value.organizationId,
+      { status: nextStatus },
+    )
+
+    // 삭제 상태가 되면 기본 목록에서 숨기고 상세 패널도 닫습니다.
+    if (nextStatus === 'DELETE') {
+      organizationRows.value = organizationRows.value.filter(
+        (row) => !(hasOrganizationId(row) && row.organizationId === saved.organizationId),
+      )
+      selectedOrganizationId.value = null
+      selectedOrganizationDetail.value = null
+      pageSuccess.value = copy.value.deleteSuccess
+      return
+    }
+
+    // 오른쪽 상세 패널 상태를 최신값으로 갱신합니다.
+    selectedOrganizationDetail.value = saved
+    syncOrganizationForm(saved)
+
+    // 왼쪽 목록 상태도 같이 맞춰줍니다.
+    organizationRows.value = organizationRows.value.map((row) =>
+      hasOrganizationId(row) && row.organizationId === saved.organizationId
+        ? {
+            ...row,
+            organizationName: saved.organizationName,
+            organizationType: saved.organizationType,
+            businessNo: saved.businessNo ?? '',
+            contactEmail: saved.contactEmail ?? '',
+            contactPhone: saved.contactPhone,
+            status: saved.status,
+          }
+        : row,
+    )
+
+    // 상태별 성공 문구를 보여줍니다.
+    pageSuccess.value =
+      nextStatus === 'ACTIVE'
+        ? copy.value.activateSuccess
+        : nextStatus === 'DEACTIVE'
+          ? copy.value.deactivateSuccess
+          : copy.value.deleteSuccess
+  } catch (error: any) {
+    pageError.value =
+      error?.payload?.message ||
+      error?.message ||
+      copy.value.statusUpdateFailed
+  } finally {
+    isUpdatingOrganizationStatus.value = false
+  }
+}
+
+
 // 조직 대표자가 엑셀 파일로 자기 조직 사원을 일괄 등록합니다.
 async function handleMemberExcelUpload(event: Event) {
   // 파일 input 요소를 가져옵니다.
@@ -574,7 +694,7 @@ onMounted(() => {
             {{ copy.loadingList }}
           </div>
 
-          <div v-else-if="organizationRows.length === 0" class="page-feed">
+          <div v-else-if="visibleOrganizationRows.length === 0" class="page-feed">
             <div class="page-feed__item">
               <span class="page-feed__label">{{ copy.listTitle }}</span>
               <strong class="page-feed__text">{{ copy.emptyList }}</strong>
@@ -583,7 +703,7 @@ onMounted(() => {
 
           <div v-else class="page-feed">
             <div
-              v-for="row in organizationRows"
+              v-for="row in visibleOrganizationRows"
               :key="row.organizationPublicId || row.organizationName"
               class="page-feed__item"
               :style="{
@@ -677,6 +797,42 @@ onMounted(() => {
                 {{ formatOrganizationStatus(selectedOrganizationDetail.status) }}
               </span>
             </div>
+          </div>
+
+          <div
+            v-if="selectedOrganizationDetail && activeTab === 'organization' && canChangeOrganizationStatus"
+            style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;"
+          >
+            <button
+              v-if="selectedOrganizationDetail.status !== 'ACTIVE'"
+              class="page-button page-button--secondary"
+              type="button"
+              :disabled="isUpdatingOrganizationStatus"
+              @click="submitOrganizationStatusUpdate('ACTIVE')"
+            >
+              {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.activateButton }}
+            </button>
+
+            <button
+              v-if="selectedOrganizationDetail.status === 'ACTIVE'"
+              class="page-button page-button--secondary"
+              type="button"
+              :disabled="isUpdatingOrganizationStatus"
+              @click="submitOrganizationStatusUpdate('DEACTIVE')"
+            >
+              {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.deactivateButton }}
+            </button>
+
+            <button
+              v-if="canDeleteOrganization && selectedOrganizationDetail.status !== 'DELETE'"
+              class="page-button"
+              type="button"
+              style="background: #b91c1c; color: white;"
+              :disabled="isUpdatingOrganizationStatus"
+              @click="submitOrganizationStatusUpdate('DELETE')"
+            >
+              {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.deleteButton }}
+            </button>
           </div>
 
           <div v-if="pageError && activeTab === 'organization'" class="login-error" style="margin-bottom: 12px;">

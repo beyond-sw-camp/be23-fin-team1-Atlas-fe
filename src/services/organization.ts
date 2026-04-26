@@ -138,3 +138,22 @@ export async function updateOrganization(
 
   return response.data
 }
+export type OrganizationStatus = 'ACTIVE' | 'DEACTIVE' | 'DELETE'
+
+export interface UpdateOrganizationStatusPayload {
+  status: OrganizationStatus
+}
+
+// 조직 상태를 ACTIVE, DEACTIVE, DELETE 중 하나로 변경합니다.
+export async function updateOrganizationStatus(
+  organizationId: number,
+  payload: UpdateOrganizationStatusPayload,
+): Promise<OrganizationDetailResponse> {
+  const response = await apiClient.patch<OrganizationDetailResponse>(
+    `/api/auth/organizations/${organizationId}/status`,
+    payload,
+  )
+
+  return response.data
+}
+
