@@ -28,7 +28,7 @@ const selectedUsers = ref<string[]>([])
 
 const currentUserDisplayName = computed(() => {
   const me = chatStore.availableUsers.find(u => u.userPublicId === chatStore.currentUserPublicId)
-  return me?.displayName || sessionStore.user?.userName || '나'
+  return me?.displayName || sessionStore.loginId || '나'
 })
 
 const filteredAvailableUsers = computed(() => {

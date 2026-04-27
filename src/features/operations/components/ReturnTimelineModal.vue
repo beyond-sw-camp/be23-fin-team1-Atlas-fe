@@ -22,9 +22,9 @@ const isUpdating = ref(false)
 const reasonText = ref('')
 
 // 사유 펼침 상태 관리
-const expandedHistoryIds = ref<Set<string>>(new Set())
+const expandedHistoryIds = ref<Set<number>>(new Set())
 
-function toggleHistoryReason(id: string) {
+function toggleHistoryReason(id: number) {
   if (expandedHistoryIds.value.has(id)) {
     expandedHistoryIds.value.delete(id)
   } else {
