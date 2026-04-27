@@ -12,6 +12,7 @@ import { useAtlasPreferencesStore } from '../stores/preferences'
 import { useAtlasSessionStore } from '../stores/session'
 import { useAtlasUiStore } from '../stores/ui'
 import { useAtlasChatStore } from '../stores/chat'
+import { useAtlasNotificationStore } from '../stores/notification'
 import BaseModal from '../features/shared/components/BaseModal.vue'
 
 // 현재 라우트 정보입니다.
@@ -35,6 +36,9 @@ const ui = useAtlasUiStore()
 // 채팅과 알림 연결을 담당하는 스토어입니다.
 const chatStore = useAtlasChatStore()
 
+// 알림 배지와 목록 상태입니다.
+const notificationStore = useAtlasNotificationStore()
+
 // 로그인 상태와 강제 비밀번호 변경 상태를 함께 감시합니다.
 // 강제 비밀번호 변경 중에는 일반 앱 화면을 쓰지 않으므로 채팅 연결도 열지 않습니다.
 watch(
@@ -42,6 +46,7 @@ watch(
   ([isAuth, mustChangePassword]) => {
     // 로그인되어 있고, 강제 비밀번호 변경 상태가 아닐 때만 연결합니다.
     if (isAuth && !mustChangePassword) {
+      notificationStore.fetchUnreadCount()
       chatStore.connectStomp()
     } else {
       // 로그아웃 상태이거나 비밀번호 변경 전용 화면이면 연결을 끊습니다.
