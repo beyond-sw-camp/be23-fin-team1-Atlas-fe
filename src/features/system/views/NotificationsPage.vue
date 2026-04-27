@@ -23,6 +23,13 @@ const CONTENT = {
     search: '제목, 메시지, 유형 검색...',
     readAll: '전체 읽음',
     tableTitle: '알림 목록',
+    preferencesTitle: '개인 알림 설정',
+    preferencesEyebrow: 'PREFERENCES',
+    preferencesDescription: '카테고리별 알림 수신 여부는 서버에 저장되며, 꺼진 알림은 발행되지 않습니다.',
+    preferencesEmpty: '표시할 알림 설정이 없습니다.',
+    preferencesLoading: '알림 설정을 불러오는 중입니다.',
+    enabled: 'ON',
+    disabled: 'OFF',
     empty: '표시할 알림이 없습니다.',
     loading: '알림 목록을 불러오는 중입니다.',
     retry: '다시 불러오기',
@@ -55,6 +62,13 @@ const CONTENT = {
     search: 'Search title, message, type...',
     readAll: 'Mark all read',
     tableTitle: 'Notification List',
+    preferencesTitle: 'Notification Preferences',
+    preferencesEyebrow: 'PREFERENCES',
+    preferencesDescription: 'Category preferences are stored on the server. Disabled notifications are not published.',
+    preferencesEmpty: 'No notification preferences to display.',
+    preferencesLoading: 'Loading notification preferences.',
+    enabled: 'ON',
+    disabled: 'OFF',
     empty: 'No notifications to display.',
     loading: 'Loading notifications.',
     retry: 'Retry',
@@ -171,6 +185,14 @@ async function loadNotifications(page = notificationStore.currentPage) {
   ])
 }
 
+function isPreferenceUpdating(category: string) {
+  return notificationStore.updatingPreferenceCategories.includes(category)
+}
+
+async function handlePreferenceToggle(category: string, enabled: boolean) {
+  await notificationStore.setPreferenceEnabled(category, enabled)
+}
+
 async function handleRead(notification: NotificationDto) {
   if (notification.readYn) return
   await notificationStore.readNotification(notification.publicId)
@@ -208,7 +230,10 @@ function syncHeaderActions() {
 
 onMounted(async () => {
   syncHeaderActions()
-  await loadNotifications(0)
+  await Promise.all([
+    loadNotifications(0),
+    notificationStore.fetchPreferences(),
+  ])
 })
 
 watch(() => preferences.language, () => {
@@ -341,5 +366,57 @@ onBeforeUnmount(() => {
         &gt;
       </button>
     </nav>
+
+    <article class="page-panel notifications-page__preferences">
+      <div class="page-panel__head">
+        <div>
+          <span class="page-panel__eyebrow">{{ content.preferencesEyebrow }}</span>
+          <h3>{{ content.preferencesTitle }}</h3>
+          <p class="notifications-page__preferences-description">{{ content.preferencesDescription }}</p>
+        </div>
+        <span class="page-panel__chip">{{ notificationStore.preferences.length }}</span>
+      </div>
+
+      <div v-if="notificationStore.isLoadingPreferences" class="notifications-page__state">
+        {{ content.preferencesLoading }}
+      </div>
+      <div v-else-if="notificationStore.preferencesErrorMessage" class="notifications-page__state is-error">
+        <strong>{{ notificationStore.preferencesErrorMessage }}</strong>
+        <button class="page-button page-button--secondary" type="button" @click="notificationStore.fetchPreferences()">
+          {{ content.retry }}
+        </button>
+      </div>
+      <div v-else-if="notificationStore.preferences.length === 0" class="notifications-page__state">
+        {{ content.preferencesEmpty }}
+      </div>
+
+      <div v-else class="notifications-page__preference-list">
+        <div
+          v-for="preference in notificationStore.preferences"
+          :key="preference.category"
+          class="notifications-page__preference-item"
+        >
+          <div class="notifications-page__preference-copy">
+            <strong>{{ preference.label }}</strong>
+            <span>{{ preference.description }}</span>
+            <small>{{ preference.category }}</small>
+          </div>
+          <div class="notifications-page__preference-control">
+            <span class="notifications-page__preference-status">
+              {{ preference.enabled ? content.enabled : content.disabled }}
+            </span>
+            <button
+              class="risk-rules-toggle notifications-page__preference-toggle"
+              :class="{ 'is-on': preference.enabled }"
+              type="button"
+              role="switch"
+              :aria-checked="preference.enabled"
+              :disabled="!preference.userConfigurable || isPreferenceUpdating(preference.category)"
+              @click="handlePreferenceToggle(preference.category, !preference.enabled)"
+            />
+          </div>
+        </div>
+      </div>
+    </article>
   </section>
 </template>
