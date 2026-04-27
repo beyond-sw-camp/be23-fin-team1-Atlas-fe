@@ -11,12 +11,18 @@ const props = withDefaults(
     closeOnBackdrop?: boolean
     closeOnEscape?: boolean
     size?: 'sm' | 'md' | 'lg'
+    hideEyebrow?: boolean
+    hideDividers?: boolean
+    hideCloseButton?: boolean
   }>(),
   {
     description: undefined,
     closeOnBackdrop: true,
     closeOnEscape: true,
     size: 'md',
+    hideEyebrow: false,
+    hideDividers: false,
+    hideCloseButton: false,
   },
 )
 
@@ -66,10 +72,21 @@ onBeforeUnmount(() => {
     <div v-if="modelValue" class="base-modal" role="dialog" aria-modal="true" :aria-label="title">
       <div class="base-modal__backdrop" @click="handleBackdropClick" />
 
-      <section :class="['base-modal__surface', `base-modal__surface--${size}`]">
-        <header class="base-modal__header">
+<section
+  :class="[
+    'base-modal__surface',
+    `base-modal__surface--${size}`,
+    { 'base-modal__surface--clean': hideDividers },
+  ]"
+>
+        <header
+  class="base-modal__header"
+  :style="props.hideDividers ? { borderBottom: '0', paddingBottom: '16px' } : undefined"
+>
           <div class="base-modal__heading">
-            <span class="base-modal__eyebrow">{{ resolveDefaultCopy('Modal', preferences.language) }}</span>
+          <span v-if="!props.hideEyebrow" class="base-modal__eyebrow">
+  {{ resolveDefaultCopy('Modal', preferences.language) }}
+</span>
             <h2>{{ resolveDefaultCopy(title, preferences.language) }}</h2>
             <p v-if="description">{{ resolveDefaultCopy(description, preferences.language) }}</p>
           </div>
@@ -77,24 +94,28 @@ onBeforeUnmount(() => {
           <div class="base-modal__header-actions">
             <slot name="header-actions" />
 
-            <button
-              class="page-button page-button--secondary base-modal__close"
-              type="button"
-              :aria-label="resolveDefaultCopy('Close modal', preferences.language)"
-              @click="close"
-            >
-              <span class="material-symbols-outlined">close</span>
-            </button>
+         <button
+  v-if="!props.hideCloseButton"
+  class="page-button page-button--secondary base-modal__close"
+  type="button"
+  :aria-label="resolveDefaultCopy('Close modal', preferences.language)"
+  @click="close"
+>
+  <span class="material-symbols-outlined">close</span>
+</button>
           </div>
         </header>
 
-        <div class="base-modal__body">
-          <slot />
-        </div>
-
-        <footer v-if="$slots.footer" class="base-modal__footer">
-          <slot name="footer" />
-        </footer>
+       <div v-if="$slots.default" class="base-modal__body">
+  <slot />
+</div>
+        <footer
+  v-if="$slots.footer"
+  class="base-modal__footer"
+  :style="props.hideDividers ? { borderTop: '0', paddingTop: '0' } : undefined"
+>
+  <slot name="footer" />
+</footer>
       </section>
     </div>
   </Teleport>
