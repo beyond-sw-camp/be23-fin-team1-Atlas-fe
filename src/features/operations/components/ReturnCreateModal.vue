@@ -2,7 +2,6 @@
 import { ref, computed, watch } from 'vue'
 import { BaseModal } from '../../shared'
 import { createReturn, type CreateReturnRequestDto, type CreateReturnItemDto } from '../../../services/return'
-import { getOrganizations, type OrganizationListItem } from '../../../services/organization'
 import { getItems, type ItemResponseDto } from '../../../services/item'
 
 const props = defineProps<{
@@ -14,21 +13,6 @@ const emit = defineEmits<{
   close: []
   success: []
 }>()
-
-// 실제 조직 목록을 담아둘 상태입니다.
-const organizations = ref<OrganizationListItem[]>([])
-
-// 조직 목록 로딩 상태입니다.
-const isOrganizationsLoading = ref(false)
-
-// 요청 조직 드롭다운에 보여줄 목록입니다.
-// 우선은 전체 조직을 보여주고, 필요하면 나중에 BUYER만 필터링할 수 있습니다.
-const requestOrganizations = computed(() => organizations.value)
-
-// 대상 조직은 협력사(SUPPLIER)만 보여줍니다.
-const targetOrganizations = computed(() =>
-  organizations.value.filter((org) => org.organizationType === 'SUPPLIER'),
-)
 
 const items = ref<ItemResponseDto[]>([])
 
@@ -44,12 +28,7 @@ function createEmptyItem(): CreateReturnItemDto {
 }
 
 const form = ref<CreateReturnRequestDto>({
-  returnNumber: `RT-${Date.now()}`,
   sourceShipmentPublicId: '',
-  requestOrganizationPublicId: '',
-  requestOrganizationName: '',
-  targetOrganizationPublicId: '',
-  targetOrganizationName: '',
   returnType: 'DEFECTIVE',
   returnReason: '',
   attachmentPublicIds: [],
@@ -57,41 +36,6 @@ const form = ref<CreateReturnRequestDto>({
 })
 
 const isSubmitting = ref(false)
-
-// 조직 목록을 실제 API에서 불러옵니다.
-async function loadOrganizations() {
-  try {
-    isOrganizationsLoading.value = true
-
-    // 드롭다운 용도라서 넉넉하게 100개 정도 먼저 가져옵니다.
-    const response = await getOrganizations({
-      page: 0,
-      size: 100,
-    })
-
-    organizations.value = response.content ?? []
-
-    // 로그인한 조직이 있으면 요청 조직 기본값으로 먼저 채워줍니다.
-    const currentOrganizationPublicId =
-      window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
-
-    if (currentOrganizationPublicId) {
-      const currentOrganization = organizations.value.find(
-        (org) => org.organizationPublicId === currentOrganizationPublicId,
-      )
-
-      if (currentOrganization) {
-        form.value.requestOrganizationPublicId = currentOrganization.organizationPublicId
-        form.value.requestOrganizationName = currentOrganization.organizationName
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load organizations', error)
-    organizations.value = []
-  } finally {
-    isOrganizationsLoading.value = false
-  }
-}
 
 async function loadItems() {
   try {
@@ -111,9 +55,7 @@ const content = computed(() => {
     ? {
         title: '신규 반품(Return) 생성',
         desc: '발주 또는 출하된 품목에 대해 반품을 요청합니다.',
-        returnNo: '반품 번호 (Return No.)',
-        reqOrg: '요청 조직 (본사/창고)',
-        targetOrg: '대상 조직 (협력사)',
+        sourceShipment: '원본 출하 Public ID',
         type: '반품 유형',
         reason: '반품 사유 (전체)',
         items: '반품 대상 품목',
@@ -130,9 +72,7 @@ const content = computed(() => {
     : {
         title: 'Create Return Request',
         desc: 'Request a return for ordered or shipped items.',
-        returnNo: 'Return No.',
-        reqOrg: 'Request Org (Hub/Warehouse)',
-        targetOrg: 'Target Org (Supplier)',
+        sourceShipment: 'Source Shipment Public ID',
         type: 'Return Type',
         reason: 'Return Reason (Overall)',
         items: 'Return Items',
@@ -147,25 +87,6 @@ const content = computed(() => {
         submit: 'SUBMIT REQUEST'
       }
 })
-
-function handleTargetOrgChange(e: Event) {
-  const val = (e.target as HTMLSelectElement).value
-  const found = targetOrganizations.value.find((o) => o.organizationPublicId === val)
-
-  if (found) {
-    form.value.targetOrganizationName = found.organizationName
-  }
-}
-
-function handleReqOrgChange(e: Event) {
-  const val = (e.target as HTMLSelectElement).value
-  const found = requestOrganizations.value.find((o) => o.organizationPublicId === val)
-
-  if (found) {
-    form.value.requestOrganizationName = found.organizationName
-  }
-}
-
 
 function handleItemChange(index: number, e: Event) {
   const val = (e.target as HTMLSelectElement).value
@@ -191,8 +112,8 @@ watch(
   () => props.isOpen,
   (isOpen) => {
     if (isOpen) {
+      form.value.sourceShipmentPublicId = ''
       form.value.items = [createEmptyItem()]
-      loadOrganizations()
       loadItems()
     }
   },
@@ -202,8 +123,8 @@ watch(
 
 
 async function handleSubmit() {
-  if (!form.value.targetOrganizationPublicId) {
-    alert(props.language === 'ko' ? '대상 조직(협력사)을 선택해주세요.' : 'Please select target organization.')
+  if (!form.value.sourceShipmentPublicId.trim()) {
+    alert(props.language === 'ko' ? '원본 출하 Public ID를 입력해주세요.' : 'Please enter source shipment public ID.')
     return
   }
   if (form.value.items.some(i => !i.itemPublicId || i.returnQty <= 0)) {
@@ -237,8 +158,8 @@ async function handleSubmit() {
       <div class="terminal-grid-2">
         <div class="terminal-form-group">
           <label>
-            <span>{{ content.returnNo }}</span>
-            <input v-model="form.returnNumber" type="text" required :disabled="isSubmitting" />
+            <span>{{ content.sourceShipment }}</span>
+            <input v-model="form.sourceShipmentPublicId" type="text" required :disabled="isSubmitting" />
           </label>
         </div>
         <div class="terminal-form-group">
@@ -250,47 +171,6 @@ async function handleSubmit() {
               <option value="MISDELIVERY">오배송 (MISDELIVERY)</option>
               <option value="SIMPLE_RETURN">단순변심 (SIMPLE_RETURN)</option>
             </select>
-          </label>
-        </div>
-      </div>
-
-      <div class="terminal-grid-2">
-        <div class="terminal-form-group">
-          <label>
-            <span>{{ content.reqOrg }}</span>
-            <select
-              v-model="form.requestOrganizationPublicId"
-              @change="handleReqOrgChange"
-              required
-              :disabled="isSubmitting || isOrganizationsLoading"
-            >
-              <option value="" disabled>선택</option>
-              <option
-                v-for="org in requestOrganizations"
-                :key="org.organizationPublicId"
-                :value="org.organizationPublicId"
-              >
-                {{ org.organizationName }}
-              </option>
-            </select>
-
-
-          </label>
-        </div>
-        <div class="terminal-form-group">
-          <label>
-            <span>{{ content.targetOrg }}</span>
-              <select v-model="form.targetOrganizationPublicId" @change="handleTargetOrgChange" required :disabled="isSubmitting || isOrganizationsLoading">
-                <option value="" disabled>선택</option>
-                  <option
-                    v-for="org in targetOrganizations"
-                    :key="org.organizationPublicId"
-                    :value="org.organizationPublicId"
-                  >
-                    {{ org.organizationName }}
-                  </option>
-              </select>
-
           </label>
         </div>
       </div>
