@@ -116,8 +116,8 @@ const metricDisplay = computed(() => {
     return base
   }
   
-  const validCerts = certs.value.filter(c => c.status === 'APPROVED' || c.certificateStatus === 'APPROVED').length;
-  const renewalNeeded = certs.value.filter(c => c.status === 'EXPIRED' || c.certificateStatus === 'EXPIRED' || c.status === 'REVOKED' || c.certificateStatus === 'REVOKED').length;
+  const validCerts = certs.value.filter(c => c.certificateStatus === 'APPROVED').length;
+  const renewalNeeded = certs.value.filter(c => c.certificateStatus === 'EXPIRED' || c.certificateStatus === 'REVOKED').length;
   const numSuppliers = new Set(certs.value.map(c => c.supplierPublicId)).size;
   
   base[0] = { ...base[0], value: String(validCerts) }

@@ -36,7 +36,7 @@ const targetOrganizations = computed(() => {
 })
 
 // 품목 목록 (발주 기반으로 필터링됨)
-const items = ref<ItemResponseDto[]>()
+const items = ref<ItemResponseDto[]>([])
 const poItems = ref<{ itemPublicId: string; itemName: string; unit: string; orderedQty: number; poNumber: string; lotPublicId?: string }[]>([])
 const isLoadingPoItems = ref(false)
 
