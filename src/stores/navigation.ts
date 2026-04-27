@@ -6,6 +6,7 @@ import { NAV_ITEMS, NAV_SECTION_LABELS } from '../config/navigation'
 import type { OrganizationType, PageKey } from '../types'
 import { useAtlasPreferencesStore } from './preferences'
 import { useAtlasUiStore } from './ui'
+import { useAtlasSessionStore } from './session'
 
 const ADMIN_HIDDEN_PAGE_KEYS = new Set<PageKey>([
   'ordersDesk',
@@ -23,20 +24,38 @@ const ADMIN_HIDDEN_PAGE_KEYS = new Set<PageKey>([
   'acceptance',
 ])
 
-function getNavItemsForOrganization(organization: OrganizationType) {
+function getNavItemsForOrganization(
+  organization: OrganizationType,
+  userRole: string,
+) {
   return NAV_ITEMS.filter((item) => {
+    // 먼저 조직 타입으로 1차 필터링합니다.
     if (!item.organizations.includes(organization)) return false
+
+    // 관리자 조직에서 숨길 페이지는 그대로 막습니다.
     if (organization === 'admin' && ADMIN_HIDDEN_PAGE_KEYS.has(item.key)) return false
+
+    // 조직관리는 플랫폼 관리자와 조직 대표자만 보이게 합니다.
+    if (item.key === 'organizationManagement') {
+      return userRole === 'ADMIN' || userRole === 'ORG_ADMIN'
+    }
+
     return true
   })
 }
+
 
 export const useAtlasNavigationStore = defineStore('atlasNavigation', () => {
   const router = useRouter()
   const preferences = useAtlasPreferencesStore()
   const ui = useAtlasUiStore()
 
-  const availableNavItems = computed(() => getNavItemsForOrganization(preferences.organization))
+ const session = useAtlasSessionStore()
+
+const availableNavItems = computed(() =>
+  getNavItemsForOrganization(preferences.organization, session.userRole),
+)
+
   const activeNavItem = computed(
     () => availableNavItems.value.find((item) => item.key === preferences.pageKey) ?? availableNavItems.value[0] ?? NAV_ITEMS[0],
   )

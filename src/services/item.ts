@@ -11,7 +11,9 @@ export interface PageResponse<T> {
   empty?: boolean
 }
 
+// 품목/카테고리 상태값
 export type ItemStatus = 'ACTIVE' | 'DEACTIVE' | 'DELETE'
+// 품목 단위
 export type ItemUnit =
   | 'EA'
   | 'SET'
@@ -105,9 +107,30 @@ export interface GetItemsParams {
   size?: number
 }
 
-// 주의:
-// 품목 공급 역량(가용 수량, MOQ, 품질 등급)은 item API 응답에 직접 들어오지 않습니다.
-// 그 값은 supplier.ts 의 item-capabilities API 와 합쳐서 화면에서 사용합니다.
+export interface UpdateItemCategoryRequestDto {
+  parentCategoryPublicId?: string
+  categoryName: string
+  sortOrder?: number
+}
+
+// 품목 카테고리 수정
+export async function updateItemCategory(
+  categoryPublicId: string,
+  data: UpdateItemCategoryRequestDto,
+) {
+  const response = await apiClient.put<ItemCategoryResponseDto>(
+    `/api/supply/item-category/${categoryPublicId}`,
+    data,
+  )
+  return response.data
+}
+
+
+// 품목 카테고리 삭제
+export async function deleteItemCategory(categoryPublicId: string) {
+  await apiClient.delete(`/api/supply/item-category/${categoryPublicId}`)
+}
+
 
 // 품목 목록 조회
 export async function getItems(params: GetItemsParams = {}) {

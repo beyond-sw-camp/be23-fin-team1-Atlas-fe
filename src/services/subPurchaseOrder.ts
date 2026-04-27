@@ -4,7 +4,6 @@ import type { PageResponse } from './item'
 // 서브발주 화면에서 그대로 사용하는 백엔드 enum 타입들입니다.
 export type SubPoStatus =
   | 'CREATED'
-  | 'ACCEPTED'
   | 'PARTIALLY_CONFIRMED'
   | 'CONFIRMED'
   | 'REJECTED'
@@ -20,19 +19,17 @@ export type SubPurchaseOrderLineStatus =
   | 'CANCELLED'
   | 'DELETED'
 
+export type SupplierStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'TERMINATED'
+
 export interface CreateSubPurchaseOrderItemRequestDto {
   parentPoItemPublicId: string
   itemPublicId: string
   orderedQty: number
-  requiredDate?: string
-  unitPrice: number
 }
 
 export interface CreateSubPurchaseOrderRequestDto {
-  subPoNumber: string
   parentPoPublicId: string
   supplierPublicId: string
-  dueDate: string
   items: CreateSubPurchaseOrderItemRequestDto[]
 }
 
@@ -61,8 +58,10 @@ export interface SubPurchaseOrderItemResponseDto {
   lineAmount: number
   orderedQty: number
   confirmedQty: number | null
-  requiredDate: string | null
   lineStatus: SubPurchaseOrderLineStatus
+  expectedDueDate: string | null
+  leadTimeDays: number | null
+  partialConfirmationAllowed: boolean | null
   createdAt: string
   updatedAt: string
 }
@@ -77,12 +76,20 @@ export interface SubPurchaseOrderResponseDto {
   supplierPublicId: string
   supplierCode: string
   supplierName: string
+  supplierStatus: SupplierStatus
   totalAmount: number
   subPoStatus: SubPoStatus
   orderedAt: string
-  dueDate: string
   createdByUserPublicId: string
   items: SubPurchaseOrderItemResponseDto[] | null
+}
+
+export async function getSentSubPurchaseOrders(params: GetReceivedSubPurchaseOrdersParams = {}) {
+  const response = await apiClient.get<PageResponse<SubPurchaseOrderResponseDto>>(
+    '/api/supply/sub-purchase-orders/sent',
+    { params },
+  )
+  return response.data
 }
 
 // 서브발주 등록

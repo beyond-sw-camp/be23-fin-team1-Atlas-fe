@@ -23,7 +23,14 @@ const CONTENT = {
       { label: '오늘 생산', value: '28', meta: '건', tone: 'info' },
       { label: '오늘 검사', value: '41', meta: '건', tone: 'nominal' },
     ],
-    tabs: ['ALL', 'CREATED', 'IN_PRODUCTION', 'COMPLETED', 'SHIPPED', 'DISCARDED'],
+    tabs: [
+      { value: 'ALL', label: '전체' },
+      { value: 'CREATED', label: '생성됨' },
+      { value: 'IN_PRODUCTION', label: '생산 중' },
+      { value: 'COMPLETED', label: '생산 완료' },
+      { value: 'SHIPPED', label: '출하 완료' },
+      { value: 'DISCARDED', label: '폐기됨' }
+    ],
     searchPlaceholder: 'Lot 번호, 품목, 협력사 검색...',
     tableTitle: 'Lot 데이터베이스',
     timelineTitle: '로트 이력 추적',
@@ -43,7 +50,14 @@ const CONTENT = {
       { label: 'PRODUCED TODAY', value: '28', meta: 'CASES', tone: 'info' },
       { label: 'INSPECTED TODAY', value: '41', meta: 'CASES', tone: 'nominal' },
     ],
-    tabs: ['ALL', 'CREATED', 'IN_PRODUCTION', 'COMPLETED', 'SHIPPED', 'DISCARDED'],
+    tabs: [
+      { value: 'ALL', label: 'ALL' },
+      { value: 'CREATED', label: 'CREATED' },
+      { value: 'IN_PRODUCTION', label: 'IN_PRODUCTION' },
+      { value: 'COMPLETED', label: 'COMPLETED' },
+      { value: 'SHIPPED', label: 'SHIPPED' },
+      { value: 'DISCARDED', label: 'DISCARDED' }
+    ],
     searchPlaceholder: 'Search lot, item, or supplier...',
     tableTitle: 'Lot Database',
     timelineTitle: 'Lot Trace History',
@@ -131,6 +145,28 @@ function shortDate(dateStr: string) {
   return dateStr.substring(0, 10)
 }
 
+function formatLotStatus(status: string) {
+  if (preferences.language !== 'ko') return status
+  const map: Record<string, string> = {
+    CREATED: '생성됨',
+    IN_PRODUCTION: '생산 중',
+    COMPLETED: '생산 완료',
+    SHIPPED: '출하 완료',
+    DISCARDED: '폐기됨'
+  }
+  return map[status] || status
+}
+
+function formatQualityStatus(status: string) {
+  if (preferences.language !== 'ko') return status
+  const map: Record<string, string> = {
+    NORMAL: '정상',
+    HOLD: '보류',
+    DEFECTIVE: '불량'
+  }
+  return map[status] || status
+}
+
 async function handleLotSelect(lot: LotResponseDto) {
   openTrace(lot)
   try {
@@ -186,18 +222,44 @@ async function handleStatusUpdate(status: string) {
 
 async function handleQualityUpdate(quality: string) {
   if (!selectedLot.value) return
-  if (!confirm(`Change QUALITY status to ${quality}?`)) return
+  
+  let reason: string | undefined = undefined
+  if (quality === 'DEFECTIVE') {
+    const input = prompt('불합격 사유를 입력해주세요:')
+    if (input === null) return // canceled
+    reason = input || '사유 미입력'
+  } else if (quality === 'HOLD') {
+    const input = prompt('보류 사유를 입력해주세요:')
+    if (input === null) return // canceled
+    reason = input || '사유 미입력'
+  } else {
+    if (!confirm(`품질 상태를 '${formatQualityStatus(quality)}' (으)로 변경하시겠습니까?`)) return
+  }
 
   try {
-    const updated = await updateLotQuality(selectedLot.value.publicId, quality)
+    const updated = await updateLotQuality(selectedLot.value.publicId, quality, reason)
     selectedLot.value = updated // Update the modal payload reference
-    alert(`Quality updated to ${quality}`)
+    alert(`품질 상태가 ${formatQualityStatus(quality)}(으)로 변경되었습니다.`)
     await fetchLots() // refresh list
     // refresh history
     lotHistories.value = await getLotHistories(selectedLot.value.publicId)
   } catch (e: any) {
     alert(`Failed to update quality: ${e.message}`)
   }
+}
+
+// 상태 변경 순서 제어 (역방향 방지)
+function isStatusAllowed(targetStatus: string) {
+  if (!selectedLot.value) return false
+  const order = ['CREATED', 'IN_PRODUCTION', 'COMPLETED', 'SHIPPED']
+  const currentIndex = order.indexOf(selectedLot.value.lotStatus)
+  const targetIndex = order.indexOf(targetStatus)
+  
+  // 폐기된 로트는 상태 변경 불가
+  if (selectedLot.value.lotStatus === 'DISCARDED') return false
+  
+  // 타겟 상태가 현재 상태보다 뒤에 있어야 함
+  return targetIndex > currentIndex
 }
 
 async function handleCreateLotSubmit(data: CreateLotRequestDto) {
@@ -212,7 +274,9 @@ async function handleCreateLotSubmit(data: CreateLotRequestDto) {
 }
 
 watchEffect(() => {
-  activeTab.value = content.value.tabs[0]
+  if (content.value.tabs.length > 0 && !content.value.tabs.find(t => t.value === activeTab.value)) {
+    activeTab.value = content.value.tabs[0].value
+  }
   header.setActions([
     { key: 'lots-export', label: content.value.exportLabel, tone: 'secondary' },
     // Remove the create button from header state since we handle it natively to open modal easier,
@@ -255,12 +319,12 @@ onBeforeUnmount(() => header.clearActions())
           <div class="terminal-page__tabs">
             <button
               v-for="tab in content.tabs"
-              :key="tab"
-              :class="['terminal-page__tab', { 'is-active': activeTab === tab }]"
+              :key="tab.value"
+              :class="['terminal-page__tab', { 'is-active': activeTab === tab.value }]"
               type="button"
-              @click="activeTab = tab"
+              @click="activeTab = tab.value"
             >
-              {{ tab }}
+              {{ tab.label }}
             </button>
           </div>
         </section>
@@ -286,9 +350,9 @@ onBeforeUnmount(() => header.clearActions())
               <span>{{ shortDate(lot.expiredAt) }}</span>
               <!-- Quality Status mapping to simple text/color can be enhanced later -->
               <span :class="{'text-critical': lot.qualityStatus === 'DEFECTIVE', 'text-warning': lot.qualityStatus === 'HOLD'}">
-                {{ lot.qualityStatus }}
+                {{ formatQualityStatus(lot.qualityStatus) }}
               </span>
-              <span>{{ lot.lotStatus }}</span>
+              <span>{{ formatLotStatus(lot.lotStatus) }}</span>
               <span class="lots-page__action-cell">
                 <button class="page-button page-button--secondary lots-page__detail-button" type="button" @click="handleLotSelect(lot)">
                   {{ content.detailLabel }}
@@ -339,7 +403,14 @@ onBeforeUnmount(() => header.clearActions())
       <div v-for="hist in lotHistories" :key="hist.publicId" class="page-feed__item">
         <span class="page-feed__label">{{ formatDate(hist.createdAt) }}</span>
         <strong class="page-feed__text">
-          <span style="opacity: 0.5;">[{{ hist.lotStatus }}]</span> {{ hist.reason }}
+          <template v-if="hist.preQualityStatus !== hist.qualityStatus || (!['CREATED','IN_PRODUCTION','COMPLETED','SHIPPED','DISCARDED'].includes(hist.reason) && hist.preLotStatus === hist.lotStatus)">
+            <span style="opacity: 0.5; margin-right: 4px;" :class="{'text-critical': hist.qualityStatus === 'DEFECTIVE'}">[{{ formatQualityStatus(hist.qualityStatus) }}]</span> 
+            {{ hist.reason === '품질 상태 변경' ? formatQualityStatus(hist.qualityStatus) + ' 처리됨' : hist.reason }}
+          </template>
+          <template v-else>
+            <span style="opacity: 0.5; margin-right: 4px;">[{{ formatLotStatus(hist.lotStatus) }}]</span> 
+            {{ hist.reason === '상태 변경' ? formatLotStatus(hist.lotStatus) + ' 처리됨' : hist.reason }}
+          </template>
         </strong>
       </div>
       <div v-if="lotHistories.length === 0" class="page-feed__item">
@@ -349,19 +420,69 @@ onBeforeUnmount(() => header.clearActions())
     
     <div v-if="selectedLot" style="margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--color-surface-container-high); display: flex; flex-direction: column; gap: 16px;">
       <div>
-        <div style="font-size: 0.75rem; color: var(--color-on-surface); opacity: 0.7; margin-bottom: 8px;">CURRENT STATUS: {{ selectedLot.lotStatus }}</div>
+        <div style="font-size: 0.75rem; color: var(--color-on-surface); opacity: 0.7; margin-bottom: 8px;">{{ preferences.language === 'ko' ? '현재 상태' : 'CURRENT STATUS' }}: {{ formatLotStatus(selectedLot.lotStatus) }}</div>
         <div style="display: flex; gap: 8px;">
-          <button class="page-button page-button--secondary" type="button" @click="handleStatusUpdate('IN_PRODUCTION')">TO PRODUCT</button>
-          <button class="page-button page-button--secondary" type="button" @click="handleStatusUpdate('COMPLETED')">COMPLETED</button>
-          <button class="page-button page-button--secondary" type="button" @click="handleStatusUpdate('SHIPPED')">SHIPPED</button>
+          <button 
+            class="page-button page-button--secondary" 
+            type="button" 
+            :disabled="!isStatusAllowed('IN_PRODUCTION')"
+            :style="!isStatusAllowed('IN_PRODUCTION') ? { opacity: 0.5, cursor: 'not-allowed' } : {}"
+            @click="handleStatusUpdate('IN_PRODUCTION')"
+          >
+            {{ preferences.language === 'ko' ? '생산 중' : 'TO PRODUCT' }}
+          </button>
+          
+          <button 
+            class="page-button page-button--secondary" 
+            type="button" 
+            :disabled="!isStatusAllowed('COMPLETED')"
+            :style="!isStatusAllowed('COMPLETED') ? { opacity: 0.5, cursor: 'not-allowed' } : {}"
+            @click="handleStatusUpdate('COMPLETED')"
+          >
+            {{ preferences.language === 'ko' ? '생산 완료' : 'COMPLETED' }}
+          </button>
+          
+          <button 
+            class="page-button page-button--secondary" 
+            type="button" 
+            :disabled="!isStatusAllowed('SHIPPED')"
+            :style="!isStatusAllowed('SHIPPED') ? { opacity: 0.5, cursor: 'not-allowed' } : {}"
+            @click="handleStatusUpdate('SHIPPED')"
+          >
+            {{ preferences.language === 'ko' ? '출하 완료' : 'SHIPPED' }}
+          </button>
         </div>
       </div>
       <div>
-        <div style="font-size: 0.75rem; color: var(--color-on-surface); opacity: 0.7; margin-bottom: 8px;">CURRENT QUALITY: {{ selectedLot.qualityStatus }}</div>
+        <div style="font-size: 0.75rem; color: var(--color-on-surface); opacity: 0.7; margin-bottom: 8px;">{{ preferences.language === 'ko' ? '현재 품질' : 'CURRENT QUALITY' }}: {{ formatQualityStatus(selectedLot.qualityStatus) }}</div>
         <div style="display: flex; gap: 8px;">
-          <button class="page-button page-button--secondary" style="border-color: var(--color-nominal)" type="button" @click="handleQualityUpdate('NORMAL')">PASS (NORMAL)</button>
-          <button class="page-button page-button--secondary" style="border-color: var(--color-warning)" type="button" @click="handleQualityUpdate('HOLD')">HOLD</button>
-          <button class="page-button page-button--secondary" style="border-color: var(--color-critical)" type="button" @click="handleQualityUpdate('DEFECTIVE')">DEFECTIVE</button>
+          <button 
+            class="page-button page-button--secondary" 
+            :style="[{ borderColor: 'var(--color-nominal)' }, selectedLot.qualityStatus === 'NORMAL' ? { opacity: 0.5, cursor: 'not-allowed' } : {}]" 
+            type="button" 
+            :disabled="selectedLot.qualityStatus === 'NORMAL'"
+            @click="handleQualityUpdate('NORMAL')"
+          >
+            {{ preferences.language === 'ko' ? '정상 (합격)' : 'PASS (NORMAL)' }}
+          </button>
+          <button 
+            class="page-button page-button--secondary" 
+            :style="[{ borderColor: 'var(--color-warning)' }, selectedLot.qualityStatus === 'HOLD' ? { opacity: 0.5, cursor: 'not-allowed' } : {}]" 
+            type="button" 
+            :disabled="selectedLot.qualityStatus === 'HOLD'"
+            @click="handleQualityUpdate('HOLD')"
+          >
+            {{ preferences.language === 'ko' ? '보류' : 'HOLD' }}
+          </button>
+          <button 
+            class="page-button page-button--secondary" 
+            :style="[{ borderColor: 'var(--color-critical)' }, selectedLot.qualityStatus === 'DEFECTIVE' ? { opacity: 0.5, cursor: 'not-allowed' } : {}]" 
+            type="button" 
+            :disabled="selectedLot.qualityStatus === 'DEFECTIVE'"
+            @click="handleQualityUpdate('DEFECTIVE')"
+          >
+            {{ preferences.language === 'ko' ? '불량 (불합격)' : 'DEFECTIVE' }}
+          </button>
         </div>
       </div>
     </div>

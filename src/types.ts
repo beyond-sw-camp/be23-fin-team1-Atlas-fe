@@ -33,6 +33,7 @@ export type NavKey =
   | 'settings'
   | 'profile'
   | 'systemSpec'
+  | 'organizationManagement'
 
 
 export type PageKey = NavKey
@@ -55,9 +56,7 @@ export interface SpringPage<T> {
   totalElements: number
   totalPages: number
   size: number
-  number: number
+  page: number
   first: boolean
   last: boolean
-  numberOfElements: number
-  empty: boolean
 }

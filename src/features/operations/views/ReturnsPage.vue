@@ -80,13 +80,22 @@ const content = computed(() => CONTENT[preferences.language])
 
 const filteredReturns = computed(() => {
   if (activeTab.value === 'ALL') return returns.value
+
   if (activeTab.value === 'REQUESTED') {
-    return returns.value.filter((item) => item.returnStatus === 'REQUESTED' || item.returnStatus === 'APPROVED')
+    return returns.value.filter(
+      (item) => item.returnStatus === 'REQUESTED' || item.returnStatus === 'APPROVED',
+    )
   }
+
   if (activeTab.value === 'IN_TRANSIT') {
-    return returns.value.filter((item) => item.returnStatus === 'IN_TRANSIT' || item.returnStatus === 'RECEIVED')
+    return returns.value.filter(
+      (item) => item.returnStatus === 'IN_TRANSIT' || item.returnStatus === 'RECEIVED',
+    )
   }
-  return returns.value.filter((item) => item.returnStatus === 'COMPLETED' || item.returnStatus === 'REJECTED')
+
+  return returns.value.filter(
+    (item) => item.returnStatus === 'COMPLETED' || item.returnStatus === 'REJECTED',
+  )
 })
 
 const tabs = computed(() => [
@@ -98,15 +107,39 @@ const tabs = computed(() => [
 
 const metrics = computed(() => {
   const all = returns.value
-  const requested = all.filter((item) => item.returnStatus === 'REQUESTED' || item.returnStatus === 'APPROVED').length
-  const inTransit = all.filter((item) => item.returnStatus === 'IN_TRANSIT' || item.returnStatus === 'RECEIVED').length
+  const requested = all.filter(
+    (item) => item.returnStatus === 'REQUESTED' || item.returnStatus === 'APPROVED',
+  ).length
+  const inTransit = all.filter(
+    (item) => item.returnStatus === 'IN_TRANSIT' || item.returnStatus === 'RECEIVED',
+  ).length
   const completed = all.filter((item) => item.returnStatus === 'COMPLETED').length
 
   return [
-    { label: content.value.metrics.total, value: String(all.length), meta: content.value.metrics.totalMeta, tone: 'nominal' },
-    { label: content.value.metrics.pending, value: String(requested), meta: content.value.metrics.pendingMeta, tone: 'warning' },
-    { label: content.value.metrics.moving, value: String(inTransit), meta: content.value.metrics.movingMeta, tone: 'info' },
-    { label: content.value.metrics.done, value: String(completed), meta: content.value.metrics.doneMeta, tone: 'nominal' },
+    {
+      label: content.value.metrics.total,
+      value: String(all.length),
+      meta: content.value.metrics.totalMeta,
+      tone: 'nominal',
+    },
+    {
+      label: content.value.metrics.pending,
+      value: String(requested),
+      meta: content.value.metrics.pendingMeta,
+      tone: 'warning',
+    },
+    {
+      label: content.value.metrics.moving,
+      value: String(inTransit),
+      meta: content.value.metrics.movingMeta,
+      tone: 'info',
+    },
+    {
+      label: content.value.metrics.done,
+      value: String(completed),
+      meta: content.value.metrics.doneMeta,
+      tone: 'nominal',
+    },
   ]
 })
 
@@ -155,6 +188,13 @@ async function fetchReturns() {
   try {
     const response = await getReturnRequests({ page: 0, size: 50 })
     returns.value = response.content
+
+    if (selectedReturn.value) {
+      const updated = returns.value.find((item) => item.publicId === selectedReturn.value?.publicId)
+      if (updated) {
+        selectedReturn.value = updated
+      }
+    }
   } catch (error) {
     console.error('Failed to load returns:', error)
     returns.value = []
@@ -241,13 +281,15 @@ onBeforeUnmount(() => header.clearActions())
           <div v-else-if="errorMessage" class="page-table__empty">{{ errorMessage }}</div>
           <div v-else-if="filteredReturns.length === 0" class="page-table__empty">{{ content.empty }}</div>
 
-          <div v-else class="page-table terminal-page__table">
+          <div v-else class="page-table terminal-page__table is-nine-cols">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
             </div>
 
             <div v-for="item in filteredReturns" :key="item.publicId" class="page-table__row">
-              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">{{ item.returnNumber }}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">
+                {{ item.returnNumber }}
+              </span>
               <span>{{ shortId(item.sourceShipmentPublicId) }}</span>
               <span>{{ shortId(item.returnShipmentPublicId) }}</span>
               <span>{{ item.requestOrganizationName || shortId(item.requestOrganizationPublicId) }}</span>
@@ -257,7 +299,7 @@ onBeforeUnmount(() => header.clearActions())
               <span>{{ formatDate(item.requestedAt) }}</span>
               <span>
                 <button
-                  class="page-button page-button--secondary"
+                  class="page-button page-button--secondary lots-page__detail-button"
                   type="button"
                   @click="openTimeline(item)"
                 >

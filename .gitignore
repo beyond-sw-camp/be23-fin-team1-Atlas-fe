@@ -40,3 +40,4 @@ coverage
 gemini.md
 frontend_api_spec.md
 frontend_dto_spec.md
+vite.config.ts.timestamp-*.mjs

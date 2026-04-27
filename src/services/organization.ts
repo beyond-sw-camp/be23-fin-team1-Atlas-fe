@@ -30,24 +30,25 @@ export interface GetOrganizationsParams {
   size?: number
 }
 
-// 조직 목록을 페이지 형태로 조회합니다.
-// ReturnCreateModal 같은 조직 선택 드롭다운에 사용할 수 있습니다.
+// 조직 목록을 읽습니다.
 export async function getOrganizations(
   params?: GetOrganizationsParams,
 ): Promise<PageResponse<OrganizationListItem>> {
-  const response = await apiClient.get<PageResponse<OrganizationListItem>>('/api/auth/organizations', {
-    params,
-  })
+  const response = await apiClient.get<PageResponse<OrganizationListItem>>(
+    '/api/auth/organizations',
+    {
+      params,
+    },
+  )
 
   return response.data
 }
-// 관리자 조직 생성 요청 바디입니다.
+
 export interface CreateOrganizationPayload {
   organizationType: 'BUYER' | 'SUPPLIER'
-  // 화면에 입력한 조직명입니다.
   organizationName: string
-  // 자동 로그인 ID slug 생성에 쓸 영문 조직명입니다.
   organizationEnglishName: string
+  organizationAlias: string
   businessNo: string
   contactFirstName: string
   contactMiddleName?: string
@@ -56,13 +57,11 @@ export interface CreateOrganizationPayload {
   contactPhone: string
 }
 
-
-// 조직 생성 응답입니다.
 export interface CreateOrganizationResponse {
   organizationPublicId: string
 }
 
-// 관리자가 새 조직을 생성합니다.
+// 조직을 생성합니다.
 export async function createOrganization(
   payload: CreateOrganizationPayload,
 ): Promise<CreateOrganizationResponse> {
@@ -73,3 +72,88 @@ export async function createOrganization(
 
   return response.data
 }
+
+export interface OrganizationDetailResponse {
+  // 백엔드 DTO의 organizationPublicId 입니다.
+  organizationPublicId: string
+
+  // 백엔드 DTO의 organizationId 입니다.
+  organizationId: number
+
+  organizationType: 'BUYER' | 'SUPPLIER' | 'ADMIN'
+  organizationName: string
+  organizationEnglishName: string
+  organizationAlias: string
+  businessNo?: string | null
+  contactFirstName: string
+  contactMiddleName?: string | null
+  contactLastName: string
+  contactEmail?: string | null
+  contactPhone: string
+  status: string
+}
+
+export interface UpdateOrganizationPayload {
+  organizationName: string
+  organizationEnglishName: string
+  organizationAlias: string
+  businessNo?: string | null
+  contactFirstName: string
+  contactMiddleName?: string | null
+  contactLastName: string
+  contactEmail?: string | null
+  contactPhone: string
+}
+
+// 조직 상세를 내부 ID 기준으로 읽습니다.
+// 백엔드: GET /api/auth/organizations/{organizationId}
+export async function getOrganizationDetail(
+  organizationId: number,
+): Promise<OrganizationDetailResponse> {
+  const response = await apiClient.get<OrganizationDetailResponse>(
+    `/api/auth/organizations/${organizationId}`,
+  )
+
+  return response.data
+}
+
+// 현재 로그인한 사용자의 조직 상세를 읽습니다.
+export async function getMyOrganizationDetail(): Promise<OrganizationDetailResponse> {
+  const response = await apiClient.get<OrganizationDetailResponse>(
+    '/api/auth/organizations/me',
+  )
+
+  return response.data
+}
+
+// 조직 정보를 수정합니다.
+export async function updateOrganization(
+  organizationId: number,
+  payload: UpdateOrganizationPayload,
+): Promise<OrganizationDetailResponse> {
+  const response = await apiClient.patch<OrganizationDetailResponse>(
+    `/api/auth/organizations/${organizationId}`,
+    payload,
+  )
+
+  return response.data
+}
+export type OrganizationStatus = 'ACTIVE' | 'DEACTIVE' | 'DELETE'
+
+export interface UpdateOrganizationStatusPayload {
+  status: OrganizationStatus
+}
+
+// 조직 상태를 ACTIVE, DEACTIVE, DELETE 중 하나로 변경합니다.
+export async function updateOrganizationStatus(
+  organizationId: number,
+  payload: UpdateOrganizationStatusPayload,
+): Promise<OrganizationDetailResponse> {
+  const response = await apiClient.patch<OrganizationDetailResponse>(
+    `/api/auth/organizations/${organizationId}/status`,
+    payload,
+  )
+
+  return response.data
+}
+

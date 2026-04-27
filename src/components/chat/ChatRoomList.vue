@@ -103,13 +103,26 @@ function toggleCreateRoomMode() {
           v-model="userSearchQuery"
           type="text"
           placeholder="초대할 사용자 검색..."
+          class="chat-room-list__invite-search-input"
           style="width: 100%; padding: 8px 0; background: transparent; border: none; color: inherit; outline: none;"
         />
       </div>
       <div style="max-height: 120px; overflow-y: auto; margin-bottom: 16px; font-size: 0.875rem;">
-        <label v-for="user in filteredAvailableUsers" :key="user.userPublicId" style="display: block; padding: 4px 0; cursor: pointer; color: var(--color-on-surface, #FFFFFF);">
+        <label v-for="user in filteredAvailableUsers" :key="user.userPublicId" class="chat-room-list__invite-user">
           <input type="checkbox" :value="user.userPublicId" v-model="selectedUsers" style="margin-right: 8px;" />
-          {{ user.displayName }} <span v-if="user.jobTitle" style="color: var(--color-on-surface-variant, #C6C6C6); font-size: 0.75rem;">({{ user.jobTitle }})</span>
+          <span class="chat-room-list__invite-avatar" aria-hidden="true">
+            <img
+              v-if="user.profileImageThumbPath"
+              :src="user.profileImageThumbPath"
+              :alt="user.displayName"
+              class="chat-room-list__invite-avatar-image"
+            />
+            <span v-else class="material-symbols-outlined chat-room-list__invite-avatar-icon">person</span>
+          </span>
+          <span class="chat-room-list__invite-copy">
+            <span>{{ user.displayName }}</span>
+            <span v-if="user.jobTitle" style="color: #666666; font-size: 0.75rem;">{{ user.jobTitle }}</span>
+          </span>
         </label>
         <div v-if="filteredAvailableUsers.length === 0" style="padding: 8px 0; color: var(--color-on-surface-variant, #C6C6C6); font-size: 0.75rem; text-align: center;">검색 결과가 없습니다.</div>
       </div>

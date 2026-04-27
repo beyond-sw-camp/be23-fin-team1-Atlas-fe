@@ -30,6 +30,7 @@ export const PAGE_PATHS: Record<PageKey, string> = {
   settings: '/settings',
   profile: '/profile',
   systemSpec: '/system-spec',
+  organizationManagement: '/organization-management',
 }
 
 export function isPageKey(value: string | undefined): value is PageKey {
@@ -317,6 +318,16 @@ export const NAV_ITEMS: NavEntry[] = [
     section: 'system',
     organizations: ['admin'],
   },
+    {
+    key: 'organizationManagement',
+    label: 'Organization Management',
+    icon: 'apartment',
+    description: '조직 목록 조회와 조직 정보 수정',
+    pageSubtitle: '플랫폼 관리자와 조직 대표자가 조직 정보를 관리하는 화면',
+    section: 'system',
+    organizations: ['mainBuyer', 'supplier', 'admin'],
+  },
+
   {
     key: 'systemSpec',
     label: 'System Spec',

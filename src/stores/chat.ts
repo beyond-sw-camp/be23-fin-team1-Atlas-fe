@@ -220,22 +220,45 @@ async function fetchAvailableUsers() {
 
     // 채팅 초대 목록에서 쓰는 형태로 변환합니다.
     availableUsers.value = users.map((user: any) => {
-      // camelCase, snake_case 모두 대응
-      const lastName = user.lastName || user.last_name || ''
-      const firstName = user.firstName || user.first_name || ''
-      let displayName = `${lastName} ${firstName}`.trim()
+      const lastName = String(user.lastName || user.last_name || '').replace(/null|undefined/gi, '').trim()
+      const firstName = String(user.firstName || user.first_name || '').replace(/null|undefined/gi, '').trim()
+      let displayName = `${lastName}${firstName}`.trim()
       
       if (!displayName) {
-        // 혹시 백엔드 변경으로 name 도는 userName이 올 경우를 대비하거나 loginId로 폴백
-        displayName = user.name || user.userName || user.loginId || user.login_id || '이름 없음'
+        // 백엔드 엔티티 변경(소셜로그인 등)에 대비한 모든 가능성 영끌 폴백
+        const possibleNames = [
+          user.name, user.userName, user.user_name, 
+          user.nickname, user.realName, user.real_name,
+          user.loginId, user.login_id, user.email
+        ]
+        
+        for (const n of possibleNames) {
+          const val = String(n || '').replace(/null|undefined/gi, '').trim()
+          if (val) {
+            displayName = val
+            break
+          }
+        }
+        
+        if (!displayName) {
+          displayName = '이름 없음'
+        }
       }
       
       const jobTitle = user.jobTitle || user.job_title || ''
+      const departmentName = user.departmentName || user.department_name || ''
+      const departmentCode = user.departmentCode || user.department_code || ''
+      const profileAttachmentPublicId = user.profileAttachmentPublicId || user.profile_attachment_public_id || ''
+      const profileImageThumbPath = user.profileImageThumbPath || user.profile_image_thumb_path || ''
 
       return {
         userPublicId: user.userPublicId || user.user_public_id || user.publicId || user.public_id || user.id,
         displayName,
         jobTitle,
+        departmentName,
+        departmentCode,
+        profileAttachmentPublicId,
+        profileImageThumbPath,
       }
     })
   } catch (e) {
