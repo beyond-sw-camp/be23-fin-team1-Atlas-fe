@@ -2,12 +2,14 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
   deleteNotification,
+  getNotificationPreferences,
   getNotifications,
   getUnreadNotificationCount,
   markAllNotificationsAsRead,
   markNotificationAsRead,
+  updateNotificationPreference,
 } from '../services/notification'
-import type { NotificationDto } from '../services/notification'
+import type { NotificationDto, NotificationPreferenceDto } from '../services/notification'
 import { useAtlasToastStore } from './toast'
 
 export const useAtlasNotificationStore = defineStore('atlasNotification', () => {
@@ -19,6 +21,10 @@ export const useAtlasNotificationStore = defineStore('atlasNotification', () => 
   const pageSize = ref(20)
   const isLoading = ref(false)
   const errorMessage = ref('')
+  const preferences = ref<NotificationPreferenceDto[]>([])
+  const isLoadingPreferences = ref(false)
+  const preferencesErrorMessage = ref('')
+  const updatingPreferenceCategories = ref<string[]>([])
   
   async function fetchUnreadCount() {
     try {
@@ -92,6 +98,39 @@ export const useAtlasNotificationStore = defineStore('atlasNotification', () => 
     }
   }
 
+  async function fetchPreferences() {
+    try {
+      isLoadingPreferences.value = true
+      preferencesErrorMessage.value = ''
+      const data = await getNotificationPreferences()
+      preferences.value = [...data].sort((a, b) => a.displayOrder - b.displayOrder)
+    } catch (e) {
+      preferencesErrorMessage.value = '알림 설정을 불러오지 못했습니다.'
+      console.error('Failed to fetch notification preferences', e)
+    } finally {
+      isLoadingPreferences.value = false
+    }
+  }
+
+  async function setPreferenceEnabled(category: string, enabled: boolean) {
+    const target = preferences.value.find((preference) => preference.category === category)
+    if (!target || !target.userConfigurable) return
+
+    const previousEnabled = target.enabled
+    target.enabled = enabled
+    updatingPreferenceCategories.value = [...updatingPreferenceCategories.value, category]
+
+    try {
+      await updateNotificationPreference(category, enabled)
+    } catch (e) {
+      target.enabled = previousEnabled
+      preferencesErrorMessage.value = '알림 설정을 변경하지 못했습니다.'
+      console.error('Failed to update notification preference', e)
+    } finally {
+      updatingPreferenceCategories.value = updatingPreferenceCategories.value.filter((item) => item !== category)
+    }
+  }
+
   return {
     unreadCount,
     notifications,
@@ -101,11 +140,17 @@ export const useAtlasNotificationStore = defineStore('atlasNotification', () => 
     pageSize,
     isLoading,
     errorMessage,
+    preferences,
+    isLoadingPreferences,
+    preferencesErrorMessage,
+    updatingPreferenceCategories,
     fetchUnreadCount,
     fetchRecentNotifications,
+    fetchPreferences,
     handleIncomingNotification,
     readNotification,
     readAllNotifications,
     removeNotification,
+    setPreferenceEnabled,
   }
 })

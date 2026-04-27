@@ -18,6 +18,15 @@ export interface NotificationQueryParams {
   size?: number
 }
 
+export interface NotificationPreferenceDto {
+  category: string
+  label: string
+  description: string
+  userConfigurable: boolean
+  enabled: boolean
+  displayOrder: number
+}
+
 export async function getNotifications(
   params: NotificationQueryParams = {},
 ): Promise<SpringPage<NotificationDto>> {
@@ -45,4 +54,13 @@ export async function markAllNotificationsAsRead(): Promise<void> {
 
 export async function deleteNotification(publicId: string): Promise<void> {
   await apiClient.delete(`/api/control/notifications/${publicId}`)
+}
+
+export async function getNotificationPreferences(): Promise<NotificationPreferenceDto[]> {
+  const response = await apiClient.get<NotificationPreferenceDto[]>('/api/control/notifications/preferences')
+  return response.data
+}
+
+export async function updateNotificationPreference(category: string, enabled: boolean): Promise<void> {
+  await apiClient.patch(`/api/control/notifications/preferences/${category}`, { enabled })
 }
