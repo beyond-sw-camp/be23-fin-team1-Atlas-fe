@@ -1,4 +1,5 @@
 import { apiClient } from './http'
+import type { SpringPage } from '../types'
 
 export interface NotificationDto {
   publicId: string
@@ -12,14 +13,26 @@ export interface NotificationDto {
   createdAt: string
 }
 
-export async function getNotifications(): Promise<NotificationDto[]> {
-  const response = await apiClient.get<NotificationDto[]>('/api/control/notifications')
+export interface NotificationQueryParams {
+  page?: number
+  size?: number
+}
+
+export async function getNotifications(
+  params: NotificationQueryParams = {},
+): Promise<SpringPage<NotificationDto>> {
+  const response = await apiClient.get<SpringPage<NotificationDto>>('/api/control/notifications', {
+    params: {
+      page: params.page ?? 0,
+      size: params.size ?? 20,
+    },
+  })
   return response.data
 }
 
 export async function getUnreadNotificationCount(): Promise<number> {
   const response = await apiClient.get<number>('/api/control/notifications/unread-count')
-  return response.data // Note: backend might return `{ count: ... }`. Assuming raw number for now.
+  return response.data
 }
 
 export async function markNotificationAsRead(publicId: string): Promise<void> {

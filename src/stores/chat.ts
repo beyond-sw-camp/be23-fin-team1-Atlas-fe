@@ -14,7 +14,7 @@ import { chatService } from '../services/chat'
 import { useAtlasSessionStore } from './session'
 import { useAtlasNotificationStore } from './notification'
 
-const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-chat'
+const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-control'
 
 export const useAtlasChatStore = defineStore('atlasChat', () => {
   const sessionStore = useAtlasSessionStore()

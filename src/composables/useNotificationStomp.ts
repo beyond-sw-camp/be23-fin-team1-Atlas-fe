@@ -4,7 +4,7 @@ import SockJS from 'sockjs-client'
 import { useAtlasNotificationStore } from '../stores/notification'
 import { NotificationDto } from '../services/notification'
 
-const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8080/api/control/ws-chat'
+const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-control'
 
 export function useNotificationStomp(userPublicId: string = 'user-001') {
   const notificationStore = useAtlasNotificationStore()

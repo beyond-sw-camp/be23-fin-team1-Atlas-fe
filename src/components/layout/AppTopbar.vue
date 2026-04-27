@@ -77,8 +77,6 @@ function toggleTheme() {
 
 function handleNotificationClick() {
   navigation.openNotifications()
-  // 알림 화면으로 이동할 때 배지를 먼저 0으로 내립니다.
-  notificationStore.unreadCount = 0
 }
 
 function handleSearchFocus() {
