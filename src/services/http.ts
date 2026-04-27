@@ -48,15 +48,17 @@ const ORGANIZATION_PUBLIC_ID_STORAGE_KEY = 'atlas-organization-public-id'
 const ORGANIZATION_TYPE_STORAGE_KEY = 'atlas-organization-type'
 const USER_ROLE_STORAGE_KEY = 'atlas-user-role'
 
-// 401 응답이 왔을 때 session store의 로그아웃 함수를 나중에 연결해 둘 자리입니다.
-// http.ts 에서 session store를 직접 import하면 순환 참조가 생길 수 있어서,
-// 함수만 등록받아 쓰는 방식으로 분리합니다.
-let unauthorizedHandler: null | (() => void) = null
+// 401 응답이 왔을 때 세션 스토어로 넘길 콜백입니다.
+// 그냥 "401이 왔다"만 알리는 게 아니라,
+// 백엔드가 내려준 message / code 도 같이 넘기기 위해 payload 를 받게 바꿉니다.
+let unauthorizedHandler: null | ((payload?: ApiErrorPayload) => void) = null
 
-// session store에서 401 처리 함수를 등록할 때 사용합니다.
-export function registerUnauthorizedHandler(handler: () => void) {
+// session store 에서 401 처리 함수를 등록할 때 씁니다.
+// 이제는 원인 구분을 위해 payload 도 받을 수 있게 합니다.
+export function registerUnauthorizedHandler(handler: (payload?: ApiErrorPayload) => void) {
   unauthorizedHandler = handler
 }
+
 
 // 값이 있을 때만 헤더를 붙이는 작은 헬퍼 함수입니다.
 // 값이 없으면 헤더를 아예 넣지 않습니다.
@@ -147,7 +149,10 @@ apiClient.interceptors.response.use(
         !isLoginRequest &&
         !isRefreshRequest
       ) {
-        unauthorizedHandler?.()
+        // 세션 스토어로 401 응답 본문도 같이 넘깁니다.
+// 그래야 "중복 로그인" 같은 특정 사유를 프론트에서 구분할 수 있습니다.
+unauthorizedHandler?.(payload)
+
       }
 
       throw new ApiError(error.response.status, message, payload)

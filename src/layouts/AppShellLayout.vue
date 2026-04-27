@@ -12,6 +12,7 @@ import { useAtlasPreferencesStore } from '../stores/preferences'
 import { useAtlasSessionStore } from '../stores/session'
 import { useAtlasUiStore } from '../stores/ui'
 import { useAtlasChatStore } from '../stores/chat'
+import BaseModal from '../features/shared/components/BaseModal.vue'
 
 // 현재 라우트 정보입니다.
 const route = useRoute()
@@ -119,5 +120,27 @@ onBeforeUnmount(() => {
       <ChatPanel />
       <AppToastContainer />
     </template>
+<BaseModal
+  v-model="session.sessionNoticeModalOpen"
+  :title="session.sessionNoticeTitle"
+  :description="session.sessionNoticeMessage"
+  :close-on-backdrop="false"
+  :close-on-escape="false"
+  hide-eyebrow
+  hide-dividers
+  hide-close-button
+  size="sm"
+  @close="session.closeSessionNoticeModal"
+>
+  <template #footer>
+    <button
+      class="page-button page-button--primary"
+      type="button"
+      @click="session.closeSessionNoticeModal"
+    >
+      {{ preferences.language === 'ko' ? '확인' : 'OK' }}
+    </button>
+  </template>
+</BaseModal>
   </div>
 </template>

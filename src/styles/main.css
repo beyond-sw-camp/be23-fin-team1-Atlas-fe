@@ -3603,6 +3603,15 @@ input {
     width: 100%;
     justify-content: flex-end;
   }
+.base-modal__surface--clean .base-modal__header {
+  border-bottom: 0 !important;
+  padding-bottom: 16px;
+}
+
+.base-modal__surface--clean .base-modal__footer {
+  border-top: 0 !important;
+  padding-top: 0;
+}
 
   .documents-page {
     gap: 14px;

@@ -23,8 +23,6 @@ type AccessTokenClaims = {
   exp?: number
 }
 
-// 로그인 API 응답 형태입니다.
-// 일반 로그인 성공일 수도 있고, 새 IP 인증 필요 응답일 수도 있습니다.
 type LoginResponse = {
   accessToken?: string
   refreshToken?: string
@@ -34,10 +32,10 @@ type LoginResponse = {
   verificationExpiresAt?: string | null
 }
 
-// 로그인 연장 API는 새 access token만 내려줍니다.
 type RefreshAccessTokenResponse = {
   accessToken?: string
 }
+
 function decodeAccessToken(accessToken: string): AccessTokenClaims | null {
   try {
     const payload = accessToken.split('.')[1]
@@ -74,32 +72,39 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
   const loginPassword = ref('')
   const loginError = ref('')
   const userPublicId = ref(window.sessionStorage.getItem(USER_PUBLIC_ID_STORAGE_KEY) ?? '')
-  const organizationPublicId = ref(window.sessionStorage.getItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY) ?? '')
+  const organizationPublicId = ref(
+    window.sessionStorage.getItem(ORGANIZATION_PUBLIC_ID_STORAGE_KEY) ?? '',
+  )
   const organizationType = ref(window.sessionStorage.getItem(ORGANIZATION_TYPE_STORAGE_KEY) ?? '')
   const userRole = ref(window.sessionStorage.getItem(USER_ROLE_STORAGE_KEY) ?? '')
   const passwordChangeRequired = ref(
     window.sessionStorage.getItem(PASSWORD_CHANGE_REQUIRED_STORAGE_KEY) === 'true',
   )
 
-  // 새 IP 이메일 인증 단계에서 쓰는 상태입니다.
   const loginVerificationRequired = ref(false)
   const loginVerificationRequestId = ref('')
   const loginVerificationCode = ref('')
   const loginVerificationExpiresAt = ref('')
   const loginVerificationError = ref('')
-    // 헤더에서 보여줄 세션 만료 시각입니다.
+
   const sessionExpiresAt = ref<number | null>(null)
-
-  // 헤더에서 보여줄 남은 시간(ms)입니다.
   const sessionRemainingMs = ref(0)
-
-  // 로그인 연장 버튼을 연속으로 누르는 것을 막습니다.
   const isRefreshingSession = ref(false)
 
-  // 헤더 시간을 1초마다 줄여 보여주는 타이머입니다.
-  let sessionCountdownTimer: ReturnType<typeof window.setInterval> | null = null
+  // 세션 만료/중복 로그인 안내 모달 상태입니다.
+const sessionNoticeModalOpen = ref(false)
+const sessionNoticeTitle = ref('')
+const sessionNoticeMessage = ref('')
 
-  // 남은 시간을 현재 시각 기준으로 다시 계산합니다.
+  let sessionCountdownTimer: ReturnType<typeof window.setInterval> | null = null
+  let sessionExpiryTimer: ReturnType<typeof window.setTimeout> | null = null
+
+  // 중복 로그인 감지용 타이머입니다.
+  let duplicateLoginCheckTimer: ReturnType<typeof window.setInterval> | null = null
+
+  // 401이 동시에 여러 번 터질 때 alert가 여러 번 뜨는 걸 막습니다.
+  let isHandlingUnauthorized = false
+
   function updateSessionRemainingMs() {
     if (!sessionExpiresAt.value) {
       sessionRemainingMs.value = 0
@@ -109,7 +114,6 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     sessionRemainingMs.value = Math.max(sessionExpiresAt.value - Date.now(), 0)
   }
 
-  // 1초 카운트다운 타이머를 정리합니다.
   function clearSessionCountdownTimer() {
     if (sessionCountdownTimer) {
       window.clearInterval(sessionCountdownTimer)
@@ -117,7 +121,44 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     }
   }
 
-  // 헤더에 보여줄 60:00 같은 문자열을 만듭니다.
+  function clearSessionExpiryTimer() {
+    if (sessionExpiryTimer) {
+      window.clearTimeout(sessionExpiryTimer)
+      sessionExpiryTimer = null
+    }
+  }
+
+  function stopDuplicateLoginCheckTimer() {
+    if (duplicateLoginCheckTimer) {
+      window.clearInterval(duplicateLoginCheckTimer)
+      duplicateLoginCheckTimer = null
+    }
+  }
+
+async function checkDuplicateLoginSession() {
+  if (!isAuthenticated.value || isHandlingUnauthorized) return
+
+  const accessToken = window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
+  if (!accessToken) return
+
+  try {
+    await apiClient.get('/api/auth/me')
+  } catch {
+    // 401 처리는 http.ts 인터셉터와 registerUnauthorizedHandler에서 처리합니다.
+  }
+}
+
+function startDuplicateLoginCheckTimer() {
+  stopDuplicateLoginCheckTimer()
+
+  // 로그인 직후 한 번 바로 확인하고, 이후 1초마다 확인합니다.
+  void checkDuplicateLoginSession()
+
+  duplicateLoginCheckTimer = window.setInterval(() => {
+    void checkDuplicateLoginSession()
+  }, 1000)
+}
+
   function formatSessionRemainingLabel(remainingMs: number) {
     const totalSeconds = Math.max(Math.ceil(remainingMs / 1000), 0)
     const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
@@ -126,24 +167,10 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     return `${minutes}:${seconds}`
   }
 
-  // 템플릿에서는 이 값만 바로 쓰면 됩니다.
   const sessionRemainingLabel = computed(() => {
     return formatSessionRemainingLabel(sessionRemainingMs.value)
   })
 
-
-  // 토큰 만료 시 자동 로그아웃용 타이머입니다.
-  let sessionExpiryTimer: ReturnType<typeof window.setTimeout> | null = null
-
-  // 남아 있는 만료 타이머를 지웁니다.
-  function clearSessionExpiryTimer() {
-    if (sessionExpiryTimer) {
-      window.clearTimeout(sessionExpiryTimer)
-      sessionExpiryTimer = null
-    }
-  }
-
-  // 저장된 로그인 세션 값을 모두 지웁니다.
   function clearStoredSession() {
     window.sessionStorage.removeItem(AUTH_STORAGE_KEY)
     window.sessionStorage.removeItem(ORG_STORAGE_KEY)
@@ -156,15 +183,11 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     window.sessionStorage.removeItem(PASSWORD_CHANGE_REQUIRED_STORAGE_KEY)
   }
 
-  // 인증된 세션 값을 모두 비웁니다.
   function clearAuthenticatedState() {
-    // 자동 로그아웃 타이머를 먼저 지웁니다.
     clearSessionExpiryTimer()
-
-    // 헤더 카운트다운 타이머도 같이 지웁니다.
     clearSessionCountdownTimer()
+    stopDuplicateLoginCheckTimer()
 
-    // 헤더 시간도 같이 초기화합니다.
     sessionExpiresAt.value = null
     sessionRemainingMs.value = 0
     isRefreshingSession.value = false
@@ -180,8 +203,6 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     preferences.syncOrganizationFromSession()
   }
 
-
-  // 새 IP 인증 단계 상태를 초기화합니다.
   function resetVerificationState() {
     loginVerificationRequired.value = false
     loginVerificationRequestId.value = ''
@@ -189,12 +210,11 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     loginVerificationExpiresAt.value = ''
     loginVerificationError.value = ''
   }
-    // access token 안의 사용자 정보를 현재 세션 상태에 다시 반영합니다.
+
   function syncAuthenticatedUserFromAccessToken(accessToken: string) {
     const claims = decodeAccessToken(accessToken)
     const mappedOrganization = mapOrganizationType(claims?.organizationType)
 
-    // 토큰 안 핵심 값이 비었으면 여기서 중단합니다.
     if (
       !claims ||
       !mappedOrganization ||
@@ -205,7 +225,6 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
       throw new Error('Invalid access token payload')
     }
 
-    // 새 access token 기준으로 세션 저장값을 다시 맞춥니다.
     window.sessionStorage.setItem(AUTH_STORAGE_KEY, 'true')
     window.sessionStorage.setItem(ORG_STORAGE_KEY, mappedOrganization)
     window.sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken)
@@ -214,7 +233,6 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     window.sessionStorage.setItem(ORGANIZATION_TYPE_STORAGE_KEY, claims.organizationType ?? '')
     window.sessionStorage.setItem(USER_ROLE_STORAGE_KEY, claims.role)
 
-    // 화면에서 참조하는 상태도 같이 맞춥니다.
     preferences.syncOrganizationFromSession()
 
     isAuthenticated.value = true
@@ -224,20 +242,15 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     userRole.value = claims.role
   }
 
-
-  // access token의 exp 시간으로 자동 로그아웃과 헤더 카운트다운을 같이 겁니다.
   function scheduleAutoSignOut(accessToken: string) {
-    // 이전 타이머는 먼저 모두 정리합니다.
     clearSessionExpiryTimer()
     clearSessionCountdownTimer()
 
-    // 계산 전에는 헤더 값을 한 번 비웁니다.
     sessionExpiresAt.value = null
     sessionRemainingMs.value = 0
 
     const claims = decodeAccessToken(accessToken)
 
-    // exp가 없으면 남은 시간을 계산할 수 없습니다.
     if (!claims?.exp) {
       return
     }
@@ -245,13 +258,9 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     const expiresAtMs = claims.exp * 1000
     const remainingMs = expiresAtMs - Date.now()
 
-    // 헤더 카운트다운 기준 시각을 저장합니다.
     sessionExpiresAt.value = expiresAtMs
-
-    // 처음 값도 바로 한 번 계산합니다.
     updateSessionRemainingMs()
 
-    // 이미 만료된 토큰이면 바로 로그아웃합니다.
     if (remainingMs <= 0) {
       signOut(
         preferences.language === 'ko'
@@ -261,17 +270,14 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
       return
     }
 
-    // 헤더 숫자가 1초마다 줄어들게 합니다.
     sessionCountdownTimer = window.setInterval(() => {
       updateSessionRemainingMs()
 
-      // 0초가 되면 화면용 interval만 먼저 정리합니다.
       if (sessionRemainingMs.value <= 0) {
         clearSessionCountdownTimer()
       }
     }, 1000)
 
-    // 실제 만료 시점에는 자동 로그아웃합니다.
     sessionExpiryTimer = window.setTimeout(() => {
       signOut(
         preferences.language === 'ko'
@@ -281,38 +287,36 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     }, remainingMs)
   }
 
-  // 일반 로그인 성공 또는 IP 인증 성공 뒤 공통 세션 처리입니다.
   function completeLogin(responseData: LoginResponse) {
     const accessToken = responseData.accessToken
     const refreshToken = responseData.refreshToken
     const mustChangePassword = Boolean(responseData.passwordChangeRequired)
 
-    // 로그인 응답에 토큰이 빠지면 중단합니다.
     if (!accessToken || !refreshToken) {
       throw new Error('Invalid login response')
     }
 
-    // refresh token은 로그인 성공 때만 새로 저장합니다.
+    isHandlingUnauthorized = false
+
     window.sessionStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken)
 
-    // 비밀번호 강제 변경 여부도 같이 저장합니다.
     window.sessionStorage.setItem(
       PASSWORD_CHANGE_REQUIRED_STORAGE_KEY,
       String(mustChangePassword),
     )
 
-    // access token 안의 값으로 현재 세션 상태를 다시 맞춥니다.
     syncAuthenticatedUserFromAccessToken(accessToken)
     passwordChangeRequired.value = mustChangePassword
 
     loginError.value = ''
     loginPassword.value = ''
 
-    // IP 인증 상태는 여기서 끝났으니 정리합니다.
     resetVerificationState()
 
-    // 헤더 시간과 자동 로그아웃 타이머를 다시 겁니다.
     scheduleAutoSignOut(accessToken)
+
+    // 로그인 성공 후부터 중복 로그인 감지를 시작합니다.
+    startDuplicateLoginCheckTimer()
 
     if (mustChangePassword) {
       navigation.navigateToPage('profile')
@@ -325,8 +329,6 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     navigation.navigateToPage(firstAvailablePage)
   }
 
-
-  // 로그인 요청입니다.
   async function signIn() {
     if (!loginId.value || !loginPassword.value) {
       loginError.value = UI_COPY.loginError[preferences.language]
@@ -334,6 +336,7 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     }
 
     try {
+      isHandlingUnauthorized = false
       loginError.value = ''
       loginVerificationError.value = ''
 
@@ -342,7 +345,6 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
         password: loginPassword.value,
       })
 
-      // 새 IP 로그인이라면 토큰 저장 대신 이메일 인증 단계로 넘깁니다.
       if (response.data.ipVerificationRequired) {
         clearAuthenticatedState()
         resetVerificationState()
@@ -369,14 +371,11 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     }
   }
 
-    // 로그인 연장 버튼을 누르면 refresh token으로 새 access token을 받습니다.
   async function extendSession() {
-    // 같은 요청을 연달아 보내지 않게 막습니다.
     if (isRefreshingSession.value) {
       return
     }
 
-    // refresh token이 없으면 연장할 수 없습니다.
     const refreshToken = window.sessionStorage.getItem(REFRESH_TOKEN_STORAGE_KEY)
 
     if (!refreshToken) {
@@ -391,23 +390,22 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     try {
       isRefreshingSession.value = true
 
-      // refresh token으로 새 access token을 다시 받습니다.
       const response = await apiClient.post<RefreshAccessTokenResponse>('/api/auth/refresh', {
         refreshToken,
       })
 
       const nextAccessToken = response.data.accessToken
 
-      // 응답에 access token이 없으면 중단합니다.
       if (!nextAccessToken) {
         throw new Error('Invalid refresh response')
       }
 
-      // 새 access token 기준으로 사용자 상태를 다시 맞춥니다.
       syncAuthenticatedUserFromAccessToken(nextAccessToken)
 
-      // 헤더 카운트다운과 자동 로그아웃 시간도 다시 시작합니다.
       scheduleAutoSignOut(nextAccessToken)
+
+      // 혹시 타이머가 꺼져 있으면 다시 켭니다.
+      startDuplicateLoginCheckTimer()
     } catch (error) {
       if (error instanceof ApiError) {
         signOut(
@@ -429,7 +427,6 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     }
   }
 
-  // 새 IP 이메일 인증 코드를 검증합니다.
   async function verifyLoginIp() {
     if (!loginVerificationRequestId.value || !loginVerificationCode.value.trim()) {
       loginVerificationError.value =
@@ -458,7 +455,6 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
 
         const code = error.payload?.code
 
-        // 만료나 코드 불일치는 백엔드에서 인증 요청을 끝내므로 다시 로그인으로 돌립니다.
         if (
           code === 'IP_VERIFICATION_EXPIRED' ||
           code === 'IP_VERIFICATION_CODE_MISMATCH'
@@ -480,13 +476,11 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     }
   }
 
-  // 사용자가 인증 단계를 취소하고 로그인 화면으로 돌아갈 때 씁니다.
   function cancelLoginVerification() {
     resetVerificationState()
     loginPassword.value = ''
   }
 
-  // 강제 로그아웃 또는 수동 로그아웃 처리입니다.
   function signOut(message = '') {
     clearAuthenticatedState()
     resetVerificationState()
@@ -495,20 +489,60 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     navigation.navigateToPage('profile')
   }
 
-  // 서버가 401 을 반환하면 자동 로그아웃합니다.
-  registerUnauthorizedHandler(() => {
-    signOut(
-      preferences.language === 'ko'
-        ? '세션이 만료되었습니다. 다시 로그인해 주세요.'
-        : 'Your session has expired. Please sign in again.',
-    )
-  })
+ function closeSessionNoticeModal() {
+  sessionNoticeModalOpen.value = false
+  sessionNoticeTitle.value = ''
+  sessionNoticeMessage.value = ''
+}
 
-  // 이미 로그인된 상태로 새로고침하면 기존 access token 기준으로 타이머를 다시 겁니다.
+registerUnauthorizedHandler((payload) => {
+  // 로그인 안 된 상태의 401, 로그인 실패 401 등은 여기서 모달을 띄우지 않습니다.
+  if (!isAuthenticated.value) {
+    return
+  }
+
+  // 여러 API가 동시에 401을 받으면 모달이 여러 번 뜰 수 있어서 막습니다.
+  if (isHandlingUnauthorized) {
+    return
+  }
+
+  isHandlingUnauthorized = true
+
+  const isDuplicateLogin = payload?.code === 'DUPLICATE_LOGIN_SESSION_EXPIRED'
+
+  const title = isDuplicateLogin
+    ? preferences.language === 'ko'
+      ? '중복 로그인 감지'
+      : 'Duplicate login detected'
+    : preferences.language === 'ko'
+      ? '세션 만료'
+      : 'Session expired'
+
+  const message = isDuplicateLogin
+    ? preferences.language === 'ko'
+      ? '다른 기기에서 로그인되어 현재 기기에서 로그아웃되었습니다. 다시 로그인해 주세요.'
+      : 'You have been signed out because your account was used on another device. Please sign in again.'
+    : payload?.message ||
+      (preferences.language === 'ko'
+        ? '세션이 만료되었습니다. 다시 로그인해 주세요.'
+        : 'Your session has expired. Please sign in again.')
+
+  clearAuthenticatedState()
+  resetVerificationState()
+
+  loginError.value = message
+  navigation.navigateToPage('profile')
+
+  sessionNoticeTitle.value = title
+  sessionNoticeMessage.value = message
+  sessionNoticeModalOpen.value = true
+})
+
   const storedAccessToken = window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
 
   if (isAuthenticated.value && storedAccessToken) {
     scheduleAutoSignOut(storedAccessToken)
+    startDuplicateLoginCheckTimer()
   }
 
   watch(
@@ -544,6 +578,9 @@ export const useAtlasSessionStore = defineStore('atlasSession', () => {
     isRefreshingSession,
     sessionRemainingLabel,
     sessionRemainingMs,
-
+    sessionNoticeModalOpen,
+    sessionNoticeTitle,
+    sessionNoticeMessage,
+    closeSessionNoticeModal,
   }
 })
