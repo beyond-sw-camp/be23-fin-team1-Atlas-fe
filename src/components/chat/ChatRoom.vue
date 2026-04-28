@@ -29,6 +29,7 @@ const emit = defineEmits<{
 const chatStore = useAtlasChatStore()
 const messagesContainer = ref<HTMLElement | null>(null)
 const isInviting = ref(false)
+const isShowingParticipants = ref(false)
 
 const availableUsersToInvite = computed(() => {
   return chatStore.availableUsers.filter(
@@ -45,6 +46,19 @@ watch(
     await nextTick()
     if (messagesContainer.value) {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  },
+)
+
+/** 로딩 완료 시에도 스크롤 최하단 보장 */
+watch(
+  () => props.isLoading,
+  async (newVal, oldVal) => {
+    if (oldVal && !newVal) {
+      await nextTick()
+      if (messagesContainer.value) {
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      }
     }
   },
 )
@@ -82,9 +96,15 @@ function handleInviteUser(userPublicId: string) {
 
 async function toggleInvite() {
   isInviting.value = !isInviting.value
+  isShowingParticipants.value = false
   if (isInviting.value && chatStore.availableUsers.length === 0) {
     await chatStore.fetchAvailableUsers()
   }
+}
+
+function toggleParticipants() {
+  isShowingParticipants.value = !isShowingParticipants.value
+  isInviting.value = false
 }
 
 /** 채팅방 나가기 핸들러 */
@@ -178,6 +198,43 @@ async function handleRenameRoom() {
         title="초대하기">
         <span class="material-symbols-outlined">person_add</span>
       </button>
+
+      <button 
+        type="button" 
+        style="background: transparent; border: none; color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px;"
+        @click="toggleParticipants"
+        title="참여자 목록">
+        <span class="material-symbols-outlined">group</span>
+      </button>
+
+      <!-- 참여자 목록 팝오버 -->
+      <div v-if="isShowingParticipants" style="position: absolute; top: 100%; right: 16px; width: 220px; max-height: 280px; overflow-y: auto; background: var(--color-surface, #131313); border: 1px solid var(--color-outline-variant, #474747); z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        <div style="padding: 8px 12px; font-size: 0.75rem; font-weight: 600; color: var(--color-on-surface-variant, #C6C6C6); border-bottom: 1px solid var(--color-surface-container-high, #2A2A2A); text-transform: uppercase; letter-spacing: 0.05em; display: flex; justify-content: space-between; align-items: center;">
+          <span>참여자 ({{ participants.length }}명)</span>
+          <button @click="isShowingParticipants = false" style="background: transparent; border: none; color: inherit; cursor: pointer; padding: 0; display: flex;">
+            <span class="material-symbols-outlined" style="font-size: 1rem;">close</span>
+          </button>
+        </div>
+        <div v-if="participants.length === 0" style="padding: 12px; font-size: 0.875rem; text-align: center; color: var(--color-on-surface-variant, #C6C6C6);">
+          참여자 정보 없음
+        </div>
+        <div
+          v-for="p in participants"
+          :key="p.userPublicId"
+          style="padding: 8px 12px; border-bottom: 1px solid var(--color-surface-container-highest, #333333); display: flex; align-items: center; gap: 8px;"
+        >
+          <span class="material-symbols-outlined" style="font-size: 1.2rem; color: var(--color-on-surface-variant, #C6C6C6);">person</span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 0.875rem; color: var(--color-on-surface, #FFFFFF); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              {{ p.displayName }}
+              <span v-if="p.userPublicId === currentUserPublicId" style="font-size: 0.7rem; color: var(--color-primary, #FFFFFF); margin-left: 4px;">(나)</span>
+            </div>
+            <div v-if="p.jobTitle" style="font-size: 0.7rem; color: var(--color-on-surface-variant, #C6C6C6);">
+              {{ p.jobTitle }}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- 초대 팝오버 -->
       <div v-if="isInviting" style="position: absolute; top: 100%; right: 16px; width: 200px; max-height: 250px; overflow-y: auto; background: var(--color-surface, #131313); border: 1px solid var(--color-outline-variant, #474747); z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
