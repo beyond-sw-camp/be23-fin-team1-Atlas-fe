@@ -22,12 +22,7 @@ export interface CreateReturnItemDto {
 }
 
 export interface CreateReturnRequestDto {
-  returnNumber: string // Could be generated on backend but required in DTO per spec
-  sourceShipmentPublicId?: string
-  requestOrganizationPublicId: string
-  targetOrganizationPublicId: string
-  requestOrganizationName?: string
-  targetOrganizationName?: string
+  sourceShipmentPublicId: string
   returnType: 'DAMAGE' | 'DEFECTIVE' | 'MISDELIVERY' | 'SIMPLE_RETURN'
   returnReason: string
   attachmentPublicIds?: string[]
@@ -52,6 +47,7 @@ export interface ReturnRequestResponseDto {
   publicId: string
   returnNumber: string
   sourceShipmentPublicId?: string | null
+  returnShipmentPublicId?: string | null
   requestOrganizationPublicId: string
   targetOrganizationPublicId: string
   requestOrganizationName?: string

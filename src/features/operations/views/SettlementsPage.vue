@@ -222,6 +222,7 @@ const CONTENT = {
 } as const
 
 const content = computed(() => CONTENT[preferences.language])
+const myOrgPublicId = window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
 
 type VisibleSettlementTargetType = Extract<SettlementTargetType, 'SHIPMENT' | 'RETURN'>
 
@@ -455,12 +456,28 @@ async function fetchSettlements() {
   }
 }
 
-async function handleSettlementSelect(settlementId: number) {
+const canApproveSelectedSettlement = computed(() => {
+  return (
+    !!selectedSettlement.value &&
+    selectedSettlement.value.settlementStatus === 'PENDING' &&
+    selectedSettlement.value.supplierOrganizationPublicId === myOrgPublicId
+  )
+})
+
+const canCancelSelectedSettlement = computed(() => {
+  return (
+    !!selectedSettlement.value &&
+    selectedSettlement.value.settlementStatus === 'PENDING' &&
+    selectedSettlement.value.buyerOrganizationPublicId === myOrgPublicId
+  )
+})
+
+async function handleSettlementSelect(settlementPublicId: string) {
   isDetailLoading.value = true
   detailErrorMessage.value = ''
 
   try {
-    selectedSettlement.value = await getSettlement(settlementId)
+    selectedSettlement.value = await getSettlement(settlementPublicId)
   } catch (err: any) {
     console.error('Failed to fetch settlement detail:', err)
     selectedSettlement.value = null
@@ -478,7 +495,7 @@ async function handleApproveSettlement() {
   isApproveSubmitting.value = true
 
   try {
-    selectedSettlement.value = await approveSettlement(selectedSettlement.value.id)
+    selectedSettlement.value = await approveSettlement(selectedSettlement.value.publicId)
     await fetchSettlements()
   } catch (err: any) {
     console.error('Failed to approve settlement:', err)
@@ -496,7 +513,7 @@ async function handleCancelSettlement() {
   isCancelSubmitting.value = true
 
   try {
-    selectedSettlement.value = await cancelSettlement(selectedSettlement.value.id)
+    selectedSettlement.value = await cancelSettlement(selectedSettlement.value.publicId)
     await fetchSettlements()
   } catch (err: any) {
     console.error('Failed to cancel settlement:', err)
@@ -615,12 +632,8 @@ onMounted(() => {
       </div>
 
       <div class="design-trigger-row">
-        <button
-          class="page-button page-button--primary"
-          type="button"
-          @click="openCreateModal"
-        >
-          {{ content.createOpenLabel }}
+        <button class="page-button page-button--secondary" type="button" @click="fetchSettlements">
+          새로고침
         </button>
       </div>
     </header>
@@ -665,7 +678,7 @@ onMounted(() => {
 
           <div
             v-for="settlement in settlements"
-            :key="settlement.id"
+            :key="settlement.publicId"
             class="page-table__row"
           >
             <span>{{ settlement.id }}</span>
@@ -677,7 +690,7 @@ onMounted(() => {
               <button
                 class="page-button page-button--secondary"
                 type="button"
-                @click="handleSettlementSelect(settlement.id)"
+                @click="handleSettlementSelect(settlement.publicId)"
               >
                 {{ content.selectLabel }}
               </button>
@@ -802,7 +815,7 @@ onMounted(() => {
               :disabled="
                 isApproveSubmitting ||
                 isCancelSubmitting ||
-                selectedSettlement.settlementStatus !== 'PENDING'
+                !canApproveSelectedSettlement
               "
               @click="handleApproveSettlement"
             >
@@ -815,7 +828,7 @@ onMounted(() => {
               :disabled="
                 isApproveSubmitting ||
                 isCancelSubmitting ||
-                selectedSettlement.settlementStatus !== 'PENDING'
+                !canCancelSelectedSettlement
               "
               @click="handleCancelSettlement"
             >

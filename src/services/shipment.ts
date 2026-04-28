@@ -6,15 +6,23 @@ export type ShipmentStatus =
   | 'IN_TRANSIT'
   | 'ARRIVED'
   | 'DELAYED'
-  | 'DELIVERED'
   | 'CANCELLED'
 
 export interface ShipmentListResponseDto {
   publicId: string
   shipmentNumber: string
-  carrierName: string
+  purchaseOrderPublicId?: string | null
+  subPurchaseOrderPublicId?: string | null
+  carrierName?: string | null
+  originNodePublicId: string
+  originNodeName?: string | null
+  originNodeCode?: string | null
   destinationNodePublicId: string
-  currentNodePublicId: string
+  destinationNodeName?: string | null
+  destinationNodeCode?: string | null
+  currentNodePublicId?: string | null
+  currentNodeName?: string | null
+  currentNodeCode?: string | null
   arrivalEta: string
   status: ShipmentStatus
 }
@@ -23,13 +31,27 @@ export interface ShipmentResponseDto {
   publicId: string
   shipmentNumber: string
   poId: number
+  purchaseOrderPublicId?: string | null
   subPoId?: number | null
-  carrierName: string
-  vehicleNo: string
-  trackingNo: string
+  subPurchaseOrderPublicId?: string | null
+  carrierName?: string | null
+  vehicleNo?: string | null
+  trackingNo?: string | null
   originNodePublicId: string
+  originNodeName?: string | null
+  originNodeCode?: string | null
+  originLatitude?: number | null
+  originLongitude?: number | null
   destinationNodePublicId: string
+  destinationNodeName?: string | null
+  destinationNodeCode?: string | null
+  destinationLatitude?: number | null
+  destinationLongitude?: number | null
   currentNodePublicId?: string | null
+  currentNodeName?: string | null
+  currentNodeCode?: string | null
+  currentLatitude?: number | null
+  currentLongitude?: number | null
   departureEta: string
   arrivalEta: string
   actualDepartedAt?: string | null
@@ -39,17 +61,51 @@ export interface ShipmentResponseDto {
 }
 
 export interface CreateShipmentRequestDto {
-  shipmentNumber: string
-  poId: number
+  poId?: number | null
+  purchaseOrderPublicId?: string | null
   subPoId?: number | null
-  carrierName: string
-  vehicleNo: string
-  trackingNo: string
+  subPurchaseOrderPublicId?: string | null
+  carrierName?: string | null
+  vehicleNo?: string | null
+  trackingNo?: string | null
   originNodePublicId: string
   destinationNodePublicId: string
   departureEta: string
   arrivalEta: string
   temperatureRequired: boolean
+}
+
+export interface UpdateShipmentRequestDto {
+  carrierName?: string | null
+  vehicleNo?: string | null
+  trackingNo?: string | null
+  originNodePublicId?: string | null
+  destinationNodePublicId?: string | null
+  departureEta?: string | null
+  arrivalEta?: string | null
+}
+
+export interface ShipmentMapCheckpointDto {
+  checkpointType: string
+  checkpointStatus: string
+  nodePublicId?: string | null
+  nodeName?: string | null
+  nodeCode?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  plannedAt?: string | null
+  actualAt?: string | null
+  note?: string | null
+}
+
+export interface ShipmentMapResponseDto extends ShipmentResponseDto {
+  estimatedArrivalAt?: string | null
+  delayed: boolean
+  delayMinutes?: number | null
+  etaBasis?: string | null
+  lastCheckpointType?: string | null
+  lastCheckpointAt?: string | null
+  checkpoints: ShipmentMapCheckpointDto[]
 }
 
 export interface ShipmentEtaResponseDto {
@@ -166,6 +222,22 @@ export async function createShipment(
     '/api/supply/shipments',
     data,
   )
+  return response.data
+}
+
+export async function updateShipment(
+  publicId: string,
+  data: UpdateShipmentRequestDto,
+): Promise<ShipmentResponseDto> {
+  const response = await apiClient.patch<ShipmentResponseDto>(
+    `/api/supply/shipments/${publicId}`,
+    data,
+  )
+  return response.data
+}
+
+export async function getShipmentMapData(): Promise<ShipmentMapResponseDto[]> {
+  const response = await apiClient.get<ShipmentMapResponseDto[]>('/api/supply/shipments/map')
   return response.data
 }
 

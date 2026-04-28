@@ -15,7 +15,7 @@ const preferences = useAtlasPreferencesStore()
     <div class="page-map__canvas">
       <div
         v-for="node in panel.nodes"
-        :key="node.label"
+        :key="`${node.label}-${node.value}`"
         :class="['page-map__node', `page-map__node--${node.tone ?? 'neutral'}`]"
         :style="{ left: node.x, top: node.y }"
       >
@@ -26,13 +26,13 @@ const preferences = useAtlasPreferencesStore()
         </div>
       </div>
 
-      <div v-for="route in panel.routes" :key="`${route.from}-${route.to}`" class="page-map__route">
+      <div v-for="route in panel.routes" :key="`${route.from}-${route.to}-${route.label}`" class="page-map__route">
         {{ resolveDefaultCopy(route.label, preferences.language) }}
       </div>
     </div>
 
     <div class="page-map__legend">
-      <div v-for="node in panel.nodes" :key="`${node.label}-legend`" class="page-map__legend-item">
+      <div v-for="node in panel.nodes" :key="`${node.label}-${node.value}-legend`" class="page-map__legend-item">
         <span :class="['page-map__legend-dot', `page-map__legend-dot--${node.tone ?? 'neutral'}`]" />
         <div>
           <strong>{{ resolveDefaultCopy(node.label, preferences.language) }}</strong>

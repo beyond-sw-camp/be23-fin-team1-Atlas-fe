@@ -10,6 +10,7 @@ import {
   getLogisticsNodes,
   updateLogisticsNode,
   type CreateLogisticsNodeRequestDto,
+  type LogisticsNodeCapacityStatus,
   type LogisticsNodeResponseDto,
   type LogisticsNodeType,
   type UpdateLogisticsNodeRequestDto,
@@ -27,8 +28,7 @@ const CONTENT = {
       nodeName: '거점명',
       nodeType: '거점 유형',
       address: '주소',
-      latitude: '위도',
-      longitude: '경도',
+      capacityStatus: '창고 상태',
     },
     createSubmitLabel: '저장',
     createCancelLabel: '취소',
@@ -40,7 +40,7 @@ const CONTENT = {
     empty: '조회된 물류거점이 없습니다.',
     loading: '물류거점 목록을 불러오는 중입니다.',
     errorFallback: '물류거점 목록을 불러오지 못했습니다.',
-    columns: ['거점 코드', '거점명', '유형', '주소', '활성 상태', '수정일', '관리'],
+    columns: ['거점 코드', '거점명', '유형', '주소', '창고 상태', '활성 상태', '수정일', '관리'],
     refreshLabel: '새로고침',
     createLabel: '거점 등록',
     active: '활성',
@@ -54,8 +54,7 @@ const CONTENT = {
       nodeName: 'Node Name',
       nodeType: 'Node Type',
       address: 'Address',
-      latitude: 'Latitude',
-      longitude: 'Longitude',
+      capacityStatus: 'Capacity Status',
     },
     createSubmitLabel: 'SAVE',
     createCancelLabel: 'CANCEL',
@@ -67,7 +66,7 @@ const CONTENT = {
     empty: 'No logistics nodes found.',
     loading: 'Loading logistics nodes...',
     errorFallback: 'Failed to load logistics nodes.',
-    columns: ['Code', 'Name', 'Type', 'Address', 'Active', 'Updated At', 'Action'],
+    columns: ['Code', 'Name', 'Type', 'Address', 'Capacity', 'Active', 'Updated At', 'Action'],
     refreshLabel: 'REFRESH',
     createLabel: 'ADD NODE',
     active: 'Active',
@@ -97,19 +96,15 @@ const {
 } = useModal(false)
 
 const createForm = ref<{
-  nodeCode: string
   nodeName: string
   nodeType: LogisticsNodeType
   address: string
-  latitude: string
-  longitude: string
+  capacityStatus: LogisticsNodeCapacityStatus
 }>({
-  nodeCode: '',
   nodeName: '',
   nodeType: 'WAREHOUSE',
   address: '',
-  latitude: '',
-  longitude: '',
+  capacityStatus: 'EMPTY',
 })
 
 const nodeTypeOptions: LogisticsNodeType[] = [
@@ -120,15 +115,19 @@ const nodeTypeOptions: LogisticsNodeType[] = [
   'PORT',
 ]
 
+const capacityStatusOptions: LogisticsNodeCapacityStatus[] = [
+  'EMPTY',
+  'AVAILABLE',
+  'FULL',
+]
+
 function resetCreateForm() {
   createErrorMessage.value = ''
   createForm.value = {
-    nodeCode: '',
     nodeName: '',
     nodeType: 'WAREHOUSE',
     address: '',
-    latitude: '',
-    longitude: '',
+    capacityStatus: 'EMPTY',
   }
 }
 
@@ -142,38 +141,20 @@ function handleOpenEditModal(node: LogisticsNodeResponseDto) {
   editingNodeId.value = node.publicId
   createErrorMessage.value = ''
   createForm.value = {
-    nodeCode: node.nodeCode,
     nodeName: node.nodeName,
     nodeType: node.nodeType,
     address: node.address ?? '',
-    latitude: node.latitude != null ? String(node.latitude) : '',
-    longitude: node.longitude != null ? String(node.longitude) : '',
+    capacityStatus: node.capacityStatus,
   }
   openCreateModal()
 }
 
-function parseCoordinate(value: string) {
-  const trimmed = value.trim()
-
-  if (!trimmed) {
-    return null
-  }
-
-  const parsed = Number(trimmed)
-
-  if (Number.isNaN(parsed)) {
-    throw new Error('위도/경도는 숫자로 입력해야 합니다.')
-  }
-
-  return parsed
-}
-
 async function handleCreateSubmit() {
-  const nodeCode = createForm.value.nodeCode.trim()
   const nodeName = createForm.value.nodeName.trim()
+  const address = createForm.value.address.trim()
 
-  if (!nodeCode || !nodeName) {
-    alert('거점 코드와 거점명은 필수입니다.')
+  if (!nodeName || !address) {
+    alert('거점명과 주소는 필수입니다.')
     return
   }
 
@@ -181,13 +162,11 @@ async function handleCreateSubmit() {
   createErrorMessage.value = ''
 
   try {
-        const payload = {
-      nodeCode,
+    const payload = {
       nodeName,
       nodeType: createForm.value.nodeType,
-      address: createForm.value.address.trim() || undefined,
-      latitude: parseCoordinate(createForm.value.latitude),
-      longitude: parseCoordinate(createForm.value.longitude),
+      address,
+      capacityStatus: createForm.value.capacityStatus,
     }
 
     if (editingNodeId.value) {
@@ -414,6 +393,7 @@ onBeforeUnmount(() => header.clearActions())
               <span>{{ node.nodeName }}</span>
               <span>{{ node.nodeType }}</span>
               <span>{{ node.address || '-' }}</span>
+              <span>{{ node.capacityStatus }}</span>
               <span>
                 {{ node.active ? content.active : content.inactive }}
               </span>
@@ -450,17 +430,6 @@ onBeforeUnmount(() => header.clearActions())
     <div class="page-form" style="display: flex; flex-direction: column; gap: 16px;">
       <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
         <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
-          {{ content.formLabels.nodeCode }}
-        </span>
-        <input
-          v-model="createForm.nodeCode"
-          type="text"
-          style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
-        />
-      </label>
-
-      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-        <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
           {{ content.formLabels.nodeName }}
         </span>
         <input
@@ -493,6 +462,27 @@ onBeforeUnmount(() => header.clearActions())
 
       <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
         <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
+          {{ content.formLabels.capacityStatus }}
+        </span>
+        <div style="width: 100%; border-bottom: 2px solid var(--color-surface-container-high);">
+          <select
+            v-model="createForm.capacityStatus"
+            style="font-family: inherit; font-size: inherit; width: 100%; appearance: auto; background: transparent; color: var(--color-on-surface); padding: 8px 0; border: none; outline: none;"
+          >
+            <option
+              v-for="option in capacityStatusOptions"
+              :key="option"
+              :value="option"
+              style="background-color: var(--color-surface); color: var(--color-on-surface);"
+            >
+              {{ option }}
+            </option>
+          </select>
+        </div>
+      </label>
+
+      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
+        <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
           {{ content.formLabels.address }}
         </span>
         <input
@@ -501,28 +491,6 @@ onBeforeUnmount(() => header.clearActions())
           style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
         />
       </label>
-
-      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-        <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
-          {{ content.formLabels.latitude }}
-        </span>
-        <input
-          v-model="createForm.latitude"
-          type="text"
-          style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
-        />
-      </label>
-
-      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-        <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
-          {{ content.formLabels.longitude }}
-        </span>
-        <input
-          v-model="createForm.longitude"
-          type="text"
-          style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
-        />
-        </label>
     </div>
 
     <div

@@ -22,6 +22,9 @@ export interface SettlementDetailResponseDto {
 
 export interface SettlementResponseDto {
   id: number
+  publicId: string
+  buyerOrganizationPublicId?: string | null
+  supplierOrganizationPublicId?: string | null
   supplierPublicId: string
   targetType: SettlementTargetType
   targetPublicId: string
@@ -72,10 +75,10 @@ export async function getSettlements(
 }
 
 export async function getSettlement(
-  settlementId: number,
+  settlementPublicId: string,
 ): Promise<SettlementResponseDto> {
   const response = await apiClient.get<SettlementResponseDto>(
-    `/api/supply/settlements/${settlementId}`,
+    `/api/supply/settlements/${settlementPublicId}`,
   )
   return response.data
 }
@@ -91,19 +94,19 @@ export async function createSettlement(
 }
 
 export async function approveSettlement(
-  settlementId: number,
+  settlementPublicId: string,
 ): Promise<SettlementResponseDto> {
   const response = await apiClient.patch<SettlementResponseDto>(
-    `/api/supply/settlements/${settlementId}/approve`,
+    `/api/supply/settlements/${settlementPublicId}/approve`,
   )
   return response.data
 }
 
 export async function cancelSettlement(
-  settlementId: number,
+  settlementPublicId: string,
 ): Promise<SettlementResponseDto> {
   const response = await apiClient.patch<SettlementResponseDto>(
-    `/api/supply/settlements/${settlementId}/cancel`,
+    `/api/supply/settlements/${settlementPublicId}/cancel`,
   )
   return response.data
 }
