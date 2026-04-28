@@ -36,7 +36,7 @@ type SupplierTableRow = {
   supplierName: string
   publicId?: string
   supplierStatus: string
-  relationStatus: string
+  relationStatus: string | null
   purchaseOrderCount: number | null
   cumulativeAmount: number | null
   detail: SupplierResponseDto | null
@@ -286,7 +286,7 @@ function subPoStatusText(value: string) {
 // 목록 API는 SupplierListResponseDto 를 내려주므로 상세 DTO가 아니라 목록 DTO 기준으로 받습니다.
 function toDisplayRow(supplier: SupplierListResponseDto): SupplierTableRow {
   const supplierStatus = supplier.detail?.supplierStatus ?? 'INACTIVE'
-  const relationStatus = supplier.relationStatus ?? 'REQUESTED'
+  const relationStatus = supplier.relationStatus
 
   return {
     supplierCode: supplier.supplierCode,
@@ -300,7 +300,7 @@ function toDisplayRow(supplier: SupplierListResponseDto): SupplierTableRow {
     cells: [
       supplier.supplierCode || '-',
       supplier.supplierName || '-',
-      relationStatusText(relationStatus),
+      relationStatus ? relationStatusText(relationStatus) : '-',
       formatPercent(supplier.onTimeRate),
       formatNumber(supplier.supplierScore),
       formatNumber(supplier.qualityScore),
@@ -375,7 +375,13 @@ async function fetchSupplierRows(keyword = '') {
     rows.value = response.content
       .filter((supplier) => {
         const supplierOrgId = supplier.detail?.organizationPublicId
-        return !supplierOrgId || supplierOrgId !== session.organizationPublicId
+
+        // 내 조직은 목록에서 제외
+        if (supplierOrgId && supplierOrgId === session.organizationPublicId) {
+          return false
+        }
+
+        return true
       })
       .map(toDisplayRow)
   } catch (error: any) {
