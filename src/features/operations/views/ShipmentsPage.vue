@@ -5,7 +5,9 @@ import SupplierVectorMap from '../../monitoring/components/SupplierVectorMap.vue
 import type { MonitoringMapNode } from '../../monitoring/services/mapData'
 import { getLogisticsNodes, type LogisticsNodeResponseDto } from '../../../services/logistics'
 import {
+  getPurchaseOrder,
   getPurchaseOrders,
+  type PurchaseOrderDetailResponseDto,
   type PurchaseOrderSummaryResponseDto,
 } from '../../../services/purchaseOrder'
 import {
@@ -256,6 +258,7 @@ const shipments = ref<ShipmentListResponseDto[]>([])
 const mapShipments = ref<ShipmentMapResponseDto[]>([])
 const logisticsNodes = ref<LogisticsNodeResponseDto[]>([])
 const acceptedPurchaseOrders = ref<PurchaseOrderSummaryResponseDto[]>([])
+const selectedPurchaseOrderDetail = ref<PurchaseOrderDetailResponseDto | null>(null)
 const lotOptions = ref<LotResponseDto[]>([])
 const currentPage = ref(0)
 const pageSize = ref(10)
@@ -426,6 +429,22 @@ const shipmentWorldMapNodes = computed<MonitoringMapNode[]>(() =>
     }
   }),
 )
+
+const selectedArrivalLogisticsNodeText = computed(() => {
+  const item = selectedPurchaseOrderDetail.value?.items.find(
+    (item) => Boolean(item.arrivalLogisticsNodePublicId),
+  )
+
+  if (!item) {
+    return content.value.messages.destinationFromOrder
+  }
+
+  const nodeName = item.arrivalLogisticsNodeName ?? '-'
+  const nodeAddress = item.arrivalLogisticsNodeAddress ?? '-'
+
+  return `${nodeName} / ${nodeAddress}`
+})
+
 const shipmentWorldMapKey = computed(() =>
   displayMapShipments.value.map((shipment) => getShipmentCaseKey(shipment)).join('|'),
 )
@@ -678,6 +697,30 @@ async function handleShipmentSelect(shipment: ShipmentListResponseDto) {
   }
 }
 
+async function handlePurchaseOrderSelect(poPublicId: string) {
+  createForm.value.purchaseOrderPublicId = poPublicId
+  createForm.value.destinationNodePublicId = ''
+  selectedPurchaseOrderDetail.value = null
+
+  if (!poPublicId) return
+
+  try {
+    const detail = await getPurchaseOrder(poPublicId)
+    selectedPurchaseOrderDetail.value = detail
+
+    const arrivalNodePublicId = detail.items.find(
+      (item) => Boolean(item.arrivalLogisticsNodePublicId),
+    )?.arrivalLogisticsNodePublicId
+
+    createForm.value.destinationNodePublicId = arrivalNodePublicId ?? ''
+    createErrorMessage.value = ''
+  } catch (error) {
+    console.error('Failed to load purchase order detail:', error)
+    createForm.value.destinationNodePublicId = ''
+    createErrorMessage.value = '발주 상세 정보를 불러오지 못했습니다.'
+  }
+}
+
 function resetCreateForm() {
   createForm.value = {
     poId: null,
@@ -921,7 +964,12 @@ onMounted(refreshShipments)
       <div class="page-feed">
         <div class="page-feed__item">
           <span class="page-feed__label">승인 발주 <strong style="color: var(--color-critical);">*</strong></span>
-          <select v-model="createForm.purchaseOrderPublicId" class="page-input" :disabled="isOrderOptionsLoading">
+          <select
+            :value="createForm.purchaseOrderPublicId"
+            class="page-input"
+            :disabled="isOrderOptionsLoading"
+            @change="handlePurchaseOrderSelect(($event.target as HTMLSelectElement).value)"
+          >
             <option value="">{{ isOrderOptionsLoading ? '불러오는 중...' : '선택' }}</option>
             <option v-for="order in acceptedPurchaseOrders" :key="order.poPublicId" :value="order.poPublicId">
               {{ order.poNumber }} / {{ order.supplierName }} / {{ order.poStatus }}
@@ -933,8 +981,10 @@ onMounted(refreshShipments)
           출하 생성 가능한 승인 발주가 없습니다.
         </div>
         <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.carrierName }} <small style="opacity: 0.65;">선택</small></span>
-          <input v-model="createForm.carrierName" type="text" class="page-input" />
+          <span class="page-feed__label">{{ content.fields.destinationNodePublicId }}</span>
+          <strong class="page-feed__text">
+            {{ selectedArrivalLogisticsNodeText }}
+          </strong>
         </div>
         <div class="page-feed__item">
           <span class="page-feed__label">{{ content.fields.vehicleNo }} <small style="opacity: 0.65;">선택</small></span>

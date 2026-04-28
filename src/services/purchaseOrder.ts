@@ -36,6 +36,7 @@ export interface CreatePurchaseOrderItemRequestDto {
   orderedQty: number
   unitPrice: number
   requiredDate?: string
+  arrivalLogisticsNodePublicId: string
 }
 
 export interface CreatePurchaseOrderRequestDto {
@@ -69,6 +70,7 @@ export interface CreatePurchaseOrderBatchLineRequestDto {
   supplierPublicId: string
   itemPublicId: string
   orderedQty: number
+  arrivalLogisticsNodePublicId: string
 }
 
 export interface CreatePurchaseOrderBatchRequestDto {
@@ -106,6 +108,9 @@ export interface PurchaseOrderItemResponseDto {
   expectedDueDate: string | null
   leadTimeDays: number | null
   partialConfirmationAllowed: boolean | null
+  arrivalLogisticsNodePublicId: string | null
+  arrivalLogisticsNodeName: string | null
+  arrivalLogisticsNodeAddress: string | null
   createdAt: string
   updatedAt: string
 }
