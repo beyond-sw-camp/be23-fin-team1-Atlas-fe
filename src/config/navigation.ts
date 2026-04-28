@@ -124,10 +124,10 @@ export const NAV_ITEMS: NavEntry[] = [
     key: 'items',
     label: 'Items',
     icon: 'inventory_2',
-    description: '품목 관리와 재고 임계치',
-    pageSubtitle: 'SKU, 재고, 재발주점, 공급처 기준 운영',
+    description: '품목 관리 및 공급역량',
+    pageSubtitle: 'SKU, 재고, 재발주점, 공급사 기준 운영',
     section: 'operations',
-    organizations: ['mainBuyer', 'supplier', 'admin'],
+    organizations: ['supplier'],
   },
   {
     key: 'lots',

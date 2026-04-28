@@ -80,6 +80,9 @@ export interface SupplierItemCapabilityResponseDto {
   availableQty: number | null
   moq: number | null
   qualityGrade: SupplierItemQualityGrade | null
+  partialConfirmationAllowed: boolean | null
+  unit: string | null
+  unitPrice: number | null
   unitPriceHint: number | null
   validFrom: string | null
   createdAt: string
@@ -152,6 +155,30 @@ export interface CreateSupplierItemCapabilityRequestDto {
   qualityGrade?: SupplierItemQualityGrade | null
   unitPriceHint?: number | null
   validFrom?: string | null
+  partialConfirmationAllowed: boolean
+}
+
+export interface UpdateSupplierItemCapabilityRequestDto {
+  leadTimeDays?: number | null
+  monthlyCapacity?: number | null
+  availableQty?: number | null
+  moq?: number | null
+  qualityGrade?: SupplierItemQualityGrade | null
+  unitPriceHint?: number | null
+  validFrom?: string | null
+  partialConfirmationAllowed?: boolean | null
+}
+
+export async function updateSupplierItemCapability(
+  supplierPublicId: string,
+  itemPublicId: string,
+  data: UpdateSupplierItemCapabilityRequestDto,
+) {
+  const response = await apiClient.patch<SupplierItemCapabilityResponseDto>(
+    `/api/supply/suppliers/${supplierPublicId}/item-capabilities/${itemPublicId}`,
+    data,
+  )
+  return response.data
 }
 
 // 협력사 품목 공급 역량 등록

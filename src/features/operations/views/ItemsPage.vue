@@ -6,9 +6,16 @@ import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useActorScope } from '../../../composables/useActorScope'
 import {
   createItem,
+  deleteItem,
+  changeItemStatus,
   getItem,
-  getItemCategories,
   getItems,
+  getItemCategories,
+  getManagedItems,
+  getManagedItemDashboard,
+  getManagedItemLinkedOrders,
+  type ItemDashboardSummaryResponseDto,
+  type ItemLinkedPurchaseOrderResponseDto,
   type CreateItemRequestDto,
   type GetItemsParams,
   type ItemCategoryResponseDto,
@@ -16,15 +23,19 @@ import {
   type ItemStatus,
   type ItemUnit,
 } from '../../../services/item'
+
 import {
   createSupplierItemCapability,
   getSupplierItemCapabilities,
+  getSupplierItemCapability,
+  updateSupplierItemCapability,
   type CreateSupplierItemCapabilityRequestDto,
+  type UpdateSupplierItemCapabilityRequestDto,
   type SupplierItemCapabilityResponseDto,
   type SupplierItemQualityGrade,
 } from '../../../services/supplier'
 
-type ItemTabKey = 'ALL' | 'ACTIVE' | 'DEACTIVE' | 'CAPABILITY'
+type ItemTabKey = 'ALL' | 'ACTIVE' | 'DEACTIVE'
 
 type ItemTableRow = {
   publicId: string
@@ -36,21 +47,6 @@ type ItemTableRow = {
   capability: SupplierItemCapabilityResponseDto | null
   raw: ItemResponseDto
   cells: string[]
-}
-
-type CreateItemFormState = CreateItemRequestDto & {
-  leadTimeDays: number | null
-  monthlyCapacity: number | null
-  availableQty: number | null
-  moq: number | null
-  qualityGrade: SupplierItemQualityGrade | ''
-}
-
-type CategoryPathOption = {
-  publicId: string
-  label: string
-  level: number
-  isLeaf: boolean
 }
 
 const itemCategoryPlaceholder = computed(() =>
@@ -91,9 +87,9 @@ const actor = useActorScope()
 const copy = computed(() =>
   preferences.language === 'ko'
     ? {
-        eyebrow: '공급망 운영 / 품목',
+        eyebrow: '공급망 운영 / 품목 관리',
         title: '품목 관리',
-        subtitle: '품목 마스터와 협력사 품목 공급 역량을 함께 조회하고 등록합니다.',
+        subtitle: '품목 마스터와 협력사 품목 공급 역량을 함께 조회하고 관리합니다.',
         exportLabel: '내보내기',
         createLabel: '품목 등록',
         tableTitle: '품목 목록',
@@ -109,22 +105,18 @@ const copy = computed(() =>
           '리드타임',
           '협력사',
           '상태',
+          '상세',
         ],
         tabs: {
           all: '전체',
           active: '활성',
-          deactive: '비활성',
-          capability: '공급 역량 연계',
+          deactive: '비활성'
         },
         metrics: {
           total: '총 품목',
-          shortage: '재고 부족',
-          reorder: '재발주 대기',
-          inbound: '금일 입고',
-          totalMeta: '등록 SKU',
-          shortageMeta: '임계치 이하',
-          reorderMeta: '발주 필요',
-          inboundMeta: '단위',
+          active: '활성 품목',
+          deactive: '비활성 품목',
+          orderedToday: '금일 발주 품목',
         },
         detailTitle: '품목 상세',
         createTitle: '품목 등록',
@@ -134,8 +126,8 @@ const copy = computed(() =>
         createMasterSection: '품목 기본 정보',
         createCapabilitySection: '협력사 품목 공급 역량',
         cancelLabel: '취소',
-        submitLabel: '등록',
-        retrySubmitLabel: '공급 역량 재시도',
+        submitLabel: '완료',
+        retrySubmitLabel: '완료',
         emptyCapability: '연결된 공급 역량 정보가 없습니다.',
       }
     : {
@@ -157,22 +149,18 @@ const copy = computed(() =>
           'LEAD TIME',
           'SUPPLIER',
           'STATUS',
+          'DETAIL',
         ],
         tabs: {
           all: 'ALL',
           active: 'ACTIVE',
           deactive: 'DEACTIVE',
-          capability: 'CAPABILITY',
         },
         metrics: {
           total: 'TOTAL ITEMS',
-          shortage: 'LOW STOCK',
-          reorder: 'REORDER PENDING',
-          inbound: 'TODAY INBOUND',
-          totalMeta: 'Registered SKU',
-          shortageMeta: 'Below threshold',
-          reorderMeta: 'Order required',
-          inboundMeta: 'Units',
+          active: 'ACTIVE ITEMS',
+          deactive: 'INACTIVE ITEMS',
+          orderedToday: 'ITEMS ORDERED TODAY',
         },
         detailTitle: 'Item Detail',
         createTitle: 'Create Item',
@@ -183,7 +171,7 @@ const copy = computed(() =>
         createCapabilitySection: 'Supplier Item Capability',
         cancelLabel: 'Cancel',
         submitLabel: 'Create',
-        retrySubmitLabel: 'Retry Capability',
+        retrySubmitLabel: 'Retry',
         emptyCapability: 'No linked capability data.',
       },
 )
@@ -202,6 +190,106 @@ const detailErrorMessage = ref('')
 const selectedItem = ref<ItemResponseDto | null>(null)
 const selectedCapability = ref<SupplierItemCapabilityResponseDto | null>(null)
 
+const capabilityEditModalOpen = ref(false)
+const capabilityEditLoading = ref(false)
+const capabilityEditErrorMessage = ref('')
+
+const capabilityEditForm = ref({
+  leadTimeDays: 0,
+  monthlyCapacity: null as number | null,
+  availableQty: null as number | null,
+  moq: null as number | null,
+  qualityGrade: '' as SupplierItemQualityGrade | '',
+  unitPriceHint: null as number | null,
+  validFrom: '',
+  partialConfirmationAllowed: true,
+  status: 'ACTIVE' as 'ACTIVE' | 'DEACTIVE',
+})
+
+function openCapabilityEditModal() {
+  if (!selectedItem.value || !selectedCapability.value) return
+
+  capabilityEditErrorMessage.value = ''
+  capabilityEditForm.value = {
+    leadTimeDays: selectedCapability.value.leadTimeDays ?? 0,
+    monthlyCapacity: selectedCapability.value.monthlyCapacity ?? null,
+    availableQty: selectedCapability.value.availableQty ?? null,
+    moq: selectedCapability.value.moq ?? null,
+    qualityGrade: selectedCapability.value.qualityGrade ?? '',
+    unitPriceHint: selectedCapability.value.unitPriceHint ?? null,
+    validFrom: selectedCapability.value.validFrom ?? '',
+    partialConfirmationAllowed: selectedCapability.value.partialConfirmationAllowed ?? true,
+    status: selectedItem.value.status === 'DEACTIVE' ? 'DEACTIVE' : 'ACTIVE',
+  }
+
+  capabilityEditModalOpen.value = true
+}
+
+function closeCapabilityEditModal() {
+  capabilityEditModalOpen.value = false
+  capabilityEditLoading.value = false
+  capabilityEditErrorMessage.value = ''
+}
+
+async function submitCapabilityEdit() {
+  if (!selectedItem.value || !selectedCapability.value) return
+
+  try {
+    capabilityEditLoading.value = true
+    capabilityEditErrorMessage.value = ''
+
+    const updatedCapability = await updateSupplierItemCapability(
+      selectedItem.value.supplierPublicId,
+      selectedItem.value.publicId,
+      {
+        leadTimeDays: Number(capabilityEditForm.value.leadTimeDays),
+        monthlyCapacity: capabilityEditForm.value.monthlyCapacity,
+        availableQty: capabilityEditForm.value.availableQty,
+        moq: capabilityEditForm.value.moq,
+        qualityGrade: capabilityEditForm.value.qualityGrade || null,
+        unitPriceHint: capabilityEditForm.value.unitPriceHint,
+        validFrom: capabilityEditForm.value.validFrom || null,
+        partialConfirmationAllowed: capabilityEditForm.value.partialConfirmationAllowed,
+      },
+    )
+
+    let updatedItem = selectedItem.value
+
+    if (selectedItem.value.status !== capabilityEditForm.value.status) {
+      updatedItem = await changeItemStatus(selectedItem.value.publicId, {
+        status: capabilityEditForm.value.status,
+      })
+    }
+
+    selectedCapability.value = updatedCapability
+    selectedItem.value = updatedItem
+
+    await fetchItems()
+    closeCapabilityEditModal()
+  } catch (error: any) {
+    capabilityEditErrorMessage.value =
+      error.message ?? '품목 수정에 실패했습니다.'
+  } finally {
+    capabilityEditLoading.value = false
+  }
+}
+
+
+
+async function submitDeleteItem() {
+  if (!selectedItem.value) return
+  if (!window.confirm('이 품목을 삭제하시겠습니까?')) return
+
+  try {
+    await deleteItem(selectedItem.value.publicId)
+    await fetchItems()
+    closeItemDetail()
+  } catch (error: any) {
+    detailErrorMessage.value =
+      error.message ?? '품목 삭제에 실패했습니다.'
+  }
+}
+
 
 // 품목 등록 모달 상태
 const createModalOpen = ref(false)
@@ -210,18 +298,24 @@ const createLoading = ref(false)
 const createErrorMessage = ref('')
 const createdItemForCapability = ref<ItemResponseDto | null>(null)
 
-const createForm = ref<CreateItemFormState>({
+const dashboardSummary = ref<ItemDashboardSummaryResponseDto | null>(null)
+const linkedOrders = ref<ItemLinkedPurchaseOrderResponseDto[]>([])
+
+const createForm = ref({
   itemCategoryPublicId: '',
-  itemCode: '',
   itemName: '',
-  unit: 'EA',
+  unitPrice: null as number | null,
+  unit: 'EA' as ItemUnit,
   spec: '',
   shelfLifeDays: 0,
   leadTimeDays: 0,
-  monthlyCapacity: null,
-  availableQty: null,
-  moq: null,
-  qualityGrade: '',
+  monthlyCapacity: null as number | null,
+  availableQty: null as number | null,
+  moq: null as number | null,
+  qualityGrade: '' as SupplierItemQualityGrade | '',
+  unitPriceHint: null as number | null,
+  validFrom: '',
+  partialConfirmationAllowed: true,
 })
 
 function formatNumber(value: number | null | undefined) {
@@ -273,6 +367,30 @@ function itemStatusText(status: ItemStatus) {
   }
 }
 
+function poStatusText(value: string) {
+  if (preferences.language !== 'ko') return value
+
+  switch (value) {
+    case 'CREATED':
+      return '확인 대기'
+    case 'PARTIALLY_CONFIRMED':
+      return '부분 확정'
+    case 'CONFIRMED':
+      return '확정'
+    case 'REJECTED':
+      return '반려'
+    case 'CANCELLED':
+      return '취소'
+    case 'COMPLETED':
+      return '완료'
+    case 'DELETED':
+      return '삭제'
+    default:
+      return value
+  }
+}
+
+
 // 품목 DTO와 공급 역량 DTO를 화면 테이블용 한 줄 데이터로 합칩니다.
 function toItemRow(
   item: ItemResponseDto,
@@ -302,56 +420,40 @@ function toItemRow(
   }
 }
 
-// 품목 API에 없는 가용수량/MOQ/품질등급/리드타임은 공급 역량 API에서 합칩니다.
-async function loadCapabilityMap(items: ItemResponseDto[]) {
-  const capabilityMap = new Map<string, SupplierItemCapabilityResponseDto>()
-  const supplierPublicIds = [...new Set(items.map((item) => item.supplierPublicId))]
-
-  const results = await Promise.allSettled(
-    supplierPublicIds.map((supplierPublicId) => getSupplierItemCapabilities(supplierPublicId)),
-  )
-
-  for (const result of results) {
-    if (result.status !== 'fulfilled') continue
-
-    for (const capability of result.value) {
-      capabilityMap.set(capability.itemPublicId, capability)
-    }
-  }
-
-  return capabilityMap
-}
-
 // supplier 조직은 자기 조직 품목만 조회하고, admin/buyer는 전체 조회를 그대로 탑니다.
 async function fetchItems() {
   try {
     errorMessage.value = ''
 
-    const params: GetItemsParams = {
-      page: 0,
-      size: 100,
-    }
+    const response = await getManagedItems(0, 100)
+    const summary = await getManagedItemDashboard()
 
-    if (actor.isSupplierOrganization.value && actor.organizationPublicId.value) {
-      params.supplierOrganizationPublicId = actor.organizationPublicId.value
-    }
+    dashboardSummary.value = summary
 
-    const response = await getItems(params)
-    const capabilityMap = await loadCapabilityMap(response.content)
+    const supplierPublicId = response.content[0]?.supplierPublicId
+    const capabilities = supplierPublicId
+      ? await getSupplierItemCapabilities(supplierPublicId)
+      : []
 
-    rows.value = response.content.map((item) => toItemRow(item, capabilityMap.get(item.publicId) ?? null))
+    const capabilityMap = new Map(
+      capabilities.map((capability) => [capability.itemPublicId, capability]),
+    )
+
+    rows.value = response.content.map((item) =>
+      toItemRow(item, capabilityMap.get(item.publicId) ?? null),
+    )
   } catch (error: any) {
     rows.value = []
     errorMessage.value = error.message ?? '품목 목록을 불러오지 못했습니다.'
   }
 }
 
+
+
 // 등록 모달에서 사용할 카테고리 목록입니다.
 async function loadItemCategories() {
-  if (!actor.canManageItems.value && !actor.canManageItemCategories.value) return
-
   try {
-    const response = await getItemCategories(0, 100)
+    const response = await getItemCategories(0, 500)
 
     categories.value = response.content
       .filter((category) => category.status === 'ACTIVE')
@@ -373,9 +475,9 @@ function resetCreateForm() {
   createdItemForCapability.value = null
   createForm.value = {
     itemCategoryPublicId: '',
-    itemCode: '',
     itemName: '',
     unit: 'EA',
+    unitPrice: null,
     spec: '',
     shelfLifeDays: 0,
     leadTimeDays: 0,
@@ -383,6 +485,9 @@ function resetCreateForm() {
     availableQty: null,
     moq: null,
     qualityGrade: '',
+    unitPriceHint: null,
+    validFrom: '',
+    partialConfirmationAllowed: true,
   }
 }
 
@@ -416,12 +521,6 @@ function validateCreateForm() {
     return preferences.language === 'ko'
       ? '카테고리를 선택해 주세요.'
       : 'Select a category.'
-  }
-
-  if (!createForm.value.itemCode.trim()) {
-    return preferences.language === 'ko'
-      ? '품목코드를 입력해 주세요.'
-      : 'Enter item code.'
   }
 
   if (!createForm.value.itemName.trim()) {
@@ -473,8 +572,8 @@ function validateCreateForm() {
 function buildCreateItemPayload(): CreateItemRequestDto {
   return {
     itemCategoryPublicId: createForm.value.itemCategoryPublicId,
-    itemCode: createForm.value.itemCode.trim(),
     itemName: createForm.value.itemName.trim(),
+    unitPrice: Number(createForm.value.unitPrice),
     unit: createForm.value.unit,
     spec: createForm.value.spec.trim(),
     shelfLifeDays: Number(createForm.value.shelfLifeDays),
@@ -490,6 +589,9 @@ function buildCapabilityPayload(itemPublicId: string): CreateSupplierItemCapabil
     availableQty: Number(createForm.value.availableQty),
     moq: Number(createForm.value.moq),
     qualityGrade: createForm.value.qualityGrade || null,
+    unitPriceHint: createForm.value.unitPriceHint,
+    validFrom: createForm.value.validFrom || null,
+    partialConfirmationAllowed: createForm.value.partialConfirmationAllowed,
   }
 }
 
@@ -556,7 +658,6 @@ const itemTabs = computed<{ key: ItemTabKey; label: string }[]>(() => [
   { key: 'ALL', label: copy.value.tabs.all },
   { key: 'ACTIVE', label: copy.value.tabs.active },
   { key: 'DEACTIVE', label: copy.value.tabs.deactive },
-  { key: 'CAPABILITY', label: copy.value.tabs.capability },
 ])
 
 // 상단 카드 레이아웃은 유지하고, 총 품목만 실제 데이터로 연결합니다.
@@ -565,28 +666,21 @@ const metrics = computed(() => [
   {
     label: copy.value.metrics.total,
     value: String(rows.value.length),
-    meta: copy.value.metrics.totalMeta,
-    tone: 'nominal',
   },
   {
-    label: copy.value.metrics.shortage,
-    value: '14',
-    meta: copy.value.metrics.shortageMeta,
-    tone: 'warning',
+    label: copy.value.metrics.active,
+    value: String(rows.value.filter((row) => row.status === 'ACTIVE').length),
   },
   {
-    label: copy.value.metrics.reorder,
-    value: '28',
-    meta: copy.value.metrics.reorderMeta,
-    tone: 'warning',
+    label: copy.value.metrics.deactive,
+    value: String(rows.value.filter((row) => row.status === 'DEACTIVE').length),
   },
   {
-    label: copy.value.metrics.inbound,
-    value: '1,240',
-    meta: copy.value.metrics.inboundMeta,
-    tone: 'info',
+    label: copy.value.metrics.orderedToday,
+    value: '0',
   },
 ])
+
 
 const filteredRows = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -607,8 +701,6 @@ const filteredRows = computed(() => {
         return row.status === 'ACTIVE'
       case 'DEACTIVE':
         return row.status === 'DEACTIVE'
-      case 'CAPABILITY':
-        return row.capability != null
       default:
         return true
     }
@@ -618,14 +710,18 @@ const filteredRows = computed(() => {
 async function openItemDetail(row: ItemTableRow) {
   detailModalOpen.value = true
   detailLoading.value = true
-  detailErrorMessage.value = ''
-  selectedItem.value = null
-  selectedCapability.value = row.capability
+  selectedItem.value = row.raw
+  selectedCapability.value = null
+  linkedOrders.value = []
 
   try {
-    selectedItem.value = await getItem(row.publicId)
-  } catch (error: any) {
-    detailErrorMessage.value = error.message ?? '품목 상세 정보를 불러오지 못했습니다.'
+    const [capability, orders] = await Promise.all([
+      getSupplierItemCapability(row.raw.supplierPublicId, row.publicId).catch(() => null),
+      getManagedItemLinkedOrders(row.publicId),
+    ])
+
+    selectedCapability.value = capability
+    linkedOrders.value = orders
   } finally {
     detailLoading.value = false
   }
@@ -717,6 +813,56 @@ const categoryOptions = computed<CategoryOption[]>(() => {
     .sort((a, b) => a.label.localeCompare(b.label, 'ko-KR'))
 })
 
+const categoryPathMap = computed(() => {
+  const categoryMap = new Map(
+    categories.value.map((category) => [category.publicId, category]),
+  )
+
+  function buildPath(categoryPublicId: string) {
+    const names: string[] = []
+    const visited = new Set<string>()
+
+    let current = categoryMap.get(categoryPublicId)
+
+    while (current && !visited.has(current.publicId)) {
+      visited.add(current.publicId)
+      names.unshift(current.categoryName)
+
+      current = current.parentCategoryPublicId
+        ? categoryMap.get(current.parentCategoryPublicId)
+        : undefined
+    }
+
+    return names.join(' > ')
+  }
+
+  return new Map(
+    categories.value.map((category) => [category.publicId, buildPath(category.publicId)]),
+  )
+})
+
+function getItemCategoryPath(item: ItemResponseDto | null) {
+  if (!item) return '-'
+
+  const categoryMap = new Map(
+    categories.value.map((category) => [category.publicId, category]),
+  )
+
+  const names: string[] = []
+  const visited = new Set<string>()
+  let current = categoryMap.get(item.itemCategoryPublicId)
+
+  while (current && !visited.has(current.publicId)) {
+    visited.add(current.publicId)
+    names.unshift(current.categoryName)
+    current = current.parentCategoryPublicId
+      ? categoryMap.get(current.parentCategoryPublicId)
+      : undefined
+  }
+
+  return names.length ? names.join(' > ') : item.categoryName
+}
+
 </script>
 
 <template>
@@ -748,11 +894,10 @@ const categoryOptions = computed<CategoryOption[]>(() => {
       <article
         v-for="metric in metrics"
         :key="metric.label"
-        :class="['page-metric', `is-${metric.tone}`]"
+        class="page-metric"
       >
         <span class="page-metric__label">{{ metric.label }}</span>
         <strong class="page-metric__value">{{ metric.value }}</strong>
-        <span class="page-metric__meta">{{ metric.meta }}</span>
       </article>
     </section>
 
@@ -786,27 +931,40 @@ const categoryOptions = computed<CategoryOption[]>(() => {
 
       <p v-if="errorMessage" class="items-page__error">{{ errorMessage }}</p>
 
-      <div class="page-table terminal-page__table is-ten-cols">
-        <div class="page-table__row page-table__row--head">
-          <span v-for="column in copy.columns" :key="column">{{ column }}</span>
-        </div>
+      <div class="items-page__table-wrap">
+        <div class="page-table terminal-page__table items-page__table">
+          <div class="page-table__row page-table__row--head">
+            <span v-for="column in copy.columns" :key="column">{{ column }}</span>
+          </div>
 
-        <div v-for="row in filteredRows" :key="row.publicId" class="page-table__row">
-          <span v-for="(cell, index) in row.cells" :key="`${row.publicId}-${index}`">
-            <button
-              v-if="index === 1"
-              class="items-page__link-button"
-              type="button"
-              @click="openItemDetail(row)"
-            >
-              {{ cell }}
-            </button>
-            <template v-else>
-              {{ cell }}
-            </template>
-          </span>
+          <div v-for="row in filteredRows" :key="row.publicId" class="page-table__row">
+            <span v-for="(cell, index) in row.cells" :key="`${row.publicId}-${index}`">
+              <button
+                v-if="index === 1"
+                class="items-page__link-button"
+                type="button"
+                @click="openItemDetail(row)"
+              >
+                {{ cell }}
+              </button>
+              <template v-else>
+                {{ cell }}
+              </template>
+            </span>
+
+            <span class="items-page__detail-cell">
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                @click="openItemDetail(row)"
+              >
+                상세
+              </button>
+            </span>
+          </div>
         </div>
       </div>
+
     </article>
   </section>
 
@@ -819,115 +977,180 @@ const categoryOptions = computed<CategoryOption[]>(() => {
   >
     <div v-if="detailLoading" class="page-feed">
       <div class="page-feed__item">
+        <span class="page-feed__label">카테고리</span>
         <strong class="page-feed__text">Loading...</strong>
       </div>
     </div>
 
     <p v-else-if="detailErrorMessage" class="items-page__error">{{ detailErrorMessage }}</p>
 
-    <div v-else-if="selectedItem" class="items-page__detail-grid">
-      <article class="page-panel">
-        <div class="page-panel__head">
-          <div>
-            <div class="page-panel__eyebrow">MASTER</div>
-            <h3>Item Master</h3>
+    <div v-else-if="selectedItem" class="items-page__detail-stack">
+      <div class="items-page__detail-grid">
+        <article class="page-panel">
+          <div class="page-panel__head">
+            <div>
+              <div class="page-panel__eyebrow">품목</div>
+              <h3>Item Master</h3>
+            </div>
           </div>
-        </div>
 
-        <div class="page-feed">
-          <div class="page-feed__item">
-            <span class="page-feed__label">ITEM CODE</span>
-            <strong class="page-feed__text">{{ selectedItem.itemCode }}</strong>
+          <div class="page-feed">
+            <div class="page-feed__item">
+              <span class="page-feed__label">품목 코드</span>
+              <strong class="page-feed__text">{{ selectedItem.itemCode }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">품목명</span>
+              <strong class="page-feed__text">{{ selectedItem.itemName }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">카테고리</span>
+              <strong class="page-feed__text">{{ getItemCategoryPath(selectedItem) }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">단위</span>
+              <strong class="page-feed__text">{{ selectedItem.unit }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">협력사명</span>
+              <strong class="page-feed__text">{{ selectedItem.supplierName }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">품목 상태</span>
+              <strong class="page-feed__text">{{ itemStatusText(selectedItem.status) }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">규격</span>
+              <strong class="page-feed__text">{{ selectedItem.spec }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">유통기한</span>
+              <strong class="page-feed__text">{{ formatLeadTime(selectedItem.shelfLifeDays) }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">품목 생성 시각</span>
+              <strong class="page-feed__text">{{ formatDate(selectedItem.createdAt) }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">품목 수정 시각</span>
+              <strong class="page-feed__text">{{ formatDate(selectedItem.updatedAt) }}</strong>
+            </div>
           </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">ITEM NAME</span>
-            <strong class="page-feed__text">{{ selectedItem.itemName }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">CATEGORY</span>
-            <strong class="page-feed__text">{{ selectedItem.categoryName }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">UNIT</span>
-            <strong class="page-feed__text">{{ selectedItem.unit }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">SUPPLIER</span>
-            <strong class="page-feed__text">{{ selectedItem.supplierName }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">STATUS</span>
-            <strong class="page-feed__text">{{ itemStatusText(selectedItem.status) }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">SPEC</span>
-            <strong class="page-feed__text">{{ selectedItem.spec }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">SHELF LIFE</span>
-            <strong class="page-feed__text">{{ formatLeadTime(selectedItem.shelfLifeDays) }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">CREATED</span>
-            <strong class="page-feed__text">{{ formatDate(selectedItem.createdAt) }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">UPDATED</span>
-            <strong class="page-feed__text">{{ formatDate(selectedItem.updatedAt) }}</strong>
-          </div>
-        </div>
-      </article>
+        </article>
 
-      <article class="page-panel">
-        <div class="page-panel__head">
-          <div>
-            <div class="page-panel__eyebrow">CAPABILITY</div>
-            <h3>Supplier Item Capability</h3>
+        <article class="page-panel">
+          <div class="page-panel__head">
+            <div>
+              <div class="page-panel__eyebrow">품목 공급 역량</div>
+              <h3>Item Capability</h3>
+            </div>
           </div>
-        </div>
 
-        <div v-if="selectedCapability" class="page-feed">
-          <div class="page-feed__item">
-            <span class="page-feed__label">AVAILABLE QTY</span>
-            <strong class="page-feed__text">{{ formatNumber(selectedCapability.availableQty) }}</strong>
+          <div v-if="selectedCapability" class="page-feed">
+            <div class="page-feed__item">
+              <span class="page-feed__label">현재 가용 수량</span>
+              <strong class="page-feed__text">{{ formatNumber(selectedCapability.availableQty) }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">최소 발주 수량</span>
+              <strong class="page-feed__text">{{ formatNumber(selectedCapability.moq) }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">품질 등급</span>
+              <strong class="page-feed__text">{{ qualityGradeText(selectedCapability.qualityGrade) }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">리드타임</span>
+              <strong class="page-feed__text">{{ formatLeadTime(selectedCapability.leadTimeDays) }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">월간 생산 가능량</span>
+              <strong class="page-feed__text">{{ formatNumber(selectedCapability.monthlyCapacity) }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">기준 단가</span>
+              <strong class="page-feed__text">{{ formatNumber(selectedCapability.unitPriceHint) }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">적용 시작일</span>
+              <strong class="page-feed__text">{{ selectedCapability.validFrom ?? '-' }}</strong>
+            </div>
+            <div class="page-feed__item">
+              <span class="page-feed__label">공급 역량 생성 시각</span>
+              <strong class="page-feed__text">{{ formatDate(selectedCapability.createdAt) }}</strong>
+            </div>
           </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">MOQ</span>
-            <strong class="page-feed__text">{{ formatNumber(selectedCapability.moq) }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">QUALITY GRADE</span>
-            <strong class="page-feed__text">{{ qualityGradeText(selectedCapability.qualityGrade) }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">LEAD TIME</span>
-            <strong class="page-feed__text">{{ formatLeadTime(selectedCapability.leadTimeDays) }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">MONTHLY CAPACITY</span>
-            <strong class="page-feed__text">{{ formatNumber(selectedCapability.monthlyCapacity) }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">UNIT PRICE HINT</span>
-            <strong class="page-feed__text">{{ formatNumber(selectedCapability.unitPriceHint) }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">VALID FROM</span>
-            <strong class="page-feed__text">{{ selectedCapability.validFrom ?? '-' }}</strong>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">CAPABILITY CREATED</span>
-            <strong class="page-feed__text">{{ formatDate(selectedCapability.createdAt) }}</strong>
-          </div>
-        </div>
+          
+          
+          
 
-        <div v-else class="page-feed">
-          <div class="page-feed__item">
-            <strong class="page-feed__text">{{ copy.emptyCapability }}</strong>
+          <div v-else class="page-feed">
+            <div class="page-feed__item">
+              <strong class="page-feed__text">{{ copy.emptyCapability }}</strong>
+            </div>
           </div>
-        </div>
-      </article>
+        </article>
+
+        <article class="page-panel items-page__detail-panel--full">
+          <div class="page-panel__head">
+            <div>
+              <div class="page-panel__eyebrow">PURCHASE ORDERS</div>
+              <h3>연결된 발주 목록</h3>
+            </div>
+            <span class="page-panel__chip">{{ linkedOrders.length }}</span>
+          </div>
+
+          <div v-if="linkedOrders.length" class="page-feed">
+            <div
+              v-for="order in linkedOrders"
+              :key="order.poItemPublicId"
+              class="page-feed__item"
+            >
+              <div class="items-page__linked-order">
+                <div class="items-page__linked-order-main">
+                  <strong class="page-feed__text">{{ order.poNumber }}</strong>
+                  <span class="page-feed__label">{{ order.buyerOrganizationPublicId }}</span>
+                </div>
+
+                <div class="items-page__linked-order-meta">
+                  <span>{{ poStatusText(order.poStatus) }}</span>
+                  <span>수량 {{ formatNumber(order.orderedQty) }}</span>
+                  <span>확정 {{ formatNumber(order.confirmedQty) }}</span>
+                  <span>납기 {{ order.expectedDueDate ?? '-' }}</span>
+                  <span>{{ formatDate(order.orderedAt) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="page-feed">
+            <div class="page-feed__item">
+              <strong class="page-feed__text">연결된 발주가 없습니다.</strong>
+            </div>
+          </div>
+        </article>
+
+
+      </div>
     </div>
+
+      <div class="items-page__actions">
+        <button
+          class="page-button page-button--secondary"
+          type="button"
+          @click="openCapabilityEditModal"
+        >
+          품목 수정
+        </button>
+        <button
+          class="page-button page-button--secondary"
+          type="button"
+          @click="submitDeleteItem"
+        >
+          품목 삭제
+        </button>
+      </div>
+      
   </BaseModal>
 
   <BaseModal
@@ -963,12 +1186,6 @@ const categoryOptions = computed<CategoryOption[]>(() => {
           <small class="items-page__hint">{{ itemCategoryHint }}</small>
         </label>
 
-
-        <label class="items-page__field">
-          <span>ITEM CODE</span>
-          <input v-model="createForm.itemCode" type="text" :disabled="!!createdItemForCapability" />
-        </label>
-
         <label class="items-page__field">
           <span>ITEM NAME</span>
           <input v-model="createForm.itemName" type="text" :disabled="!!createdItemForCapability" />
@@ -981,6 +1198,11 @@ const categoryOptions = computed<CategoryOption[]>(() => {
               {{ unit }}
             </option>
           </select>
+        </label>
+
+        <label class="items-page__field">
+          <span>UNIT PRICE</span>
+          <input v-model.number="createForm.unitPrice" type="number" min="0.01" step="0.01" />
         </label>
 
         <label class="items-page__field">
@@ -1026,20 +1248,121 @@ const categoryOptions = computed<CategoryOption[]>(() => {
             </option>
           </select>
         </label>
+
+        <label class="items-page__field">
+          <span>PARTIAL CONFIRMATION</span>
+          <select v-model="createForm.partialConfirmationAllowed">
+            <option :value="true">허용</option>
+            <option :value="false">비허용</option>
+          </select>
+        </label>
+
       </section>
 
       <p v-if="createErrorMessage" class="items-page__error">{{ createErrorMessage }}</p>
 
       <div class="items-page__actions">
         <button class="page-button page-button--secondary" type="button" @click="closeCreateModal">
-          {{ copy.cancelLabel }}
+          취소
         </button>
-        <button class="page-button page-button--primary" type="button" :disabled="createLoading" @click="submitCreateItem">
-          {{ createdItemForCapability ? copy.retrySubmitLabel : copy.submitLabel }}
+        <button
+          class="page-button page-button--primary"
+          type="button"
+          :disabled="createLoading"
+          @click="submitCreateItem"
+        >
+          등록 완료
         </button>
       </div>
     </div>
   </BaseModal>
+
+  <BaseModal
+  v-model="capabilityEditModalOpen"
+  title="품목 수정"
+  description="공급역량과 활성 상태만 변경합니다."
+  size="md"
+  @close="closeCapabilityEditModal"
+>
+  <div class="items-page__form">
+    <section class="items-page__form-section">
+      <label class="items-page__field">
+        <span>상태</span>
+        <select v-model="capabilityEditForm.status">
+          <option value="ACTIVE">활성</option>
+          <option value="DEACTIVE">비활성</option>
+        </select>
+      </label>
+
+      <label class="items-page__field">
+        <span>리드타임</span>
+        <input v-model.number="capabilityEditForm.leadTimeDays" type="number" min="0" />
+      </label>
+
+      <label class="items-page__field">
+        <span>월간 생산 가능량</span>
+        <input v-model.number="capabilityEditForm.monthlyCapacity" type="number" min="1" step="1" />
+      </label>
+
+      <label class="items-page__field">
+        <span>현재 가용 수량</span>
+        <input v-model.number="capabilityEditForm.availableQty" type="number" min="1" step="1" />
+      </label>
+
+      <label class="items-page__field">
+        <span>최소 발주 수량</span>
+        <input v-model.number="capabilityEditForm.moq" type="number" min="1" step="1" />
+      </label>
+
+      <label class="items-page__field">
+        <span>품질 등급</span>
+        <select v-model="capabilityEditForm.qualityGrade">
+          <option value="">선택 안함</option>
+          <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
+            {{ qualityGradeText(grade) }}
+          </option>
+        </select>
+      </label>
+
+      <label class="items-page__field">
+        <span>품질 단가</span>
+        <input v-model.number="capabilityEditForm.unitPriceHint" type="number" min="0" step="0.01" />
+      </label>
+
+      <label class="items-page__field">
+        <span>공급 역량 적용 시작일</span>
+        <input v-model="capabilityEditForm.validFrom" type="date" />
+      </label>
+
+      <label class="items-page__field">
+        <span>부분 확정</span>
+        <select v-model="capabilityEditForm.partialConfirmationAllowed">
+          <option :value="true">허용</option>
+          <option :value="false">비허용</option>
+        </select>
+      </label>
+    </section>
+
+    <p v-if="capabilityEditErrorMessage" class="items-page__error">
+      {{ capabilityEditErrorMessage }}
+    </p>
+
+    <div class="items-page__actions">
+      <button class="page-button page-button--secondary" type="button" @click="closeCapabilityEditModal">
+        취소
+      </button>
+      <button
+        class="page-button page-button--primary"
+        type="button"
+        :disabled="capabilityEditLoading"
+        @click="submitCapabilityEdit"
+      >
+        저장
+      </button>
+    </div>
+  </div>
+</BaseModal>
+
 
 </template>
 

@@ -14,6 +14,7 @@ import {
 import { getSuppliers, type SupplierListResponseDto } from '../../../services/supplier'
 import type { HeaderAction } from '../../../stores/header'
 import {
+  acceptPurchaseOrder,
   changePurchaseOrderStatus,
   confirmPurchaseOrderItem,
   createPurchaseOrdersBatch,
@@ -78,9 +79,6 @@ type OrderQueueEntry = {
 
 type CreateOrderLineForm = {
   id: number
-  itemCategoryPublicId: string
-  itemKeyword: string
-  itemOptions: ItemResponseDto[]
   selectedItemName: string
   selectedSupplierPublicId: string
   orderedQty: number | null
@@ -168,6 +166,19 @@ const detailErrorMessage = ref('')
 const detailSuccessMessage = ref('')
 const selectedOrder = ref<PurchaseOrderDetailResponseDto | null>(null)
 
+type ConfirmOrderLineForm = {
+  poItemPublicId: string
+  itemName: string
+  itemCode: string
+  unit: string
+  orderedQty: number
+  confirmedQty: number | null
+}
+
+const confirmMode = ref(false)
+const confirmErrorMessage = ref('')
+const confirmLines = ref<ConfirmOrderLineForm[]>([])
+
 const createModalOpen = ref(false)
 const createLoading = ref(false)
 const createErrorMessage = ref('')
@@ -202,13 +213,10 @@ const editForm = ref({
 let createLineSeed = 1
 let editLineSeed = 1
 
-function createEmptyOrderLine(): CreateOrderLineForm {
+function createEmptyOrderLine(itemName = ''): CreateOrderLineForm {
   return {
     id: createLineSeed++,
-    itemCategoryPublicId: '',
-    itemKeyword: '',
-    itemOptions: [],
-    selectedItemName: '',
+    selectedItemName: itemName,
     selectedSupplierPublicId: '',
     orderedQty: null,
   }
@@ -223,7 +231,13 @@ function createEmptyEditNewLine(): EditNewOrderLine {
 }
 
 const createForm = ref({
-  lines: [createEmptyOrderLine()],
+  itemCategoryPublicId: '',
+  itemKeyword: '',
+  itemOptions: [] as ItemResponseDto[],
+  searchResultPublicIds: [] as string[],
+  detailItemPublicId: '',
+  searchLoading: false,
+  lines: [] as CreateOrderLineForm[],
 })
 
 const selectableSuppliers = computed(() =>
@@ -362,19 +376,19 @@ const filteredOrders = computed(() => {
 })
 
 const queueEntries = computed<OrderQueueEntry[]>(() => {
-  const pendingOrders = purchaseOrders.value
-    .filter((order) => order.poStatus === 'CREATED')
-    .map((order) => ({
-      kind: 'PO' as const,
-      publicId: order.poPublicId,
-      number: order.poNumber,
-      counterpartyName: actor.isSupplierOrganization.value
-        ? order.buyerOrganizationPublicId
-        : order.supplierName,
-      itemLabel: getOrderItemLabel(order),
-      orderedAt: order.orderedAt,
-      direction: actor.isSupplierOrganization.value ? ('RECEIVED' as const) : ('ISSUED' as const),
-    }))
+  const pendingOrders = actor.isSupplierOrganization.value
+    ? purchaseOrders.value
+        .filter((order) => order.poStatus === 'CREATED')
+        .map((order) => ({
+          kind: 'PO' as const,
+          publicId: order.poPublicId,
+          number: order.poNumber,
+          counterpartyName: order.buyerOrganizationPublicId,
+          itemLabel: getOrderItemLabel(order),
+          orderedAt: order.orderedAt,
+          direction: 'RECEIVED' as const,
+        }))
+    : []
 
   const pendingSubOrders =
     actor.isSupplierOrganization.value || actor.isAdminRole.value
@@ -657,32 +671,7 @@ function supplierPublicIdOf(supplier: SupplierListResponseDto) {
   return supplier.detail?.publicId ?? ''
 }
 
-function resetCreateLineForSearchContext(line: CreateOrderLineForm) {
-  line.itemOptions = []
-  line.selectedItemName = ''
-  line.selectedSupplierPublicId = ''
-}
 
-function handleCreateLineCategoryChange(line: CreateOrderLineForm) {
-  line.itemKeyword = ''
-  resetCreateLineForSearchContext(line)
-}
-
-function handleCreateLineItemNameChange(line: CreateOrderLineForm) {
-  line.selectedSupplierPublicId = ''
-}
-
-function selectCreateLineItemName(line: CreateOrderLineForm, itemName: string) {
-  line.selectedItemName = itemName
-  line.itemKeyword = itemName
-  line.selectedSupplierPublicId = ''
-
-  const supplierOptions = supplierOptionsOf(line)
-
-  if (supplierOptions.length === 1) {
-    line.selectedSupplierPublicId = supplierOptions[0].supplierPublicId
-  }
-}
 
 async function loadSupplierOptions() {
   try {
@@ -838,8 +827,15 @@ async function loadOrderDashboard() {
 
 function resetCreateOrderForm() {
   createErrorMessage.value = ''
+
   createForm.value = {
-    lines: [createEmptyOrderLine()],
+    itemCategoryPublicId: '',
+    itemKeyword: '',
+    itemOptions: [],
+    searchResultPublicIds: [],
+    detailItemPublicId: '',
+    searchLoading: false,
+    lines: [],
   }
 }
 
@@ -856,76 +852,10 @@ function addCreateOrderLine() {
   createForm.value.lines.unshift(createEmptyOrderLine())
 }
 
-function selectedCreateLineItem(line: CreateOrderLineForm) {
-  if (!line.selectedItemName) return null
-
-  if (line.selectedSupplierPublicId) {
-    return (
-      line.itemOptions.find(
-        (item) =>
-          item.itemName === line.selectedItemName &&
-          item.supplierPublicId === line.selectedSupplierPublicId,
-      ) ?? null
-    )
-  }
-
-  return line.itemOptions.find((item) => item.itemName === line.selectedItemName) ?? null
-}
-
-function matchingSupplierCount(line: CreateOrderLineForm) {
-  return supplierOptionsOf(line).length
-}
-
-function removeCreateOrderLine(lineId: number) {
-  if (createForm.value.lines.length === 1) return
-  createForm.value.lines = createForm.value.lines.filter((line) => line.id !== lineId)
-}
-
-async function searchItemsForLine(line: CreateOrderLineForm) {
-  try {
-    createErrorMessage.value = ''
-
-    const response = await getItems({
-      keyword: line.itemKeyword || undefined,
-      itemCategoryPublicId: line.itemCategoryPublicId || undefined,
-      status: 'ACTIVE',
-      page: 0,
-      size: 100,
-    })
-
-    line.itemOptions = response.content
-    line.selectedItemName = ''
-    line.selectedSupplierPublicId = ''
-  } catch (error) {
-    createErrorMessage.value = normalizeErrorMessage(error, '품목 검색에 실패했습니다.')
-  }
-}
-
-function itemNameOptionsOf(line: CreateOrderLineForm) {
-  return Array.from(new Set(line.itemOptions.map((item) => item.itemName))).sort((a, b) =>
-    a.localeCompare(b, 'ko-KR'),
-  )
-}
-
-function supplierOptionsOf(line: CreateOrderLineForm) {
-  return line.itemOptions
-    .filter((item) => item.itemName === line.selectedItemName)
-    .map((item) => ({
-      supplierPublicId: item.supplierPublicId,
-      supplierName: item.supplierName,
-      itemPublicId: item.publicId,
-    }))
-}
-
-function resolveSelectedItemPublicId(line: CreateOrderLineForm) {
-  const candidate = supplierOptionsOf(line).find(
-    (option) => option.supplierPublicId === line.selectedSupplierPublicId,
-  )
-  return candidate?.itemPublicId ?? null
-}
-
 function validateCreateOrderForm() {
-  if (!createForm.value.lines.length) return '발주 품목을 1개 이상 추가하세요.'
+  if (!createForm.value.lines.length) {
+    return '검색 결과에서 발주할 품목을 1개 이상 선택하세요.'
+  }
 
   for (const line of createForm.value.lines) {
     if (!line.selectedItemName) return '품목명을 선택하세요.'
@@ -935,6 +865,179 @@ function validateCreateOrderForm() {
   }
 
   return ''
+}
+
+function unitPriceOf(item: ItemResponseDto | null | undefined) {
+  const itemWithPrice = item as (ItemResponseDto & { unitPrice?: number | null }) | null | undefined
+  return itemWithPrice?.unitPrice ?? null
+}
+
+function leadTimeDaysOf(item: ItemResponseDto | null | undefined) {
+  const itemWithCapability = item as (ItemResponseDto & { leadTimeDays?: number | null }) | null | undefined
+  return itemWithCapability?.leadTimeDays ?? null
+}
+
+function partialConfirmationAllowedOf(item: ItemResponseDto | null | undefined) {
+  const itemWithCapability = item as
+    | (ItemResponseDto & { partialConfirmationAllowed?: boolean | null })
+    | null
+    | undefined
+
+  return itemWithCapability?.partialConfirmationAllowed ?? null
+}
+
+function capabilityText(value: boolean | null | undefined) {
+  if (value == null) return '-'
+  return value ? '허용' : '불가'
+}
+
+function resetCreateSearchResults() {
+  createForm.value.searchResultPublicIds = []
+  createForm.value.detailItemPublicId = ''
+}
+
+function handleCreateCategoryChange() {
+  resetCreateSearchResults()
+}
+
+function handleCreateKeywordInput() {
+  resetCreateSearchResults()
+}
+
+const createSearchItemResults = computed(() => {
+  const byPublicId = new Map<string, ItemResponseDto>()
+
+  createForm.value.itemOptions
+    .filter((item) => createForm.value.searchResultPublicIds.includes(item.publicId))
+    .forEach((item) => byPublicId.set(item.publicId, item))
+
+  return Array.from(byPublicId.values()).sort((a, b) => {
+    const nameCompare = a.itemName.localeCompare(b.itemName, 'ko-KR')
+    if (nameCompare !== 0) return nameCompare
+    return (a.supplierName ?? '').localeCompare(b.supplierName ?? '', 'ko-KR')
+  })
+})
+
+const createSearchDetailItem = computed(() =>
+  createForm.value.itemOptions.find(
+    (item) => item.publicId === createForm.value.detailItemPublicId,
+  ) ?? null,
+)
+
+function showCreateItemCapability(itemPublicId: string) {
+  createForm.value.detailItemPublicId =
+    createForm.value.detailItemPublicId === itemPublicId ? '' : itemPublicId
+}
+
+function selectCreateSearchItem(item: ItemResponseDto) {
+  const line = createEmptyOrderLine(item.itemName)
+  const suppliers = supplierOptionsOf(line)
+
+  if (suppliers.length === 1) {
+    line.selectedSupplierPublicId = suppliers[0].supplierPublicId
+  } else if (item.supplierPublicId) {
+    line.selectedSupplierPublicId = item.supplierPublicId
+  }
+
+  createForm.value.lines.push(line)
+}
+
+function handleCreateLineItemNameChange(line: CreateOrderLineForm) {
+  line.selectedSupplierPublicId = ''
+}
+
+async function searchItemsForCreateOrder() {
+  const keyword = createForm.value.itemKeyword.trim()
+
+  if (!keyword && !createForm.value.itemCategoryPublicId) {
+    createErrorMessage.value = '카테고리를 선택하거나 품목명을 입력하세요.'
+    return
+  }
+
+  try {
+    createForm.value.searchLoading = true
+    createErrorMessage.value = ''
+    createForm.value.detailItemPublicId = ''
+
+    const response = await getItems({
+      keyword: keyword || undefined,
+      itemCategoryPublicId: createForm.value.itemCategoryPublicId || undefined,
+      status: 'ACTIVE',
+      page: 0,
+      size: 100,
+    })
+
+    const nextOptions = new Map(createForm.value.itemOptions.map((item) => [item.publicId, item]))
+
+    response.content.forEach((item) => {
+      nextOptions.set(item.publicId, item)
+    })
+
+    createForm.value.itemOptions = Array.from(nextOptions.values())
+    createForm.value.searchResultPublicIds = response.content.map((item) => item.publicId)
+  } catch (error) {
+    createForm.value.searchResultPublicIds = []
+    createErrorMessage.value = normalizeErrorMessage(error, '품목 검색에 실패했습니다.')
+  } finally {
+    createForm.value.searchLoading = false
+  }
+}
+
+function itemNameOptionsOf() {
+  return Array.from(new Set(createForm.value.itemOptions.map((item) => item.itemName))).sort(
+    (a, b) => a.localeCompare(b, 'ko-KR'),
+  )
+}
+
+function supplierOptionsOf(line: CreateOrderLineForm) {
+  return createForm.value.itemOptions
+    .filter((item) => item.itemName === line.selectedItemName)
+    .map((item) => ({
+      supplierPublicId: item.supplierPublicId,
+      supplierName: item.supplierName,
+      itemPublicId: item.publicId,
+      unitPrice: unitPriceOf(item),
+    }))
+    .sort((a, b) => (a.supplierName ?? '').localeCompare(b.supplierName ?? '', 'ko-KR'))
+}
+
+function selectedCreateLineItem(line: CreateOrderLineForm) {
+  if (!line.selectedItemName || !line.selectedSupplierPublicId) return null
+
+  return (
+    createForm.value.itemOptions.find(
+      (item) =>
+        item.itemName === line.selectedItemName &&
+        item.supplierPublicId === line.selectedSupplierPublicId,
+    ) ?? null
+  )
+}
+
+function matchingSupplierCount(line: CreateOrderLineForm) {
+  return supplierOptionsOf(line).length
+}
+
+function resolveSelectedItemPublicId(line: CreateOrderLineForm) {
+  const candidate = supplierOptionsOf(line).find(
+    (option) => option.supplierPublicId === line.selectedSupplierPublicId,
+  )
+
+  return candidate?.itemPublicId ?? null
+}
+
+function selectedCreateLineUnitPrice(line: CreateOrderLineForm) {
+  return unitPriceOf(selectedCreateLineItem(line))
+}
+
+function selectedCreateLineAmount(line: CreateOrderLineForm) {
+  const unitPrice = selectedCreateLineUnitPrice(line)
+  if (unitPrice == null || !line.orderedQty) return null
+
+  return unitPrice * Number(line.orderedQty)
+}
+
+function removeCreateOrderLine(lineId: number) {
+  createForm.value.lines = createForm.value.lines.filter((line) => line.id !== lineId)
 }
 
 async function submitCreateOrder() {
@@ -1011,6 +1114,9 @@ function closeOrderDetailModal() {
   detailActionLoading.value = false
   detailErrorMessage.value = ''
   detailSuccessMessage.value = ''
+  confirmMode.value = false
+  confirmErrorMessage.value = ''
+  confirmLines.value = []
   selectedOrder.value = null
   parentSubOrders.value = []
 }
@@ -1051,24 +1157,86 @@ async function afterOrderMutation(successMessage: string) {
   detailSuccessMessage.value = successMessage
 }
 
-async function submitAcceptOrder() {
+function submitAcceptOrder() {
   if (!selectedOrder.value) return
-  if (!window.confirm('이 발주를 수락하시겠습니까?')) return
+
+  confirmMode.value = true
+  confirmErrorMessage.value = ''
+  detailErrorMessage.value = ''
+  detailSuccessMessage.value = ''
+
+  confirmLines.value = selectedOrder.value.items
+    .filter((item) => item.itemStatus !== 'DELETED' && item.itemStatus !== 'CANCELLED')
+    .map((item) => ({
+      poItemPublicId: item.poItemPublicId,
+      itemName: item.itemName,
+      itemCode: item.itemCode,
+      unit: item.unit,
+      orderedQty: item.orderedQty,
+      confirmedQty: item.confirmedQty ?? item.orderedQty,
+    }))
+}
+
+function cancelConfirmOrder() {
+  confirmMode.value = false
+  confirmErrorMessage.value = ''
+  confirmLines.value = []
+}
+
+function validateConfirmOrder() {
+  if (!confirmLines.value.length) {
+    return '확정할 품목이 없습니다.'
+  }
+
+  for (const line of confirmLines.value) {
+    if (line.confirmedQty == null) {
+      return `${line.itemName} 확정 수량을 입력하세요.`
+    }
+
+    if (line.confirmedQty < 0) {
+      return `${line.itemName} 확정 수량은 0보다 작을 수 없습니다.`
+    }
+
+    if (line.confirmedQty > line.orderedQty) {
+      return `${line.itemName} 확정 수량은 발주 수량보다 클 수 없습니다.`
+    }
+  }
+
+  return ''
+}
+
+async function submitConfirmOrder() {
+  if (!selectedOrder.value) return
+
+  const validationMessage = validateConfirmOrder()
+
+  if (validationMessage) {
+    confirmErrorMessage.value = validationMessage
+    return
+  }
+
+  if (!window.confirm('입력한 확정 수량으로 수주를 수락하시겠습니까?')) return
 
   try {
     detailActionLoading.value = true
     detailErrorMessage.value = ''
     detailSuccessMessage.value = ''
+    confirmErrorMessage.value = ''
 
-    for (const item of selectedOrder.value.items) {
-      await confirmPurchaseOrderItem(selectedOrder.value.poPublicId, item.poItemPublicId, {
-        confirmedQty: item.orderedQty,
+    const poPublicId = selectedOrder.value.poPublicId
+
+    for (const line of confirmLines.value) {
+      await confirmPurchaseOrderItem(poPublicId, line.poItemPublicId, {
+        confirmedQty: Number(line.confirmedQty),
       })
     }
 
-    await afterOrderMutation('발주를 수락했습니다.')
+    confirmMode.value = false
+    confirmLines.value = []
+
+    await afterOrderMutation('수주를 수락했습니다.')
   } catch (error) {
-    detailErrorMessage.value = normalizeErrorMessage(error, '발주 수락에 실패했습니다.')
+    confirmErrorMessage.value = normalizeErrorMessage(error, '수주 수락에 실패했습니다.')
   } finally {
     detailActionLoading.value = false
   }
@@ -1796,134 +1964,284 @@ onBeforeUnmount(() => header.clearActions())
   <BaseModal
     v-model="createModalOpen"
     title="발주 등록"
-    description="카테고리와 품목 검색을 기반으로 여러 협력사 발주를 한 번에 생성합니다."
+    description="카테고리와 품목 검색을 먼저 실행한 뒤, 선택한 품목으로 발주 행을 생성합니다."
     size="lg"
     @close="closeCreateOrderModal"
   >
     <div class="orders-page__form orders-page__create-modal-body">
-      <div class="orders-page__section-head">
-        <strong>발주 품목</strong>
-        <button class="page-button page-button--secondary" type="button" @click="addCreateOrderLine">
-          품목 추가
-        </button>
-      </div>
+      <section class="orders-page__detail-section">
+        <div class="orders-page__section-head">
+          <strong>품목 검색</strong>
+        </div>
 
-      <div class="orders-page__line-list">
-        <div v-for="line in createForm.lines" :key="line.id" class="orders-page__line-card">
-          <div class="orders-page__line-head">
-            <strong>품목 행</strong>
-            <button
-              class="page-button page-button--secondary"
-              type="button"
-              :disabled="createForm.lines.length === 1"
-              @click="removeCreateOrderLine(line.id)"
+        <div class="orders-page__line-grid">
+          <label class="orders-page__form-field">
+            <span>품목 카테고리</span>
+            <select
+              v-model="createForm.itemCategoryPublicId"
+              :disabled="createForm.searchLoading"
+              @change="handleCreateCategoryChange"
             >
-              행 삭제
-            </button>
-          </div>
-
-          <div class="orders-page__line-grid">
-            <label class="orders-page__form-field">
-              <span>카테고리</span>
-              <select
-                v-model="line.itemCategoryPublicId"
-                @change="handleCreateLineCategoryChange(line)"
+              <option value="">전체 카테고리</option>
+              <option
+                v-for="category in categoryOptions"
+                :key="category.publicId"
+                :value="category.publicId"
               >
-                <option value="">카테고리를 선택하세요.</option>
-                <option
-                  v-for="category in categoryOptions"
-                  :key="category.publicId"
-                  :value="category.publicId"
-                >
-                  {{ category.categoryName }}
-                </option>
-              </select>
-            </label>
+                {{ category.categoryName }}
+              </option>
+            </select>
+          </label>
 
-            <label class="orders-page__form-field">
-              <span>품목 검색</span>
-              <div class="orders-page__field-with-button">
-                <input v-model="line.itemKeyword" type="text" placeholder="품목명을 검색하세요." />
-                <button class="page-button page-button--secondary" type="button" @click="searchItemsForLine(line)">
-                  검색
-                </button>
-              </div>
-            </label>
+          <label class="orders-page__form-field">
+            <span>품목 검색</span>
+            <div class="orders-page__field-with-button">
+              <input
+                v-model="createForm.itemKeyword"
+                type="text"
+                placeholder="품목명 또는 품목코드를 입력하세요."
+                :disabled="createForm.searchLoading"
+                @input="handleCreateKeywordInput"
+                @keyup.enter="searchItemsForCreateOrder"
+              />
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                :disabled="createForm.searchLoading"
+                @click="searchItemsForCreateOrder"
+              >
+                {{ createForm.searchLoading ? '검색 중' : '검색' }}
+              </button>
+            </div>
+          </label>
+        </div>
 
-            <label class="orders-page__form-field">
-              <span>품목명</span>
-              <select v-model="line.selectedItemName" @change="handleCreateLineItemNameChange(line)">
-                <option value="">품목명을 선택하세요.</option>
-                <option v-for="itemName in itemNameOptionsOf(line)" :key="itemName" :value="itemName">
-                  {{ itemName }}
-                </option>
-              </select>
-            </label>
+        <div v-if="createSearchItemResults.length" class="orders-page__search-result-list">
+          <div
+            v-for="item in createSearchItemResults"
+            :key="item.publicId"
+            class="orders-page__search-result-card"
+          >
+            <div class="orders-page__search-result-main">
+              <strong>{{ item.itemName }}</strong>
+              <p class="orders-page__sub-text">
+                {{ item.itemCode }} / {{ item.categoryName || '미분류' }} / {{ item.supplierName }}
+              </p>
+            </div>
 
-            <label class="orders-page__form-field">
-              <span>협력사</span>
-              <select v-model="line.selectedSupplierPublicId">
-                <option value="">협력사를 선택하세요.</option>
-                <option
-                  v-for="supplier in supplierOptionsOf(line)"
-                  :key="`${supplier.supplierPublicId}-${supplier.itemPublicId}`"
-                  :value="supplier.supplierPublicId"
-                >
-                  {{ supplier.supplierName }}
-                </option>
-              </select>
-            </label>
+            <div class="orders-page__search-result-meta">
+              <span>{{ item.unit }}</span>
+              <span>{{ formatPlainAmount(unitPriceOf(item)) }}</span>
+            </div>
 
-            <label class="orders-page__form-field">
-              <span>발주 수량</span>
-              <input v-model.number="line.orderedQty" type="number" min="1" step="1" />
-            </label>
+            <div class="orders-page__search-result-actions">
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                @click="showCreateItemCapability(item.publicId)"
+              >
+                {{ createForm.detailItemPublicId === item.publicId ? '닫기' : '상세' }}
+              </button>
+
+              <button
+                class="page-button page-button--primary"
+                type="button"
+                @click="selectCreateSearchItem(item)"
+              >
+                품목 선택
+              </button>
+            </div>
           </div>
+        </div>
 
-          <div v-if="selectedCreateLineItem(line)" class="orders-page__item-preview">
-            <strong class="orders-page__item-preview-title">품목 상세</strong>
+        <p
+          v-else-if="!createForm.searchLoading && (createForm.itemKeyword || createForm.itemCategoryPublicId)"
+          class="orders-page__empty"
+        >
+          검색 결과가 없습니다.
+        </p>
 
-            <div class="orders-page__item-preview-grid">
-              <div>
-                <span>품목 코드</span>
-                <strong>{{ selectedCreateLineItem(line)?.itemCode }}</strong>
-              </div>
-              <div>
-                <span>카테고리</span>
-                <strong>{{ selectedCreateLineItem(line)?.categoryName }}</strong>
-              </div>
-              <div>
+        <div v-if="createSearchDetailItem" class="orders-page__item-preview">
+          <strong class="orders-page__item-preview-title">품목 capability</strong>
+
+          <div class="orders-page__item-preview-grid">
+            <div>
+              <span>품목 코드</span>
+              <strong>{{ createSearchDetailItem.itemCode }}</strong>
+            </div>
+            <div>
+              <span>품목명</span>
+              <strong>{{ createSearchDetailItem.itemName }}</strong>
+            </div>
+            <div>
+              <span>협력사</span>
+              <strong>{{ createSearchDetailItem.supplierName }}</strong>
+            </div>
+            <div>
+              <span>단위</span>
+              <strong>{{ createSearchDetailItem.unit }}</strong>
+            </div>
+            <div>
+              <span>단가</span>
+              <strong>{{ formatPlainAmount(unitPriceOf(createSearchDetailItem)) }}</strong>
+            </div>
+            <div>
+              <span>리드타임</span>
+              <strong>{{ leadTimeDaysOf(createSearchDetailItem) ?? '-' }}일</strong>
+            </div>
+            <div>
+              <span>부분 확정</span>
+              <strong>{{ capabilityText(partialConfirmationAllowedOf(createSearchDetailItem)) }}</strong>
+            </div>
+            <div>
+              <span>규격</span>
+              <strong>{{ createSearchDetailItem.spec || '-' }}</strong>
+            </div>
+            <div>
+              <span>보관기한</span>
+              <strong>{{ createSearchDetailItem.shelfLifeDays ?? '-' }}일</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="orders-page__detail-section">
+        <div class="orders-page__section-head">
+          <strong>선택한 발주 품목</strong>
+          <span class="page-panel__chip">{{ createForm.lines.length }}</span>
+        </div>
+
+        <p v-if="!createForm.lines.length" class="orders-page__empty">
+          검색 결과에서 품목을 선택하면 아래에 발주 행이 생성됩니다.
+        </p>
+
+        <div v-else class="orders-page__line-list">
+          <div
+            v-for="line in createForm.lines"
+            :key="line.id"
+            class="orders-page__line-card"
+          >
+            <div class="orders-page__line-head">
+              <strong>{{ line.selectedItemName || '품목 행' }}</strong>
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                @click="removeCreateOrderLine(line.id)"
+              >
+                행 삭제
+              </button>
+            </div>
+
+            <div class="orders-page__line-grid">
+              <label class="orders-page__form-field">
+                <span>품목명</span>
+                <select
+                  v-model="line.selectedItemName"
+                  @change="handleCreateLineItemNameChange(line)"
+                >
+                  <option value="">품목명을 선택하세요.</option>
+                  <option
+                    v-for="itemName in itemNameOptionsOf()"
+                    :key="itemName"
+                    :value="itemName"
+                  >
+                    {{ itemName }}
+                  </option>
+                </select>
+              </label>
+
+              <label class="orders-page__form-field">
                 <span>협력사</span>
-                <strong>
-                  {{
-                    selectedCreateLineItem(line)?.supplierName ??
-                    `후보 ${matchingSupplierCount(line)}곳`
-                  }}
-                </strong>
-              </div>
-              <div>
-                <span>단위</span>
-                <strong>{{ selectedCreateLineItem(line)?.unit }}</strong>
-              </div>
-              <div>
-                <span>규격</span>
-                <strong>{{ selectedCreateLineItem(line)?.spec || '-' }}</strong>
-              </div>
-              <div>
-                <span>보관기한</span>
-                <strong>{{ selectedCreateLineItem(line)?.shelfLifeDays }}일</strong>
+                <select v-model="line.selectedSupplierPublicId">
+                  <option value="">협력사를 선택하세요.</option>
+                  <option
+                    v-for="supplier in supplierOptionsOf(line)"
+                    :key="`${supplier.supplierPublicId}-${supplier.itemPublicId}`"
+                    :value="supplier.supplierPublicId"
+                  >
+                    {{ supplier.supplierName }} / {{ formatPlainAmount(supplier.unitPrice) }}
+                  </option>
+                </select>
+              </label>
+
+              <label class="orders-page__form-field">
+                <span>발주 수량</span>
+                <input
+                  v-model.number="line.orderedQty"
+                  type="number"
+                  min="1"
+                  step="1"
+                />
+              </label>
+
+              <label class="orders-page__form-field">
+                <span>단가</span>
+                <input
+                  :value="formatPlainAmount(selectedCreateLineUnitPrice(line))"
+                  type="text"
+                  disabled
+                />
+              </label>
+
+              <label class="orders-page__form-field">
+                <span>예상 금액</span>
+                <input
+                  :value="formatPlainAmount(selectedCreateLineAmount(line))"
+                  type="text"
+                  disabled
+                />
+              </label>
+            </div>
+
+            <div v-if="selectedCreateLineItem(line)" class="orders-page__item-preview">
+              <strong class="orders-page__item-preview-title">선택 품목 정보</strong>
+
+              <div class="orders-page__item-preview-grid">
+                <div>
+                  <span>품목 코드</span>
+                  <strong>{{ selectedCreateLineItem(line)?.itemCode }}</strong>
+                </div>
+                <div>
+                  <span>카테고리</span>
+                  <strong>{{ selectedCreateLineItem(line)?.categoryName }}</strong>
+                </div>
+                <div>
+                  <span>협력사 후보</span>
+                  <strong>{{ matchingSupplierCount(line) }}곳</strong>
+                </div>
+                <div>
+                  <span>단위</span>
+                  <strong>{{ selectedCreateLineItem(line)?.unit }}</strong>
+                </div>
+                <div>
+                  <span>리드타임</span>
+                  <strong>{{ leadTimeDaysOf(selectedCreateLineItem(line)) ?? '-' }}일</strong>
+                </div>
+                <div>
+                  <span>부분 확정</span>
+                  <strong>
+                    {{ capabilityText(partialConfirmationAllowedOf(selectedCreateLineItem(line))) }}
+                  </strong>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <p v-if="createErrorMessage" class="orders-page__error">{{ createErrorMessage }}</p>
+      <p v-if="createErrorMessage" class="orders-page__error">
+        {{ createErrorMessage }}
+      </p>
 
       <div class="orders-page__actions">
-        <button class="page-button page-button--secondary" type="button" @click="closeCreateOrderModal">
+        <button
+          class="page-button page-button--secondary"
+          type="button"
+          @click="closeCreateOrderModal"
+        >
           취소
         </button>
+
         <button
           class="page-button page-button--primary"
           type="button"
@@ -1934,7 +2252,6 @@ onBeforeUnmount(() => header.clearActions())
         </button>
       </div>
     </div>
-
   </BaseModal>
 
   <BaseModal
@@ -2023,6 +2340,59 @@ onBeforeUnmount(() => header.clearActions())
       </section>
 
       <section
+  v-if="confirmMode"
+  class="orders-page__detail-section"
+>
+  <div class="orders-page__section-head">
+    <strong>확정 수량 입력</strong>
+    <span class="page-panel__chip">수락 전 입력</span>
+  </div>
+
+  <div class="orders-page__line-list">
+    <div
+      v-for="line in confirmLines"
+      :key="line.poItemPublicId"
+      class="orders-page__line-card"
+    >
+      <div class="orders-page__line-head">
+        <strong>{{ line.itemName }}</strong>
+        <span class="orders-page__sub-text">{{ line.itemCode }}</span>
+      </div>
+
+      <div class="orders-page__line-grid">
+        <label class="orders-page__form-field">
+          <span>발주 수량</span>
+          <input
+            :value="`${formatNumber(line.orderedQty)} ${line.unit}`"
+            type="text"
+            disabled
+          />
+        </label>
+
+        <label class="orders-page__form-field">
+          <span>확정 수량</span>
+          <input
+            v-model.number="line.confirmedQty"
+            type="number"
+            min="0"
+            :max="line.orderedQty"
+            step="1"
+            :disabled="detailActionLoading"
+          />
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <p
+    v-if="confirmErrorMessage"
+    class="orders-page__error"
+  >
+    {{ confirmErrorMessage }}
+  </p>
+</section>
+
+      <section
         v-if="actor.isSupplierOrganization || actor.isAdminRole"
         class="orders-page__detail-section"
       >
@@ -2063,7 +2433,7 @@ onBeforeUnmount(() => header.clearActions())
 
       <div class="orders-page__actions">
         <button
-          v-if="canSupplierRespondOrder(selectedOrder)"
+          v-if="canSupplierRespondOrder(selectedOrder) && !confirmMode"
           class="page-button page-button--secondary"
           type="button"
           :disabled="detailActionLoading"
@@ -2073,13 +2443,33 @@ onBeforeUnmount(() => header.clearActions())
         </button>
 
         <button
-          v-if="canSupplierRespondOrder(selectedOrder)"
+          v-if="canSupplierRespondOrder(selectedOrder) && !confirmMode"
           class="page-button page-button--primary"
           type="button"
           :disabled="detailActionLoading"
           @click="submitAcceptOrder"
         >
           수락
+        </button>
+
+        <button
+          v-if="canSupplierRespondOrder(selectedOrder) && confirmMode"
+          class="page-button page-button--secondary"
+          type="button"
+          :disabled="detailActionLoading"
+          @click="cancelConfirmOrder"
+        >
+          확정 입력 취소
+        </button>
+
+        <button
+          v-if="canSupplierRespondOrder(selectedOrder) && confirmMode"
+          class="page-button page-button--primary"
+          type="button"
+          :disabled="detailActionLoading"
+          @click="submitConfirmOrder"
+        >
+          확정 수량 입력 후 수락
         </button>
 
         <button
