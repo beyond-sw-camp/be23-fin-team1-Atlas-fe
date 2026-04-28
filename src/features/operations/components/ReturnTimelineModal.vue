@@ -7,6 +7,7 @@ import {
   type ReturnRequestResponseDto,
   type ReturnStatusHistoryResponseDto,
 } from '../../../services/return'
+import { getShipmentDetail, createShipment } from '../../../services/shipment'
 
 const props = defineProps<{
   isOpen: boolean
@@ -242,6 +243,34 @@ async function doUpdateStatus(
       returnStatus: nextStatus,
       reason: reasonText.value.trim(),
     })
+
+    // IN_TRANSIT 전환 시 원본 출하 기반 역물류 출하 자동 생성
+    if (nextStatus === 'IN_TRANSIT' && props.targetReturn.sourceShipmentPublicId) {
+      try {
+        const sourceShipment = await getShipmentDetail(props.targetReturn.sourceShipmentPublicId)
+
+        // 원본 출하의 출발지/도착지를 반전하여 회수 출하 생성
+        const depEta = new Date(sourceShipment.departureEta)
+        const arrEta = new Date(sourceShipment.arrivalEta)
+        const transitDurationMs = arrEta.getTime() - depEta.getTime()
+
+        const now = new Date()
+        const returnArrivalEta = new Date(now.getTime() + transitDurationMs)
+
+        await createShipment({
+          originNodePublicId: sourceShipment.destinationNodePublicId,
+          destinationNodePublicId: sourceShipment.originNodePublicId,
+          departureEta: now.toISOString(),
+          arrivalEta: returnArrivalEta.toISOString(),
+          carrierName: sourceShipment.carrierName ?? undefined,
+          temperatureRequired: sourceShipment.temperatureRequired,
+        })
+      } catch (shipmentError) {
+        // 출하 자동 생성 실패해도 상태 변경 자체는 성공이므로 알림만
+        console.error('반품 출하 자동 생성 실패:', shipmentError)
+        alert('상태는 변경되었으나, 반품 출하 자동 생성에 실패했습니다. 출하 메뉴에서 수동 생성해주세요.')
+      }
+    }
 
     await loadHistories()
     reasonText.value = ''
