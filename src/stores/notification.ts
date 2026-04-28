@@ -12,6 +12,62 @@ import {
 import type { NotificationDto, NotificationPreferenceDto } from '../services/notification'
 import { useAtlasToastStore } from './toast'
 
+const TOAST_EVENT_TYPES = new Set([
+  'purchase-order.created',
+  'purchase-order.updated',
+  'purchase-order.confirmed',
+  'purchase-order.accepted',
+  'purchase-order.rejected',
+  'purchase-order.cancelled',
+  'sub-purchase-order.created',
+  'sub-purchase-order.confirmed',
+  'sub-purchase-order.rejected',
+  'sub-purchase-order.cancelled',
+  'shipment.created',
+  'shipment.departed',
+  'shipment.arrived',
+  'shipment.completed',
+  'shipment.delay-detected',
+  'delivery-exception.created',
+  'delivery-exception.delay',
+  'delivery-exception.temperature-deviation',
+  'delivery-exception.damaged',
+  'logistics-node.capacity-status-changed',
+  'inventory.shortage-detected',
+  'lot.created',
+  'lot.in-production',
+  'lot.completed',
+  'lot.hold',
+  'lot.released',
+  'lot.defective',
+  'lot.expiration-imminent',
+  'lot.quality-passed',
+  'lot.quality-failed',
+  'return-request.created',
+  'return-request.approved',
+  'return-request.rejected',
+  'return-request.completed',
+  'return-request.cancelled',
+  'supplier-certificate.created',
+  'supplier-certificate.approved',
+  'supplier-certificate.rejected',
+  'supplier-certificate.expiring',
+  'supplier-certificate.expired',
+  'supplier-certificate.revoked',
+  'supplier.score-dropped',
+  'supplier.esg-violated',
+  'recommendation.requested',
+  'recommendation.generated',
+  'recommendation.failed',
+  'recommendation.accepted',
+  'recommendation.rejected',
+])
+
+function shouldShowToast(notification: NotificationDto) {
+  if (!notification.eventType) return true
+  return TOAST_EVENT_TYPES.has(notification.eventType)
+}
+
 export const useAtlasNotificationStore = defineStore('atlasNotification', () => {
   const unreadCount = ref(0)
   const notifications = ref<NotificationDto[]>([])
@@ -58,6 +114,8 @@ export const useAtlasNotificationStore = defineStore('atlasNotification', () => 
     if (!notification.readYn) {
       unreadCount.value++
     }
+
+    if (!shouldShowToast(notification)) return
 
     // 토스트 알림 자동 표시
     const toast = useAtlasToastStore()
