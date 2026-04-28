@@ -84,6 +84,7 @@ async function loadSuppliers() {
           purchaseOrderCount: null,
           totalAmount: null,
           cumulativeAmount: null,
+          relationStatus: null,
           detail: myInfo
         }]
       } catch (err) {

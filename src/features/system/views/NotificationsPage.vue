@@ -129,7 +129,9 @@ const filteredNotifications = computed(() => {
 
   return notifications.value.filter((notification) => {
     const haystack = [
+      notification.domainType,
       notification.notificationType,
+      notification.eventType,
       notification.title,
       notification.message,
       notification.referencePublicId,
@@ -148,14 +150,22 @@ const canMovePrevious = computed(() => notificationStore.currentPage > 0 && !not
 const canMoveNext = computed(() => !notificationStore.isLoading && notificationStore.currentPage < notificationStore.totalPages - 1)
 
 function isRiskNotification(notification: NotificationDto) {
-  return notification.notificationType === 'RISK_ALERT' || notification.notificationType.includes('RISK')
+  return notification.domainType === 'RISK'
+    || notification.notificationType === 'RISK_ALERT'
+    || notification.notificationType.includes('RISK')
 }
 
-function formatNotificationType(type: string) {
+function formatDomainType(type?: string) {
+  if (!type) return '-'
+
   const labels: Record<string, string> = {
-    RISK_ALERT: preferences.language === 'ko' ? '리스크' : 'Risk',
-    WARNING: preferences.language === 'ko' ? '경고' : 'Warning',
-    SUCCESS: preferences.language === 'ko' ? '성공' : 'Success',
+    ORDER: preferences.language === 'ko' ? '발주' : 'Order',
+    SHIPMENT: preferences.language === 'ko' ? '출하' : 'Shipment',
+    LOT: preferences.language === 'ko' ? 'LOT' : 'LOT',
+    RETURN_REQUEST: preferences.language === 'ko' ? '반품' : 'Return Request',
+    SUPPLIER: preferences.language === 'ko' ? '협력사' : 'Supplier',
+    RISK: preferences.language === 'ko' ? '리스크' : 'Risk',
+    SYSTEM: preferences.language === 'ko' ? '시스템' : 'System',
   }
   return labels[type] ?? type.replace(/_/g, ' ')
 }
@@ -320,7 +330,7 @@ onBeforeUnmount(() => {
           <span>{{ formatDateTime(notification.createdAt) }}</span>
           <span>
             <span class="page-panel__chip" :class="notificationToneClass(notification.notificationType)">
-              {{ formatNotificationType(notification.notificationType) }}
+              {{ formatDomainType(notification.domainType) }}
             </span>
           </span>
           <span class="notifications-page__message">

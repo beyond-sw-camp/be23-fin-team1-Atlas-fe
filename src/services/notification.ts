@@ -6,6 +6,7 @@ export interface NotificationDto {
   recipientUserPublicId: string
   notificationType: string
   eventType?: string
+  domainType?: string
   title: string
   message: string
   deepLinkUrl?: string
