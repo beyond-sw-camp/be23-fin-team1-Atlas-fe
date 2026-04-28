@@ -285,6 +285,33 @@ async function fetchAvailableUsers() {
       return null
     }
   }
+  async function openProfileDirectRoom(targetUser: ChatParticipant) {
+  try {
+    // 현재 로그인한 사용자가 없으면 방을 열 수 없습니다.
+    if (!currentUserPublicId.value) {
+      return null
+    }
+
+    // 백엔드에서 정확한 1:1 방을 찾거나 새로 만듭니다.
+    const room = await chatService.findOrCreateDirectRoom(
+      targetUser.displayName,
+      currentUserPublicId.value,
+      targetUser.userPublicId,
+    )
+
+    // 방 목록을 최신 상태로 맞춥니다.
+    await fetchRooms()
+
+    // 만들어졌거나 찾은 방으로 바로 이동합니다.
+    await openRoom(room.publicId)
+
+    return room.publicId
+  } catch (e) {
+    console.error('Failed to open profile direct room', e)
+    return null
+  }
+}
+
 
   async function renameRoom(roomPublicId: string, newName: string) {
     if (!newName.trim()) return
@@ -516,5 +543,6 @@ async function fetchAvailableUsers() {
     fetchAvailableUsers,
     connectStomp,
     disconnectStomp,
+    openProfileDirectRoom,
   }
 })

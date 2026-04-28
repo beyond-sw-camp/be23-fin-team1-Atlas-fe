@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { useAtlasChatStore } from '../../../stores/chat'
 import { ko, enUS } from 'date-fns/locale'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
@@ -44,8 +46,22 @@ const preferences = useAtlasPreferencesStore()
 // 로그인 사용자 상태를 읽습니다.
 const session = useAtlasSessionStore()
 
+const chat = useAtlasChatStore()
+const route = useRoute()
+
 // 로그인한 사용자 요약 정보입니다.
 const myInfo = ref<MyInfoResponse | null>(null)
+  const routeUserPublicId = computed(() => {
+  const value = route.params.userPublicId
+
+  return typeof value === 'string' && value.trim().length > 0
+    ? value
+    : null
+})
+
+const isOwnProfile = computed(() => {
+  return !routeUserPublicId.value || routeUserPublicId.value === myInfo.value?.userPublicId
+})
 
 // 로그인한 사용자 상세 정보입니다.
 const userDetail = ref<UserDetailResponse | null>(null)
@@ -384,14 +400,25 @@ async function loadProfileData() {
     profileSuccess.value = ''
 
     // 로그인 사용자 기본 정보를 먼저 읽습니다.
-    const myInfoResponse = await getMyInfo()
-    myInfo.value = myInfoResponse
+  const myInfoResponse = await getMyInfo()
+myInfo.value = myInfoResponse
 
-    // 프로필 상세 정보도 바로 읽습니다.
-    const detailResponse = await getUserDetailByPublicId(myInfoResponse.userPublicId)
-    userDetail.value = detailResponse
-    currentUserId.value = detailResponse.userId
-    syncProfileForm(detailResponse)
+const targetUserPublicId = routeUserPublicId.value ?? myInfoResponse.userPublicId
+
+const detailResponse = await getUserDetailByPublicId(targetUserPublicId)
+userDetail.value = detailResponse
+currentUserId.value = isOwnProfile.value ? detailResponse.userId : null
+syncProfileForm(detailResponse)
+
+if (!isOwnProfile.value) {
+  isEditing.value = false
+  organizationDetail.value = null
+  loginHistories.value = []
+  securityHistories.value = []
+  return
+}
+
+// 여기 아래는 기존 getMyOrganizationDetail, getMyLoginHistories, getMySecurityHistories 유지
 
     // 조직 정보는 실패해도 프로필 전체를 막지 않게 분리합니다.
     try {
@@ -733,6 +760,45 @@ const visibleSecurityHistories = computed(() => {
 
 // 보안 이력이 5개 이상이면 더보기 버튼을 보여줍니다.
 const canShowMoreSecurityHistories = computed(() => securityHistories.value.length > 4)
+
+async function openChatWithProfileUser() {
+  // 사용자 정보가 없거나 내 프로필이면 채팅을 시작하지 않습니다.
+  if (!userDetail.value?.userPublicId || isOwnProfile.value) {
+    return
+  }
+
+  // 기존 채팅방 목록을 먼저 최신 상태로 맞춥니다.
+  await chat.fetchRooms()
+
+  // 채팅 패널이 닫혀 있으면 먼저 엽니다.
+  if (!chat.isPanelOpen) {
+    await chat.togglePanel()
+
+    // 패널 DOM이 열린 뒤 방을 열 수 있게 한 번 기다립니다.
+    await nextTick()
+  }
+
+const displayName = fullName.value !== '-' ? fullName.value : userDetail.value.loginId
+
+await chat.openProfileDirectRoom({
+  // 상대 사용자 publicId입니다.
+  userPublicId: userDetail.value.userPublicId,
+
+  // 채팅방 목록과 초대 목록에 보여줄 이름입니다.
+  displayName,
+
+  // 상대 사용자 부가 정보입니다.
+  jobTitle: userDetail.value.jobTitle ?? '',
+  departmentName: userDetail.value.departmentName ?? '',
+  departmentCode: userDetail.value.departmentCode ?? '',
+
+  // 상대 프로필 이미지 정보입니다.
+  profileAttachmentPublicId: userDetail.value.profileAttachmentPublicId ?? '',
+  profileImageThumbPath: userDetail.value.profileImageThumbPath ?? '',
+})
+
+}
+
 
 // 날짜와 시간을 보기 좋게 보여줍니다.
 // 이 함수는 이력 목록용이라 시간까지 포함합니다.
@@ -1139,6 +1205,12 @@ onMounted(() => {
   loadProfileData()
   loadDepartmentOptions()
 })
+watch(
+  () => route.params.userPublicId,
+  () => {
+    loadProfileData()
+  },
+)
 
 // 페이지를 떠날 때도 헤더 액션을 비웁니다.
 onBeforeUnmount(() => {
@@ -1268,14 +1340,23 @@ onBeforeUnmount(() => {
     <template v-else-if="userDetail && myInfo">
       <!-- 상단 수정 버튼 영역입니다. -->
       <div class="design-trigger-row" style="margin-bottom: 20px;">
-        <button
-          v-if="!isEditing"
-          class="page-button page-button--primary"
-          type="button"
-          @click="startEdit"
-        >
-          {{ preferences.language === 'ko' ? '수정' : 'Edit' }}
-        </button>
+       <button
+  v-if="!isOwnProfile"
+  class="page-button page-button--primary"
+  type="button"
+  @click="openChatWithProfileUser"
+>
+  {{ preferences.language === 'ko' ? '채팅하기' : 'Chat' }}
+</button>
+
+<button
+  v-else-if="!isEditing"
+  class="page-button page-button--primary"
+  type="button"
+  @click="startEdit"
+>
+  {{ preferences.language === 'ko' ? '수정' : 'Edit' }}
+</button>
 
         <template v-else>
           <button
@@ -1312,7 +1393,11 @@ onBeforeUnmount(() => {
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">
-                {{ preferences.language === 'ko' ? '내 정보' : 'My Info' }}
+                {{
+  isOwnProfile
+    ? (preferences.language === 'ko' ? '내 정보' : 'My Info')
+    : (preferences.language === 'ko' ? '사용자 정보' : 'User Info')
+}}
               </div>
               <h3>{{ preferences.language === 'ko' ? '프로필' : 'Profile' }}</h3>
             </div>
@@ -1353,10 +1438,10 @@ onBeforeUnmount(() => {
               <strong>{{ fullName }}</strong>
             </div>
 
-            <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '로그인 ID' : 'Login ID' }}</span>
-              <strong>{{ userDetail.loginId }}</strong>
-            </div>
+           <div v-if="isOwnProfile" class="profile-kv__row">
+  <span>{{ preferences.language === 'ko' ? '로그인 ID' : 'Login ID' }}</span>
+  <strong>{{ userDetail.loginId }}</strong>
+</div>
 
             <div class="profile-kv__row">
               <span>{{ preferences.language === 'ko' ? '이메일' : 'Email' }}</span>
@@ -1378,10 +1463,10 @@ onBeforeUnmount(() => {
               <strong>{{ currentDepartmentLabel }}</strong>
             </div>
 
-            <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '권한' : 'Role' }}</span>
-              <strong>{{ currentRoleLabel }}</strong>
-            </div>
+            <div v-if="isOwnProfile" class="profile-kv__row">
+  <span>{{ preferences.language === 'ko' ? '권한' : 'Role' }}</span>
+  <strong>{{ currentRoleLabel }}</strong>
+</div>
           </div>
 
           <div v-else>
@@ -1502,7 +1587,7 @@ onBeforeUnmount(() => {
           </div>
         </article>
 
-        <article class="page-panel">
+        <article v-if="isOwnProfile" class="page-panel">
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">
@@ -1580,7 +1665,7 @@ onBeforeUnmount(() => {
       </section>
 
       <!-- 아래쪽 2칸은 로그인 이력과 보안 이력입니다. -->
-      <section class="profile-summary" style="margin-top: 20px;">
+      <section v-if="isOwnProfile" class="profile-summary" style="margin-top: 20px;">
         <article class="page-panel">
           <div class="page-panel__head">
             <div>
@@ -1703,7 +1788,7 @@ onBeforeUnmount(() => {
         </article>
       </section>
 
-      <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+      <div v-if="isOwnProfile" style="display: flex; justify-content: flex-end; margin-top: 20px;">
         <button
           class="page-button page-button--danger"
           type="button"

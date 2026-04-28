@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAtlasSessionStore } from '../../stores/session'
 import type { ScreenTheme, PageKey } from '../../types'
 import { UI_COPY } from '../../config/appCopy'
@@ -21,6 +22,7 @@ const ui = useAtlasUiStore()
 const chat = useAtlasChatStore()
 const notificationStore = useAtlasNotificationStore()
 const session = useAtlasSessionStore()
+const router = useRouter()
 
 
 // 검색창 입력값입니다.
@@ -203,18 +205,20 @@ function resolveTargetPage(type: IntegratedSearchSectionType): PageKey | null {
 }
 
 // 유저는 아직 바로 1:1 채팅 생성 플로우가 없어서 우선 채팅 패널만 엽니다.
-function openUserResult() {
-  if (!chat.isPanelOpen) {
-    chat.togglePanel()
-  }
+function openUserResult(item: IntegratedSearchItem) {
+  if (!item.publicId) return
+
+  router.push({
+    name: 'userProfile',
+    params: { userPublicId: item.publicId },
+  })
 
   closeSearchPanel()
 }
 
-// 결과를 클릭했을 때 동작입니다.
 function handleSearchItemClick(item: IntegratedSearchItem) {
   if (item.type === 'USER') {
-    openUserResult()
+    openUserResult(item)  // item 추가
     return
   }
 
@@ -231,6 +235,16 @@ function handleSearchItemClick(item: IntegratedSearchItem) {
 function buildItemKey(item: IntegratedSearchItem, index: number) {
   return `${item.type}-${item.publicId ?? item.id ?? index}`
 }
+function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
+  // 백엔드가 thumbnailUrl로 내려주면 그 값을 씁니다.
+  // 혹시 아직 profileImageThumbPath로 내려오는 경우도 같이 대응합니다.
+  const imageItem = item as IntegratedSearchItem & {
+    profileImageThumbPath?: string | null
+  }
+
+  return item.thumbnailUrl || imageItem.profileImageThumbPath || ''
+}
+
 </script>
 
 <template>
@@ -293,21 +307,35 @@ function buildItemKey(item: IntegratedSearchItem, index: number) {
               </header>
 
               <button
-                v-for="(item, index) in section.items"
-                :key="buildItemKey(item, index)"
-                class="app-search__item"
-                type="button"
-                @click="handleSearchItemClick(item)"
-              >
-                <div class="app-search__item-title-row">
-                  <strong class="app-search__item-title">{{ item.title }}</strong>
-                  <span v-if="item.status" class="app-search__chip">{{ item.status }}</span>
-                </div>
+                  v-for="(item, index) in section.items"
+                  :key="buildItemKey(item, index)"
+                  class="app-search__item"
+                  type="button"
+                  @click="handleSearchItemClick(item)"
+                >
+                  <span class="app-search__item-thumb" aria-hidden="true">
+                    <img
+                        v-if="resolveSearchItemThumbnail(item)"
+                        :src="resolveSearchItemThumbnail(item)"
+                        :alt="item.title"
+                        class="app-search__item-thumb-image"
+                      />
 
-                <span v-if="item.subtitle" class="app-search__item-subtitle">
-                  {{ item.subtitle }}
-                </span>
-              </button>
+                    <span v-else class="material-symbols-outlined app-search__item-thumb-icon">
+                      {{ item.type === 'USER' ? 'person' : 'business' }}
+                    </span>
+                  </span>
+
+                  <span class="app-search__item-content">
+                    <span class="app-search__item-title-row">
+                      <strong class="app-search__item-title">{{ item.title }}</strong>
+                      <span v-if="item.status" class="app-search__chip">{{ item.status }}</span>
+                    </span>
+                    <span v-if="item.subtitle" class="app-search__item-subtitle">
+                      {{ item.subtitle }}
+                    </span>
+                  </span>
+                </button>
             </section>
           </template>
         </div>

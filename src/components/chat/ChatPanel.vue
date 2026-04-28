@@ -41,17 +41,19 @@ function handleSendReference(refType: string, refCode: string, refTitle: string)
 
       <!-- 채팅방 뷰 -->
       <ChatRoom
-        v-else-if="chat.currentView === 'room' && chat.currentRoom"
-        :room-name="chat.currentRoom.roomName || '이름 없음'"
-        :messages="chat.messages"
-        :current-user-public-id="chat.currentUserPublicId"
-        :is-loading="chat.isLoadingMessages"
-        :participants="chat.currentRoom.participants || []"
-        @back="chat.backToList()"
-        @send="chat.sendMessage($event)"
-        @delete-message="chat.deleteMessage($event)"
-        @send-reference="handleSendReference"
-      />
+              v-else-if="chat.currentView === 'room'"
+              :room-name="chat.currentRoom?.roomName || '채팅방'"
+              :messages="chat.messages"
+              :current-user-public-id="chat.currentUserPublicId"
+              :is-loading="chat.isLoadingMessages"
+              :participants="chat.currentRoom?.participants || []"
+              @back="chat.backToList()"
+              @send="chat.sendMessage($event)"
+              @delete-message="chat.deleteMessage($event)"
+              @send-reference="handleSendReference"
+            />
+
+
     </div>
   </Transition>
 </template>

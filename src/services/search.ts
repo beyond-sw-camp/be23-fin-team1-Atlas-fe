@@ -32,6 +32,8 @@ export interface IntegratedSearchItem {
 
   // 상태값이 있으면 같이 내려옵니다.
   status: string | null
+  
+  thumbnailUrl?: string | null
 }
 
 // 섹션 묶음입니다.

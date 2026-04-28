@@ -10,6 +10,20 @@ export const chatService = {
     })
     return response.data
   },
+  async findOrCreateDirectRoom(
+  roomName: string,
+  creatorPublicId: string,
+  targetUserPublicId: string,
+) {
+  const response = await apiClient.post<ChatRoom>('/api/control/chats/rooms/direct', {
+    roomName,
+    creatorPublicId,
+    targetUserPublicId,
+  })
+
+  return response.data
+},
+
 
   async getRooms(userPublicId: string, keyword: string = '', size: number = 10) {
     const response = await apiClient.get<{ content: ChatRoom[] }>('/api/control/chats/rooms', {

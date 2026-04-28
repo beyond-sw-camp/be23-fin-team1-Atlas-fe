@@ -67,6 +67,7 @@ const pageRoutes = [
   { path: 'risk-rules', name: 'riskRules', component: RiskRulesPage, meta: { hidePageHead: true } },
   { path: 'settings', name: 'settings', component: SettingsPage, meta: { hidePageHead: true } },
   { path: 'profile', name: 'profile', component: ProfilePage },
+  { path: 'profile/:userPublicId', name: 'userProfile', component: ProfilePage },
   { path: 'system-spec', name: 'systemSpec', component: SystemSpecPage },
     { path: 'organization-management', name: 'organizationManagement', component: OrganizationManagementPage, meta: { hidePageHead: true } },
 
