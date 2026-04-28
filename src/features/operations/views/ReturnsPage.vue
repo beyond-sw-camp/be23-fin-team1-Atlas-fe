@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { getReturnRequests, type ReturnRequestResponseDto } from '../../../services/return'
+import { getOrganizations } from '../../../services/organization'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import ReturnCreateModal from '../components/ReturnCreateModal.vue'
@@ -16,6 +17,7 @@ const errorMessage = ref('')
 const isCreateModalOpen = ref(false)
 const isTimelineModalOpen = ref(false)
 const selectedReturn = ref<ReturnRequestResponseDto | null>(null)
+const orgNameMap = ref<Record<string, string>>({})
 
 const CONTENT = {
   ko: {
@@ -204,6 +206,25 @@ async function fetchReturns() {
   }
 }
 
+async function fetchOrgNameMap() {
+  try {
+    const res = await getOrganizations({ page: 0, size: 500 })
+    const map: Record<string, string> = {}
+    res.content.forEach(org => {
+      map[org.organizationPublicId] = org.organizationName
+    })
+    orgNameMap.value = map
+  } catch (e) {
+    console.error('Failed to load org name map:', e)
+  }
+}
+
+function getOrgName(name?: string, publicId?: string) {
+  if (name) return name
+  if (!publicId) return '-'
+  return orgNameMap.value[publicId] || shortId(publicId)
+}
+
 function openTimeline(returnRequest: ReturnRequestResponseDto) {
   selectedReturn.value = returnRequest
   isTimelineModalOpen.value = true
@@ -221,7 +242,10 @@ watchEffect(() => {
   ])
 })
 
-onMounted(fetchReturns)
+onMounted(() => {
+  fetchOrgNameMap()
+  fetchReturns()
+})
 onBeforeUnmount(() => header.clearActions())
 </script>
 
@@ -292,8 +316,8 @@ onBeforeUnmount(() => header.clearActions())
               </span>
               <span>{{ shortId(item.sourceShipmentPublicId) }}</span>
               <span>{{ shortId(item.returnShipmentPublicId) }}</span>
-              <span>{{ item.requestOrganizationName || shortId(item.requestOrganizationPublicId) }}</span>
-              <span>{{ item.targetOrganizationName || shortId(item.targetOrganizationPublicId) }}</span>
+              <span>{{ getOrgName(item.requestOrganizationName, item.requestOrganizationPublicId) }}</span>
+              <span>{{ getOrgName(item.targetOrganizationName, item.targetOrganizationPublicId) }}</span>
               <span>{{ returnTypeText(item.returnType) }}</span>
               <span>{{ returnStatusText(item.returnStatus) }}</span>
               <span>{{ formatDate(item.requestedAt) }}</span>
@@ -323,6 +347,7 @@ onBeforeUnmount(() => header.clearActions())
       :is-open="isTimelineModalOpen"
       :language="preferences.language"
       :target-return="selectedReturn"
+      :org-name-map="orgNameMap"
       @close="isTimelineModalOpen = false"
       @status-changed="fetchReturns"
     />
