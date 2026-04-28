@@ -39,6 +39,10 @@ import {
   type SubPoStatus,
   type SubPurchaseOrderResponseDto,
 } from '../../../services/subPurchaseOrder'
+import {
+  getLogisticsNodes,
+  type LogisticsNodeResponseDto,
+} from '../../../services/logistics'
 
 type OrderTabKey =
   | 'ALL'
@@ -81,6 +85,7 @@ type CreateOrderLineForm = {
   id: number
   selectedItemName: string
   selectedSupplierPublicId: string
+  arrivalLogisticsNodePublicId: string
   orderedQty: number | null
 }
 
@@ -150,6 +155,7 @@ const parentSubOrders = ref<SubPurchaseOrderResponseDto[]>([])
 const supplierOptions = ref<SupplierListResponseDto[]>([])
 const categoryOptions = ref<ItemCategoryResponseDto[]>([])
 const itemMap = ref<Record<string, ItemResponseDto>>({})
+const logisticsNodeOptions = ref<LogisticsNodeResponseDto[]>([])
 
 const dashboardSummary = ref<OrderDashboardSummaryResponseDto | null>(null)
 const directionFilter = ref<OrderDirectionFilter>('ALL')
@@ -218,6 +224,7 @@ function createEmptyOrderLine(itemName = ''): CreateOrderLineForm {
     id: createLineSeed++,
     selectedItemName: itemName,
     selectedSupplierPublicId: '',
+    arrivalLogisticsNodePublicId: '',
     orderedQty: null,
   }
 }
@@ -684,6 +691,19 @@ async function loadSupplierOptions() {
   }
 }
 
+async function loadLogisticsNodeOptions() {
+  try {
+    const response = await getLogisticsNodes({ page: 0, size: 100 })
+
+    logisticsNodeOptions.value = response.content
+      .filter((node) => node.active)
+      .slice()
+      .sort((a, b) => a.nodeName.localeCompare(b.nodeName, 'ko-KR'))
+  } catch {
+    logisticsNodeOptions.value = []
+  }
+}
+
 async function loadItemLookup(orders: PurchaseOrderDetailResponseDto[]) {
   const missingItemIds = Array.from(
     new Set(orders.flatMap((order) => order.items.map((item) => item.itemPublicId))),
@@ -860,6 +880,7 @@ function validateCreateOrderForm() {
   for (const line of createForm.value.lines) {
     if (!line.selectedItemName) return '품목명을 선택하세요.'
     if (!line.selectedSupplierPublicId) return '협력사를 선택하세요.'
+    if (!line.arrivalLogisticsNodePublicId) return '도착거점을 선택하세요.'
     if (!line.orderedQty || line.orderedQty <= 0) return '발주 수량은 0보다 커야 합니다.'
     if (!resolveSelectedItemPublicId(line)) return '품목과 협력사 매핑이 올바르지 않습니다.'
   }
@@ -1056,6 +1077,7 @@ async function submitCreateOrder() {
         supplierPublicId: line.selectedSupplierPublicId,
         itemPublicId: resolveSelectedItemPublicId(line)!,
         orderedQty: Number(line.orderedQty),
+        arrivalLogisticsNodePublicId: line.arrivalLogisticsNodePublicId,
       })),
     })
 
@@ -1727,7 +1749,12 @@ function escapeCsvCell(value: unknown) {
 
 onMounted(async () => {
   resetCreateOrderForm()
-  await Promise.all([loadOrderDashboard(), loadSupplierOptions(), loadCategoryOptions()])
+  await Promise.all([
+    loadOrderDashboard(),
+    loadSupplierOptions(),
+    loadCategoryOptions(),
+    loadLogisticsNodeOptions(),
+  ])
 })
 
 onBeforeUnmount(() => header.clearActions())
@@ -2191,6 +2218,20 @@ onBeforeUnmount(() => header.clearActions())
                   disabled
                 />
               </label>
+
+              <label class="orders-page__form-field">
+                <span>도착거점</span>
+                <select v-model="line.arrivalLogisticsNodePublicId">
+                  <option value="">도착거점을 선택하세요.</option>
+                  <option
+                    v-for="node in logisticsNodeOptions"
+                    :key="node.publicId"
+                    :value="node.publicId"
+                  >
+                    {{ node.nodeName }} / {{ node.nodeType }}
+                  </option>
+                </select>
+              </label>    
             </div>
 
             <div v-if="selectedCreateLineItem(line)" class="orders-page__item-preview">
