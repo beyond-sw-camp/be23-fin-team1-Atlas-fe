@@ -11,6 +11,32 @@ export interface PageResponse<T> {
   empty?: boolean
 }
 
+export type SupplierItemQualityGrade =
+  | 'AAA'
+  | 'AA_PLUS'
+  | 'AA'
+  | 'A_PLUS'
+  | 'A'
+  | 'B'
+  | 'C'
+
+export type ManageableItemStatus = 'ACTIVE' | 'DEACTIVE'
+
+export interface ChangeItemStatusRequestDto {
+  status: ManageableItemStatus
+}
+
+export async function changeItemStatus(
+  itemPublicId: string,
+  data: ChangeItemStatusRequestDto,
+) {
+  const response = await apiClient.patch<ItemResponseDto>(
+    `/api/supply/items/${itemPublicId}/status`,
+    data,
+  )
+  return response.data
+}
+
 // 품목/카테고리 상태값
 export type ItemStatus = 'ACTIVE' | 'DEACTIVE' | 'DELETE'
 // 품목 단위
@@ -88,11 +114,53 @@ export interface ItemResponseDto {
 
 export interface CreateItemRequestDto {
   itemCategoryPublicId: string
-  itemCode: string
   itemName: string
+  unitPrice: number
   unit: ItemUnit
   spec: string
   shelfLifeDays: number
+}
+
+export interface ItemDashboardSummaryResponseDto {
+  totalItemCount: number
+  activeItemCount: number
+  deactiveItemCount: number
+  todayOrderedItemCount: number
+}
+
+export interface ItemLinkedPurchaseOrderResponseDto {
+  poPublicId: string
+  poNumber: string
+  buyerOrganizationPublicId: string
+  poStatus: string
+  orderedAt: string
+  poItemPublicId: string
+  orderedQty: number
+  confirmedQty: number | null
+  itemStatus: string
+  expectedDueDate: string | null
+}
+
+export async function getManagedItems(page = 0, size = 100) {
+  const response = await apiClient.get<PageResponse<ItemResponseDto>>('/api/supply/items/managed', {
+    params: { page, size },
+  })
+  return response.data
+}
+
+
+export async function getManagedItemDashboard() {
+  const response = await apiClient.get<ItemDashboardSummaryResponseDto>(
+    '/api/supply/items/managed/dashboard',
+  )
+  return response.data
+}
+
+export async function getManagedItemLinkedOrders(itemPublicId: string) {
+  const response = await apiClient.get<ItemLinkedPurchaseOrderResponseDto[]>(
+    `/api/supply/items/managed/${itemPublicId}/purchase-orders`,
+  )
+  return response.data
 }
 
 export interface UpdateItemRequestDto extends CreateItemRequestDto {}
@@ -112,6 +180,62 @@ export interface UpdateItemCategoryRequestDto {
   categoryName: string
   sortOrder?: number
 }
+
+export interface SupplierItemCapabilityResponseDto {
+  supplierPublicId: string
+  supplierCode: string
+  supplierName: string
+  itemPublicId: string
+  itemCode: string
+  itemName: string
+  leadTimeDays: number | null
+  monthlyCapacity: number | null
+  availableQty: number | null
+  moq: number | null
+  qualityGrade: SupplierItemQualityGrade | null
+  partialConfirmationAllowed: boolean | null
+  unit: string | null
+  unitPrice: number | null
+  unitPriceHint: number | null
+  validFrom: string | null
+  createdAt: string
+}
+
+export interface CreateSupplierItemCapabilityRequestDto {
+  itemPublicId: string
+  leadTimeDays: number
+  monthlyCapacity: number
+  availableQty: number
+  moq: number
+  qualityGrade?: SupplierItemQualityGrade | null
+  unitPriceHint?: number | null
+  validFrom?: string | null
+  partialConfirmationAllowed: boolean
+}
+
+export interface UpdateSupplierItemCapabilityRequestDto {
+  leadTimeDays?: number | null
+  monthlyCapacity?: number | null
+  availableQty?: number | null
+  moq?: number | null
+  qualityGrade?: SupplierItemQualityGrade | null
+  unitPriceHint?: number | null
+  validFrom?: string | null
+  partialConfirmationAllowed?: boolean | null
+}
+
+export async function updateSupplierItemCapability(
+  supplierPublicId: string,
+  itemPublicId: string,
+  data: UpdateSupplierItemCapabilityRequestDto,
+) {
+  const response = await apiClient.patch<SupplierItemCapabilityResponseDto>(
+    `/api/supply/suppliers/${supplierPublicId}/item-capabilities/${itemPublicId}`,
+    data,
+  )
+  return response.data
+}
+
 
 // 품목 카테고리 수정
 export async function updateItemCategory(

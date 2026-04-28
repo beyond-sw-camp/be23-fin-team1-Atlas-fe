@@ -361,125 +361,29 @@ const metrics = computed(() => {
 // 협력사 로그인인데 supply-service 에 supplier row가 없으면,
 // auth-service 의 내 조직 정보를 협력사처럼 한 줄로 보여줍니다.
 async function fetchSupplierRows(keyword = '') {
-  // 먼저 이전 에러를 비웁니다.
   errorMessage.value = ''
 
   try {
-    // 검색어 앞뒤 공백을 정리합니다.
     const normalizedKeyword = keyword.trim()
 
-    // 기본 협력사 목록 API를 먼저 호출합니다.
     const response = await getSuppliers({
       keyword: useServerSearch.value ? normalizedKeyword || undefined : undefined,
       page: 0,
       size: 100,
     })
 
-    // 기본 응답을 화면용 row로 바꿉니다.
-    rows.value = response.content.map(toDisplayRow)
-
-    // 협력사 로그인인데 연결 목록이 비어 있으면,
-    // supply-service 의 내 협력사를 한 번 더 읽어봅니다.
-    if (session.organizationType === 'SUPPLIER' && rows.value.length === 0) {
-      try {
-        const mySupplier = await getMySupplier()
-
-        rows.value = [
-          {
-            supplierCode: mySupplier.supplierCode,
-            supplierName: mySupplier.supplierName,
-            publicId: mySupplier.publicId,
-            supplierStatus: mySupplier.supplierStatus,
-            relationStatus: 'ACTIVE',
-            purchaseOrderCount: 0,
-            cumulativeAmount: 0,
-            detail: mySupplier,
-            cells: [
-              mySupplier.supplierCode || '-',
-              mySupplier.supplierName || '-',
-              preferences.language === 'ko' ? '정상' : 'ACTIVE',
-              '-',
-              '-',
-              '-',
-              '0',
-              preferences.language === 'ko' ? '0원' : '$0',
-            ],
-          },
-        ]
-      } catch {
-        const myOrganization = await getMyOrganizationDetail()
-
-        rows.value = [
-          {
-            supplierCode: myOrganization.organizationAlias,
-            supplierName: myOrganization.organizationName,
-            publicId: undefined,
-            supplierStatus: myOrganization.status,
-            relationStatus: 'ACTIVE',
-            purchaseOrderCount: 0,
-            cumulativeAmount: 0,
-            detail: null,
-            cells: [
-              myOrganization.organizationAlias || '-',
-              myOrganization.organizationName || '-',
-              preferences.language === 'ko' ? '정상' : 'ACTIVE',
-              '-',
-              '-',
-              '-',
-              '0',
-              preferences.language === 'ko' ? '0원' : '$0',
-            ],
-          },
-        ]
-      }
-    }
+    rows.value = response.content
+      .filter((supplier) => {
+        const supplierOrgId = supplier.detail?.organizationPublicId
+        return !supplierOrgId || supplierOrgId !== session.organizationPublicId
+      })
+      .map(toDisplayRow)
   } catch (error: any) {
-    // 핵심:
-    // getSuppliers() 자체가 LOGIN_SUPPLIER_NOT_FOUND 로 실패할 수 있으니
-    // SUPPLIER 로그인일 때는 auth-service 의 내 조직 정보로 대체 표시합니다.
-    if (session.organizationType === 'SUPPLIER') {
-      try {
-        const myOrganization = await getMyOrganizationDetail()
-
-        rows.value = [
-          {
-            supplierCode: myOrganization.organizationAlias,
-            supplierName: myOrganization.organizationName,
-            publicId: undefined,
-            supplierStatus: myOrganization.status,
-            relationStatus: 'ACTIVE',
-            purchaseOrderCount: 0,
-            cumulativeAmount: 0,
-            detail: null,
-            cells: [
-              myOrganization.organizationAlias || '-',
-              myOrganization.organizationName || '-',
-              preferences.language === 'ko' ? '정상' : 'ACTIVE',
-              '-',
-              '-',
-              '-',
-              '0',
-              preferences.language === 'ko' ? '0원' : '$0',
-            ],
-          },
-        ]
-
-        // 조직 정보로 대체 표시했으니 에러 문구는 지웁니다.
-        errorMessage.value = ''
-        return
-      } catch (organizationError: any) {
-        rows.value = []
-        errorMessage.value =
-          organizationError?.message || '협력사 정보를 불러오지 못했습니다.'
-        return
-      }
-    }
-
-    // 협력사 로그인이 아니면 원래 에러를 그대로 보여줍니다.
     rows.value = []
     errorMessage.value = error.message ?? '협력사 목록을 불러오지 못했습니다.'
   }
 }
+
 
 
 // ADMIN / BUYER 는 검색을 서버가 처리하므로 탭 필터만 적용합니다.
