@@ -4,6 +4,14 @@ import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import MapPanel from '../../shared/components/MapPanel.vue'
 import { getLogisticsNodes, type LogisticsNodeResponseDto } from '../../../services/logistics'
 import {
+  getPurchaseOrders,
+  type PurchaseOrderSummaryResponseDto,
+} from '../../../services/purchaseOrder'
+import {
+  getLots,
+  type LotResponseDto,
+} from '../../../services/lot'
+import {
   createDeliveryException,
   createShipment,
   createShipmentLotMapping,
@@ -41,9 +49,9 @@ const CONTENT = {
     title: '출하',
     subtitle: '출하 생성, 운송정보 수정, 체크포인트 추적, 진행 중 출하 흐름을 관리합니다.',
     buttons: {
-      openCreate: '출하 등록',
-      closeCreate: '등록 닫기',
-      submitCreate: '출하 저장',
+      openCreate: '승인 발주로 출하 생성',
+      closeCreate: '생성 닫기',
+      submitCreate: '출하 생성',
       submitting: '저장 중...',
       select: '선택',
       refresh: '새로고침',
@@ -127,7 +135,7 @@ const CONTENT = {
       emptyShipments: '출하 데이터가 없습니다.',
       emptyMap: '현재 진행 중인 출하가 없습니다.',
       emptyHistory: '출하 이력이 없습니다.',
-      requiredCreate: '발주 ID, 출발 거점, 도착 거점, 출발/도착 예정 시각은 필수입니다.',
+      requiredCreate: '승인 발주, 출발 거점, 도착 거점, 출발/도착 예정 시각은 필수입니다.',
     },
     states: {
       yes: '예',
@@ -141,7 +149,7 @@ const CONTENT = {
     title: 'Shipments',
     subtitle: 'Create shipments, update transport info, track checkpoints, and monitor active flows.',
     buttons: {
-      openCreate: 'ADD SHIPMENT',
+      openCreate: 'CREATE FROM ACCEPTED ORDER',
       closeCreate: 'CLOSE FORM',
       submitCreate: 'SAVE SHIPMENT',
       submitting: 'Saving...',
@@ -243,6 +251,8 @@ const content = computed(() => CONTENT[preferences.language])
 const shipments = ref<ShipmentListResponseDto[]>([])
 const mapShipments = ref<ShipmentMapResponseDto[]>([])
 const logisticsNodes = ref<LogisticsNodeResponseDto[]>([])
+const acceptedPurchaseOrders = ref<PurchaseOrderSummaryResponseDto[]>([])
+const lotOptions = ref<LotResponseDto[]>([])
 const currentPage = ref(0)
 const pageSize = ref(10)
 const totalElements = ref(0)
@@ -252,6 +262,10 @@ const isMapLoading = ref(false)
 const shipmentErrorMessage = ref('')
 const mapErrorMessage = ref('')
 const nodeErrorMessage = ref('')
+const orderErrorMessage = ref('')
+const lotOptionErrorMessage = ref('')
+const isOrderOptionsLoading = ref(false)
+const isLotOptionsLoading = ref(false)
 
 const selectedShipment = ref<ShipmentListResponseDto | null>(null)
 const selectedShipmentDetail = ref<ShipmentResponseDto | null>(null)
@@ -267,7 +281,7 @@ const isCreateModalOpen = ref(false)
 const isCreateSubmitting = ref(false)
 const createErrorMessage = ref('')
 const createForm = ref<CreateShipmentRequestDto>({
-  poId: 0,
+  poId: null,
   purchaseOrderPublicId: '',
   subPoId: null,
   subPurchaseOrderPublicId: '',
@@ -325,6 +339,44 @@ const lotMappingForm = ref<CreateShipmentLotMappingRequestDto>({
 })
 
 const activeLogisticsNodes = computed(() => logisticsNodes.value.filter((node) => node.active))
+const availableLotOptions = computed(() =>
+  lotOptions.value.filter(
+    (lot) => lot.qty > 0 && lot.lotStatus !== 'SHIPPED' && lot.lotStatus !== 'DISCARDED',
+  ),
+)
+const trackNodeOptions = computed(() => {
+  if (!selectedShipmentDetail.value) return []
+
+  const detail = selectedShipmentDetail.value
+  const options = [
+    {
+      publicId: detail.originNodePublicId,
+      label: formatNodeDisplay(detail.originNodeName, detail.originNodeCode, detail.originNodePublicId),
+    },
+    {
+      publicId: detail.currentNodePublicId,
+      label: formatNodeDisplay(detail.currentNodeName, detail.currentNodeCode, detail.currentNodePublicId),
+    },
+    {
+      publicId: detail.destinationNodePublicId,
+      label: formatNodeDisplay(
+        detail.destinationNodeName,
+        detail.destinationNodeCode,
+        detail.destinationNodePublicId,
+      ),
+    },
+  ]
+
+  return options.filter(
+    (
+      option,
+      index,
+      array,
+    ): option is { publicId: string; label: string } =>
+      Boolean(option.publicId) &&
+      array.findIndex((candidate) => candidate.publicId === option.publicId) === index,
+  )
+})
 const checkpointTypeOptions = ['DEPARTURE', 'TRANSIT', 'ARRIVAL', 'WAREHOUSE_IN']
 const checkpointStatusOptions = ['PLANNED', 'PASSED', 'FAILED', 'CANCELLED']
 const deliveryExceptionTypeOptions = ['DELAY', 'DAMAGE', 'TEMPERATURE_DEVIATION', 'WRONG_DELIVERY']
@@ -332,16 +384,15 @@ const deliveryExceptionSeverityOptions = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 
 const shipmentMapPanel = computed<MapPanelDefinition>(() => {
   const nodes = mapShipments.value.slice(0, 6).map((shipment, index) => {
-    const x = `${12 + (index % 3) * 34}%`
-    const y = `${24 + Math.floor(index / 3) * 34}%`
+    const position = getShipmentMapPosition(shipment, index)
     const currentName = formatNodeDisplay(shipment.currentNodeName, shipment.currentNodeCode, shipment.currentNodePublicId)
 
     return {
       label: currentName,
       value: shipment.shipmentNumber,
       meta: `${shipment.status} / ${formatNodeDisplay(shipment.originNodeName, shipment.originNodeCode, shipment.originNodePublicId)} -> ${formatNodeDisplay(shipment.destinationNodeName, shipment.destinationNodeCode, shipment.destinationNodePublicId)}`,
-      x,
-      y,
+      x: position.x,
+      y: position.y,
       tone: shipment.status === 'DELAYED' ? ('warning' as const) : ('accent' as const),
     }
   })
@@ -359,6 +410,39 @@ const shipmentMapPanel = computed<MapPanelDefinition>(() => {
     })),
   }
 })
+
+function getShipmentMapPosition(shipment: ShipmentMapResponseDto, index: number) {
+  const coordinateShipments = mapShipments.value.filter(
+    (item) => item.currentLatitude != null && item.currentLongitude != null,
+  )
+
+  if (
+    shipment.currentLatitude == null ||
+    shipment.currentLongitude == null ||
+    coordinateShipments.length < 2
+  ) {
+    return {
+      x: `${12 + (index % 3) * 34}%`,
+      y: `${24 + Math.floor(index / 3) * 34}%`,
+    }
+  }
+
+  const latitudes = coordinateShipments.map((item) => Number(item.currentLatitude))
+  const longitudes = coordinateShipments.map((item) => Number(item.currentLongitude))
+
+  return {
+    x: `${normalizeMapCoordinate(Number(shipment.currentLongitude), Math.min(...longitudes), Math.max(...longitudes))}%`,
+    y: `${100 - normalizeMapCoordinate(Number(shipment.currentLatitude), Math.min(...latitudes), Math.max(...latitudes))}%`,
+  }
+}
+
+function normalizeMapCoordinate(value: number, min: number, max: number) {
+  if (!Number.isFinite(value) || min === max) {
+    return 50
+  }
+
+  return 12 + ((value - min) / (max - min)) * 76
+}
 
 function nullableText(value?: string | null) {
   const trimmed = value?.trim()
@@ -386,6 +470,59 @@ async function fetchLogisticsNodes() {
     console.error('Failed to fetch logistics nodes:', error)
     logisticsNodes.value = []
     nodeErrorMessage.value = content.value.messages.loadNodesFail
+  }
+}
+
+async function fetchAcceptedPurchaseOrders() {
+  isOrderOptionsLoading.value = true
+  orderErrorMessage.value = ''
+
+  try {
+    const [confirmed, partiallyConfirmed] = await Promise.all([
+      getPurchaseOrders({
+        viewType: 'SUPPLIER',
+        poStatus: 'CONFIRMED',
+        page: 0,
+        size: 100,
+      }),
+      getPurchaseOrders({
+        viewType: 'SUPPLIER',
+        poStatus: 'PARTIALLY_CONFIRMED',
+        page: 0,
+        size: 100,
+      }),
+    ])
+
+    const orders = [
+      ...(confirmed.content ?? []),
+      ...(partiallyConfirmed.content ?? []),
+    ]
+
+    acceptedPurchaseOrders.value = Array.from(
+      new Map(orders.map((order) => [order.poPublicId, order])).values(),
+    )
+  } catch (error) {
+    console.error('Failed to fetch accepted purchase orders:', error)
+    acceptedPurchaseOrders.value = []
+    orderErrorMessage.value = '출하 생성 가능한 승인 발주 목록을 불러오지 못했습니다.'
+  } finally {
+    isOrderOptionsLoading.value = false
+  }
+}
+
+async function fetchLotOptions() {
+  isLotOptionsLoading.value = true
+  lotOptionErrorMessage.value = ''
+
+  try {
+    const response = await getLots()
+    lotOptions.value = response.content ?? []
+  } catch (error) {
+    console.error('Failed to fetch lots:', error)
+    lotOptions.value = []
+    lotOptionErrorMessage.value = 'LOT 목록을 불러오지 못했습니다.'
+  } finally {
+    isLotOptionsLoading.value = false
   }
 }
 
@@ -431,6 +568,14 @@ async function fetchShipments() {
 
 async function refreshShipments() {
   await Promise.all([fetchShipments(), fetchShipmentMapData(), fetchLogisticsNodes()])
+}
+
+async function toggleCreateModal() {
+  isCreateModalOpen.value = !isCreateModalOpen.value
+
+  if (isCreateModalOpen.value) {
+    await Promise.all([fetchAcceptedPurchaseOrders(), fetchLogisticsNodes()])
+  }
 }
 
 function goToPreviousPage() {
@@ -496,7 +641,7 @@ async function handleShipmentSelect(shipment: ShipmentListResponseDto) {
 
 function resetCreateForm() {
   createForm.value = {
-    poId: 0,
+    poId: null,
     purchaseOrderPublicId: '',
     subPoId: null,
     subPurchaseOrderPublicId: '',
@@ -515,7 +660,7 @@ async function handleCreateShipmentSubmit() {
   createErrorMessage.value = ''
 
   if (
-    !createForm.value.poId ||
+    !createForm.value.purchaseOrderPublicId ||
     !createForm.value.originNodePublicId ||
     !createForm.value.destinationNodePublicId ||
     !createForm.value.departureEta ||
@@ -530,6 +675,7 @@ async function handleCreateShipmentSubmit() {
   try {
     await createShipment({
       ...createForm.value,
+      poId: null,
       purchaseOrderPublicId: nullableText(createForm.value.purchaseOrderPublicId),
       subPoId: createForm.value.subPoId || null,
       subPurchaseOrderPublicId: nullableText(createForm.value.subPurchaseOrderPublicId),
@@ -586,6 +732,14 @@ function resetTrackForm() {
     plannedAt: '',
     actualAt: null,
     note: '',
+  }
+}
+
+async function toggleLotMappingPanel() {
+  isLotMappingPanelOpen.value = !isLotMappingPanelOpen.value
+
+  if (isLotMappingPanelOpen.value) {
+    await fetchLotOptions()
   }
 }
 
@@ -668,7 +822,7 @@ onMounted(refreshShipments)
         <button class="page-button page-button--secondary" type="button" @click="refreshShipments">
           {{ content.buttons.refresh }}
         </button>
-        <button class="page-button page-button--primary" type="button" @click="isCreateModalOpen = !isCreateModalOpen">
+        <button class="page-button page-button--primary" type="button" @click="toggleCreateModal">
           {{ isCreateModalOpen ? content.buttons.closeCreate : content.buttons.openCreate }}
         </button>
       </div>
@@ -700,20 +854,17 @@ onMounted(refreshShipments)
 
       <div class="page-feed">
         <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.poId }}</span>
-          <input v-model.number="createForm.poId" type="number" class="page-input" />
+          <span class="page-feed__label">승인 발주</span>
+          <select v-model="createForm.purchaseOrderPublicId" class="page-input" :disabled="isOrderOptionsLoading">
+            <option value="">{{ isOrderOptionsLoading ? '불러오는 중...' : '선택' }}</option>
+            <option v-for="order in acceptedPurchaseOrders" :key="order.poPublicId" :value="order.poPublicId">
+              {{ order.poNumber }} / {{ order.supplierName }} / {{ order.poStatus }}
+            </option>
+          </select>
         </div>
-        <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.purchaseOrderPublicId }}</span>
-          <input v-model="createForm.purchaseOrderPublicId" type="text" class="page-input" />
-        </div>
-        <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.subPoId }}</span>
-          <input v-model.number="createForm.subPoId" type="number" class="page-input" />
-        </div>
-        <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.subPurchaseOrderPublicId }}</span>
-          <input v-model="createForm.subPurchaseOrderPublicId" type="text" class="page-input" />
+        <div v-if="orderErrorMessage" class="page-table__empty">{{ orderErrorMessage }}</div>
+        <div v-else-if="!isOrderOptionsLoading && acceptedPurchaseOrders.length === 0" class="page-table__empty">
+          출하 생성 가능한 승인 발주가 없습니다.
         </div>
         <div class="page-feed__item">
           <span class="page-feed__label">{{ content.fields.carrierName }}</span>
@@ -952,7 +1103,7 @@ onMounted(refreshShipments)
         <button class="page-button page-button--secondary" type="button" @click="isExceptionPanelOpen = !isExceptionPanelOpen">
           {{ isExceptionPanelOpen ? content.buttons.closeException : content.buttons.openException }}
         </button>
-        <button class="page-button page-button--secondary" type="button" @click="isLotMappingPanelOpen = !isLotMappingPanelOpen">
+        <button class="page-button page-button--secondary" type="button" @click="toggleLotMappingPanel">
           {{ isLotMappingPanelOpen ? content.buttons.closeLotMap : content.buttons.openLotMap }}
         </button>
       </div>
@@ -967,7 +1118,12 @@ onMounted(refreshShipments)
         <div class="page-feed">
           <div class="page-feed__item">
             <span class="page-feed__label">{{ content.fields.nodePublicId }}</span>
-            <input v-model="trackForm.nodePublicId" type="text" class="page-input" />
+            <select v-model="trackForm.nodePublicId" class="page-input">
+              <option value="">선택</option>
+              <option v-for="node in trackNodeOptions" :key="node.publicId" :value="node.publicId">
+                {{ node.label }}
+              </option>
+            </select>
           </div>
           <div class="page-feed__item">
             <span class="page-feed__label">{{ content.fields.checkpointType }}</span>
@@ -1070,7 +1226,12 @@ onMounted(refreshShipments)
         <div class="page-feed">
           <div class="page-feed__item">
             <span class="page-feed__label">{{ content.fields.lotPublicId }}</span>
-            <input v-model="lotMappingForm.lotPublicId" type="text" class="page-input" />
+            <select v-model="lotMappingForm.lotPublicId" class="page-input" :disabled="isLotOptionsLoading">
+              <option value="">{{ isLotOptionsLoading ? '불러오는 중...' : '선택' }}</option>
+              <option v-for="lot in availableLotOptions" :key="lot.publicId" :value="lot.publicId">
+                {{ lot.lotNumber }} / {{ lot.itemName }} / {{ lot.qty }} {{ lot.unit }} / {{ lot.lotStatus }}
+              </option>
+            </select>
           </div>
           <div class="page-feed__item">
             <span class="page-feed__label">{{ content.fields.shippedQty }}</span>
@@ -1079,6 +1240,12 @@ onMounted(refreshShipments)
         </div>
         <div v-if="lotMappingErrorMessage" style="color: var(--color-critical); font-size: 0.875rem; margin-top: 12px;">
           {{ lotMappingErrorMessage }}
+        </div>
+        <div v-if="lotOptionErrorMessage" style="color: var(--color-critical); font-size: 0.875rem; margin-top: 12px;">
+          {{ lotOptionErrorMessage }}
+        </div>
+        <div v-else-if="!isLotOptionsLoading && availableLotOptions.length === 0" class="page-table__empty" style="margin-top: 12px;">
+          출하에 연결할 수 있는 LOT가 없습니다.
         </div>
         <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
           <button class="page-button page-button--primary" type="button" :disabled="isLotMappingSubmitting" @click="handleCreateShipmentLotMappingSubmit">

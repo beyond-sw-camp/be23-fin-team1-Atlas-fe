@@ -61,7 +61,7 @@ export interface ShipmentResponseDto {
 }
 
 export interface CreateShipmentRequestDto {
-  poId: number
+  poId?: number | null
   purchaseOrderPublicId?: string | null
   subPoId?: number | null
   subPurchaseOrderPublicId?: string | null

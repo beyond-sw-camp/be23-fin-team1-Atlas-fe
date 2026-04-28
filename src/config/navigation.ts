@@ -145,7 +145,7 @@ export const NAV_ITEMS: NavEntry[] = [
     description: 'Shipment list, tracking, ETA, and exceptions',
     pageSubtitle: 'Manage outbound shipment flow and tracking status',
     section: 'operations',
-    organizations: ['mainBuyer', 'supplier', 'admin'],
+    organizations: ['mainBuyer', 'supplier'],
   },
     {
     key: 'settlements',
@@ -154,7 +154,7 @@ export const NAV_ITEMS: NavEntry[] = [
     description: 'Settlement list, detail, approval, and cancellation',
     pageSubtitle: 'Manage settlement processing status and approval flow',
     section: 'operations',
-    organizations: ['mainBuyer', 'admin'],
+    organizations: ['mainBuyer', 'supplier'],
   },
   {
     key: 'logisticsNodes',
@@ -163,7 +163,7 @@ export const NAV_ITEMS: NavEntry[] = [
     description: '물류거점 등록, 조회, 상태 관리',
     pageSubtitle: '물류거점 정보와 활성 상태를 운영 화면에서 관리',
     section: 'operations',
-    organizations: ['mainBuyer', 'admin'],
+    organizations: ['mainBuyer', 'supplier'],
   },
   {
     key: 'returns',
@@ -172,7 +172,7 @@ export const NAV_ITEMS: NavEntry[] = [
     description: '반품 요청 및 처리 관리',
     pageSubtitle: '요청, 승인, 회수, 입고 상태와 이력 추적',
     section: 'operations',
-    organizations: ['mainBuyer', 'supplier', 'admin'],
+    organizations: ['mainBuyer', 'supplier'],
     badge: '1',
     badgeTone: 'warn',
   },

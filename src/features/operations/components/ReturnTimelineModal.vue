@@ -33,6 +33,32 @@ const isTargetOrg = computed(() => {
   return props.targetReturn.targetOrganizationPublicId === myOrgPublicId
 })
 
+const isRequestOrg = computed(() => {
+  if (!props.targetReturn) return false
+  return props.targetReturn.requestOrganizationPublicId === myOrgPublicId
+})
+
+const canChangeStatus = computed(() => {
+  if (!props.targetReturn) return false
+
+  if (props.targetReturn.returnStatus === 'REQUESTED') {
+    return isTargetOrg.value
+  }
+
+  if (props.targetReturn.returnStatus === 'APPROVED') {
+    return isRequestOrg.value
+  }
+
+  if (
+    props.targetReturn.returnStatus === 'IN_TRANSIT' ||
+    props.targetReturn.returnStatus === 'RECEIVED'
+  ) {
+    return isTargetOrg.value
+  }
+
+  return false
+})
+
 const content = computed(() => {
   return props.language === 'ko'
     ? {
@@ -353,7 +379,7 @@ async function doUpdateStatus(
       </div>
 
       <div
-        v-if="targetReturn.returnStatus !== 'COMPLETED' && targetReturn.returnStatus !== 'REJECTED' && isTargetOrg"
+        v-if="canChangeStatus"
         class="action-block"
       >
         <div class="action-block__eyebrow">{{ content.statusActions }}</div>
