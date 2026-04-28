@@ -7,7 +7,7 @@ import {
   type ReturnRequestResponseDto,
   type ReturnStatusHistoryResponseDto,
 } from '../../../services/return'
-import { getShipmentDetail, createShipment } from '../../../services/shipment'
+import { getShipment, createShipment } from '../../../services/shipment'
 
 const props = defineProps<{
   isOpen: boolean
@@ -247,7 +247,7 @@ async function doUpdateStatus(
     // IN_TRANSIT 전환 시 원본 출하 기반 역물류 출하 자동 생성
     if (nextStatus === 'IN_TRANSIT' && props.targetReturn.sourceShipmentPublicId) {
       try {
-        const sourceShipment = await getShipmentDetail(props.targetReturn.sourceShipmentPublicId)
+        const sourceShipment = await getShipment(props.targetReturn.sourceShipmentPublicId)
 
         // 원본 출하의 출발지/도착지를 반전하여 회수 출하 생성
         const depEta = new Date(sourceShipment.departureEta)
