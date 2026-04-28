@@ -242,6 +242,13 @@ function supplierStatusText(value: string) {
   }
 }
 
+
+function connectedOrderStatusText(order: { orderType: 'PURCHASE_ORDER' | 'SUB_PURCHASE_ORDER'; status: string }) {
+  return order.orderType === 'PURCHASE_ORDER'
+    ? poStatusText(order.status)
+    : subPoStatusText(order.status)
+}
+
 function relationStatusText(value: string) {
   if (preferences.language !== 'ko') return value
   switch (value) {
@@ -270,6 +277,29 @@ function subPoStatusText(value: string) {
       return '전체 확정'
     case 'REJECTED':
       return '거절'
+    case 'CANCELLED':
+      return '취소'
+    case 'COMPLETED':
+      return '완료'
+    case 'DELETED':
+      return '삭제'
+    default:
+      return value
+  }
+}
+
+function poStatusText(value: string) {
+  if (preferences.language !== 'ko') return value
+
+  switch (value) {
+    case 'CREATED':
+      return '확인 대기'
+    case 'PARTIALLY_CONFIRMED':
+      return '부분 확정'
+    case 'CONFIRMED':
+      return '확정'
+    case 'REJECTED':
+      return '반려'
     case 'CANCELLED':
       return '취소'
     case 'COMPLETED':
@@ -895,7 +925,8 @@ async function submitCreateSupplier() {
           style="margin-top: 8px;"
         >
           <div class="page-table__row page-table__row--head">
-            <span>{{ preferences.language === 'ko' ? '서브발주번호' : 'SUB PO NO' }}</span>
+            <span>{{ preferences.language === 'ko' ? '문서유형' : 'TYPE' }}</span>
+            <span>{{ preferences.language === 'ko' ? '문서번호' : 'DOCUMENT NO' }}</span>
             <span>{{ preferences.language === 'ko' ? '상위발주번호' : 'PARENT PO NO' }}</span>
             <span>{{ preferences.language === 'ko' ? '구분' : 'ROLE' }}</span>
             <span>{{ preferences.language === 'ko' ? '상태' : 'STATUS' }}</span>
@@ -905,19 +936,24 @@ async function submitCreateSupplier() {
 
           <div
             v-for="order in selectedSupplier.orders"
-            :key="order.subPoPublicId"
+            :key="order.subPoPublicId || order.poPublicId || order.orderedAt"
             class="page-table__row"
           >
-            <span>{{ order.subPoNumber }}</span>
-            <span>{{ order.parentPoNumber }}</span>
+            <span>
+              {{ order.orderType === 'PURCHASE_ORDER'
+                ? (preferences.language === 'ko' ? '메인 발주' : 'PURCHASE ORDER')
+                : (preferences.language === 'ko' ? '서브 발주' : 'SUB PURCHASE ORDER') }}
+            </span>
+            <span>{{ order.orderType === 'PURCHASE_ORDER' ? order.poNumber : order.subPoNumber }}</span>
+            <span>{{ order.parentPoNumber ?? '-' }}</span>
             <span>{{ orderRoleText(order.orderRole) }}</span>
-            <span>{{ subPoStatusText(order.subPoStatus) }}</span>
+            <span>{{ connectedOrderStatusText(order) }}</span>
             <span>{{ formatDate(order.orderedAt) }}</span>
             <span>{{ formatAmount(order.totalAmount) }}</span>
           </div>
         </div>
 
-        <p v-else style="margin: 8px 0 0;">
+        <p style="margin: 8px 0 0;">
           {{ preferences.language === 'ko' ? '연결된 발주 이력이 없습니다.' : 'No related orders.' }}
         </p>
       </div>

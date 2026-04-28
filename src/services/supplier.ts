@@ -200,14 +200,18 @@ export interface ConnectedSupplierSummaryResponseDto {
 }
 
 export interface ConnectedSupplierOrderResponseDto {
-  subPoPublicId: string
-  subPoNumber: string
-  parentPoNumber: string
+  orderType: 'PURCHASE_ORDER' | 'SUB_PURCHASE_ORDER'
+  poPublicId?: string | null
+  poNumber?: string | null
+  subPoPublicId?: string | null
+  subPoNumber?: string | null
+  parentPoNumber?: string | null
   orderRole: 'ISSUED' | 'RECEIVED'
-  subPoStatus: string
+  status: string
   orderedAt: string
   totalAmount: number
 }
+
 
 export interface ConnectedSupplierDetailResponseDto extends SupplierResponseDto {
   onTimeRate: number | null
