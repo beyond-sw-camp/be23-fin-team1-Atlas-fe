@@ -42,8 +42,17 @@ const filteredAvailableUsers = computed(() => {
 
 const filteredRooms = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return props.rooms
-  return props.rooms.filter((room) => room.roomName && room.roomName.toLowerCase().includes(q))
+  let result = [...props.rooms]
+  if (q) {
+    result = result.filter((room) => room.roomName && room.roomName.toLowerCase().includes(q))
+  }
+  // 최신 메시지 순으로 정렬 (메시지가 없는 방은 뒤로)
+  result.sort((a, b) => {
+    const timeA = a.lastMessage?.sentAt ? new Date(a.lastMessage.sentAt).getTime() : 0
+    const timeB = b.lastMessage?.sentAt ? new Date(b.lastMessage.sentAt).getTime() : 0
+    return timeB - timeA
+  })
+  return result
 })
 
 async function handleCreateRoom() {

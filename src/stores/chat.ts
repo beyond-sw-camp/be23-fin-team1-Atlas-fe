@@ -14,7 +14,7 @@ import { chatService } from '../services/chat'
 import { useAtlasSessionStore } from './session'
 import { useAtlasNotificationStore } from './notification'
 
-const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-control'
+const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8080/ws-control'
 
 export const useAtlasChatStore = defineStore('atlasChat', () => {
   const sessionStore = useAtlasSessionStore()
@@ -117,7 +117,10 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   }
 
   function subscribeToRoom(roomPublicId: string) {
-    if (!stompClient || !stompClient.connected) return
+    if (!stompClient || !stompClient.connected) {
+      console.warn('[STOMP] 구독 실패: 연결되지 않음. roomPublicId:', roomPublicId)
+      return
+    }
 
     // 기존 구독 해제
     if (roomSubscription.value) {
@@ -127,11 +130,16 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
       typingSubscription.value.unsubscribe()
     }
 
-    roomSubscription.value = stompClient.subscribe(`/sub/chat.room.${roomPublicId}`, (message) => {
+    const subPath = `/sub/chat.room.${roomPublicId}`
+    console.log('[STOMP] 채팅방 구독 시작:', subPath)
+
+    roomSubscription.value = stompClient.subscribe(subPath, (message) => {
       try {
         const raw = JSON.parse(message.body)
         // 백엔드 응답 필드 정규화 (deleted → isDeleted)
         const chatMsg: ChatMessageDto = { ...raw, isDeleted: raw.isDeleted ?? raw.deleted ?? false }
+
+        console.log('[STOMP] 메시지 수신:', chatMsg.messageBody?.slice(0, 30))
 
         // 현재 방의 메시지면 추가
         if (currentRoomPublicId.value === roomPublicId) {
@@ -305,9 +313,18 @@ async function fetchAvailableUsers() {
           const invitedUser = availableUsers.value.find(u => u.userPublicId === userPublicId)
           if (invitedUser) {
             room.participants.push(invitedUser)
-          } else { // fallback if user is not in availableUsers
+          } else {
             room.participants.push({ userPublicId, displayName: '초대된 유저' })
           }
+        }
+
+        // 초대된 유저의 이름을 방 이름에 자동 추가
+        const invitedDisplayName = availableUsers.value.find(u => u.userPublicId === userPublicId)?.displayName
+        if (invitedDisplayName && room.roomName && !room.roomName.includes(invitedDisplayName)) {
+          const updatedName = `${room.roomName}, ${invitedDisplayName}`
+          room.roomName = updatedName
+          // 백엔드에도 반영 (실패해도 UI는 유지)
+          chatService.renameRoom(currentRoomPublicId.value, updatedName).catch(() => {})
         }
       }
     } catch (e) {
@@ -348,6 +365,23 @@ async function fetchAvailableUsers() {
         ...m,
         isDeleted: m.isDeleted ?? m.deleted ?? false,
       }))
+
+      // 참여자 목록 조회
+      try {
+        const participantResult = await chatService.searchParticipants(roomPublicId, '', 100)
+        const participantList = (participantResult as any).content || participantResult || []
+        const room = rooms.value.find(r => r.publicId === roomPublicId)
+        if (room) {
+          room.participants = participantList.map((p: any) => ({
+            userPublicId: p.userPublicId || p.user_public_id || p.publicId,
+            displayName: p.displayName || p.display_name || p.userName || p.user_name || '참여자',
+            jobTitle: p.jobTitle || p.job_title || '',
+            role: p.role || '',
+          }))
+        }
+      } catch (participantError) {
+        console.warn('[Chat] 참여자 목록 조회 실패, availableUsers 기반 폴백:', participantError)
+      }
 
       // STOMP 구독
       subscribeToRoom(roomPublicId)
