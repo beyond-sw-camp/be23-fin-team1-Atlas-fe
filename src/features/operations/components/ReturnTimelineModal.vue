@@ -258,11 +258,17 @@ async function doUpdateStatus(
         const returnArrivalEta = new Date(now.getTime() + transitDurationMs)
 
         await createShipment({
+          purchaseOrderPublicId: sourceShipment.purchaseOrderPublicId || null,
+          subPurchaseOrderPublicId: sourceShipment.subPurchaseOrderPublicId || null,
+          poId: null,
+          subPoId: null,
           originNodePublicId: sourceShipment.destinationNodePublicId,
           destinationNodePublicId: sourceShipment.originNodePublicId,
-          departureEta: now.toISOString(),
-          arrivalEta: returnArrivalEta.toISOString(),
-          carrierName: sourceShipment.carrierName ?? undefined,
+          departureEta: now.toISOString().slice(0, 16),
+          arrivalEta: returnArrivalEta.toISOString().slice(0, 16),
+          carrierName: sourceShipment.carrierName || null,
+          vehicleNo: null,
+          trackingNo: null,
           temperatureRequired: sourceShipment.temperatureRequired,
         })
       } catch (shipmentError) {
