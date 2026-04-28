@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
-import MapPanel from '../../shared/components/MapPanel.vue'
+import SupplierVectorMap from '../../monitoring/components/SupplierVectorMap.vue'
+import type { MonitoringMapNode } from '../../monitoring/services/mapData'
 import { getLogisticsNodes, type LogisticsNodeResponseDto } from '../../../services/logistics'
 import {
   getPurchaseOrders,
@@ -39,7 +40,6 @@ import {
   type TrackShipmentRequestDto,
   type UpdateShipmentRequestDto,
 } from '../../../services/shipment'
-import type { MapPanel as MapPanelDefinition } from '../../shared/types/page'
 
 const preferences = useAtlasPreferencesStore()
 
@@ -101,14 +101,14 @@ const CONTENT = {
       originNode: '출발 거점',
       destinationNode: '도착 거점',
       currentNode: '현재 거점',
-      destinationNodePublicId: '도착 거점 Public ID',
+      destinationNodePublicId: '도착 거점',
       departureEta: '출발 예정 시각',
       arrivalEta: '도착 예정 시각',
       temperatureRequired: '온도 관리 필요',
       status: '상태',
       eta: 'ETA',
       action: '관리',
-      nodePublicId: '거점 Public ID',
+      nodePublicId: '체크포인트 거점',
       checkpointType: '체크포인트 유형',
       checkpointStatus: '체크포인트 상태',
       plannedAt: '예정 시각',
@@ -117,7 +117,7 @@ const CONTENT = {
       exceptionType: '예외 유형',
       severity: '심각도',
       detectedAt: '감지 시각',
-      lotPublicId: 'LOT Public ID',
+      lotPublicId: 'LOT',
       shippedQty: '출하 수량',
       delayed: '지연 여부',
       delayMinutes: '지연 분',
@@ -135,7 +135,9 @@ const CONTENT = {
       emptyShipments: '출하 데이터가 없습니다.',
       emptyMap: '현재 진행 중인 출하가 없습니다.',
       emptyHistory: '출하 이력이 없습니다.',
-      requiredCreate: '승인 발주, 출발 거점, 도착 거점, 출발/도착 예정 시각은 필수입니다.',
+      requiredCreate: '승인 발주, 출발 거점, 출발/도착 예정 시각은 필수입니다.',
+      destinationFromOrder: '도착 거점은 발주사가 발주 생성 시 지정한 거점을 사용합니다.',
+      destinationOrderBlocked: '현재 발주 API에 도착 거점 필드가 없어 출하 생성 전 발주 쪽 백엔드/화면 수정이 필요합니다.',
     },
     states: {
       yes: '예',
@@ -235,7 +237,9 @@ const CONTENT = {
       emptyShipments: 'No shipments found.',
       emptyMap: 'No active shipments found.',
       emptyHistory: 'No shipment history found.',
-      requiredCreate: 'PO ID, origin node, destination node, departure ETA, and arrival ETA are required.',
+      requiredCreate: 'Accepted order, origin node, departure ETA, and arrival ETA are required.',
+      destinationFromOrder: 'Destination node is taken from the purchase order.',
+      destinationOrderBlocked: 'Purchase order destination node is not available yet. Update order API/UI first.',
     },
     states: {
       yes: 'YES',
@@ -339,6 +343,12 @@ const lotMappingForm = ref<CreateShipmentLotMappingRequestDto>({
 })
 
 const activeLogisticsNodes = computed(() => logisticsNodes.value.filter((node) => node.active))
+const displayShipments = computed(() => dedupeShipments(shipments.value))
+const displayMapShipments = computed(() =>
+  dedupeShipments(mapShipments.value).filter((shipment) =>
+    ['READY', 'IN_TRANSIT', 'DELAYED'].includes(shipment.status),
+  ),
+)
 const availableLotOptions = computed(() =>
   lotOptions.value.filter(
     (lot) => lot.qty > 0 && lot.lotStatus !== 'SHIPPED' && lot.lotStatus !== 'DISCARDED',
@@ -382,67 +392,43 @@ const checkpointStatusOptions = ['PLANNED', 'PASSED', 'FAILED', 'CANCELLED']
 const deliveryExceptionTypeOptions = ['DELAY', 'DAMAGE', 'TEMPERATURE_DEVIATION', 'WRONG_DELIVERY']
 const deliveryExceptionSeverityOptions = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 
-const shipmentMapPanel = computed<MapPanelDefinition>(() => {
-  const nodes = mapShipments.value.slice(0, 6).map((shipment, index) => {
-    const position = getShipmentMapPosition(shipment, index)
-    const currentName = formatNodeDisplay(shipment.currentNodeName, shipment.currentNodeCode, shipment.currentNodePublicId)
+const shipmentWorldMapNodes = computed<MonitoringMapNode[]>(() =>
+  displayMapShipments.value.map((shipment) => {
+    const currentName = formatNodeDisplay(
+      shipment.currentNodeName,
+      shipment.currentNodeCode,
+      shipment.currentNodePublicId,
+    )
+    const originName = formatNodeDisplay(
+      shipment.originNodeName,
+      shipment.originNodeCode,
+      shipment.originNodePublicId,
+    )
+    const destinationName = formatNodeDisplay(
+      shipment.destinationNodeName,
+      shipment.destinationNodeCode,
+      shipment.destinationNodePublicId,
+    )
 
     return {
-      label: currentName,
-      value: shipment.shipmentNumber,
-      meta: `${shipment.status} / ${formatNodeDisplay(shipment.originNodeName, shipment.originNodeCode, shipment.originNodePublicId)} -> ${formatNodeDisplay(shipment.destinationNodeName, shipment.destinationNodeCode, shipment.destinationNodePublicId)}`,
-      x: position.x,
-      y: position.y,
-      tone: shipment.status === 'DELAYED' ? ('warning' as const) : ('accent' as const),
-    }
-  })
-
-  return {
-    kind: 'map',
-    eyebrow: content.value.panels.mapEyebrow,
-    title: content.value.panels.mapTitle,
-    chip: String(mapShipments.value.length),
-    nodes,
-    routes: mapShipments.value.slice(0, 3).map((shipment) => ({
-      from: shipment.originNodePublicId,
-      to: shipment.destinationNodePublicId,
       label: shipment.shipmentNumber,
-    })),
-  }
-})
-
-function getShipmentMapPosition(shipment: ShipmentMapResponseDto, index: number) {
-  const coordinateShipments = mapShipments.value.filter(
-    (item) => item.currentLatitude != null && item.currentLongitude != null,
-  )
-
-  if (
-    shipment.currentLatitude == null ||
-    shipment.currentLongitude == null ||
-    coordinateShipments.length < 2
-  ) {
-    return {
-      x: `${12 + (index % 3) * 34}%`,
-      y: `${24 + Math.floor(index / 3) * 34}%`,
+      value: formatShipmentStatus(shipment.status),
+      meta: `${originName} -> ${destinationName}`,
+      latLng: resolveShipmentLatLng(shipment),
+      displayName: {
+        ko: currentName,
+        en: currentName,
+      },
+      summary: {
+        ko: `${shipment.shipmentNumber} / ${formatShipmentStatus(shipment.status)} / ${originName} -> ${destinationName}`,
+        en: `${shipment.shipmentNumber} / ${shipment.status} / ${originName} -> ${destinationName}`,
+      },
     }
-  }
-
-  const latitudes = coordinateShipments.map((item) => Number(item.currentLatitude))
-  const longitudes = coordinateShipments.map((item) => Number(item.currentLongitude))
-
-  return {
-    x: `${normalizeMapCoordinate(Number(shipment.currentLongitude), Math.min(...longitudes), Math.max(...longitudes))}%`,
-    y: `${100 - normalizeMapCoordinate(Number(shipment.currentLatitude), Math.min(...latitudes), Math.max(...latitudes))}%`,
-  }
-}
-
-function normalizeMapCoordinate(value: number, min: number, max: number) {
-  if (!Number.isFinite(value) || min === max) {
-    return 50
-  }
-
-  return 12 + ((value - min) / (max - min)) * 76
-}
+  }),
+)
+const shipmentWorldMapKey = computed(() =>
+  displayMapShipments.value.map((shipment) => getShipmentCaseKey(shipment)).join('|'),
+)
 
 function nullableText(value?: string | null) {
   const trimmed = value?.trim()
@@ -459,6 +445,59 @@ function formatNodeDisplay(name?: string | null, code?: string | null, fallback?
   if (name) return name
   if (code) return code
   return fallback ?? '-'
+}
+
+function dedupeShipments<T extends ShipmentListResponseDto | ShipmentMapResponseDto>(items: T[]) {
+  return Array.from(new Map(items.map((item) => [getShipmentCaseKey(item), item])).values())
+}
+
+function getShipmentCaseKey(shipment: ShipmentListResponseDto | ShipmentMapResponseDto) {
+  const shipmentWithPoId = shipment as ShipmentMapResponseDto
+
+  return (
+    shipment.subPurchaseOrderPublicId ||
+    shipment.purchaseOrderPublicId ||
+    (shipmentWithPoId.poId ? `PO_ID:${shipmentWithPoId.poId}` : '') ||
+    [
+      shipment.originNodePublicId,
+      shipment.destinationNodePublicId,
+      shipment.currentNodePublicId ?? '',
+      shipment.status,
+    ].join('|') ||
+    shipment.publicId
+  )
+}
+
+function resolveShipmentLatLng(shipment: ShipmentMapResponseDto): [number, number] {
+  const latitude =
+    shipment.currentLatitude ??
+    shipment.originLatitude ??
+    shipment.destinationLatitude
+  const longitude =
+    shipment.currentLongitude ??
+    shipment.originLongitude ??
+    shipment.destinationLongitude
+
+  if (latitude == null || longitude == null) {
+    return [37.5665, 126.978]
+  }
+
+  return [Number(latitude), Number(longitude)]
+}
+
+function formatShipmentStatus(status?: string | null) {
+  if (!status) return '-'
+  if (preferences.language !== 'ko') return status
+
+  const labels: Record<string, string> = {
+    READY: '준비',
+    IN_TRANSIT: '운송 중',
+    ARRIVED: '도착',
+    DELAYED: '지연',
+    CANCELLED: '취소',
+  }
+
+  return labels[status] ?? status
 }
 
 async function fetchLogisticsNodes() {
@@ -662,11 +701,15 @@ async function handleCreateShipmentSubmit() {
   if (
     !createForm.value.purchaseOrderPublicId ||
     !createForm.value.originNodePublicId ||
-    !createForm.value.destinationNodePublicId ||
     !createForm.value.departureEta ||
     !createForm.value.arrivalEta
   ) {
     createErrorMessage.value = content.value.messages.requiredCreate
+    return
+  }
+
+  if (!createForm.value.destinationNodePublicId) {
+    createErrorMessage.value = content.value.messages.destinationOrderBlocked
     return
   }
 
@@ -834,12 +877,35 @@ onMounted(refreshShipments)
           <div class="page-panel__eyebrow">{{ content.panels.mapEyebrow }}</div>
           <h3>{{ content.panels.mapTitle }}</h3>
         </div>
-        <span class="page-panel__chip">{{ mapShipments.length }}</span>
+        <span class="page-panel__chip">{{ displayMapShipments.length }}</span>
       </div>
       <div v-if="isMapLoading" class="page-table__empty">Loading...</div>
       <div v-else-if="mapErrorMessage" class="page-table__empty">{{ mapErrorMessage }}</div>
-      <div v-else-if="mapShipments.length === 0" class="page-table__empty">{{ content.messages.emptyMap }}</div>
-      <MapPanel v-else :panel="shipmentMapPanel" />
+      <div v-else-if="displayMapShipments.length === 0" class="page-table__empty">{{ content.messages.emptyMap }}</div>
+      <div v-else class="shipment-map-shell">
+        <div class="shipment-map-shell__map">
+          <SupplierVectorMap
+            :key="shipmentWorldMapKey"
+            :nodes="shipmentWorldMapNodes"
+            :language="preferences.language"
+          />
+        </div>
+        <aside class="shipment-map-shell__list">
+          <article
+            v-for="shipment in displayMapShipments"
+            :key="getShipmentCaseKey(shipment)"
+            class="shipment-map-shell__item"
+          >
+            <strong>{{ shipment.shipmentNumber }}</strong>
+            <span>{{ formatShipmentStatus(shipment.status) }}</span>
+            <p>
+              {{ formatNodeDisplay(shipment.originNodeName, shipment.originNodeCode, shipment.originNodePublicId) }}
+              ->
+              {{ formatNodeDisplay(shipment.destinationNodeName, shipment.destinationNodeCode, shipment.destinationNodePublicId) }}
+            </p>
+          </article>
+        </aside>
+      </div>
     </article>
 
     <article v-if="isCreateModalOpen" class="page-panel" style="margin-bottom: 16px;">
@@ -854,7 +920,7 @@ onMounted(refreshShipments)
 
       <div class="page-feed">
         <div class="page-feed__item">
-          <span class="page-feed__label">승인 발주</span>
+          <span class="page-feed__label">승인 발주 <strong style="color: var(--color-critical);">*</strong></span>
           <select v-model="createForm.purchaseOrderPublicId" class="page-input" :disabled="isOrderOptionsLoading">
             <option value="">{{ isOrderOptionsLoading ? '불러오는 중...' : '선택' }}</option>
             <option v-for="order in acceptedPurchaseOrders" :key="order.poPublicId" :value="order.poPublicId">
@@ -867,19 +933,19 @@ onMounted(refreshShipments)
           출하 생성 가능한 승인 발주가 없습니다.
         </div>
         <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.carrierName }}</span>
+          <span class="page-feed__label">{{ content.fields.carrierName }} <small style="opacity: 0.65;">선택</small></span>
           <input v-model="createForm.carrierName" type="text" class="page-input" />
         </div>
         <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.vehicleNo }}</span>
+          <span class="page-feed__label">{{ content.fields.vehicleNo }} <small style="opacity: 0.65;">선택</small></span>
           <input v-model="createForm.vehicleNo" type="text" class="page-input" />
         </div>
         <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.trackingNo }}</span>
+          <span class="page-feed__label">{{ content.fields.trackingNo }} <small style="opacity: 0.65;">선택</small></span>
           <input v-model="createForm.trackingNo" type="text" class="page-input" />
         </div>
         <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.originNode }}</span>
+          <span class="page-feed__label">{{ content.fields.originNode }} <strong style="color: var(--color-critical);">*</strong></span>
           <select v-model="createForm.originNodePublicId" class="page-input">
             <option value="">선택</option>
             <option v-for="node in activeLogisticsNodes" :key="node.publicId" :value="node.publicId">
@@ -889,20 +955,20 @@ onMounted(refreshShipments)
         </div>
         <div class="page-feed__item">
           <span class="page-feed__label">{{ content.fields.destinationNodePublicId }}</span>
-          <input v-model="createForm.destinationNodePublicId" type="text" class="page-input" />
+          <strong class="page-feed__text">{{ content.messages.destinationFromOrder }}</strong>
         </div>
         <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.departureEta }}</span>
+          <span class="page-feed__label">{{ content.fields.departureEta }} <strong style="color: var(--color-critical);">*</strong></span>
           <input v-model="createForm.departureEta" type="datetime-local" class="page-input" />
         </div>
         <div class="page-feed__item">
-          <span class="page-feed__label">{{ content.fields.arrivalEta }}</span>
+          <span class="page-feed__label">{{ content.fields.arrivalEta }} <strong style="color: var(--color-critical);">*</strong></span>
           <input v-model="createForm.arrivalEta" type="datetime-local" class="page-input" />
         </div>
         <div class="page-feed__item">
           <label style="display: flex; align-items: center; gap: 8px;">
             <input v-model="createForm.temperatureRequired" type="checkbox" />
-            <span class="page-feed__label">{{ content.fields.temperatureRequired }}</span>
+            <span class="page-feed__label">{{ content.fields.temperatureRequired }} <small style="opacity: 0.65;">선택</small></span>
           </label>
         </div>
       </div>
@@ -924,12 +990,12 @@ onMounted(refreshShipments)
           <div class="page-panel__eyebrow">{{ content.panels.listEyebrow }}</div>
           <h3>{{ content.panels.listTitle }}</h3>
         </div>
-        <span class="page-panel__chip">{{ totalElements }}</span>
+        <span class="page-panel__chip">{{ displayShipments.length }}</span>
       </div>
 
       <div v-if="isShipmentListLoading" class="page-table__empty">Loading...</div>
       <div v-else-if="shipmentErrorMessage" class="page-table__empty">{{ shipmentErrorMessage }}</div>
-      <div v-else-if="shipments.length === 0" class="page-table__empty">{{ content.messages.emptyShipments }}</div>
+      <div v-else-if="displayShipments.length === 0" class="page-table__empty">{{ content.messages.emptyShipments }}</div>
       <div v-else class="page-table terminal-page__table">
         <div class="page-table__row page-table__row--head">
           <span>{{ content.fields.shipmentNumber }}</span>
@@ -940,11 +1006,11 @@ onMounted(refreshShipments)
           <span>{{ content.fields.action }}</span>
         </div>
 
-        <div v-for="shipment in shipments" :key="shipment.publicId" class="page-table__row">
+        <div v-for="shipment in displayShipments" :key="shipment.publicId" class="page-table__row">
           <span>{{ shipment.shipmentNumber }}</span>
           <span>{{ formatNodeDisplay(shipment.originNodeName, shipment.originNodeCode, shipment.originNodePublicId) }}</span>
           <span>{{ formatNodeDisplay(shipment.destinationNodeName, shipment.destinationNodeCode, shipment.destinationNodePublicId) }}</span>
-          <span>{{ shipment.status }}</span>
+          <span>{{ formatShipmentStatus(shipment.status) }}</span>
           <span>{{ formatDate(shipment.arrivalEta) }}</span>
           <span>
             <button class="page-button page-button--secondary" type="button" @click="handleShipmentSelect(shipment)">
