@@ -498,7 +498,7 @@ async function openSupplierDetail(publicId: string) {
   selectedSupplier.value = null
 
   try {
-    if (session.organizationType === 'SUPPLIER') {
+    if (session.organizationType === 'BUYER' || session.organizationType === 'SUPPLIER') {
       selectedSupplier.value = await getConnectedSupplierDetail(publicId)
     } else {
       const supplier = await getSupplier(publicId)
@@ -953,7 +953,7 @@ async function submitCreateSupplier() {
           </div>
         </div>
 
-        <p style="margin: 8px 0 0;">
+        <p v-else style="margin: 8px 0 0;">
           {{ preferences.language === 'ko' ? '연결된 발주 이력이 없습니다.' : 'No related orders.' }}
         </p>
       </div>

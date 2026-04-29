@@ -238,7 +238,9 @@ function createEmptyEditNewLine(): EditNewOrderLine {
 }
 
 const createForm = ref({
-  itemCategoryPublicId: '',
+  categoryLevel1PublicId: '',
+  categoryLevel2PublicId: '',
+  categoryLevel3PublicId: '',
   itemKeyword: '',
   itemOptions: [] as ItemResponseDto[],
   searchResultPublicIds: [] as string[],
@@ -246,7 +248,6 @@ const createForm = ref({
   searchLoading: false,
   lines: [] as CreateOrderLineForm[],
 })
-
 const selectableSuppliers = computed(() =>
   supplierOptions.value.filter((supplier) => !!supplierPublicIdOf(supplier)),
 )
@@ -785,7 +786,11 @@ async function loadSentSubOrders() {
 }
 
 async function loadParentSubOrders(poPublicId: string) {
-  if (!actor.isSupplierOrganization.value && !actor.isAdminRole.value) {
+  if (
+    !actor.isBuyerOrganization.value &&
+    !actor.isSupplierOrganization.value &&
+    !actor.isAdminRole.value
+  ) {
     parentSubOrders.value = []
     return
   }
@@ -805,14 +810,53 @@ async function loadParentSubOrders(poPublicId: string) {
   }
 }
 
+
 async function loadCategoryOptions() {
   try {
-    const response = await getItemCategories(0, 100)
+    const response = await getItemCategories(0, 500)
     categoryOptions.value = response.content
+      .filter((category) => category.status === 'ACTIVE')
+      .sort(
+        (a, b) =>
+          a.categoryLevel - b.categoryLevel ||
+          a.sortOrder - b.sortOrder ||
+          a.categoryName.localeCompare(b.categoryName, 'ko-KR'),
+      )
   } catch {
     categoryOptions.value = []
   }
 }
+
+const createRootCategories = computed(() =>
+  categoryOptions.value.filter((category) => !category.parentCategoryPublicId),
+)
+
+const createSecondCategories = computed(() =>
+  createForm.value.categoryLevel1PublicId
+    ? categoryOptions.value.filter(
+        (category) =>
+          category.parentCategoryPublicId === createForm.value.categoryLevel1PublicId,
+      )
+    : [],
+)
+
+const createThirdCategories = computed(() =>
+  createForm.value.categoryLevel2PublicId
+    ? categoryOptions.value.filter(
+        (category) =>
+          category.parentCategoryPublicId === createForm.value.categoryLevel2PublicId,
+      )
+    : [],
+)
+
+
+const selectedCreateCategoryPublicId = computed(
+  () =>
+    createForm.value.categoryLevel3PublicId ||
+    createForm.value.categoryLevel2PublicId ||
+    createForm.value.categoryLevel1PublicId ||
+    undefined,
+)
 
 async function loadDashboardSummary() {
   if (!actor.isBuyerOrganization.value && !actor.isSupplierOrganization.value) {
@@ -849,7 +893,9 @@ function resetCreateOrderForm() {
   createErrorMessage.value = ''
 
   createForm.value = {
-    itemCategoryPublicId: '',
+    categoryLevel1PublicId: '',
+    categoryLevel2PublicId: '',
+    categoryLevel3PublicId: '',
     itemKeyword: '',
     itemOptions: [],
     searchResultPublicIds: [],
@@ -862,6 +908,7 @@ function resetCreateOrderForm() {
 function openCreateOrderModal() {
   resetCreateOrderForm()
   createModalOpen.value = true
+  void searchItemsForCreateOrder()
 }
 
 function closeCreateOrderModal() {
@@ -922,8 +969,29 @@ function handleCreateCategoryChange() {
 }
 
 function handleCreateKeywordInput() {
-  resetCreateSearchResults()
+  createForm.value.detailItemPublicId = ''
 }
+
+
+function handleCreateRootCategoryChange() {
+  createForm.value.categoryLevel2PublicId = ''
+  createForm.value.categoryLevel3PublicId = ''
+  resetCreateSearchResults()
+  void searchItemsForCreateOrder()
+}
+
+
+function handleCreateSecondCategoryChange() {
+  createForm.value.categoryLevel3PublicId = ''
+  resetCreateSearchResults()
+  void searchItemsForCreateOrder()
+}
+
+function handleCreateThirdCategoryChange() {
+  resetCreateSearchResults()
+  void searchItemsForCreateOrder()
+}
+
 
 const createSearchItemResults = computed(() => {
   const byPublicId = new Map<string, ItemResponseDto>()
@@ -970,11 +1038,6 @@ function handleCreateLineItemNameChange(line: CreateOrderLineForm) {
 async function searchItemsForCreateOrder() {
   const keyword = createForm.value.itemKeyword.trim()
 
-  if (!keyword && !createForm.value.itemCategoryPublicId) {
-    createErrorMessage.value = '카테고리를 선택하거나 품목명을 입력하세요.'
-    return
-  }
-
   try {
     createForm.value.searchLoading = true
     createErrorMessage.value = ''
@@ -982,7 +1045,7 @@ async function searchItemsForCreateOrder() {
 
     const response = await getItems({
       keyword: keyword || undefined,
-      itemCategoryPublicId: createForm.value.itemCategoryPublicId || undefined,
+      itemCategoryPublicId: selectedCreateCategoryPublicId.value,
       status: 'ACTIVE',
       page: 0,
       size: 100,
@@ -1991,8 +2054,9 @@ onBeforeUnmount(() => header.clearActions())
   <BaseModal
     v-model="createModalOpen"
     title="발주 등록"
-    description="카테고리와 품목 검색을 먼저 실행한 뒤, 선택한 품목으로 발주 행을 생성합니다."
+    description="카테고리와 품목을 먼저 고른 뒤, 협력사와 도착거점을 지정해 발주 행을 구성합니다."
     size="lg"
+    hide-dividers
     @close="closeCreateOrderModal"
   >
     <div class="orders-page__form orders-page__create-modal-body">
@@ -2001,17 +2065,17 @@ onBeforeUnmount(() => header.clearActions())
           <strong>품목 검색</strong>
         </div>
 
-        <div class="orders-page__line-grid">
+        <div class="orders-page__create-filter-grid">
           <label class="orders-page__form-field">
-            <span>품목 카테고리</span>
+            <span>상위 카테고리</span>
             <select
-              v-model="createForm.itemCategoryPublicId"
+              v-model="createForm.categoryLevel1PublicId"
               :disabled="createForm.searchLoading"
-              @change="handleCreateCategoryChange"
+              @change="handleCreateRootCategoryChange"
             >
-              <option value="">전체 카테고리</option>
+              <option value="">전체</option>
               <option
-                v-for="category in categoryOptions"
+                v-for="category in createRootCategories"
                 :key="category.publicId"
                 :value="category.publicId"
               >
@@ -2021,6 +2085,42 @@ onBeforeUnmount(() => header.clearActions())
           </label>
 
           <label class="orders-page__form-field">
+            <span>중간 카테고리</span>
+            <select
+              v-model="createForm.categoryLevel2PublicId"
+              :disabled="createForm.searchLoading || !createSecondCategories.length"
+              @change="handleCreateSecondCategoryChange"
+            >
+              <option value="">전체</option>
+              <option
+                v-for="category in createSecondCategories"
+                :key="category.publicId"
+                :value="category.publicId"
+              >
+                {{ category.categoryName }}
+              </option>
+            </select>
+          </label>
+
+          <label class="orders-page__form-field">
+            <span>하위 카테고리</span>
+            <select
+              v-model="createForm.categoryLevel3PublicId"
+              :disabled="createForm.searchLoading || !createThirdCategories.length"
+              @change="handleCreateThirdCategoryChange"
+            >
+              <option value="">전체</option>
+              <option
+                v-for="category in createThirdCategories"
+                :key="category.publicId"
+                :value="category.publicId"
+              >
+                {{ category.categoryName }}
+              </option>
+            </select>
+          </label>
+
+          <label class="orders-page__form-field orders-page__form-field--wide">
             <span>품목 검색</span>
             <div class="orders-page__field-with-button">
               <input
@@ -2081,11 +2181,8 @@ onBeforeUnmount(() => header.clearActions())
           </div>
         </div>
 
-        <p
-          v-else-if="!createForm.searchLoading && (createForm.itemKeyword || createForm.itemCategoryPublicId)"
-          class="orders-page__empty"
-        >
-          검색 결과가 없습니다.
+        <p v-else-if="!createForm.searchLoading" class="orders-page__empty">
+          표시할 품목이 없습니다.
         </p>
 
         <div v-if="createSearchDetailItem" class="orders-page__item-preview">
@@ -2131,6 +2228,7 @@ onBeforeUnmount(() => header.clearActions())
           </div>
         </div>
       </section>
+
 
       <section class="orders-page__detail-section">
         <div class="orders-page__section-head">
@@ -2434,7 +2532,7 @@ onBeforeUnmount(() => header.clearActions())
 </section>
 
       <section
-        v-if="actor.isSupplierOrganization || actor.isAdminRole"
+        v-if="actor.isBuyerOrganization || actor.isSupplierOrganization || actor.isAdminRole"
         class="orders-page__detail-section"
       >
         <div class="orders-page__section-head">
