@@ -4968,65 +4968,6 @@ input {
   align-items: center;
 }
 
-.lots-page .terminal-page__content {
-  grid-template-columns: 1fr;
-}
-
-.lots-page__table-panel {
-  width: 100%;
-}
-
-.lots-page__table .page-table__row {
-  grid-template-columns: 1.15fr 1fr 1fr 0.82fr 0.82fr 0.88fr 0.92fr 0.82fr auto;
-}
-
-.lots-page .terminal-page__tabs {
-  justify-content: flex-end;
-  flex-wrap: nowrap;
-  gap: 6px;
-  overflow: hidden;
-}
-
-.lots-page .terminal-page__tab {
-  min-height: 34px;
-  padding: 0 10px;
-  font-size: 0.66rem;
-}
-
-.lots-page .terminal-page__search {
-  min-width: 0;
-}
-
-.lots-page__row {
-  border-right: 0;
-  border-bottom: 0;
-  border-left: 0;
-  background: transparent;
-}
-
-.lots-page__row:hover {
-  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.45);
-}
-
-.lots-page__action-cell {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.lots-page__detail-button {
-  min-height: 34px;
-  padding-inline: 12px;
-  white-space: nowrap;
-}
-
-.lots-page__quality-panel {
-  max-width: 520px;
-}
-
-.lots-page__trace-feed {
-  gap: 12px;
-}
-
 .theme-dark .terminal-page__search,
 .theme-dark .terminal-page__tab,
 .theme-dark .terminal-page .page-panel,
@@ -5078,10 +5019,6 @@ input {
   .terminal-page__table.is-eight-cols .page-table__row,
   .terminal-page__table.is-nine-cols .page-table__row,
   .terminal-page__table.is-ten-cols .page-table__row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .lots-page__table .page-table__row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -5646,10 +5583,6 @@ input {
 
 .chat-ref-card--return {
   border-left-color: var(--error, #d93025);
-}
-
-.chat-ref-card--lot {
-  border-left-color: var(--warning, #b37210);
 }
 
 .chat-ref-card__type {

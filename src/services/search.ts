@@ -9,7 +9,6 @@ export type IntegratedSearchSectionType =
   | 'PURCHASE_ORDER'
   | 'SHIPMENT'
   | 'RETURN'
-  | 'LOT'
   | 'PRODUCTION_LINE'
   | 'SETTLEMENT'
 

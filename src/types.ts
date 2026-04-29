@@ -11,7 +11,6 @@ export type NavKey =
   | 'ordersDesk'
   | 'supplierControl'
   | 'items'
-  | 'lots'
   | 'shipments'
   | 'settlements'
   | 'logisticsNodes'

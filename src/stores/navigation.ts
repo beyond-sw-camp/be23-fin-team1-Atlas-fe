@@ -12,7 +12,6 @@ const ADMIN_HIDDEN_PAGE_KEYS = new Set<PageKey>([
   'ordersDesk',
   'supplierControl',
   'items',
-  'lots',
   'shipments',
   'settlements',
   'logisticsNodes',

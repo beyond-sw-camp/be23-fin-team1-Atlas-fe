@@ -25,7 +25,6 @@ const menuItems = [
 const referenceTypes = [
   { type: 'ORDER', icon: 'local_shipping', label: '발주서', code: 'PO-2026-0413', title: '발주서 참조' },
   { type: 'RETURN_REQUEST', icon: 'assignment_return', label: '반품 요청', code: 'RT-2026-0098', title: '반품 처리 건' },
-  { type: 'LOT', icon: 'inventory_2', label: 'LOT 추적', code: 'LOT-2026-0412', title: 'LOT 품질 확인' },
   { type: 'RISK', icon: 'warning', label: '리스크 이벤트', code: 'RSK-2026-0015', title: '리스크 알림 건' },
   { type: 'RECOMMENDATION', icon: 'lightbulb', label: '권고안', code: 'REC-2026-0007', title: '대응 권고안' },
 ]

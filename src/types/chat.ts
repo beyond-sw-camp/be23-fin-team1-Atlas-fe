@@ -15,7 +15,7 @@ export type ChatMessageType =
   | 'IMAGE'
 
 /** 업무 참조 유형 */
-export type ChatReferenceType = 'ORDER' | 'RETURN_REQUEST' | 'LOT' | string
+export type ChatReferenceType = 'ORDER' | 'RETURN_REQUEST' | string
 
 /** 채팅 메시지 DTO (백엔드 응답/WebSocket 수신 구조) */
 export interface ChatMessageDto {
