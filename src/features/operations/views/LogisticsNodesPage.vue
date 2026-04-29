@@ -16,59 +16,83 @@ import {
   type UpdateLogisticsNodeRequestDto,
 } from '../../../services/logistics'
 
+type DaumPostcodeData = {
+  roadAddress: string
+  jibunAddress: string
+  zonecode: string
+}
+
+type DaumPostcode = {
+  open: () => void
+}
+
+type DaumPostcodeConstructor = new (options: {
+  oncomplete: (data: DaumPostcodeData) => void
+}) => DaumPostcode
+
+declare global {
+  interface Window {
+    daum?: {
+      Postcode: DaumPostcodeConstructor
+    }
+  }
+}
+
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
 
 const CONTENT = {
   ko: {
-    createModalTitle: '물류거점 등록',
-    createModalDescription: '새 물류거점의 기본 정보를 입력합니다.',
+    createModalTitle: '창고 등록',
+    createModalDescription: '새 창고의 기본 정보를 입력합니다.',
     formLabels: {
-      nodeCode: '거점 코드',
-      nodeName: '거점명',
-      nodeType: '거점 유형',
+      nodeCode: '창고 코드',
+      nodeName: '창고명',
       address: '주소',
       capacityStatus: '창고 상태',
     },
     createSubmitLabel: '저장',
     createCancelLabel: '취소',
-    eyebrow: '공급망 운영 / 물류거점 관리',
-    title: '물류거점 관리',
-    subtitle: '물류거점 목록과 활성 상태를 조회하고 운영 기준 데이터를 관리합니다.',
-    searchPlaceholder: '거점 코드, 거점명, 주소 검색',
-    tableTitle: '물류거점 목록',
-    empty: '조회된 물류거점이 없습니다.',
-    loading: '물류거점 목록을 불러오는 중입니다.',
-    errorFallback: '물류거점 목록을 불러오지 못했습니다.',
-    columns: ['거점 코드', '거점명', '유형', '주소', '창고 상태', '활성 상태', '수정일', '관리'],
+    eyebrow: '공급망 운영 / 창고 관리',
+    title: '창고 관리',
+    subtitle: '창고 목록과 활성 상태를 조회하고 운영 기준 데이터를 관리합니다.',
+    searchPlaceholder: '창고 코드, 창고명, 주소 검색',
+    tableTitle: '창고 목록',
+    empty: '조회된 창고가 없습니다.',
+    loading: '창고 목록을 불러오는 중입니다.',
+    errorFallback: '창고 목록을 불러오지 못했습니다.',
+    columns: ['창고 코드', '창고명', '주소', '창고 상태', '활성 상태', '수정일', '관리'],
     refreshLabel: '새로고침',
-    createLabel: '거점 등록',
+    createLabel: '창고 등록',
+    addressSearchLabel: '주소 검색',
+    addressSearchLoadingLabel: '검색창 여는 중...',
     active: '활성',
     inactive: '비활성',
   },
   en: {
-    createModalTitle: 'Create Logistics Node',
-    createModalDescription: 'Enter the basic master data for a new logistics node.',
+    createModalTitle: 'Create Warehouse',
+    createModalDescription: 'Enter the basic master data for a new warehouse.',
     formLabels: {
-      nodeCode: 'Node Code',
-      nodeName: 'Node Name',
-      nodeType: 'Node Type',
+      nodeCode: 'Warehouse Code',
+      nodeName: 'Warehouse Name',
       address: 'Address',
       capacityStatus: 'Capacity Status',
     },
     createSubmitLabel: 'SAVE',
     createCancelLabel: 'CANCEL',
-    eyebrow: 'Supply Chain Ops / Logistics Nodes',
-    title: 'Logistics Nodes',
-    subtitle: 'Review node master data and active status for logistics operations.',
+    eyebrow: 'Supply Chain Ops / Warehouses',
+    title: 'Warehouses',
+    subtitle: 'Review warehouse master data and active status for logistics operations.',
     searchPlaceholder: 'Search code, name, or address',
-    tableTitle: 'Logistics Node List',
-    empty: 'No logistics nodes found.',
-    loading: 'Loading logistics nodes...',
-    errorFallback: 'Failed to load logistics nodes.',
-    columns: ['Code', 'Name', 'Type', 'Address', 'Capacity', 'Active', 'Updated At', 'Action'],
+    tableTitle: 'Warehouse List',
+    empty: 'No warehouses found.',
+    loading: 'Loading warehouses...',
+    errorFallback: 'Failed to load warehouses.',
+    columns: ['Code', 'Name', 'Address', 'Capacity', 'Active', 'Updated At', 'Action'],
     refreshLabel: 'REFRESH',
-    createLabel: 'ADD NODE',
+    createLabel: 'ADD WAREHOUSE',
+    addressSearchLabel: 'SEARCH ADDRESS',
+    addressSearchLoadingLabel: 'OPENING...',
     active: 'Active',
     inactive: 'Inactive',
   },
@@ -89,6 +113,7 @@ const isCreateSubmitting = ref(false)
 const createErrorMessage = ref('')
 const editingNodeId = ref<string | null>(null)
 const isEditMode = computed(() => editingNodeId.value !== null)
+const isAddressScriptLoading = ref(false)
 const {
   isOpen: createModalOpen,
   open: openCreateModal,
@@ -106,14 +131,6 @@ const createForm = ref<{
   address: '',
   capacityStatus: 'EMPTY',
 })
-
-const nodeTypeOptions: LogisticsNodeType[] = [
-  'FACTORY',
-  'WAREHOUSE',
-  'HUB',
-  'LOGISTICS_CENTER',
-  'PORT',
-]
 
 const capacityStatusOptions: LogisticsNodeCapacityStatus[] = [
   'EMPTY',
@@ -142,11 +159,72 @@ function handleOpenEditModal(node: LogisticsNodeResponseDto) {
   createErrorMessage.value = ''
   createForm.value = {
     nodeName: node.nodeName,
-    nodeType: node.nodeType,
+    nodeType: 'WAREHOUSE',
     address: node.address ?? '',
     capacityStatus: node.capacityStatus,
   }
   openCreateModal()
+}
+
+function loadDaumPostcodeScript() {
+  if (window.daum?.Postcode) {
+    return Promise.resolve()
+  }
+
+  const existingScript = document.querySelector<HTMLScriptElement>(
+    'script[data-daum-postcode="true"]',
+  )
+
+  if (existingScript) {
+    return new Promise<void>((resolve, reject) => {
+      existingScript.addEventListener('load', () => resolve(), { once: true })
+      existingScript.addEventListener(
+        'error',
+        () => reject(new Error('주소 검색 스크립트를 불러오지 못했습니다.')),
+        { once: true },
+      )
+    })
+  }
+
+  const script = document.createElement('script')
+  script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js'
+  script.async = true
+  script.dataset.daumPostcode = 'true'
+
+  document.head.appendChild(script)
+
+  return new Promise<void>((resolve, reject) => {
+    script.addEventListener('load', () => resolve(), { once: true })
+    script.addEventListener(
+      'error',
+      () => reject(new Error('주소 검색 스크립트를 불러오지 못했습니다.')),
+      { once: true },
+    )
+  })
+}
+
+async function openAddressSearch() {
+  isAddressScriptLoading.value = true
+
+  try {
+    await loadDaumPostcodeScript()
+
+    if (!window.daum?.Postcode) {
+      throw new Error('주소 검색을 사용할 수 없습니다.')
+    }
+
+    new window.daum.Postcode({
+      oncomplete(data) {
+        createForm.value.address = data.roadAddress || data.jibunAddress
+      },
+    }).open()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '주소 검색을 열지 못했습니다.'
+
+    alert(message)
+  } finally {
+    isAddressScriptLoading.value = false
+  }
 }
 
 async function handleCreateSubmit() {
@@ -154,7 +232,7 @@ async function handleCreateSubmit() {
   const address = createForm.value.address.trim()
 
   if (!nodeName || !address) {
-    alert('거점명과 주소는 필수입니다.')
+    alert('창고명과 주소는 필수입니다. 주소 검색으로 주소를 선택해 주세요.')
     return
   }
 
@@ -164,7 +242,7 @@ async function handleCreateSubmit() {
   try {
     const payload = {
       nodeName,
-      nodeType: createForm.value.nodeType,
+      nodeType: 'WAREHOUSE' as LogisticsNodeType,
       address,
       capacityStatus: createForm.value.capacityStatus,
     }
@@ -391,7 +469,6 @@ onBeforeUnmount(() => header.clearActions())
             >
               <span>{{ node.nodeCode }}</span>
               <span>{{ node.nodeName }}</span>
-              <span>{{ node.nodeType }}</span>
               <span>{{ node.address || '-' }}</span>
               <span>{{ node.capacityStatus }}</span>
               <span>
@@ -441,27 +518,6 @@ onBeforeUnmount(() => header.clearActions())
 
       <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
         <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
-          {{ content.formLabels.nodeType }}
-        </span>
-        <div style="width: 100%; border-bottom: 2px solid var(--color-surface-container-high);">
-          <select
-            v-model="createForm.nodeType"
-            style="font-family: inherit; font-size: inherit; width: 100%; appearance: auto; background: transparent; color: var(--color-on-surface); padding: 8px 0; border: none; outline: none;"
-          >
-            <option
-              v-for="option in nodeTypeOptions"
-              :key="option"
-              :value="option"
-              style="background-color: var(--color-surface); color: var(--color-on-surface);"
-            >
-              {{ option }}
-            </option>
-          </select>
-        </div>
-      </label>
-
-      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-        <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
           {{ content.formLabels.capacityStatus }}
         </span>
         <div style="width: 100%; border-bottom: 2px solid var(--color-surface-container-high);">
@@ -485,11 +541,23 @@ onBeforeUnmount(() => header.clearActions())
         <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
           {{ content.formLabels.address }}
         </span>
-        <input
-          v-model="createForm.address"
-          type="text"
-          style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
-        />
+        <div style="display: flex; gap: 8px; width: 100%; align-items: flex-end;">
+          <input
+            v-model="createForm.address"
+            type="text"
+            readonly
+            placeholder="주소 검색으로 선택해 주세요"
+            style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
+          />
+          <button
+            class="page-button page-button--secondary"
+            type="button"
+            :disabled="isAddressScriptLoading"
+            @click="openAddressSearch"
+          >
+            {{ isAddressScriptLoading ? content.addressSearchLoadingLabel : content.addressSearchLabel }}
+          </button>
+        </div>
       </label>
     </div>
 

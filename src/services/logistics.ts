@@ -1,12 +1,7 @@
 import { apiClient } from './http'
 import type { SpringPage } from '../types'
 
-export type LogisticsNodeType =
-  | 'FACTORY'
-  | 'WAREHOUSE'
-  | 'HUB'
-  | 'LOGISTICS_CENTER'
-  | 'PORT'
+export type LogisticsNodeType = 'WAREHOUSE'
 
 export type LogisticsNodeCapacityStatus = 'EMPTY' | 'AVAILABLE' | 'FULL'
 
