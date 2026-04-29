@@ -903,6 +903,10 @@ input {
   flex: 0 0 auto;
 }
 
+.app-language-select--mobile {
+  display: none;
+}
+
 .app-language-select select,
 .app-org-select select {
   height: 32px;
@@ -3383,8 +3387,17 @@ input {
 
   .app-branding {
     width: 100%;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 12px;
+  }
+
+  .app-language-select--mobile {
+    display: inline-flex;
+    margin-left: auto;
+  }
+
+  .app-language-select--desktop {
+    display: none;
   }
 
   .app-brand {
@@ -3413,10 +3426,6 @@ input {
     min-width: 0;
   }
 
-  .app-language-select {
-    order: 2;
-  }
-
   .app-session-controls {
     order: 3;
     width: 100%;
@@ -3429,8 +3438,8 @@ input {
     display: none;
   }
 
-  .app-language-select,
-  .app-language-select select,
+  .app-language-select--desktop,
+  .app-language-select--desktop select,
   .app-org-select,
   .app-org-select select {
     max-width: 100%;
@@ -3946,11 +3955,11 @@ input {
   }
 
   .app-icon-button,
-  .app-language-select select {
+  .app-language-select--mobile select {
     width: 36px;
   }
 
-  .app-language-select select {
+  .app-language-select--mobile select {
     padding-left: 10px;
     padding-right: 28px;
   }
