@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { NotificationDto } from '../../../services/notification'
-import { useAtlasChatStore } from '../../../stores/chat'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasNotificationStore } from '../../../stores/notification'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+import { useAtlasSessionStore } from '../../../stores/session'
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
 const notificationStore = useAtlasNotificationStore()
-const chatStore = useAtlasChatStore()
+const session = useAtlasSessionStore()
 
 const searchQuery = ref('')
 const activeTab = ref('ALL')
@@ -36,9 +36,6 @@ const CONTENT = {
     total: '전체 알림',
     unread: '미읽음',
     pageCount: '현재 페이지',
-    socket: '실시간 연결',
-    connected: '연결됨',
-    waiting: '대기',
     columns: ['수신 시각', '유형', '내용', '상태', '작업'],
     tabs: [
       { key: 'ALL', label: '전체' },
@@ -75,9 +72,6 @@ const CONTENT = {
     total: 'Total',
     unread: 'Unread',
     pageCount: 'This Page',
-    socket: 'Realtime',
-    connected: 'Connected',
-    waiting: 'Waiting',
     columns: ['Received', 'Type', 'Content', 'Status', 'Action'],
     tabs: [
       { key: 'ALL', label: 'ALL' },
@@ -105,24 +99,27 @@ const metrics = computed(() => [
   {
     label: content.value.total,
     value: notificationStore.totalElements.toLocaleString(),
-    meta: content.value.tableTitle,
+    meta: '',
   },
   {
     label: content.value.unread,
     value: notificationStore.unreadCount.toLocaleString(),
-    meta: content.value.readStatus.unread,
+    meta: '',
   },
   {
     label: content.value.pageCount,
     value: notifications.value.length.toLocaleString(),
-    meta: `${currentPageLabel.value} / ${totalPagesLabel.value}`,
-  },
-  {
-    label: content.value.socket,
-    value: chatStore.isConnected ? content.value.connected : content.value.waiting,
-    meta: '/ws-control',
+    meta: '',
   },
 ])
+
+const visiblePreferences = computed(() => {
+  if (session.userRole !== 'ADMIN') return notificationStore.preferences
+
+  return notificationStore.preferences.filter((preference) => (
+    preference.category === 'SYSTEM' || preference.category === 'CHAT'
+  ))
+})
 
 const filteredNotifications = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -261,7 +258,6 @@ onBeforeUnmount(() => {
       <div>
         <p class="terminal-page__eyebrow">{{ content.eyebrow }}</p>
         <h1 class="terminal-page__title">{{ content.title }}</h1>
-        <p class="terminal-page__subtitle">{{ content.subtitle }}</p>
       </div>
     </header>
 
@@ -269,7 +265,7 @@ onBeforeUnmount(() => {
       <article v-for="metric in metrics" :key="metric.label" class="page-metric">
         <span class="page-metric__label">{{ metric.label }}</span>
         <strong class="page-metric__value">{{ metric.value }}</strong>
-        <span class="page-metric__meta">{{ metric.meta }}</span>
+        <span v-if="metric.meta" class="page-metric__meta">{{ metric.meta }}</span>
       </article>
     </section>
 
@@ -383,7 +379,7 @@ onBeforeUnmount(() => {
           <h3>{{ content.preferencesTitle }}</h3>
           <p class="notifications-page__preferences-description">{{ content.preferencesDescription }}</p>
         </div>
-        <span class="page-panel__chip">{{ notificationStore.preferences.length }}</span>
+        <span class="page-panel__chip">{{ visiblePreferences.length }}</span>
       </div>
 
       <div v-if="notificationStore.isLoadingPreferences" class="notifications-page__state">
@@ -395,13 +391,13 @@ onBeforeUnmount(() => {
           {{ content.retry }}
         </button>
       </div>
-      <div v-else-if="notificationStore.preferences.length === 0" class="notifications-page__state">
+      <div v-else-if="visiblePreferences.length === 0" class="notifications-page__state">
         {{ content.preferencesEmpty }}
       </div>
 
       <div v-else class="notifications-page__preference-list">
         <div
-          v-for="preference in notificationStore.preferences"
+          v-for="preference in visiblePreferences"
           :key="preference.category"
           class="notifications-page__preference-item"
         >
