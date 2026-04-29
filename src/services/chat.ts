@@ -101,4 +101,16 @@ export const chatService = {
     const response = await apiClient.delete(`/api/control/chats/messages/${messagePublicId}`)
     return response.data
   },
+
+  /** 채팅방 고정 */
+  async pinRoom(roomPublicId: string) {
+    const response = await apiClient.post(`/api/control/chats/rooms/${roomPublicId}/pin`)
+    return response.data
+  },
+
+  /** 채팅방 고정 해제 */
+  async unpinRoom(roomPublicId: string) {
+    const response = await apiClient.delete(`/api/control/chats/rooms/${roomPublicId}/pin`)
+    return response.data
+  },
 }

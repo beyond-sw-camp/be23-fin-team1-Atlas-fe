@@ -5408,6 +5408,85 @@ input {
   color: var(--on-primary, #121212);
 }
 
+/* ── 채팅방 고정(Pin) ── */
+.chat-room-item__head-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.chat-room-item__pin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--on-surface-variant, #919191);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.chat-room-item__pin-btn .material-symbols-outlined {
+  font-size: 16px;
+}
+
+/* hover 시 핀 버튼 표시 */
+.chat-room-item:hover .chat-room-item__pin-btn {
+  opacity: 0.6;
+}
+
+.chat-room-item__pin-btn:hover {
+  opacity: 1 !important;
+  color: var(--primary, #5e5e5e);
+}
+
+/* 고정 상태면 항상 표시 */
+.chat-room-item__pin-btn.is-pinned {
+  opacity: 1;
+  color: var(--primary, #5e5e5e);
+}
+
+.theme-dark .chat-room-item__pin-btn.is-pinned {
+  color: var(--primary, #e2e2e2);
+}
+
+/* 고정된 방 리본 색상 변경 */
+.chat-room-item--pinned .chat-room-item__ribbon {
+  background: var(--primary, #121212);
+}
+
+.theme-dark .chat-room-item--pinned .chat-room-item__ribbon {
+  background: var(--primary, #e2e2e2);
+}
+
+/* 고정/비고정 구분선 */
+.chat-room-list__pin-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.12);
+}
+
+.chat-room-list__pin-divider span {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--on-surface-variant, #919191);
+}
+
+.chat-room-list__pin-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    채팅방 화면 (Chat Room)
    ═══════════════════════════════════════════════════════════════════════════ */

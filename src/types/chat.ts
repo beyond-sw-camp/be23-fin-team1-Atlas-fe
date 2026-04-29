@@ -65,6 +65,8 @@ export interface ChatRoom {
   lastMessage?: ChatMessageDto
   unreadCount: number
   participants?: ChatParticipant[]
+  /** 고정 시각. null이면 고정 안 됨. 백엔드 DB 기준. */
+  pinnedAt?: string | null
 }
 
 /** 패널 내부 뷰 상태 */

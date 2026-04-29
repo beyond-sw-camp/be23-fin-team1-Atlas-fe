@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * ChatRoomItem — 채팅방 목록 단건 아이템
- * Status Ribbon(좌측 4px 바) + 방이름 + 마지막 메시지 + 시간 + 안 읽은 수
+ * Status Ribbon(좌측 4px 바) + 방이름 + 마지막 메시지 + 시간 + 안 읽은 수 + 📌 고정
  */
 import type { ChatRoom } from '../../types/chat'
 
@@ -11,6 +11,8 @@ defineProps<{
 
 defineEmits<{
   select: [roomPublicId: string]
+  pin: [roomPublicId: string]
+  unpin: [roomPublicId: string]
 }>()
 
 function formatRelativeTime(isoString?: string): string {
@@ -28,7 +30,7 @@ function formatRelativeTime(isoString?: string): string {
 
 <template>
   <button
-    :class="['chat-room-item', { 'chat-room-item--unread': room.unreadCount > 0 }]"
+    :class="['chat-room-item', { 'chat-room-item--unread': room.unreadCount > 0, 'chat-room-item--pinned': !!room.pinnedAt }]"
     type="button"
     @click="$emit('select', room.publicId)"
   >
@@ -36,7 +38,17 @@ function formatRelativeTime(isoString?: string): string {
     <div class="chat-room-item__content">
       <div class="chat-room-item__head">
         <strong class="chat-room-item__name">{{ room.roomName || '이름 없음' }}</strong>
-        <span class="chat-room-item__time">{{ formatRelativeTime(room.lastMessage?.sentAt) }}</span>
+        <div class="chat-room-item__head-right">
+          <button
+            :class="['chat-room-item__pin-btn', { 'is-pinned': !!room.pinnedAt }]"
+            type="button"
+            :title="room.pinnedAt ? '고정 해제' : '고정'"
+            @click.stop="room.pinnedAt ? $emit('unpin', room.publicId) : $emit('pin', room.publicId)"
+          >
+            <span class="material-symbols-outlined">push_pin</span>
+          </button>
+          <span class="chat-room-item__time">{{ formatRelativeTime(room.lastMessage?.sentAt) }}</span>
+        </div>
       </div>
       <div class="chat-room-item__foot">
         <span class="chat-room-item__preview">{{ room.lastMessage?.messageBody ?? '' }}</span>

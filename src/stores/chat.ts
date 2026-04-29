@@ -516,6 +516,30 @@ async function fetchAvailableUsers() {
     }
   }
 
+  async function pinRoom(roomPublicId: string) {
+    try {
+      const data = await chatService.pinRoom(roomPublicId)
+      const room = rooms.value.find(r => r.publicId === roomPublicId)
+      if (room) {
+        room.pinnedAt = data?.pinnedAt || new Date().toISOString()
+      }
+    } catch (e) {
+      console.error('채팅방 고정 실패', e)
+    }
+  }
+
+  async function unpinRoom(roomPublicId: string) {
+    try {
+      await chatService.unpinRoom(roomPublicId)
+      const room = rooms.value.find(r => r.publicId === roomPublicId)
+      if (room) {
+        room.pinnedAt = null
+      }
+    } catch (e) {
+      console.error('채팅방 고정 해제 실패', e)
+    }
+  }
+
   return {
     currentUserPublicId,
     availableUsers,
@@ -544,5 +568,7 @@ async function fetchAvailableUsers() {
     connectStomp,
     disconnectStomp,
     openProfileDirectRoom,
+    pinRoom,
+    unpinRoom,
   }
 })

@@ -46,14 +46,34 @@ const filteredRooms = computed(() => {
   if (q) {
     result = result.filter((room) => room.roomName && room.roomName.toLowerCase().includes(q))
   }
-  // 최신 메시지 순으로 정렬 (메시지가 없는 방은 뒤로)
-  result.sort((a, b) => {
-    const timeA = a.lastMessage?.sentAt ? new Date(a.lastMessage.sentAt).getTime() : 0
-    const timeB = b.lastMessage?.sentAt ? new Date(b.lastMessage.sentAt).getTime() : 0
-    return timeB - timeA
-  })
   return result
 })
+
+// 고정방: pinnedAt 내림차순 (최근 고정 = 최상단)
+const pinnedRooms = computed(() =>
+  filteredRooms.value
+    .filter(r => !!r.pinnedAt)
+    .sort((a, b) => new Date(b.pinnedAt!).getTime() - new Date(a.pinnedAt!).getTime())
+)
+
+// 비고정방: 최신 메시지 순
+const unpinnedRooms = computed(() =>
+  filteredRooms.value
+    .filter(r => !r.pinnedAt)
+    .sort((a, b) => {
+      const timeA = a.lastMessage?.sentAt ? new Date(a.lastMessage.sentAt).getTime() : 0
+      const timeB = b.lastMessage?.sentAt ? new Date(b.lastMessage.sentAt).getTime() : 0
+      return timeB - timeA
+    })
+)
+
+function handlePin(roomPublicId: string) {
+  chatStore.pinRoom(roomPublicId)
+}
+
+function handleUnpin(roomPublicId: string) {
+  chatStore.unpinRoom(roomPublicId)
+}
 
 async function handleCreateRoom() {
   if (selectedUsers.value.length === 0) return
@@ -145,11 +165,27 @@ function toggleCreateRoomMode() {
     </div>
 
     <div class="chat-room-list__items" v-if="!isCreatingRoom">
+      <!-- 고정된 방 -->
       <ChatRoomItem
-        v-for="room in filteredRooms"
+        v-for="room in pinnedRooms"
         :key="room.publicId"
         :room="room"
         @select="emit('selectRoom', $event)"
+        @pin="handlePin"
+        @unpin="handleUnpin"
+      />
+      <!-- 구분선 -->
+      <div v-if="pinnedRooms.length > 0 && unpinnedRooms.length > 0" class="chat-room-list__pin-divider">
+        <span>PINNED</span>
+      </div>
+      <!-- 비고정 방 -->
+      <ChatRoomItem
+        v-for="room in unpinnedRooms"
+        :key="room.publicId"
+        :room="room"
+        @select="emit('selectRoom', $event)"
+        @pin="handlePin"
+        @unpin="handleUnpin"
       />
       <div v-if="filteredRooms.length === 0" class="chat-room-list__empty">
         <span class="material-symbols-outlined">forum</span>
