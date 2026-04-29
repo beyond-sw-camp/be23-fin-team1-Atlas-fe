@@ -896,10 +896,20 @@ onMounted(() => {
               v-for="row in visibleOrganizationRows"
               :key="row.organizationPublicId || row.organizationName"
               class="page-feed__item"
+              :class="{
+                'organization-list-item': true,
+                'is-selected': isSelectedRow(row),
+                'is-disabled': !hasOrganizationId(row),
+              }"
+              role="button"
+              tabindex="0"
               :style="{
                 borderColor: isSelectedRow(row) ? '#111827' : undefined,
                 backgroundColor: isSelectedRow(row) ? 'rgba(17, 24, 39, 0.04)' : undefined,
               }"
+              @click="hasOrganizationId(row) && selectOrganization(row)"
+              @keydown.enter.prevent="hasOrganizationId(row) && selectOrganization(row)"
+              @keydown.space.prevent="hasOrganizationId(row) && selectOrganization(row)"
             >
               <span class="page-feed__label">
                 {{ formatOrganizationType(row.organizationType) }} ·
@@ -917,22 +927,6 @@ onMounted(() => {
               <span class="page-feed__label">
                 {{ copy.listEmail }}: {{ row.contactEmail || '-' }}
               </span>
-
-              <button
-                class="page-button page-button--secondary"
-                type="button"
-                style="margin-top: 12px;"
-                :disabled="!hasOrganizationId(row) || isSelectedRow(row)"
-                @click="selectOrganization(row)"
-              >
-                {{
-                  !hasOrganizationId(row)
-                    ? copy.unavailableButton
-                    : isSelectedRow(row)
-                      ? copy.selectedButton
-                      : copy.selectButton
-                }}
-              </button>
             </div>
           </div>
         </article>
@@ -1047,12 +1041,6 @@ onMounted(() => {
                 <strong class="organization-entity-card__title">
                   {{ selectedOrganizationLabel }}
                 </strong>
-
-                <div class="organization-entity-card__meta">
-                  <span>{{ selectedOrganizationDetail.organizationAlias || '-' }}</span>
-                  <span>{{ selectedOrganizationDetail.organizationEnglishName || '-' }}</span>
-                  <span>{{ selectedOrganizationDetail.businessNo || '-' }}</span>
-                </div>
               </div>
 
               <div
@@ -1351,6 +1339,30 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   margin-top: 12px;
+}
+
+.organization-list-item {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+.organization-list-item:hover {
+  border-color: #111827;
+  background: rgba(17, 24, 39, 0.04);
+}
+
+.organization-list-item:focus-visible {
+  outline: 2px solid rgb(var(--primary-rgb, 0 95 115) / 0.45);
+  outline-offset: 2px;
+}
+
+.organization-list-item.is-selected {
+  cursor: default;
+}
+
+.organization-list-item.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .organization-summary-grid {
