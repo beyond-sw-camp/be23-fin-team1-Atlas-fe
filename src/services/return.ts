@@ -10,6 +10,23 @@ export interface PageResponse<T> {
   last: boolean
 }
 
+/** 반품 사유 (Why) */
+export type ReturnType = 'DAMAGE' | 'DEFECTIVE' | 'SIMPLE_RETURN'
+
+/** 처리 방식 (How) */
+export type ResolutionType = 'RETURN' | 'EXCHANGE' | 'DISPOSAL'
+
+/** 반품 상태 (유형별 경로가 다름) */
+export type ReturnStatus =
+  | 'REQUESTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'IN_TRANSIT'
+  | 'RECEIVED'
+  | 'RESHIPPED'   // EXCHANGE 전용: 교체품 발송 완료
+  | 'DISPOSED'    // DISPOSAL 전용: 폐기 처리 완료
+  | 'COMPLETED'
+
 
 export interface CreateReturnItemDto {
   itemPublicId: string
@@ -23,7 +40,8 @@ export interface CreateReturnItemDto {
 
 export interface CreateReturnRequestDto {
   sourceShipmentPublicId: string
-  returnType: 'DAMAGE' | 'DEFECTIVE' | 'MISDELIVERY' | 'SIMPLE_RETURN'
+  returnType: ReturnType
+  resolutionType: ResolutionType
   returnReason: string
   attachmentPublicIds?: string[]
   items: CreateReturnItemDto[]
@@ -32,8 +50,7 @@ export interface CreateReturnRequestDto {
 export interface ReturnItemResponseDto {
   id: number
   itemPublicId: string
-  itemName?: string
- | null
+  itemName?: string | null
   returnQty: number
   unit: string
   detailReason?: string | null
@@ -52,13 +69,15 @@ export interface ReturnRequestResponseDto {
   targetOrganizationPublicId: string
   requestOrganizationName?: string
   targetOrganizationName?: string
-  returnType: 'DAMAGE' | 'DEFECTIVE' | 'MISDELIVERY' | 'SIMPLE_RETURN'
+  returnType: ReturnType
+  resolutionType: ResolutionType
   returnReason: string
-  returnStatus: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'IN_TRANSIT' | 'RECEIVED' | 'COMPLETED'
+  returnStatus: ReturnStatus
   requestedAt: string
   approvedAt?: string | null
   completedAt?: string | null
   createdByUserPublicId?: string | null
+  settlementPublicId?: string | null
   attachmentPublicIds: string[]
   items: ReturnItemResponseDto[]
 }
@@ -75,7 +94,7 @@ export interface ReturnStatusHistoryResponseDto {
 
 
 export interface UpdateReturnStatusDto {
-  returnStatus: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'IN_TRANSIT' | 'RECEIVED' | 'COMPLETED'
+  returnStatus: ReturnStatus
 
   reason: string
 }
@@ -85,8 +104,9 @@ export interface GetReturnRequestsParams {
   requestOrganizationPublicId?: string
   targetOrganizationPublicId?: string
   sourceShipmentPublicId?: string
-  returnType?: 'DAMAGE' | 'DEFECTIVE' | 'MISDELIVERY' | 'SIMPLE_RETURN'
-  returnStatus?: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'IN_TRANSIT' | 'RECEIVED' | 'COMPLETED'
+  returnType?: ReturnType
+  resolutionType?: ResolutionType
+  returnStatus?: ReturnStatus
   itemPublicId?: string
 
   page?: number

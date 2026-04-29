@@ -7,7 +7,6 @@ import {
   type ReturnRequestResponseDto,
   type ReturnStatusHistoryResponseDto,
 } from '../../../services/return'
-import { getShipment, createShipment } from '../../../services/shipment'
 
 const props = defineProps<{
   isOpen: boolean
@@ -39,23 +38,27 @@ const isRequestOrg = computed(() => {
   return props.targetReturn.requestOrganizationPublicId === myOrgPublicId
 })
 
+const resType = computed(() => props.targetReturn?.resolutionType || 'RETURN')
+
 const canChangeStatus = computed(() => {
   if (!props.targetReturn) return false
+  const st = props.targetReturn.returnStatus
+  const rt = resType.value
 
-  if (props.targetReturn.returnStatus === 'REQUESTED') {
-    return isTargetOrg.value
-  }
+  // 공통: REQUESTED → 대상조직(공급사)이 승인/반려
+  if (st === 'REQUESTED') return isTargetOrg.value
 
-  if (props.targetReturn.returnStatus === 'APPROVED') {
-    return isRequestOrg.value
-  }
+  // APPROVED: DISPOSAL → 요청조직이 폐기처리, 나머지 → 요청조직이 회수시작
+  if (st === 'APPROVED') return isRequestOrg.value
 
-  if (
-    props.targetReturn.returnStatus === 'IN_TRANSIT' ||
-    props.targetReturn.returnStatus === 'RECEIVED'
-  ) {
-    return isTargetOrg.value
-  }
+  // IN_TRANSIT / RECEIVED: 대상조직(공급사)
+  if (st === 'IN_TRANSIT' || st === 'RECEIVED') return isTargetOrg.value
+
+  // RESHIPPED (EXCHANGE 전용): 요청조직이 수령확인
+  if (st === 'RESHIPPED' && rt === 'EXCHANGE') return isRequestOrg.value
+
+  // DISPOSED (DISPOSAL 전용): 대상조직이 최종확인
+  if (st === 'DISPOSED' && rt === 'DISPOSAL') return isTargetOrg.value
 
   return false
 })
@@ -81,6 +84,11 @@ const content = computed(() => {
         actTransit: '회수 중 처리',
         actReceive: '입고 완료 처리',
         actComplete: '처리 완료',
+        actReship: '교체품 출하',
+        actConfirmExchange: '교체품 수령 확인',
+        actDispose: '폐기 처리',
+        actConfirmDisposal: '최종 확인',
+        resolutionLabel: '처리 방식',
         reasonPlaceholder: '상태 변경 사유를 입력하세요. 필수입니다.',
         reasonAlert: '상태 변경 사유를 입력해주세요.',
         close: '닫기',
@@ -111,6 +119,11 @@ const content = computed(() => {
         actTransit: 'In Transit',
         actReceive: 'Receive',
         actComplete: 'Complete',
+        actReship: 'Ship Replacement',
+        actConfirmExchange: 'Confirm Receipt',
+        actDispose: 'Mark Disposed',
+        actConfirmDisposal: 'Final Confirm',
+        resolutionLabel: 'Resolution',
         reasonPlaceholder: 'Enter reason for status change. Required.',
         reasonAlert: 'Reason is required to change status.',
         close: 'Close',
@@ -154,6 +167,8 @@ function formatStatus(status?: string): string {
     REJECTED: '반려됨',
     IN_TRANSIT: '회수 중',
     RECEIVED: '입고 완료',
+    RESHIPPED: '교체품 발송',
+    DISPOSED: '폐기 완료',
     COMPLETED: '처리 완료',
   }
 
@@ -166,8 +181,20 @@ function formatReturnType(type: string): string {
   const labels: Record<string, string> = {
     DAMAGE: '파손',
     DEFECTIVE: '불량',
-    MISDELIVERY: '오배송',
     SIMPLE_RETURN: '단순 반품',
+  }
+
+  return labels[type] ?? type
+}
+
+function formatResolutionType(type?: string): string {
+  if (!type) return '-'
+  if (props.language !== 'ko') return type
+
+  const labels: Record<string, string> = {
+    RETURN: '반납',
+    EXCHANGE: '교체',
+    DISPOSAL: '폐기',
   }
 
   return labels[type] ?? type
@@ -179,8 +206,10 @@ function getStatusTone(status: string): string {
       return 'warning'
     case 'APPROVED':
     case 'COMPLETED':
+    case 'RESHIPPED':
       return 'nominal'
     case 'REJECTED':
+    case 'DISPOSED':
       return 'critical'
     case 'IN_TRANSIT':
     case 'RECEIVED':
@@ -228,7 +257,7 @@ watch(
 )
 
 async function doUpdateStatus(
-  nextStatus: 'APPROVED' | 'REJECTED' | 'IN_TRANSIT' | 'RECEIVED' | 'COMPLETED',
+  nextStatus: 'APPROVED' | 'REJECTED' | 'IN_TRANSIT' | 'RECEIVED' | 'RESHIPPED' | 'DISPOSED' | 'COMPLETED',
 ) {
   if (!props.targetReturn) return
 
@@ -244,39 +273,7 @@ async function doUpdateStatus(
       reason: reasonText.value.trim(),
     })
 
-    // IN_TRANSIT 전환 시 원본 출하 기반 역물류 출하 자동 생성
-    if (nextStatus === 'IN_TRANSIT' && props.targetReturn.sourceShipmentPublicId) {
-      try {
-        const sourceShipment = await getShipment(props.targetReturn.sourceShipmentPublicId)
-
-        // 원본 출하의 출발지/도착지를 반전하여 회수 출하 생성
-        const depEta = new Date(sourceShipment.departureEta)
-        const arrEta = new Date(sourceShipment.arrivalEta)
-        const transitDurationMs = arrEta.getTime() - depEta.getTime()
-
-        const now = new Date()
-        const returnArrivalEta = new Date(now.getTime() + transitDurationMs)
-
-        await createShipment({
-          purchaseOrderPublicId: sourceShipment.purchaseOrderPublicId || null,
-          subPurchaseOrderPublicId: sourceShipment.subPurchaseOrderPublicId || null,
-          poId: null,
-          subPoId: null,
-          originNodePublicId: sourceShipment.destinationNodePublicId,
-          destinationNodePublicId: sourceShipment.originNodePublicId,
-          departureEta: now.toISOString().slice(0, 16),
-          arrivalEta: returnArrivalEta.toISOString().slice(0, 16),
-          carrierName: sourceShipment.carrierName || null,
-          vehicleNo: null,
-          trackingNo: null,
-          temperatureRequired: sourceShipment.temperatureRequired,
-        })
-      } catch (shipmentError) {
-        // 출하 자동 생성 실패해도 상태 변경 자체는 성공이므로 알림만
-        console.error('반품 출하 자동 생성 실패:', shipmentError)
-        alert('상태는 변경되었으나, 반품 출하 자동 생성에 실패했습니다. 출하 메뉴에서 수동 생성해주세요.')
-      }
-    }
+    // 출하 생성은 백엔드에서 상태 전이 시 자동 처리됨 (프론트에서 별도 호출 불필요)
 
     await loadHistories()
     reasonText.value = ''
@@ -313,6 +310,12 @@ async function doUpdateStatus(
           <div class="info-card__item">
             <span class="info-card__label">{{ content.returnType }}</span>
             <span class="info-card__value">{{ formatReturnType(targetReturn.returnType) }}</span>
+          </div>
+          <div class="info-card__item">
+            <span class="info-card__label">{{ content.resolutionLabel }}</span>
+            <span :class="['resolution-chip', `resolution-chip--${(targetReturn.resolutionType || 'RETURN').toLowerCase()}`]">
+              {{ formatResolutionType(targetReturn.resolutionType) }}
+            </span>
           </div>
           <div class="info-card__item">
             <span class="info-card__label">{{ content.sourceShipment }}</span>
@@ -427,6 +430,7 @@ async function doUpdateStatus(
         />
 
         <div class="action-buttons">
+          <!-- 공통: REQUESTED → 승인/반려 -->
           <template v-if="targetReturn.returnStatus === 'REQUESTED'">
             <button class="btn btn-approve" type="button" :disabled="isUpdating" @click="doUpdateStatus('APPROVED')">
               {{ content.actApprove }}
@@ -435,19 +439,49 @@ async function doUpdateStatus(
               {{ content.actReject }}
             </button>
           </template>
+
+          <!-- APPROVED: 유형별 분기 -->
           <template v-if="targetReturn.returnStatus === 'APPROVED'">
-            <button class="btn btn-primary" type="button" :disabled="isUpdating" @click="doUpdateStatus('IN_TRANSIT')">
+            <!-- DISPOSAL: 폐기 처리 -->
+            <button v-if="resType === 'DISPOSAL'" class="btn btn-reject" type="button" :disabled="isUpdating" @click="doUpdateStatus('DISPOSED')">
+              {{ content.actDispose }}
+            </button>
+            <!-- RETURN / EXCHANGE: 회수 시작 -->
+            <button v-else class="btn btn-primary" type="button" :disabled="isUpdating" @click="doUpdateStatus('IN_TRANSIT')">
               {{ content.actTransit }}
             </button>
           </template>
+
+          <!-- IN_TRANSIT: 입고 확인 (RETURN / EXCHANGE 공통) -->
           <template v-if="targetReturn.returnStatus === 'IN_TRANSIT'">
             <button class="btn btn-primary" type="button" :disabled="isUpdating" @click="doUpdateStatus('RECEIVED')">
               {{ content.actReceive }}
             </button>
           </template>
+
+          <!-- RECEIVED: 유형별 분기 -->
           <template v-if="targetReturn.returnStatus === 'RECEIVED'">
-            <button class="btn btn-success" type="button" :disabled="isUpdating" @click="doUpdateStatus('COMPLETED')">
+            <!-- EXCHANGE: 교체품 출하 -->
+            <button v-if="resType === 'EXCHANGE'" class="btn btn-primary" type="button" :disabled="isUpdating" @click="doUpdateStatus('RESHIPPED')">
+              {{ content.actReship }}
+            </button>
+            <!-- RETURN: 처리 완료 -->
+            <button v-else class="btn btn-success" type="button" :disabled="isUpdating" @click="doUpdateStatus('COMPLETED')">
               {{ content.actComplete }}
+            </button>
+          </template>
+
+          <!-- RESHIPPED (EXCHANGE 전용): 교체품 수령 확인 -->
+          <template v-if="targetReturn.returnStatus === 'RESHIPPED'">
+            <button class="btn btn-success" type="button" :disabled="isUpdating" @click="doUpdateStatus('COMPLETED')">
+              {{ content.actConfirmExchange }}
+            </button>
+          </template>
+
+          <!-- DISPOSED (DISPOSAL 전용): 최종 확인 -->
+          <template v-if="targetReturn.returnStatus === 'DISPOSED'">
+            <button class="btn btn-success" type="button" :disabled="isUpdating" @click="doUpdateStatus('COMPLETED')">
+              {{ content.actConfirmDisposal }}
             </button>
           </template>
         </div>
