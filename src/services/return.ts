@@ -14,7 +14,7 @@ export interface PageResponse<T> {
 export interface CreateReturnItemDto {
   itemPublicId: string
   itemName?: string
-  lotPublicId?: string
+
   returnQty: number
   unit: string
   detailReason?: string
@@ -33,7 +33,7 @@ export interface ReturnItemResponseDto {
   id: number
   itemPublicId: string
   itemName?: string
-  lotPublicId?: string | null
+ | null
   returnQty: number
   unit: string
   detailReason?: string | null
@@ -88,7 +88,7 @@ export interface GetReturnRequestsParams {
   returnType?: 'DAMAGE' | 'DEFECTIVE' | 'MISDELIVERY' | 'SIMPLE_RETURN'
   returnStatus?: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'IN_TRANSIT' | 'RECEIVED' | 'COMPLETED'
   itemPublicId?: string
-  lotPublicId?: string
+
   page?: number
   size?: number
 }

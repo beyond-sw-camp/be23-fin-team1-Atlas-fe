@@ -2,7 +2,7 @@
 /**
  * ChatReferenceCard — 업무 참조 카드 (메시지 내 인라인)
  * reference_type에 따라 좌측 리본 색상이 변경됨:
- *   ORDER → primary, RETURN_REQUEST → error, LOT → warning
+ *   ORDER → primary, RETURN_REQUEST → error
  */
 defineProps<{
   referenceType: string

@@ -323,7 +323,7 @@ onBeforeUnmount(() => header.clearActions())
               <span>{{ formatDate(item.requestedAt) }}</span>
               <span>
                 <button
-                  class="page-button page-button--secondary lots-page__detail-button"
+                  class="page-button page-button--secondary"
                   type="button"
                   @click="openTimeline(item)"
                 >

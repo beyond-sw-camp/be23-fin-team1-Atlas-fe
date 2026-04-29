@@ -7,7 +7,6 @@ import {
   type CreateReturnRequestDto,
 } from '../../../services/return'
 import { getItems, type ItemResponseDto } from '../../../services/item'
-import { getLots, type LotResponseDto } from '../../../services/lot'
 import { getShipments, type ShipmentListResponseDto } from '../../../services/shipment'
 
 const props = defineProps<{
@@ -21,18 +20,15 @@ const emit = defineEmits<{
 }>()
 
 const items = ref<ItemResponseDto[]>([])
-const lots = ref<LotResponseDto[]>([])
 const shipments = ref<ShipmentListResponseDto[]>([])
 const isSubmitting = ref(false)
 const isLoadingItems = ref(false)
-const isLoadingLots = ref(false)
 const isLoadingShipments = ref(false)
 
 function createEmptyItem(): CreateReturnItemDto {
   return {
     itemPublicId: '',
     itemName: '',
-    lotPublicId: '',
     returnQty: 1,
     unit: 'EA',
     detailReason: '',
@@ -63,7 +59,6 @@ const content = computed(() => {
         item: '품목',
         itemPlaceholder: '품목 선택',
         itemLoading: '품목 목록을 불러오는 중입니다...',
-        lot: 'LOT 번호',
         qty: '수량',
         unit: '단위',
         itemReason: '상세 사유',
@@ -86,7 +81,6 @@ const content = computed(() => {
         item: 'Item',
         itemPlaceholder: 'Select item',
         itemLoading: 'Loading items...',
-        lot: 'LOT No.',
         qty: 'Qty',
         unit: 'Unit',
         itemReason: 'Detail Reason',
@@ -117,12 +111,6 @@ const arrivedShipments = computed(() =>
   shipments.value.filter((shipment) => shipment.status === 'ARRIVED'),
 )
 
-const availableLots = computed(() =>
-  lots.value.filter(
-    (lot) => lot.qty > 0 && lot.lotStatus !== 'SHIPPED' && lot.lotStatus !== 'DISCARDED',
-  ),
-)
-
 function shipmentOptionText(shipment: ShipmentListResponseDto) {
   const origin = shipment.originNodeName || shipment.originNodeCode || '-'
   const destination = shipment.destinationNodeName || shipment.destinationNodeCode || '-'
@@ -139,19 +127,6 @@ async function loadItems() {
     items.value = []
   } finally {
     isLoadingItems.value = false
-  }
-}
-
-async function loadLots() {
-  try {
-    isLoadingLots.value = true
-    const response = await getLots()
-    lots.value = response.content ?? []
-  } catch (error) {
-    console.error('Failed to load lots', error)
-    lots.value = []
-  } finally {
-    isLoadingLots.value = false
   }
 }
 
@@ -205,7 +180,6 @@ watch(
 
     resetForm()
     loadItems()
-    loadLots()
     loadShipments()
   },
   { immediate: true },
@@ -336,18 +310,6 @@ async function handleSubmit() {
               </option>
               <option v-for="option in items" :key="option.publicId" :value="option.publicId">
                 {{ option.itemName }} ({{ option.itemCode }})
-              </option>
-            </select>
-          </div>
-
-          <div class="item-col item-col--lot">
-            <span>{{ content.lot }}</span>
-            <select v-model="item.lotPublicId" :disabled="isSubmitting || isLoadingLots">
-              <option value="">
-                {{ isLoadingLots ? 'LOT 목록을 불러오는 중입니다...' : 'LOT 선택 안 함' }}
-              </option>
-              <option v-for="lot in availableLots" :key="lot.publicId" :value="lot.publicId">
-                {{ lot.lotNumber }} / {{ lot.itemName }} / {{ lot.qty }} {{ lot.unit }}
               </option>
             </select>
           </div>
@@ -540,10 +502,6 @@ async function handleSubmit() {
 
 .item-col--name {
   flex: 2;
-}
-
-.item-col--lot {
-  flex: 1.5;
 }
 
 .item-col--qty {

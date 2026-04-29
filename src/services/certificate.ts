@@ -1,5 +1,5 @@
 import { apiClient } from './http'
-import type { PageResponse } from './lot'
+import type { PageResponse } from './item'
 
 export interface CreateSupplierCertificateRequestDto {
   certificateTypePublicId: string

@@ -291,7 +291,7 @@ const KO_DEFAULT_COPY: Record<string, string> = {
   'Tier-2 backup path confirmed for APAC lane.': 'APAC 레인용 2차 백업 경로를 확정했습니다.',
   'Supplier health score recalculated after ESG event.': 'ESG 이벤트 이후 협력사 건전성 점수를 다시 계산했습니다.',
   'Two certificates enter 14-day renewal window.': '인증 2건이 14일 갱신 구간에 진입했습니다.',
-  'Lot evidence missing on one export batch.': '수출 배치 1건에서 lot 증빙이 누락됐습니다.',
+  'Evidence missing on one export batch.': '수출 배치 1건에서 증빙이 누락됐습니다.',
   'Quality hold released after inspection upload.': '검수 업로드 후 품질 보류를 해제했습니다.',
   'Delayed shipment rerouted through alternate lane.': '지연 선적을 대체 레인으로 우회 조치했습니다.',
   'Supplier issue converted into recovery workflow.': '협력사 이슈를 복구 워크플로로 전환했습니다.',

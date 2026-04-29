@@ -3,14 +3,14 @@ import type { StructuredPageDefinition } from '../../shared/types/page'
 export const certificateWatchPage: StructuredPageDefinition = {
   eyebrow: 'Monitoring // Certificates',
   title: 'Expiry & Quality Monitor',
-  subtitle: '인증 만료, 품질 lot 이슈, 원산지 증빙 누락을 함께 감시합니다.',
+  subtitle: '인증 만료 및 원산지 증빙 누락을 함께 감시합니다.',
   actions: [
     { label: 'OPEN', tone: 'primary' },
     { label: 'DETAILS', tone: 'secondary' },
   ],
   metrics: [
     { label: 'KPI', value: '07', meta: 'certificates due' },
-    { label: 'STATUS', value: 'Risk', meta: 'lot mismatch' },
+    { label: 'STATUS', value: 'Risk', meta: 'mismatch' },
     { label: 'QUEUE', value: '02', meta: 'quality holds' },
   ],
   panels: [
@@ -44,7 +44,7 @@ export const certificateWatchPage: StructuredPageDefinition = {
       chip: 'NOTES',
       items: [
         { label: '08:10', text: 'Two certificates enter 14-day renewal window.' },
-        { label: '10:40', text: 'Lot evidence missing on one export batch.' },
+        { label: '10:40', text: 'Evidence missing on one export batch.' },
         { label: '13:15', text: 'Quality hold released after inspection upload.' },
       ],
     },

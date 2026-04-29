@@ -11,31 +11,23 @@ import {
   type PurchaseOrderSummaryResponseDto,
 } from '../../../services/purchaseOrder'
 import {
-  getLots,
-  type LotResponseDto,
-} from '../../../services/lot'
-import {
   createDeliveryException,
   createShipment,
-  createShipmentLotMapping,
   getDeliveryExceptions,
   getEtaProjections,
   getShipment,
   getShipmentEta,
-  getShipmentLotMappings,
   getShipmentMapData,
   getShipmentStatusHistories,
   getShipments,
   trackShipment,
   updateShipment,
   type CreateDeliveryExceptionRequestDto,
-  type CreateShipmentLotMappingRequestDto,
   type CreateShipmentRequestDto,
   type DeliveryExceptionResponseDto,
   type EtaProjectionResponseDto,
   type ShipmentEtaResponseDto,
   type ShipmentListResponseDto,
-  type ShipmentLotMappingResponseDto,
   type ShipmentMapResponseDto,
   type ShipmentResponseDto,
   type ShipmentStatusHistoryResponseDto,
@@ -64,10 +56,7 @@ const CONTENT = {
       openException: '예외 등록',
       closeException: '예외 닫기',
       submitException: '예외 저장',
-      openLotMap: 'LOT 연결',
-      closeLotMap: 'LOT 연결 닫기',
-      submitLotMap: 'LOT 연결 저장',
-    },
+          },
     panels: {
       mapTitle: '진행 중 출하 지도',
       mapEyebrow: 'READY / IN_TRANSIT / DELAYED',
@@ -88,9 +77,7 @@ const CONTENT = {
       exceptionTitle: '배송 예외 등록',
       exceptionEyebrow: '예외',
       exceptionsTitle: '배송 예외 목록',
-      lotMapTitle: '출하-LOT 연결',
-      lotMappingsTitle: '연결 LOT 목록',
-    },
+          },
     fields: {
       shipmentNumber: '출하 번호',
       poId: '발주 ID',
@@ -119,8 +106,7 @@ const CONTENT = {
       exceptionType: '예외 유형',
       severity: '심각도',
       detectedAt: '감지 시각',
-      lotPublicId: 'LOT',
-      shippedQty: '출하 수량',
+            shippedQty: '출하 수량',
       delayed: '지연 여부',
       delayMinutes: '지연 분',
     },
@@ -133,8 +119,7 @@ const CONTENT = {
       updateFail: '출하 수정에 실패했습니다.',
       trackFail: '출하 추적 등록에 실패했습니다.',
       exceptionFail: '배송 예외 등록에 실패했습니다.',
-      lotMapFail: 'LOT 연결 등록에 실패했습니다.',
-      emptyShipments: '출하 데이터가 없습니다.',
+            emptyShipments: '출하 데이터가 없습니다.',
       emptyMap: '현재 진행 중인 출하가 없습니다.',
       emptyHistory: '출하 이력이 없습니다.',
       requiredCreate: '승인 발주, 출발 거점, 출발/도착 예정 시각은 필수입니다.',
@@ -166,10 +151,7 @@ const CONTENT = {
       openException: 'ADD EXCEPTION',
       closeException: 'CLOSE EXCEPTION',
       submitException: 'SAVE EXCEPTION',
-      openLotMap: 'MAP LOT',
-      closeLotMap: 'CLOSE LOT MAP',
-      submitLotMap: 'SAVE LOT MAP',
-    },
+          },
     panels: {
       mapTitle: 'Active Shipment Map',
       mapEyebrow: 'READY / IN_TRANSIT / DELAYED',
@@ -190,9 +172,7 @@ const CONTENT = {
       exceptionTitle: 'Delivery Exception',
       exceptionEyebrow: 'EXCEPTION',
       exceptionsTitle: 'Delivery Exceptions',
-      lotMapTitle: 'Shipment Lot Mapping',
-      lotMappingsTitle: 'Mapped Lots',
-    },
+          },
     fields: {
       shipmentNumber: 'SHIPMENT NO',
       poId: 'PO ID',
@@ -221,8 +201,7 @@ const CONTENT = {
       exceptionType: 'EXCEPTION TYPE',
       severity: 'SEVERITY',
       detectedAt: 'DETECTED AT',
-      lotPublicId: 'LOT PUBLIC ID',
-      shippedQty: 'SHIPPED QTY',
+            shippedQty: 'SHIPPED QTY',
       delayed: 'DELAYED',
       delayMinutes: 'DELAY MINUTES',
     },
@@ -235,8 +214,7 @@ const CONTENT = {
       updateFail: 'Failed to update shipment.',
       trackFail: 'Failed to track shipment.',
       exceptionFail: 'Failed to create delivery exception.',
-      lotMapFail: 'Failed to create shipment lot mapping.',
-      emptyShipments: 'No shipments found.',
+            emptyShipments: 'No shipments found.',
       emptyMap: 'No active shipments found.',
       emptyHistory: 'No shipment history found.',
       requiredCreate: 'Accepted order, origin node, departure ETA, and arrival ETA are required.',
@@ -259,7 +237,6 @@ const mapShipments = ref<ShipmentMapResponseDto[]>([])
 const logisticsNodes = ref<LogisticsNodeResponseDto[]>([])
 const acceptedPurchaseOrders = ref<PurchaseOrderSummaryResponseDto[]>([])
 const selectedPurchaseOrderDetail = ref<PurchaseOrderDetailResponseDto | null>(null)
-const lotOptions = ref<LotResponseDto[]>([])
 const currentPage = ref(0)
 const pageSize = ref(10)
 const totalElements = ref(0)
@@ -270,9 +247,7 @@ const shipmentErrorMessage = ref('')
 const mapErrorMessage = ref('')
 const nodeErrorMessage = ref('')
 const orderErrorMessage = ref('')
-const lotOptionErrorMessage = ref('')
 const isOrderOptionsLoading = ref(false)
-const isLotOptionsLoading = ref(false)
 
 const selectedShipment = ref<ShipmentListResponseDto | null>(null)
 const selectedShipmentDetail = ref<ShipmentResponseDto | null>(null)
@@ -280,7 +255,6 @@ const selectedShipmentEta = ref<ShipmentEtaResponseDto | null>(null)
 const selectedShipmentHistories = ref<ShipmentStatusHistoryResponseDto[]>([])
 const etaProjections = ref<EtaProjectionResponseDto[]>([])
 const deliveryExceptions = ref<DeliveryExceptionResponseDto[]>([])
-const shipmentLotMappings = ref<ShipmentLotMappingResponseDto[]>([])
 const shipmentDetailErrorMessage = ref('')
 const isShipmentDetailLoading = ref(false)
 
@@ -337,24 +311,12 @@ const exceptionForm = ref<CreateDeliveryExceptionRequestDto>({
   note: '',
 })
 
-const isLotMappingPanelOpen = ref(false)
-const isLotMappingSubmitting = ref(false)
-const lotMappingErrorMessage = ref('')
-const lotMappingForm = ref<CreateShipmentLotMappingRequestDto>({
-  lotPublicId: '',
-  shippedQty: 0,
-})
 
 const activeLogisticsNodes = computed(() => logisticsNodes.value.filter((node) => node.active))
 const displayShipments = computed(() => dedupeShipments(shipments.value))
 const displayMapShipments = computed(() =>
   dedupeShipments(mapShipments.value).filter((shipment) =>
     ['READY', 'IN_TRANSIT', 'DELAYED'].includes(shipment.status),
-  ),
-)
-const availableLotOptions = computed(() =>
-  lotOptions.value.filter(
-    (lot) => lot.qty > 0 && lot.lotStatus !== 'SHIPPED' && lot.lotStatus !== 'DISCARDED',
   ),
 )
 const trackNodeOptions = computed(() => {
@@ -568,22 +530,6 @@ async function fetchAcceptedPurchaseOrders() {
   }
 }
 
-async function fetchLotOptions() {
-  isLotOptionsLoading.value = true
-  lotOptionErrorMessage.value = ''
-
-  try {
-    const response = await getLots()
-    lotOptions.value = response.content ?? []
-  } catch (error) {
-    console.error('Failed to fetch lots:', error)
-    lotOptions.value = []
-    lotOptionErrorMessage.value = 'LOT 목록을 불러오지 못했습니다.'
-  } finally {
-    isLotOptionsLoading.value = false
-  }
-}
-
 async function fetchShipmentMapData() {
   isMapLoading.value = true
 
@@ -666,13 +612,12 @@ async function handleShipmentSelect(shipment: ShipmentListResponseDto) {
   isShipmentDetailLoading.value = true
 
   try {
-    const [detail, eta, histories, projections, exceptions, mappings] = await Promise.all([
+    const [detail, eta, histories, projections, exceptions] = await Promise.all([
       getShipment(shipment.publicId),
       getShipmentEta(shipment.publicId),
       getShipmentStatusHistories(shipment.publicId),
       getEtaProjections(shipment.publicId),
       getDeliveryExceptions(shipment.publicId),
-      getShipmentLotMappings(shipment.publicId),
     ])
 
     selectedShipmentDetail.value = detail
@@ -680,7 +625,6 @@ async function handleShipmentSelect(shipment: ShipmentListResponseDto) {
     selectedShipmentHistories.value = histories
     etaProjections.value = projections
     deliveryExceptions.value = exceptions
-    shipmentLotMappings.value = mappings
     exceptionForm.value.shipmentPublicId = shipment.publicId
     fillUpdateForm(detail)
   } catch (error) {
@@ -690,7 +634,6 @@ async function handleShipmentSelect(shipment: ShipmentListResponseDto) {
     selectedShipmentHistories.value = []
     etaProjections.value = []
     deliveryExceptions.value = []
-    shipmentLotMappings.value = []
     shipmentDetailErrorMessage.value = content.value.messages.loadDetailFail
   } finally {
     isShipmentDetailLoading.value = false
@@ -821,14 +764,6 @@ function resetTrackForm() {
   }
 }
 
-async function toggleLotMappingPanel() {
-  isLotMappingPanelOpen.value = !isLotMappingPanelOpen.value
-
-  if (isLotMappingPanelOpen.value) {
-    await fetchLotOptions()
-  }
-}
-
 async function handleTrackShipmentSubmit() {
   if (!selectedShipment.value) return
 
@@ -871,25 +806,6 @@ async function handleCreateDeliveryExceptionSubmit() {
     exceptionErrorMessage.value = error?.message ?? content.value.messages.exceptionFail
   } finally {
     isExceptionSubmitting.value = false
-  }
-}
-
-async function handleCreateShipmentLotMappingSubmit() {
-  if (!selectedShipment.value) return
-
-  lotMappingErrorMessage.value = ''
-  isLotMappingSubmitting.value = true
-
-  try {
-    await createShipmentLotMapping(selectedShipment.value.publicId, lotMappingForm.value)
-    lotMappingForm.value = { lotPublicId: '', shippedQty: 0 }
-    isLotMappingPanelOpen.value = false
-    await handleShipmentSelect(selectedShipment.value)
-  } catch (error: any) {
-    console.error('Failed to create shipment lot mapping:', error)
-    lotMappingErrorMessage.value = error?.message ?? content.value.messages.lotMapFail
-  } finally {
-    isLotMappingSubmitting.value = false
   }
 }
 
@@ -1219,9 +1135,6 @@ onMounted(refreshShipments)
         <button class="page-button page-button--secondary" type="button" @click="isExceptionPanelOpen = !isExceptionPanelOpen">
           {{ isExceptionPanelOpen ? content.buttons.closeException : content.buttons.openException }}
         </button>
-        <button class="page-button page-button--secondary" type="button" @click="toggleLotMappingPanel">
-          {{ isLotMappingPanelOpen ? content.buttons.closeLotMap : content.buttons.openLotMap }}
-        </button>
       </div>
 
       <article v-if="isTrackPanelOpen" class="page-panel" style="margin-top: 12px;">
@@ -1337,51 +1250,6 @@ onMounted(refreshShipments)
         </div>
       </article>
 
-      <article v-if="isLotMappingPanelOpen" class="page-panel" style="margin-top: 12px;">
-        <div class="page-panel__head"><h3>{{ content.panels.lotMapTitle }}</h3></div>
-        <div class="page-feed">
-          <div class="page-feed__item">
-            <span class="page-feed__label">{{ content.fields.lotPublicId }}</span>
-            <select v-model="lotMappingForm.lotPublicId" class="page-input" :disabled="isLotOptionsLoading">
-              <option value="">{{ isLotOptionsLoading ? '불러오는 중...' : '선택' }}</option>
-              <option v-for="lot in availableLotOptions" :key="lot.publicId" :value="lot.publicId">
-                {{ lot.lotNumber }} / {{ lot.itemName }} / {{ lot.qty }} {{ lot.unit }} / {{ lot.lotStatus }}
-              </option>
-            </select>
-          </div>
-          <div class="page-feed__item">
-            <span class="page-feed__label">{{ content.fields.shippedQty }}</span>
-            <input v-model.number="lotMappingForm.shippedQty" type="number" class="page-input" />
-          </div>
-        </div>
-        <div v-if="lotMappingErrorMessage" style="color: var(--color-critical); font-size: 0.875rem; margin-top: 12px;">
-          {{ lotMappingErrorMessage }}
-        </div>
-        <div v-if="lotOptionErrorMessage" style="color: var(--color-critical); font-size: 0.875rem; margin-top: 12px;">
-          {{ lotOptionErrorMessage }}
-        </div>
-        <div v-else-if="!isLotOptionsLoading && availableLotOptions.length === 0" class="page-table__empty" style="margin-top: 12px;">
-          출하에 연결할 수 있는 LOT가 없습니다.
-        </div>
-        <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
-          <button class="page-button page-button--primary" type="button" :disabled="isLotMappingSubmitting" @click="handleCreateShipmentLotMappingSubmit">
-            {{ isLotMappingSubmitting ? content.buttons.submitting : content.buttons.submitLotMap }}
-          </button>
-        </div>
-      </article>
-
-      <article v-if="shipmentLotMappings.length > 0" class="page-panel" style="margin-top: 12px;">
-        <div class="page-panel__head">
-          <h3>{{ content.panels.lotMappingsTitle }}</h3>
-          <span class="page-panel__chip">{{ shipmentLotMappings.length }}</span>
-        </div>
-        <div class="page-feed">
-          <div v-for="mapping in shipmentLotMappings" :key="`${mapping.shipmentPublicId}-${mapping.lotPublicId}`" class="page-feed__item">
-            <span class="page-feed__label">{{ mapping.lotPublicId }}</span>
-            <strong class="page-feed__text">{{ mapping.shippedQty }} {{ mapping.unit }} / {{ formatDate(mapping.loadedAt) }}</strong>
-          </div>
-        </div>
-      </article>
     </article>
   </section>
 </template>

@@ -59,18 +59,6 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     ko: { label: '품목 관리', description: '품목 관리와 재고 임계치', pageSubtitle: 'SKU, 재고, 재발주점, 공급처 기준 운영' },
     en: { label: 'Items', description: 'Item catalog and stock thresholds', pageSubtitle: 'Operate SKUs, inventory, reorder points, and source ownership' },
   },
-  lots: {
-    ko: {
-      label: 'LOT',
-      description: 'LOT 추적 및 품질 관리',
-      pageSubtitle: 'LOT 이력, 검사, 상태 정보를 관리합니다',
-    },
-    en: {
-      label: 'LOT',
-      description: 'Lot tracking and quality control',
-      pageSubtitle: 'Manage lot history, inspection, and status',
-    },
-  },
     shipments: {
     ko: {
       label: '출하',

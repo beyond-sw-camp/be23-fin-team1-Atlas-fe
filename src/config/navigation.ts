@@ -8,7 +8,6 @@ export const PAGE_PATHS: Record<PageKey, string> = {
   ordersDesk: '/orders',
   supplierControl: '/suppliers',
   items: '/items',
-  lots: '/lots',
   shipments: '/shipments',
   settlements: '/settlements',
   logisticsNodes: '/logistics-nodes',
@@ -128,15 +127,6 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: 'SKU, 재고, 재발주점, 공급사 기준 운영',
     section: 'operations',
     organizations: ['supplier'],
-  },
-  {
-    key: 'lots',
-    label: 'LOT',
-    icon: 'local_shipping',
-    description: 'Lot tracking and quality control',
-    pageSubtitle: 'Manage lot history, inspection, and status',
-    section: 'operations',
-    organizations: ['mainBuyer', 'supplier', 'admin'],
   },
   {
     key: 'shipments',

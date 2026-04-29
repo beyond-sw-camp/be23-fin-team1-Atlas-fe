@@ -3,7 +3,7 @@ import type { StructuredPageDefinition } from '../../shared/types/page'
 export const documentsPage: StructuredPageDefinition = {
   eyebrow: 'Response // Documents',
   title: 'Document Trace Desk',
-  subtitle: '품질, lot, 인증, 문서 상태를 실시간으로 추적합니다.',
+  subtitle: '품질, 인증, 문서 상태를 실시간으로 추적합니다.',
   actions: [
     { label: 'OPEN', tone: 'primary' },
     { label: 'DETAILS', tone: 'secondary' },

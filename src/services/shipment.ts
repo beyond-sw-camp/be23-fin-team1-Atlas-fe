@@ -170,18 +170,7 @@ export interface DeliveryExceptionResponseDto {
   resolvedAt?: string | null
   note?: string | null
 }
-export interface CreateShipmentLotMappingRequestDto {
-  lotPublicId: string
-  shippedQty: number
-}
 
-export interface ShipmentLotMappingResponseDto {
-  shipmentPublicId: string
-  lotPublicId: string
-  shippedQty: number
-  unit: string
-  loadedAt: string
-}
 
 export interface GetShipmentsParams {
   page?: number
@@ -295,22 +284,4 @@ export async function getDeliveryExceptions(
   )
   return response.data
 }
-export async function createShipmentLotMapping(
-  shipmentPublicId: string,
-  data: CreateShipmentLotMappingRequestDto,
-): Promise<ShipmentLotMappingResponseDto> {
-  const response = await apiClient.post<ShipmentLotMappingResponseDto>(
-    `/api/supply/shipments/${shipmentPublicId}/lots`,
-    data,
-  )
-  return response.data
-}
 
-export async function getShipmentLotMappings(
-  shipmentPublicId: string,
-): Promise<ShipmentLotMappingResponseDto[]> {
-  const response = await apiClient.get<ShipmentLotMappingResponseDto[]>(
-    `/api/supply/shipments/${shipmentPublicId}/lots`,
-  )
-  return response.data
-}

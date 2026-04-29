@@ -161,7 +161,6 @@ function formatDomainType(type?: string) {
   const labels: Record<string, string> = {
     ORDER: preferences.language === 'ko' ? '발주' : 'Order',
     SHIPMENT: preferences.language === 'ko' ? '출하' : 'Shipment',
-    LOT: preferences.language === 'ko' ? 'LOT' : 'LOT',
     RETURN_REQUEST: preferences.language === 'ko' ? '반품' : 'Return Request',
     SUPPLIER: preferences.language === 'ko' ? '협력사' : 'Supplier',
     RISK: preferences.language === 'ko' ? '리스크' : 'Risk',

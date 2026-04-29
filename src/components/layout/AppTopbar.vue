@@ -192,9 +192,6 @@ function resolveTargetPage(type: IntegratedSearchSectionType): PageKey | null {
     case 'RETURN':
       return 'returns'
 
-    case 'LOT':
-      return 'lots'
-
     case 'PRODUCTION_LINE':
     case 'SETTLEMENT':
       return 'controlTower'

@@ -88,7 +88,7 @@ const factorRows = computed(() =>
       ]
     : [
         ['PORT CONGESTION', 'HIGH', 'EU corridor rising for 2 weeks'],
-        ['ALT SUPPLIER READINESS', 'MEDIUM', 'Lot cert docs need completion'],
+        ['ALT SUPPLIER READINESS', 'MEDIUM', 'Cert docs need completion'],
         ['SAFETY STOCK COVERAGE', 'GOOD', 'Applied at 96% of target'],
       ],
 )
