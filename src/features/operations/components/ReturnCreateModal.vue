@@ -5,6 +5,7 @@ import {
   createReturn,
   type CreateReturnItemDto,
   type CreateReturnRequestDto,
+  type ResolutionType,
 } from '../../../services/return'
 import { getItems, type ItemResponseDto } from '../../../services/item'
 import { getShipments, type ShipmentListResponseDto } from '../../../services/shipment'
@@ -38,6 +39,7 @@ function createEmptyItem(): CreateReturnItemDto {
 const form = ref<CreateReturnRequestDto>({
   sourceShipmentPublicId: '',
   returnType: 'DEFECTIVE',
+  resolutionType: 'RETURN',
   returnReason: '',
   attachmentPublicIds: [],
   items: [createEmptyItem()],
@@ -53,8 +55,9 @@ const content = computed(() => {
         sourceShipmentLoading: '출하 목록을 불러오는 중입니다...',
         noShipment: '선택 가능한 도착 완료 출하가 없습니다',
         sourceShipmentHint: '반품번호와 요청/대상 조직은 선택한 출하 기준으로 자동 생성됩니다.',
-        type: '반품 유형',
-        reason: '반품 사유',
+        type: '반품 사유',
+        resolution: '처리 방식',
+        reason: '반품 사유 상세',
         items: '반품 대상 품목',
         item: '품목',
         itemPlaceholder: '품목 선택',
@@ -75,8 +78,9 @@ const content = computed(() => {
         sourceShipmentLoading: 'Loading shipments...',
         noShipment: 'No arrived shipments available',
         sourceShipmentHint: 'Return number and organizations are generated from the selected shipment.',
-        type: 'Return Type',
-        reason: 'Return Reason',
+        type: 'Return Reason',
+        resolution: 'Resolution Type',
+        reason: 'Return Reason Detail',
         items: 'Return Items',
         item: 'Item',
         itemPlaceholder: 'Select item',
@@ -96,15 +100,40 @@ const returnTypeOptions = computed(() => {
     ? [
         { value: 'DEFECTIVE', label: '불량' },
         { value: 'DAMAGE', label: '파손' },
-        { value: 'MISDELIVERY', label: '오배송' },
         { value: 'SIMPLE_RETURN', label: '단순 반품' },
       ]
     : [
         { value: 'DEFECTIVE', label: 'Defective' },
         { value: 'DAMAGE', label: 'Damage' },
-        { value: 'MISDELIVERY', label: 'Misdelivery' },
         { value: 'SIMPLE_RETURN', label: 'Simple Return' },
       ]
+})
+
+const resolutionOptions = computed<{ value: ResolutionType; icon: string; label: string; desc: string }[]>(() => {
+  return props.language === 'ko'
+    ? [
+        { value: 'RETURN', icon: 'keyboard_return', label: '반납', desc: '물건을 공급사에 돌려보냅니다.' },
+        { value: 'EXCHANGE', icon: 'swap_horiz', label: '교체', desc: '불량품 회수 후 교체품을 다시 받습니다.' },
+        { value: 'DISPOSAL', icon: 'delete_forever', label: '폐기', desc: '물건을 반송하지 않고 현지에서 폐기합니다.' },
+      ]
+    : [
+        { value: 'RETURN', icon: 'keyboard_return', label: 'Return', desc: 'Send goods back to supplier.' },
+        { value: 'EXCHANGE', icon: 'swap_horiz', label: 'Exchange', desc: 'Collect defective and receive replacement.' },
+        { value: 'DISPOSAL', icon: 'delete_forever', label: 'Disposal', desc: 'Dispose on-site without returning.' },
+      ]
+})
+
+const resolutionHint = computed(() => {
+  const rt = form.value.resolutionType
+  if (props.language === 'ko') {
+    if (rt === 'EXCHANGE') return '승인 후 회수 → 교체품 재출하가 자동으로 진행됩니다.'
+    if (rt === 'DISPOSAL') return '승인 후 폐기 증빙을 첨부해야 완료됩니다. 출하(물류)가 발생하지 않습니다.'
+    return ''
+  } else {
+    if (rt === 'EXCHANGE') return 'After approval, collection and replacement shipment will proceed automatically.'
+    if (rt === 'DISPOSAL') return 'After approval, disposal proof must be attached. No shipment will be created.'
+    return ''
+  }
 })
 
 const arrivedShipments = computed(() =>
@@ -167,6 +196,7 @@ function resetForm() {
   form.value = {
     sourceShipmentPublicId: '',
     returnType: 'DEFECTIVE',
+    resolutionType: 'RETURN',
     returnReason: '',
     attachmentPublicIds: [],
     items: [createEmptyItem()],
@@ -207,6 +237,7 @@ async function handleSubmit() {
 
   try {
     isSubmitting.value = true
+    console.log('[ReturnCreate] 요청 데이터:', JSON.stringify(form.value, null, 2))
     await createReturn(form.value)
     alert(props.language === 'ko' ? '반품 요청이 완료되었습니다.' : 'Return request completed.')
     emit('success')
@@ -268,6 +299,33 @@ async function handleSubmit() {
             </select>
           </label>
         </div>
+      </div>
+
+      <!-- 처리 방식 카드형 라디오 -->
+      <div class="terminal-form-group">
+        <span>{{ content.resolution }} <em class="required-mark">{{ content.required }}</em></span>
+        <div class="resolution-cards">
+          <label
+            v-for="opt in resolutionOptions"
+            :key="opt.value"
+            :class="['resolution-card', { 'resolution-card--selected': form.resolutionType === opt.value }]"
+          >
+            <input
+              type="radio"
+              :value="opt.value"
+              v-model="form.resolutionType"
+              :disabled="isSubmitting"
+              class="resolution-card__radio"
+            />
+            <span class="material-symbols-outlined resolution-card__icon">{{ opt.icon }}</span>
+            <strong class="resolution-card__label">{{ opt.label }}</strong>
+            <span class="resolution-card__desc">{{ opt.desc }}</span>
+          </label>
+        </div>
+        <p v-if="resolutionHint" class="form-help resolution-hint">
+          <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">info</span>
+          {{ resolutionHint }}
+        </p>
       </div>
 
       <div class="terminal-form-group">
@@ -538,5 +596,73 @@ async function handleSubmit() {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;
+}
+
+/* 처리 방식 카드형 라디오 */
+.resolution-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.resolution-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 12px;
+  border: 2px solid var(--color-surface-container-high, #333);
+  background: var(--color-surface-container-lowest, #1a1a1a);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.resolution-card:hover {
+  border-color: var(--color-on-surface-variant, #999);
+}
+
+.resolution-card--selected {
+  border-color: var(--color-primary, #fff);
+  background: var(--color-surface-container, #252525);
+}
+
+.resolution-card__radio {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.resolution-card__icon {
+  font-size: 1.5rem;
+  color: var(--color-on-surface-variant, #999);
+  transition: color 0.2s;
+}
+
+.resolution-card--selected .resolution-card__icon {
+  color: var(--color-primary, #fff);
+}
+
+.resolution-card__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--color-on-surface, #eee);
+}
+
+.resolution-card__desc {
+  font-size: 0.7rem;
+  color: var(--color-on-surface-variant, #999);
+  line-height: 1.3;
+}
+
+.resolution-hint {
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--color-surface-container, #252525);
+  border-left: 3px solid var(--color-primary, #fff);
+  font-size: 0.75rem;
+  color: var(--color-on-surface-variant, #bbb);
 }
 </style>

@@ -30,7 +30,7 @@ const CONTENT = {
     loading: '반품 목록을 불러오는 중입니다.',
     loadFail: '반품 목록을 불러오지 못했습니다.',
     btnDetail: '이력/상태',
-    columns: ['반품 번호', '원본 출하', '반품 출하', '요청 조직', '대상 조직', '반품 유형', '상태', '요청일시', '관리'],
+    columns: ['반품 번호', '요청 조직', '대상 조직', '반품 사유', '처리 방식', '상태', '요청일시', '관리'],
     tabs: {
       ALL: '전체',
       REQUESTED: '요청/승인',
@@ -58,7 +58,7 @@ const CONTENT = {
     loading: 'Loading returns...',
     loadFail: 'Failed to load returns.',
     btnDetail: 'History/Status',
-    columns: ['RETURN NO', 'SOURCE SHIPMENT', 'RETURN SHIPMENT', 'REQUEST ORG', 'TARGET ORG', 'TYPE', 'STATUS', 'REQ DATE', 'ACTION'],
+    columns: ['RETURN NO', 'REQUEST ORG', 'TARGET ORG', 'REASON', 'RESOLUTION', 'STATUS', 'REQ DATE', 'ACTION'],
     tabs: {
       ALL: 'ALL',
       REQUESTED: 'REQUESTED/APPROVED',
@@ -161,8 +161,20 @@ function returnTypeText(type: string) {
   const labels: Record<string, string> = {
     DAMAGE: '파손',
     DEFECTIVE: '불량',
-    MISDELIVERY: '오배송',
     SIMPLE_RETURN: '단순 반품',
+  }
+
+  return labels[type] ?? type
+}
+
+function resolutionTypeText(type?: string) {
+  if (!type) return '-'
+  if (preferences.language !== 'ko') return type
+
+  const labels: Record<string, string> = {
+    RETURN: '반납',
+    EXCHANGE: '교체',
+    DISPOSAL: '폐기',
   }
 
   return labels[type] ?? type
@@ -177,6 +189,8 @@ function returnStatusText(status: string) {
     REJECTED: '반려됨',
     IN_TRANSIT: '회수 중',
     RECEIVED: '입고 완료',
+    RESHIPPED: '교체품 발송',
+    DISPOSED: '폐기 완료',
     COMPLETED: '처리 완료',
   }
 
@@ -305,7 +319,7 @@ onBeforeUnmount(() => header.clearActions())
           <div v-else-if="errorMessage" class="page-table__empty">{{ errorMessage }}</div>
           <div v-else-if="filteredReturns.length === 0" class="page-table__empty">{{ content.empty }}</div>
 
-          <div v-else class="page-table terminal-page__table is-nine-cols">
+          <div v-else class="page-table terminal-page__table is-eight-cols">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
             </div>
@@ -314,11 +328,12 @@ onBeforeUnmount(() => header.clearActions())
               <span style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">
                 {{ item.returnNumber }}
               </span>
-              <span>{{ shortId(item.sourceShipmentPublicId) }}</span>
-              <span>{{ shortId(item.returnShipmentPublicId) }}</span>
               <span>{{ getOrgName(item.requestOrganizationName, item.requestOrganizationPublicId) }}</span>
               <span>{{ getOrgName(item.targetOrganizationName, item.targetOrganizationPublicId) }}</span>
               <span>{{ returnTypeText(item.returnType) }}</span>
+              <span>
+                <span :class="['resolution-chip', `resolution-chip--${(item.resolutionType || 'RETURN').toLowerCase()}`]">{{ resolutionTypeText(item.resolutionType) }}</span>
+              </span>
               <span>{{ returnStatusText(item.returnStatus) }}</span>
               <span>{{ formatDate(item.requestedAt) }}</span>
               <span>
