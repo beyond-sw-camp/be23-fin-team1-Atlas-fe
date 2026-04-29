@@ -5076,6 +5076,27 @@ input {
     grid-template-columns: 1fr;
   }
 
+  .notifications-page .terminal-page__metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 16px 0 18px;
+  }
+
+  .notifications-page .terminal-page__metrics .page-metric {
+    min-height: 82px;
+    padding: 12px;
+    gap: 4px;
+  }
+
+  .notifications-page .terminal-page__metrics .page-metric__label {
+    font-size: 0.72rem;
+  }
+
+  .notifications-page .terminal-page__metrics .page-metric__value {
+    font-size: clamp(1.55rem, 8vw, 2.1rem);
+    line-height: 1;
+  }
+
   .terminal-page__table.is-six-cols .page-table__row,
   .terminal-page__table.is-seven-cols .page-table__row,
   .terminal-page__table.is-eight-cols .page-table__row,
@@ -7569,4 +7590,3 @@ input {
   object-fit: cover;
   display: block;
 }
-
