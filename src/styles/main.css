@@ -1001,16 +1001,19 @@ input {
 .app-search__panel {
   position: absolute;
   top: calc(100% + 10px);
-  right: 0;
+  left: 50%;
+  right: auto;
   z-index: 1100;
-  width: 420px;
+  width: min(560px, calc(100vw - 40px));
   max-height: min(60vh, 560px);
   overflow: auto;
   border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
   background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.96);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  transform: translateX(-50%);
 }
+
 
 .theme-dark .app-search__panel {
   border-color: rgb(var(--outline-variant-rgb, 71 71 71) / 0.28);
@@ -6501,7 +6504,10 @@ input {
 
 @media (max-width: 960px) {
   .app-search__panel {
-    width: min(420px, calc(100vw - 40px));
+    left: 50%;
+    right: auto;
+    width: min(560px, calc(100vw - 40px));
+    transform: translateX(-50%);
   }
 }
 
@@ -7423,3 +7429,24 @@ input {
   opacity: 0.76;
 
 }
+/* 검색 결과 기본 아이콘이 원 가운데 오도록 전역 absolute 위치를 풀어줍니다. */
+.app-search__item-thumb .app-search__item-thumb-icon {
+  position: static;
+  left: auto;
+  top: auto;
+  transform: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* 검색 결과 이미지도 원 안을 꽉 채우게 합니다. */
+.app-search__item-thumb-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+

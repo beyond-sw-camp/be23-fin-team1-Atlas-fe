@@ -35,6 +35,25 @@ export interface IntegratedSearchItem {
   thumbnailUrl?: string | null
 }
 
+export interface IntegratedSearchItem {
+  type: IntegratedSearchSectionType
+  id: number | null
+  publicId: string | null
+  title: string
+  subtitle: string | null
+  status: string | null
+
+  // 백엔드가 공통 썸네일 이름으로 내려줄 때 사용합니다.
+  thumbnailUrl?: string | null
+
+  // 사용자 검색 결과 이미지입니다.
+  profileImageThumbPath?: string | null
+
+  // 조직 검색 결과 이미지입니다.
+  organizationImageThumbPath?: string | null
+}
+
+
 // 섹션 묶음입니다.
 export interface IntegratedSearchSection {
   // 섹션 종류입니다.

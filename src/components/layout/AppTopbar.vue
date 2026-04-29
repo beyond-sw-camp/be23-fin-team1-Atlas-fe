@@ -125,8 +125,13 @@ watch(searchKeyword, (nextKeyword) => {
       isSearching.value = true
       searchError.value = ''
 
-      const response = await integratedSearchService.search(trimmedKeyword, 5)
-      searchSections.value = response.sections ?? []
+const response = await integratedSearchService.search(trimmedKeyword, 5)
+
+// 조직 검색 결과에 이미지 경로가 실제로 내려오는지 확인합니다.
+console.log('search response', response.sections)
+
+searchSections.value = response.sections ?? []
+
       isSearchPanelOpen.value = true
     } catch (error) {
       console.error('Failed to search integrated results', error)
@@ -233,14 +238,15 @@ function buildItemKey(item: IntegratedSearchItem, index: number) {
   return `${item.type}-${item.publicId ?? item.id ?? index}`
 }
 function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
-  // 백엔드가 thumbnailUrl로 내려주면 그 값을 씁니다.
-  // 혹시 아직 profileImageThumbPath로 내려오는 경우도 같이 대응합니다.
-  const imageItem = item as IntegratedSearchItem & {
-    profileImageThumbPath?: string | null
-  }
-
-  return item.thumbnailUrl || imageItem.profileImageThumbPath || ''
+  // 검색 결과마다 이미지 필드명이 다를 수 있어서 순서대로 확인합니다.
+  return (
+    item.thumbnailUrl ||
+    item.profileImageThumbPath ||
+    item.organizationImageThumbPath ||
+    ''
+  )
 }
+
 
 </script>
 
