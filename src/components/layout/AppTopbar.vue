@@ -251,6 +251,12 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
         <span class="material-symbols-outlined">{{ ui.mobileSidebarOpen ? 'close' : 'menu' }}</span>
       </button>
       <strong class="app-brand">ATLAS</strong>
+      <label class="app-language-select app-language-select--mobile">
+        <select :value="preferences.language" @change="handleLanguageChange">
+          <option value="ko">KO</option>
+          <option value="en">EN</option>
+        </select>
+      </label>
       <span class="app-topbar__badge app-topbar__badge--neutral">CONTROL TERMINAL</span>
       <span v-if="notificationStore.unreadCount > 0" class="app-topbar__badge app-topbar__badge--warn">
         {{ notificationStore.unreadCount }} ALERTS
@@ -339,7 +345,7 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
       </div>
 
       <!-- 언어 선택은 검색창 오른쪽에 둡니다. -->
-      <label class="app-language-select">
+      <label class="app-language-select app-language-select--desktop">
         <select :value="preferences.language" @change="handleLanguageChange">
           <option value="ko">KO</option>
           <option value="en">EN</option>
