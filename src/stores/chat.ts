@@ -159,8 +159,12 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
         const room = rooms.value.find(r => r.publicId === roomPublicId)
         if (room) {
           room.lastMessage = chatMsg
-          if (currentRoomPublicId.value !== roomPublicId || !isPanelOpen.value) {
+          // 현재 보고 있는 방이면 unreadCount를 올리지 않음
+          const isViewingThisRoom = currentRoomPublicId.value === roomPublicId && isPanelOpen.value
+          if (!isViewingThisRoom) {
             room.unreadCount += 1
+            // 새 안읽음 메시지 발생 → 읽음 추적에서 제거
+            recentlyReadRoomIds.value.delete(roomPublicId)
           }
         }
       } catch (e) {
@@ -175,22 +179,38 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
 
   async function markAsRead(roomPublicId: string, lastMessagePublicId?: string) {
     try {
+      console.log('[Chat] markAsRead 호출:', roomPublicId, lastMessagePublicId)
       await chatService.markAsRead(roomPublicId, { lastReadMessagePublicId: lastMessagePublicId })
+      console.log('[Chat] markAsRead 성공')
       const room = rooms.value.find(r => r.publicId === roomPublicId)
       if (room) {
         room.unreadCount = 0
       }
+      // fetchRooms 후에도 0 유지하도록 추적
+      recentlyReadRoomIds.value.add(roomPublicId)
     } catch (e) {
-      console.error('Failed to mark as read', e)
+      console.error('[Chat] markAsRead 실패:', e)
     }
   }
+
+  // 최근 읽음 처리한 방 ID를 추적 — fetchRooms 후에도 unreadCount=0 보장
+  const recentlyReadRoomIds = ref<Set<string>>(new Set())
 
   async function fetchRooms() {
     if (!currentUserPublicId.value) return
     try {
       const result = await chatService.getRooms(currentUserPublicId.value)
       // 백엔드 응답이 { content: ChatRoom[] } 구조일 경우
-      rooms.value = (result as any).content || result || []
+      const fetched: ChatRoom[] = (result as any).content || result || []
+
+      // 최근 읽은 방은 서버 응답의 unreadCount를 무시하고 0으로 유지
+      for (const room of fetched) {
+        if (recentlyReadRoomIds.value.has(room.publicId)) {
+          room.unreadCount = 0
+        }
+      }
+
+      rooms.value = fetched
     } catch (e) {
       console.error('Failed to fetch rooms', e)
     }
@@ -380,6 +400,8 @@ async function fetchAvailableUsers() {
     isLoadingMessages.value = true
     messages.value = []
 
+    console.log('[Chat] openRoom 시작:', roomPublicId)
+
     // 초대 목록용 전체 사용자 조회 (동시 호출)
     fetchAvailableUsers()
 
@@ -392,6 +414,8 @@ async function fetchAvailableUsers() {
         ...m,
         isDeleted: m.isDeleted ?? m.deleted ?? false,
       }))
+
+      console.log('[Chat] 메시지 로드 완료:', messages.value.length, '건')
 
       // 참여자 목록 조회
       try {
@@ -413,21 +437,46 @@ async function fetchAvailableUsers() {
       // STOMP 구독
       subscribeToRoom(roomPublicId)
 
-      // 읽음 처리 (마지막 메시지가 있다면)
+      // 읽음 처리 — unreadCount를 먼저 0으로 초기화하고 API 호출
+      const room = rooms.value.find(r => r.publicId === roomPublicId)
+      if (room) {
+        room.unreadCount = 0
+      }
+
+      console.log('[Chat] markAsRead 호출 직전, 메시지 수:', messages.value.length)
       if (messages.value.length > 0) {
         const lastMsg = messages.value[messages.value.length - 1]
-        markAsRead(roomPublicId, lastMsg.publicId)
+        console.log('[Chat] 마지막 메시지 publicId:', lastMsg.publicId)
+        await markAsRead(roomPublicId, lastMsg.publicId)
       } else {
-        markAsRead(roomPublicId)
+        await markAsRead(roomPublicId)
       }
+      console.log('[Chat] openRoom 완료')
     } catch (e) {
-      console.error('Failed to fetch messages', e)
+      console.error('[Chat] openRoom 에러:', e)
     } finally {
       isLoadingMessages.value = false
     }
   }
 
-  function backToList() {
+  async function backToList() {
+    // 나가기 전 현재 방의 읽음 처리를 먼저 완료
+    const leavingRoomId = currentRoomPublicId.value
+    if (leavingRoomId) {
+      // 즉시 UI에서 unreadCount 제거 + fetchRooms 후에도 0 유지
+      const room = rooms.value.find(r => r.publicId === leavingRoomId)
+      if (room) room.unreadCount = 0
+      recentlyReadRoomIds.value.add(leavingRoomId)
+
+      // 마지막 메시지로 읽음 처리 API 호출 (실패해도 UI는 이미 0)
+      const lastMsg = messages.value.length > 0 ? messages.value[messages.value.length - 1] : null
+      try {
+        await markAsRead(leavingRoomId, lastMsg?.publicId)
+      } catch {
+        // 무시 — UI에서는 이미 읽음 처리됨
+      }
+    }
+
     currentView.value = 'list'
     currentRoomPublicId.value = null
     messages.value = []
@@ -440,7 +489,7 @@ async function fetchAvailableUsers() {
       typingSubscription.value.unsubscribe()
       typingSubscription.value = null
     }
-    fetchRooms() // 목록 업데이트
+    fetchRooms()
   }
 
   function togglePanel() {

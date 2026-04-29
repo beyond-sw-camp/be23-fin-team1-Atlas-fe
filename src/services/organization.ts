@@ -20,6 +20,8 @@ export interface OrganizationListItem {
   contactPhone: string
   status: string
   createdAt?: string
+  organizationImageThumbPath?: string | null
+
 }
 
 export interface GetOrganizationsParams {
@@ -59,6 +61,9 @@ export interface CreateOrganizationPayload {
 
 export interface CreateOrganizationResponse {
   organizationPublicId: string
+  organizationImageAttachmentPublicId?: string | null
+  organizationImageThumbPath?: string | null
+
 }
 
 // 조직을 생성합니다.
@@ -91,6 +96,10 @@ export interface OrganizationDetailResponse {
   contactEmail?: string | null
   contactPhone: string
   status: string
+  organizationImageAttachmentPublicId?: string | null
+  organizationImageThumbPath?: string | null
+  memberCount: number
+
 }
 
 export interface UpdateOrganizationPayload {
@@ -103,6 +112,9 @@ export interface UpdateOrganizationPayload {
   contactLastName: string
   contactEmail?: string | null
   contactPhone: string
+  organizationImageAttachmentPublicId?: string | null
+  organizationImageThumbPath?: string | null
+
 }
 
 // 조직 상세를 내부 ID 기준으로 읽습니다.
@@ -156,4 +168,24 @@ export async function updateOrganizationStatus(
 
   return response.data
 }
+
+export interface OrganizationSupplySummaryResponse {
+  // 조직에 등록된 창고/물류거점 수입니다.
+  warehouseCount: number
+
+  // 조직 협력사에 등록된 ESG/인증 파일 수입니다.
+  esgFileCount: number
+}
+
+// 조직 상세 화면에서 보여줄 supply-service 집계값을 조회합니다.
+export async function getOrganizationSupplySummary(
+  organizationPublicId: string,
+): Promise<OrganizationSupplySummaryResponse> {
+  const response = await apiClient.get<OrganizationSupplySummaryResponse>(
+    `/api/supply/suppliers/organizations/${organizationPublicId}/summary`,
+  )
+
+  return response.data
+}
+
 
