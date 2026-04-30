@@ -3493,9 +3493,10 @@ select:not(.app-language-select select):focus {
     display: inline-flex;
     flex: 0 0 84px;
     justify-content: center;
-    min-height: 40px;
+    min-height: 36px;
+    height: 36px;
     margin-left: auto;
-    padding: 6px 10px;
+    padding: 0 10px;
     cursor: pointer;
   }
 
