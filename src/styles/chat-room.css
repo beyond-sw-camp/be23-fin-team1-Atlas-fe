@@ -171,6 +171,70 @@
 .chat-msg__bubble--deleted { opacity: 0.5; border: 1px dashed var(--chat-bubble-border) !important; background: transparent !important; }
 .chat-msg__body--deleted { font-style: italic; color: var(--chat-text-secondary) !important; }
 
+/* ═══════════════════════════════════════════
+   답장(Reply) 기능 스타일
+   ═══════════════════════════════════════════ */
+
+/* 답장 버튼 (메시지 hover 시 노출) */
+.chat-msg__reply {
+  display: none; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border: none; border-radius: 0px;
+  background: rgba(0,0,0,0.05); color: var(--chat-text-secondary); cursor: pointer;
+}
+.chat-msg__bubble-row:hover .chat-msg__reply { display: inline-flex; }
+.chat-msg__reply .material-symbols-outlined { font-size: 15px; }
+
+/* 버블 내 원본 메시지 미리보기 */
+.chat-msg__reply-preview {
+  display: flex; align-items: flex-start; gap: 6px;
+  padding: 8px 10px; margin-bottom: 4px;
+  border-left: 3px solid var(--chat-text-secondary);
+  background: rgba(0,0,0,0.04); border-radius: 0px;
+  cursor: pointer;
+}
+.chat-msg--mine .chat-msg__reply-preview {
+  border-left-color: rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.1);
+}
+.chat-msg__reply-icon { font-size: 14px; opacity: 0.6; flex: 0 0 auto; }
+.chat-msg__reply-content { flex: 1; min-width: 0; }
+.chat-msg__reply-sender {
+  font-size: 0.68rem; font-weight: 700; display: block;
+  color: var(--chat-text-secondary);
+}
+.chat-msg--mine .chat-msg__reply-sender { color: rgba(255,255,255,0.7); }
+.chat-msg__reply-body {
+  margin: 2px 0 0; font-size: 0.72rem; 
+  color: var(--chat-text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat-msg--mine .chat-msg__reply-body { color: rgba(255,255,255,0.6); }
+
+/* 입력창 상단 답장 프리뷰 바 */
+.chat-input__reply-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; 
+  border-bottom: 1px solid var(--chat-bubble-border);
+  background: var(--chat-surface);
+}
+.chat-input__reply-icon { font-size: 16px; color: var(--chat-text-secondary); }
+.chat-input__reply-info { flex: 1; min-width: 0; }
+.chat-input__reply-info strong {
+  display: block; font-size: 0.72rem; font-weight: 700;
+  color: var(--chat-text);
+}
+.chat-input__reply-info p {
+  margin: 2px 0 0; font-size: 0.72rem;
+  color: var(--chat-text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat-input__reply-close {
+  width: 24px; height: 24px; padding: 0; border: none;
+  background: transparent; color: var(--chat-text-secondary);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.chat-input__reply-close .material-symbols-outlined { font-size: 16px; }
+
 /* 참조 카드 */
 .chat-ref-card {
   display: flex; flex-direction: column; gap: 4px;

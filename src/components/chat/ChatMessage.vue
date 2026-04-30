@@ -16,6 +16,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   delete: [messagePublicId: string]
+  reply: [message: ChatMessageDto, senderDisplayName: string]
 }>()
 
 const isMine = props.message.senderUserPublicId === props.currentUserPublicId
@@ -31,6 +32,10 @@ function formatTime(isoString: string): string {
 
 function handleDelete() {
   emit('delete', props.message.publicId)
+}
+
+function handleReply() {
+  emit('reply', props.message, props.senderName || '알 수 없음')
 }
 </script>
 
@@ -90,6 +95,17 @@ function handleDelete() {
             <span class="material-symbols-outlined">delete</span>
           </button>
 
+          <!-- 답장 버튼 (삭제 버튼과 같은 맥락, 모든 일반 메시지에 노출) -->
+          <button
+            v-if="!message.isDeleted"
+            class="chat-msg__reply"
+            type="button"
+            title="답장"
+            @click="handleReply"
+          >
+            <span class="material-symbols-outlined">reply</span>
+          </button>
+
           <!-- 내 메시지: 안읽음 수 (버블 왼쪽) -->
           <span v-if="isMine && message.unreadCount && message.unreadCount > 0" class="chat-msg__unread">
             {{ message.unreadCount }}
@@ -97,6 +113,17 @@ function handleDelete() {
 
           <!-- 버블 본체 -->
           <div class="chat-msg__bubble">
+            <!-- 답장 원본 메시지 미리보기 -->
+            <div v-if="message.parentMessagePublicId" class="chat-msg__reply-preview">
+              <span class="chat-msg__reply-icon material-symbols-outlined">reply</span>
+              <div class="chat-msg__reply-content">
+                <strong class="chat-msg__reply-sender">
+                  {{ message.parentSenderDisplayName || '알 수 없는 사용자' }}에게 답장
+                </strong>
+                <p class="chat-msg__reply-body">{{ message.parentMessageBody || '내용을 불러올 수 없습니다.' }}</p>
+              </div>
+            </div>
+
             <p class="chat-msg__body">{{ message.messageBody }}</p>
 
             <ChatReferenceCard

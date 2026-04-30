@@ -44,6 +44,9 @@ export function mapToChatMessage(m: any): ChatMessageDto {
     referenceCode: m.referenceCode || m.reference_code,
     referenceTitle: m.referenceTitle || m.reference_title,
     attachmentPublicIds: m.attachmentPublicIds || m.attachment_public_ids,
+    parentMessagePublicId: m.parentMessagePublicId || m.parent_message_public_id || undefined,
+    parentMessageBody: m.parentMessageBody || m.parent_message_body || undefined,
+    parentSenderDisplayName: m.parentSenderDisplayName || m.parent_sender_display_name || undefined,
     sentAt: m.sentAt || m.sent_at || m.createdAt || m.created_at,
     editedAt: m.editedAt || m.edited_at,
     isDeleted: Boolean(m.isDeleted ?? m.is_deleted ?? m.deleted ?? false),
@@ -88,6 +91,13 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   let stompClient: Client | null = null
   const roomSubscriptions = ref<Map<string, StompSubscription>>(new Map())
   const typingSubscription = ref<StompSubscription | null>(null)
+
+  // 답장 대상 (Reply Target)
+  const replyTarget = ref<{
+    publicId: string
+    messageBody: string
+    senderDisplayName: string
+  } | null>(null)
 
   const totalUnreadCount = computed(() =>
     rooms.value.reduce((sum, room) => sum + room.unreadCount, 0),
@@ -561,6 +571,7 @@ async function fetchAvailableUsers() {
     currentView.value = 'list'
     currentRoomPublicId.value = null
     messages.value = []
+    replyTarget.value = null
     
     if (typingSubscription.value) {
       typingSubscription.value.unsubscribe()
@@ -578,6 +589,7 @@ async function fetchAvailableUsers() {
       currentView.value = 'list'
       currentRoomPublicId.value = null
       messages.value = []
+      replyTarget.value = null
       // disconnectStomp() // 닫아도 연결 유지할지 여부 결정 (알림 위해 유지 권장)
     }
   }
@@ -587,6 +599,7 @@ async function fetchAvailableUsers() {
     currentView.value = 'list'
     currentRoomPublicId.value = null
     messages.value = []
+    replyTarget.value = null
   }
 
   function sendMessage(messageBody: string) {
@@ -597,16 +610,24 @@ async function fetchAvailableUsers() {
       return
     }
 
+    const payload: any = {
+      senderUserPublicId: currentUserPublicId.value,
+      roomPublicId: currentRoomPublicId.value,
+      messageBody: messageBody.trim(),
+      messageType: 'TEXT',
+    }
+
+    if (replyTarget.value) {
+      payload.parentMessagePublicId = replyTarget.value.publicId
+    }
+
     stompClient.publish({
       destination: `/pub/chat.message.${currentRoomPublicId.value}`,
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        senderUserPublicId: currentUserPublicId.value,
-        roomPublicId: currentRoomPublicId.value,
-        messageBody: messageBody.trim(),
-        messageType: 'TEXT',
-      }),
+      body: JSON.stringify(payload),
     })
+
+    clearReplyTarget()
   }
 
   function sendReferenceMessage(refType: string, refCode: string, refTitle: string) {
@@ -666,6 +687,23 @@ async function fetchAvailableUsers() {
     }
   }
 
+  function setReplyTarget(message: ChatMessageDto, senderDisplayName: string) {
+    let preview = message.messageBody
+    if ((!preview || preview.trim() === '') && (message.messageType === 'FILE' || message.messageType === 'IMAGE')) {
+      preview = message.messageType === 'IMAGE' ? '[이미지]' : '[파일]'
+    }
+    
+    replyTarget.value = {
+      publicId: message.publicId,
+      messageBody: preview.length > 100 ? preview.substring(0, 100) + '...' : preview,
+      senderDisplayName: senderDisplayName,
+    }
+  }
+
+  function clearReplyTarget() {
+    replyTarget.value = null
+  }
+
   return {
     currentUserPublicId,
     availableUsers,
@@ -678,6 +716,9 @@ async function fetchAvailableUsers() {
     isLoadingMessages,
     totalUnreadCount,
     isConnected,
+    replyTarget,
+    setReplyTarget,
+    clearReplyTarget,
     togglePanel,
     closePanel,
     createRoom,

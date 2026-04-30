@@ -104,7 +104,14 @@ function handleSendReference(refType: string, refCode: string, refTitle: string)
 
 /** 메시지 삭제 핸들러 */
 function handleDeleteMessage(messagePublicId: string) {
-  emit('deleteMessage', messagePublicId)
+  if (confirm('메시지를 삭제하시겠습니까?')) {
+    emit('deleteMessage', messagePublicId)
+  }
+}
+
+/** 메시지 답장 핸들러 */
+function handleReplyMessage(message: ChatMessageDto, senderDisplayName: string) {
+  chatStore.setReplyTarget(message, senderDisplayName)
 }
 
 /** 유저 초대 핸들러 */
@@ -290,6 +297,7 @@ async function handleRenameRoom() {
           :sender-name="getSenderName(msg.senderUserPublicId)"
           :sender-avatar-url="getSenderAvatarUrl(msg.senderUserPublicId)"
           @delete="handleDeleteMessage"
+          @reply="handleReplyMessage"
         />
       </template>
     </div>

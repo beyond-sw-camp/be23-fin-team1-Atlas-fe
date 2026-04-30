@@ -32,6 +32,12 @@ export interface ChatMessageDto {
   /** UI 표시용 참조 업무 제목 */
   referenceTitle?: string
   attachmentPublicIds?: string[]
+  
+  // -- 답장 관련 필드 --
+  parentMessagePublicId?: string
+  parentMessageBody?: string
+  parentSenderDisplayName?: string
+
   sentAt: string
   /** 수정 시간. UI에서 '(수정됨)' 표기 */
   editedAt?: string
@@ -76,6 +82,7 @@ export type ChatPanelView = 'list' | 'room'
 export interface SendMessagePayload {
   messageBody: string
   messageType: ChatMessageType
+  parentMessagePublicId?: string
   attachmentPublicIds?: string[]
   referenceType?: ChatReferenceType
   referencePublicId?: string
