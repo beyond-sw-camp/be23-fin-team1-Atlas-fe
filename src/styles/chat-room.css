@@ -20,7 +20,7 @@
 .chat-room__back .material-symbols-outlined { font-size: 20px; }
 .chat-room__header-center { flex: 1; min-width: 0; }
 .chat-room__title {
-  font-size: 1rem; font-weight: 600; color: var(--chat-text);
+  font-size: 0.96rem; font-weight: 500; color: var(--chat-text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
 }
 .theme-dark .chat-room__title { color: #fff; }
@@ -37,8 +37,8 @@
 /* 헤더 편집 */
 .chat-room__header-edit { flex: 1; display: flex; align-items: center; gap: 6px; }
 .chat-room__edit-input {
-  flex: 1; padding: 6px 10px; border: 1px solid var(--chat-primary); border-radius: 0;
-  background: transparent; color: var(--chat-text); font-size: 0.9rem; font-weight: 600; outline: none;
+  flex: 1; padding: 6px 10px; border: 1px solid var(--chat-border-strong); border-radius: 0;
+  background: transparent; color: var(--chat-text); font-size: 0.9rem; font-weight: 500; outline: none;
 }
 .theme-dark .chat-room__edit-input { color: #fff; }
 .chat-room__edit-confirm, .chat-room__edit-cancel {
@@ -55,7 +55,7 @@
   position: absolute; top: calc(100% + 4px); right: 16px;
   min-width: 200px; max-height: 320px; overflow-y: auto;
   background: var(--chat-bg); border-radius: 0px; z-index: 10;
-  box-shadow: none; border: 1px solid var(--chat-bubble-border);
+  box-shadow: none; border: 1px solid var(--chat-border-strong);
 }
 .theme-dark .chat-room__dropdown { background: #1E1E2E; border-color: #333; }
 .chat-room__dropdown-item {
@@ -70,7 +70,7 @@
 .chat-room__dropdown-item--danger .material-symbols-outlined { color: #E53935 !important; }
 .chat-room__dropdown-head {
   display: flex; align-items: center; gap: 8px; padding: 10px 16px;
-  font-size: 0.75rem; font-weight: 700; color: var(--chat-text-secondary);
+  font-size: 0.75rem; font-weight: 600; color: var(--chat-text-secondary);
   border-bottom: 1px solid var(--chat-bubble-border);
 }
 .theme-dark .chat-room__dropdown-head { border-color: #333; }
@@ -98,7 +98,7 @@
 /* 메시지 영역 */
 .chat-room__messages {
   flex: 1 1 0; min-height: 0; overflow-y: auto;
-  padding: 20px; display: flex; flex-direction: column; gap: 16px;
+  padding: 20px; display: flex; flex-direction: column; gap: 18px;
   background: var(--chat-surface);
 }
 .theme-dark .chat-room__messages { background: #16162A; }
@@ -128,7 +128,7 @@
 .chat-msg--mine .chat-msg__col { align-items: flex-end; }
 
 .chat-msg__sender-name {
-  font-size: 0.72rem; font-weight: 600; color: var(--chat-text-secondary);
+  font-size: 0.72rem; font-weight: 500; color: var(--chat-text-secondary);
   padding-left: 4px; margin-bottom: 2px;
 }
 
@@ -138,7 +138,7 @@
 /* 수신 말풍선 */
 .chat-msg--other .chat-msg__bubble {
   background: var(--chat-bubble-received); color: var(--chat-text);
-  border: 1px solid var(--chat-bubble-border);
+  border: 1px solid var(--chat-border-strong);
   border-radius: 0px;
 }
 .theme-dark .chat-msg--other .chat-msg__bubble {
@@ -146,18 +146,18 @@
 }
 /* 발신 말풍선 */
 .chat-msg--mine .chat-msg__bubble {
-  background: #333; color: #FFFFFF;
+  background: #2F2F2F; color: #FFFFFF;
   border-radius: 0px;
 }
 /* 버블 공통 */
-.chat-msg__bubble { padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
-.chat-msg__body { margin: 0; font-size: 0.85rem; line-height: 1.5; word-break: break-word; }
+.chat-msg__bubble { padding: 11px 15px; display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.chat-msg__body { margin: 0; font-size: 0.85rem; font-weight: 400; line-height: 1.52; word-break: break-word; }
 .chat-msg__time { font-size: 0.65rem; color: var(--chat-text-secondary); padding: 0 4px; }
 .chat-msg__edited { font-size: 0.6rem; opacity: 0.6; font-style: italic; }
-.chat-msg__unread { font-size: 0.6rem; font-weight: 700; color: #333; align-self: flex-end; padding-bottom: 2px; }
+.chat-msg__unread { font-size: 0.6rem; font-weight: 600; color: var(--chat-text-secondary); align-self: flex-end; padding-bottom: 2px; }
 .chat-msg__attachments {
   display: flex; align-items: center; gap: 6px; padding: 6px 10px;
-  border: 1px solid rgba(0,0,0,0.1); border-radius: 0px; font-size: 0.72rem;
+  border: 1px solid var(--chat-bubble-border); border-radius: 0px; font-size: 0.72rem;
 }
 .chat-msg__attachments .material-symbols-outlined { font-size: 16px; }
 
@@ -201,7 +201,7 @@
 .chat-msg__reply-icon { font-size: 14px; opacity: 0.6; flex: 0 0 auto; }
 .chat-msg__reply-content { flex: 1; min-width: 0; }
 .chat-msg__reply-sender {
-  font-size: 0.68rem; font-weight: 700; display: block;
+  font-size: 0.68rem; font-weight: 600; display: block;
   color: var(--chat-text-secondary);
 }
 .chat-msg--mine .chat-msg__reply-sender { color: rgba(255,255,255,0.7); }
@@ -222,7 +222,7 @@
 .chat-input__reply-icon { font-size: 16px; color: var(--chat-text-secondary); }
 .chat-input__reply-info { flex: 1; min-width: 0; }
 .chat-input__reply-info strong {
-  display: block; font-size: 0.72rem; font-weight: 700;
+  display: block; font-size: 0.72rem; font-weight: 600;
   color: var(--chat-text);
 }
 .chat-input__reply-info p {
@@ -240,13 +240,13 @@
 /* 참조 카드 */
 .chat-ref-card {
   display: flex; flex-direction: column; gap: 4px;
-  padding: 10px 12px 10px 16px; border-left: 4px solid #333;
+  padding: 10px 12px 10px 16px; border-left: 3px solid var(--chat-border-strong);
   background: rgba(0,0,0,0.05); border-radius: 0px; cursor: pointer;
 }
-.chat-ref-card--order { border-left-color: #333; }
+.chat-ref-card--order { border-left-color: var(--chat-border-strong); }
 .chat-ref-card--return { border-left-color: #E53935; }
-.chat-ref-card__type { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-text-secondary); }
-.chat-ref-card__code { font-size: 0.82rem; font-weight: 700; }
+.chat-ref-card__type { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-text-secondary); }
+.chat-ref-card__code { font-size: 0.82rem; font-weight: 600; }
 .chat-ref-card__title { margin: 0; font-size: 0.72rem; color: var(--chat-text-secondary); }
 .chat-msg--mine .chat-ref-card { background: rgba(255,255,255,0.1); }
 .chat-msg--mine .chat-ref-card__type, .chat-msg--mine .chat-ref-card__title { color: rgba(255,255,255,0.7); }
@@ -265,8 +265,8 @@
 .chat-input__menu-wrapper { position: relative; flex: 0 0 auto; }
 .chat-input__plus {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; padding: 0; border: 2px solid #333;
-  border-radius: 0px; background: transparent; color: #333;
+  width: 34px; height: 34px; padding: 0; border: 1px solid var(--chat-border-strong);
+  border-radius: 0px; background: transparent; color: var(--chat-text);
   cursor: pointer; transition: transform 150ms ease;
 }
 .chat-input__plus.is-active { transform: rotate(45deg); background: rgba(0,0,0,0.05); }
@@ -277,7 +277,7 @@
 .chat-input__field {
   width: 100%; height: 40px; padding: 0 16px; border: none;
   border-radius: 0; background: var(--chat-surface);
-  color: var(--chat-text); font-size: 0.85rem; outline: none;
+  color: var(--chat-text); font-size: 0.85rem; font-weight: 400; outline: none;
 }
 .theme-dark .chat-input__field { background: #2A2A3E; color: #ddd; }
 .chat-input__field::placeholder { color: var(--chat-text-secondary); }
@@ -294,7 +294,7 @@
 
 .chat-input__send {
   width: 40px; height: 40px; border: none; border-radius: 0px;
-  background: var(--chat-primary); color: #fff; cursor: pointer;
+  background: #242424; color: #fff; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: background 120ms ease;
 }
@@ -306,7 +306,7 @@
   position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 10;
   min-width: 220px; border-radius: 0;
   background: var(--chat-bg); box-shadow: none;
-  border: 1px solid var(--chat-bubble-border);
+  border: 1px solid var(--chat-border-strong);
   display: flex; flex-direction: column; overflow: hidden;
 }
 .theme-dark .chat-input__menu { background: #1E1E2E; border-color: #333; }
@@ -330,9 +330,9 @@
   color: var(--chat-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .chat-input__menu-back .material-symbols-outlined { font-size: 16px; }
-.chat-input__menu-label { font-size: 0.72rem; font-weight: 700; color: var(--chat-text-secondary); }
+.chat-input__menu-label { font-size: 0.72rem; font-weight: 600; color: var(--chat-text-secondary); }
 .chat-input__menu-item-info { display: flex; flex-direction: column; gap: 2px; }
-.chat-input__menu-item-info strong { font-size: 0.82rem; font-weight: 600; }
+.chat-input__menu-item-info strong { font-size: 0.82rem; font-weight: 500; }
 .chat-input__menu-item-info span { font-size: 0.68rem; color: var(--chat-text-secondary); }
 
 /* 메뉴 애니메이션 */
@@ -349,7 +349,7 @@
   position: absolute; bottom: calc(100% + 4px); left: 0; right: 0;
   z-index: 10; border-radius: 0; overflow: hidden;
   background: var(--chat-bg);
-  border: 1px solid var(--chat-bubble-border);
+  border: 1px solid var(--chat-border-strong);
   box-shadow: none;
 }
 .theme-dark .chat-emoji-picker { background: #1E1E2E; border-color: #333; }
