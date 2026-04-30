@@ -324,6 +324,15 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
           </strong>
         </div>
       </button>
+      <button
+        v-if="session.isAuthenticated"
+        :class="['app-icon-button app-mobile-notification-button', { 'app-icon-button--badge': notificationStore.unreadCount > 0 }]"
+        type="button"
+        :aria-label="preferences.language === 'ko' ? '알림' : 'Notifications'"
+        @click="handleNotificationClick"
+      >
+        <span class="material-symbols-outlined">notifications</span>
+      </button>
       <span class="app-topbar__badge app-topbar__badge--neutral">CONTROL TERMINAL</span>
       <span v-if="notificationStore.unreadCount > 0" class="app-topbar__badge app-topbar__badge--warn">
         {{ notificationStore.unreadCount }} ALERTS

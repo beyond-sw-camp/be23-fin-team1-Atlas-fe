@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import type { ScreenTheme } from '../../types'
 import { getMyInfo, getUserDetailByPublicId } from '../../services/user'
 import { useAtlasNavigationStore } from '../../stores/navigation'
+import { useAtlasChatStore } from '../../stores/chat'
 import { useAtlasNotificationStore } from '../../stores/notification'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { useAtlasSessionStore } from '../../stores/session'
@@ -11,6 +12,7 @@ import { useAtlasUiStore } from '../../stores/ui'
 import { PROFILE_IMAGE_UPDATED_EVENT } from '../../utils/profileImageEvents'
 
 const navigation = useAtlasNavigationStore()
+const chatStore = useAtlasChatStore()
 const notificationStore = useAtlasNotificationStore()
 const preferences = useAtlasPreferencesStore()
 const session = useAtlasSessionStore()
@@ -40,6 +42,11 @@ function handleLanguageChange(event: Event) {
 function handleSidebarNavigate(navigate: () => void) {
   navigate()
   ui.closeMobileSidebar()
+}
+
+function handleMobileChatClick() {
+  ui.closeMobileSidebar()
+  chatStore.togglePanel()
 }
 
 function formatNotificationBadge(count: number) {
@@ -190,11 +197,11 @@ onBeforeUnmount(() => {
         <span class="material-symbols-outlined">contrast</span>
       </button>
       <button
-        :class="['app-icon-button', { 'app-icon-button--badge': notificationStore.unreadCount > 0 }]"
+        :class="['app-icon-button', { 'app-icon-button--badge': chatStore.totalUnreadCount > 0 }]"
         type="button"
-        @click="navigation.openNotifications"
+        @click="handleMobileChatClick"
       >
-        <span class="material-symbols-outlined">notifications</span>
+        <span class="material-symbols-outlined">chat_bubble</span>
       </button>
       <button class="app-icon-button" type="button" @click="navigation.openSettings">
         <span class="material-symbols-outlined">settings</span>
