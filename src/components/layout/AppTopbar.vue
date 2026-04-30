@@ -310,26 +310,20 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
         <span class="material-symbols-outlined">{{ ui.mobileSidebarOpen ? 'close' : 'menu' }}</span>
       </button>
       <button class="app-brand" type="button" @click="goHome">ATLAS</button>
-      <div v-if="session.isAuthenticated" class="app-session-controls app-session-controls--mobile">
+      <button
+        v-if="session.isAuthenticated"
+        class="app-session-controls app-session-controls--mobile"
+        type="button"
+        :disabled="session.isRefreshingSession"
+        :aria-label="preferences.language === 'ko' ? '로그인 연장' : 'Extend Session'"
+        @click="session.extendSession()"
+      >
         <div class="app-session-controls__meta">
           <strong class="app-session-controls__time">
             {{ session.sessionRemainingLabel }}
           </strong>
         </div>
-
-        <button
-          class="app-session-controls__action"
-          type="button"
-          :disabled="session.isRefreshingSession"
-          @click="session.extendSession()"
-        >
-          {{
-            session.isRefreshingSession
-              ? (preferences.language === 'ko' ? '연장 중...' : 'Extending...')
-              : (preferences.language === 'ko' ? '로그인 연장' : 'Extend Session')
-          }}
-        </button>
-      </div>
+      </button>
       <span class="app-topbar__badge app-topbar__badge--neutral">CONTROL TERMINAL</span>
       <span v-if="notificationStore.unreadCount > 0" class="app-topbar__badge app-topbar__badge--warn">
         {{ notificationStore.unreadCount }} ALERTS
