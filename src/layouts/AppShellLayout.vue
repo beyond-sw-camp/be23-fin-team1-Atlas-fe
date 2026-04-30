@@ -48,6 +48,7 @@ watch(
     if (isAuth && !mustChangePassword) {
       notificationStore.fetchUnreadCount()
       chatStore.connectStomp()
+      chatStore.fetchRooms()
     } else {
       // 로그아웃 상태이거나 비밀번호 변경 전용 화면이면 연결을 끊습니다.
       chatStore.disconnectStomp()
