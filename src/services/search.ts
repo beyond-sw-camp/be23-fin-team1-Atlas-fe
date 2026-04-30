@@ -51,6 +51,12 @@ export interface IntegratedSearchItem {
 
   // 조직 검색 결과 이미지입니다.
   organizationImageThumbPath?: string | null
+
+  // 조직 검색 결과에서 내려오면 조직 프로필 화면에 그대로 보여줄 값입니다.
+  organizationEnglishName?: string | null
+  contactEmail?: string | null
+  contactPhone?: string | null
+  contactName?: string | null
 }
 
 

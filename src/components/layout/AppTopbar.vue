@@ -125,12 +125,9 @@ watch(searchKeyword, (nextKeyword) => {
       isSearching.value = true
       searchError.value = ''
 
-const response = await integratedSearchService.search(trimmedKeyword, 5)
+      const response = await integratedSearchService.search(trimmedKeyword, 5)
 
-// 조직 검색 결과에 이미지 경로가 실제로 내려오는지 확인합니다.
-console.log('search response', response.sections)
-
-searchSections.value = response.sections ?? []
+      searchSections.value = response.sections ?? []
 
       isSearchPanelOpen.value = true
     } catch (error) {
@@ -181,7 +178,6 @@ function handleSearchEnter() {
 // 각 결과 타입별로 대표 화면을 매핑합니다.
 function resolveTargetPage(type: IntegratedSearchSectionType): PageKey | null {
   switch (type) {
-    case 'ORGANIZATION':
     case 'SUPPLIER':
       return 'supplierControl'
 
@@ -217,10 +213,60 @@ function openUserResult(item: IntegratedSearchItem) {
 
   closeSearchPanel()
 }
+function openOrganizationResult(item: IntegratedSearchItem) {
+  // 플랫폼 관리자는 조직관리 상세로 이동합니다.
+  if (session.userRole === 'ADMIN') {
+    if (!item.id) {
+      navigation.navigateToPage('organizationManagement')
+      closeSearchPanel()
+      return
+    }
+
+    router.push({
+      name: 'organizationManagement',
+      query: {
+        ...preferences.buildQuery(),
+        organizationId: String(item.id),
+      },
+    })
+
+    closeSearchPanel()
+    return
+  }
+
+  // 다른 조직 담당자는 읽기 전용 조직 프로필로 이동합니다.
+  if (!item.publicId) {
+    return
+  }
+
+  router.push({
+    name: 'organizationProfile',
+    params: {
+      organizationPublicId: item.publicId,
+    },
+    query: {
+      ...preferences.buildQuery(),
+      organizationId: item.id != null ? String(item.id) : '',
+      organizationName: item.title,
+      organizationEnglishName: item.organizationEnglishName ?? '',
+      contactEmail: item.contactEmail ?? '',
+      contactPhone: item.contactPhone ?? '',
+      contactName: item.contactName ?? '',
+    },
+  })
+
+  closeSearchPanel()
+}
+
 
 function handleSearchItemClick(item: IntegratedSearchItem) {
   if (item.type === 'USER') {
-    openUserResult(item)  // item 추가
+    openUserResult(item)
+    return
+  }
+
+  if (item.type === 'ORGANIZATION') {
+    openOrganizationResult(item)
     return
   }
 

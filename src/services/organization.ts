@@ -15,7 +15,12 @@ export interface OrganizationListItem {
   organizationPublicId: string
   organizationType: 'BUYER' | 'SUPPLIER' | 'ADMIN'
   organizationName: string
+  organizationEnglishName: string
+  organizationAlias: string
   businessNo: string
+  contactFirstName: string
+  contactMiddleName?: string | null
+  contactLastName: string
   contactEmail: string
   contactPhone: string
   status: string
