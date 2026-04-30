@@ -48,9 +48,8 @@ function formatTime(isoString?: string): string {
 </script>
 
 <template>
-  <button
+  <div
     :class="['chat-room-item', { 'chat-room-item--unread': room.unreadCount > 0 }]"
-    type="button"
     @click="$emit('select', room.publicId)"
   >
     <!-- 1:1 채팅: 단일 아바타 -->
@@ -97,5 +96,5 @@ function formatTime(isoString?: string): string {
     >
       <span class="material-symbols-outlined">push_pin</span>
     </button>
-  </button>
+  </div>
 </template>
