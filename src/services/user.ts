@@ -67,6 +67,14 @@ export interface MyInfoResponse {
 
 export interface MyInfoResponse extends UserProfileImageSummary {}
 
+export interface UserPersonalSettingsResponse {
+  language: 'ko' | 'en'
+}
+
+export interface UpdateUserPersonalSettingsPayload {
+  language: 'ko' | 'en'
+}
+
 export interface GetUsersParams {
   keyword?: string
   organizationPublicId?: string
@@ -92,6 +100,18 @@ export async function getUsers(
 // 세션 검증이나 초기 사용자 정보 동기화에 사용할 수 있습니다.
 export async function getMyInfo(): Promise<MyInfoResponse> {
   const response = await apiClient.get<MyInfoResponse>('/api/auth/me')
+  return response.data
+}
+
+export async function getMyPersonalSettings(): Promise<UserPersonalSettingsResponse> {
+  const response = await apiClient.get<UserPersonalSettingsResponse>('/api/auth/me/personal-settings')
+  return response.data
+}
+
+export async function updateMyPersonalSettings(
+  payload: UpdateUserPersonalSettingsPayload,
+): Promise<UserPersonalSettingsResponse> {
+  const response = await apiClient.patch<UserPersonalSettingsResponse>('/api/auth/me/personal-settings', payload)
   return response.data
 }
 

@@ -5,11 +5,13 @@ import { DEFAULT_ORGANIZATION, DEFAULT_PAGE, DEFAULT_THEME } from '../config/app
 import { NAV_ITEMS, isPageKey } from '../config/navigation'
 import { DESIGN_THEME_TOKENS, isOrganization, isTheme } from '../config/theme'
 import { PAGE_SHELL_CLASSES } from '../features/shared/pagePresentation'
+import { getMyPersonalSettings, updateMyPersonalSettings } from '../services/user'
 import type { AppLanguage, OrganizationType, PageKey, ScreenTheme } from '../types'
 
 const ORG_STORAGE_KEY = 'atlas-organization'
 const LANG_STORAGE_KEY = 'atlas-language'
 const THEME_STORAGE_KEY = 'atlas-theme'
+const ACCESS_TOKEN_STORAGE_KEY = 'atlas-access-token'
 
 function getStoredOrganization(): OrganizationType {
   const value = window.sessionStorage.getItem(ORG_STORAGE_KEY) ?? undefined
@@ -21,13 +23,13 @@ function getStoredTheme(): ScreenTheme {
   return isTheme(value) ? value : DEFAULT_THEME
 }
 
+function getStoredLanguage(): AppLanguage {
+  const value = window.localStorage.getItem(LANG_STORAGE_KEY) ?? undefined
+  return value === 'en' ? 'en' : 'ko'
+}
 
 function getRouteNamePageKey(value: unknown): PageKey {
   return typeof value === 'string' && isPageKey(value) ? value : DEFAULT_PAGE
-}
-
-function queryValue(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : Array.isArray(value) ? value[0] : undefined
 }
 
 function toRgbTuple(hex: string) {
@@ -51,13 +53,9 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
 
   const pageKey = computed<PageKey>(() => getRouteNamePageKey(route.name))
   const theme = ref<ScreenTheme>(getStoredTheme())
+  const language = ref<AppLanguage>(getStoredLanguage())
   const organization = ref<OrganizationType>(getStoredOrganization())
 
-
-  const language = computed<AppLanguage>(() => {
-    const value = queryValue(route.query.lang) ?? window.sessionStorage.getItem(LANG_STORAGE_KEY) ?? 'ko'
-    return value === 'en' ? 'en' : 'ko'
-  })
   const screenClasses = computed(() => PAGE_SHELL_CLASSES[pageKey.value] ?? [])
   const screenVars = computed(() =>
     Object.fromEntries(
@@ -68,10 +66,8 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
     ),
   )
 
-  function buildQuery(overrides: Partial<Record<'lang', string>> = {}) {
-    return {
-      lang: overrides.lang ?? language.value,
-    }
+  function buildQuery() {
+    return {}
   }
 
   function pageLocation(nextPageKey: PageKey) {
@@ -83,9 +79,37 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
     theme.value = nextTheme
   }
 
-  function setLanguage(nextLanguage: AppLanguage) {
-    window.sessionStorage.setItem(LANG_STORAGE_KEY, nextLanguage)
-    router.replace({ name: pageKey.value, query: buildQuery({ lang: nextLanguage }) })
+  function applyLanguage(nextLanguage: AppLanguage) {
+    window.localStorage.setItem(LANG_STORAGE_KEY, nextLanguage)
+    language.value = nextLanguage
+  }
+
+  async function syncLanguageFromServer() {
+    if (!window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) {
+      return
+    }
+
+    try {
+      const settings = await getMyPersonalSettings()
+      applyLanguage(settings.language === 'en' ? 'en' : 'ko')
+    } catch {
+      // 설정 조회 실패 시에는 로컬 캐시 언어를 유지합니다.
+    }
+  }
+
+  async function setLanguage(nextLanguage: AppLanguage) {
+    applyLanguage(nextLanguage)
+
+    if (!window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) {
+      return
+    }
+
+    try {
+      const settings = await updateMyPersonalSettings({ language: nextLanguage })
+      applyLanguage(settings.language === 'en' ? 'en' : 'ko')
+    } catch {
+      // 저장 실패 시 화면 언어는 사용자가 선택한 로컬 상태를 유지합니다.
+    }
   }
 
   function syncOrganizationFromSession() {
@@ -116,6 +140,7 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
     screenVars,
     setLanguage,
     setOrganization,
+    syncLanguageFromServer,
     syncOrganizationFromSession,
     setTheme,
     theme,

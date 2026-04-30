@@ -287,7 +287,7 @@ function startDuplicateLoginCheckTimer() {
     }, remainingMs)
   }
 
-  function completeLogin(responseData: LoginResponse) {
+  async function completeLogin(responseData: LoginResponse) {
     const accessToken = responseData.accessToken
     const refreshToken = responseData.refreshToken
     const mustChangePassword = Boolean(responseData.passwordChangeRequired)
@@ -306,6 +306,7 @@ function startDuplicateLoginCheckTimer() {
     )
 
     syncAuthenticatedUserFromAccessToken(accessToken)
+    await preferences.syncLanguageFromServer()
     passwordChangeRequired.value = mustChangePassword
 
     loginError.value = ''
@@ -357,7 +358,7 @@ function startDuplicateLoginCheckTimer() {
         return
       }
 
-      completeLogin(response.data)
+      await completeLogin(response.data)
     } catch (error) {
       clearAuthenticatedState()
       resetVerificationState()
