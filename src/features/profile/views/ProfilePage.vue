@@ -757,11 +757,11 @@ async function confirmPasswordChange() {
 const fullName = computed(() => {
   if (!userDetail.value) return '-'
 
-  return [
-    userDetail.value.lastName,
-    userDetail.value.middleName,
-    userDetail.value.firstName,
-  ]
+  const nameParts = preferences.language === 'en'
+    ? [userDetail.value.firstName, userDetail.value.middleName, userDetail.value.lastName]
+    : [userDetail.value.lastName, userDetail.value.middleName, userDetail.value.firstName]
+
+  return nameParts
     .filter((value) => value && String(value).trim().length > 0)
     .join(' ')
 })

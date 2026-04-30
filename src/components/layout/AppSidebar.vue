@@ -70,7 +70,7 @@ function buildSidebarUserName() {
 
   const parts = preferences.language === 'en'
     ? [firstName, middleName, lastName]
-    : [lastName, firstName]
+    : [lastName, middleName, firstName]
 
   const name = parts.filter(Boolean).join(' ')
   return name || navigation.sidebarOperator.name[preferences.language]
