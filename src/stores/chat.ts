@@ -16,6 +16,55 @@ import { useAtlasNotificationStore } from './notification'
 
 const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8080/ws-control'
 
+// --- Backend to Frontend Mapper (Anti-Corruption Layer) ---
+export function mapToParticipant(p: any): ChatParticipant {
+  if (!p) return {} as ChatParticipant
+  return {
+    userPublicId: String(p.userPublicId || p.user_public_id || p.publicId || p.public_id || p.id || ''),
+    displayName: String(p.displayName || p.display_name || p.name || p.user_name || p.loginId || '이름 없음'),
+    role: p.role,
+    jobTitle: p.jobTitle || p.job_title,
+    departmentName: p.departmentName || p.department_name,
+    departmentCode: p.departmentCode || p.department_code,
+    profileAttachmentPublicId: p.profileAttachmentPublicId || p.profile_attachment_public_id,
+    profileImageThumbPath: p.profileImageThumbPath || p.profile_image_thumb_path
+  }
+}
+
+export function mapToChatMessage(m: any): ChatMessageDto {
+  if (!m) return m as any
+  return {
+    publicId: String(m.publicId || m.public_id || m.id || ''),
+    roomPublicId: String(m.roomPublicId || m.room_public_id || ''),
+    senderUserPublicId: String(m.senderUserPublicId || m.sender_user_public_id || ''),
+    messageType: m.messageType || m.message_type,
+    messageBody: m.messageBody || m.message_body || m.content || '',
+    referenceType: m.referenceType || m.reference_type,
+    referencePublicId: m.referencePublicId || m.reference_public_id,
+    referenceCode: m.referenceCode || m.reference_code,
+    referenceTitle: m.referenceTitle || m.reference_title,
+    attachmentPublicIds: m.attachmentPublicIds || m.attachment_public_ids,
+    sentAt: m.sentAt || m.sent_at || m.createdAt || m.created_at,
+    editedAt: m.editedAt || m.edited_at,
+    isDeleted: Boolean(m.isDeleted ?? m.is_deleted ?? m.deleted ?? false),
+    unreadCount: Number(m.unreadCount ?? m.unread_count ?? 0)
+  }
+}
+
+export function mapToChatRoom(r: any): ChatRoom {
+  if (!r) return r as any
+  return {
+    publicId: String(r.publicId || r.public_id || r.id || ''),
+    roomName: String(r.roomName || r.room_name || r.name || ''),
+    roomStatus: r.roomStatus || r.room_status,
+    lastMessage: r.lastMessage || r.last_message ? mapToChatMessage(r.lastMessage || r.last_message) : undefined,
+    unreadCount: Number(r.unreadCount ?? r.unread_count ?? 0),
+    participants: Array.isArray(r.participants) ? r.participants.map(mapToParticipant) : [],
+    pinnedAt: r.pinnedAt || r.pinned_at || null
+  }
+}
+// -----------------------------------------------------------
+
 export const useAtlasChatStore = defineStore('atlasChat', () => {
   const sessionStore = useAtlasSessionStore()
   
@@ -123,8 +172,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   function handleIncomingRoomMessage(roomPublicId: string, messageBody: string) {
     try {
       const raw = JSON.parse(messageBody)
-      // 백엔드 응답 필드 정규화 (deleted → isDeleted)
-      const chatMsg: ChatMessageDto = { ...raw, isDeleted: raw.isDeleted ?? raw.deleted ?? false }
+      const chatMsg: ChatMessageDto = mapToChatMessage(raw)
 
       console.log('[STOMP] 메시지 수신:', chatMsg.messageBody?.slice(0, 30))
 
@@ -232,8 +280,9 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     if (!currentUserPublicId.value) return
     try {
       const result = await chatService.getRooms(currentUserPublicId.value)
-      // 백엔드 응답이 { content: ChatRoom[] } 구조일 경우
-      const fetched: ChatRoom[] = (result as any).content || result || []
+      // 데이터 정규화 매퍼 적용
+      const rawFetched = (result as any).content || result || []
+      const fetched: ChatRoom[] = Array.isArray(rawFetched) ? rawFetched.map(mapToChatRoom) : []
 
       // 최근 읽은 방은 서버 응답의 unreadCount를 무시하고 0으로 유지
       for (const room of fetched) {
@@ -332,7 +381,7 @@ async function fetchAvailableUsers() {
     try {
       const newRoom = await chatService.createRoom(name, currentUserPublicId.value, userIds)
       await fetchRooms() // 목록 다시 불러오기
-      return newRoom.publicId
+      return String(newRoom.publicId || (newRoom as any).public_id || (newRoom as any).id || '')
     } catch (e) {
       console.error('Failed to create room', e)
       return null
@@ -355,10 +404,12 @@ async function fetchAvailableUsers() {
     // 방 목록을 최신 상태로 맞춥니다.
     await fetchRooms()
 
-    // 만들어졌거나 찾은 방으로 바로 이동합니다.
-    await openRoom(room.publicId)
+    const publicId = String(room.publicId || (room as any).public_id || (room as any).id || '')
 
-    return room.publicId
+    // 만들어졌거나 찾은 방으로 바로 이동합니다.
+    await openRoom(publicId)
+
+    return publicId
   } catch (e) {
     console.error('Failed to open profile direct room', e)
     return null
@@ -441,12 +492,9 @@ async function fetchAvailableUsers() {
     try {
       // 과거 메시지 조회
       const result = await chatService.getMessages(roomPublicId)
-      // 백엔드 응답의 'deleted' 필드를 프론트 타입 'isDeleted'로 정규화
+      // 백엔드 응답 데이터 정규화
       const raw = ((result as any).content || result || [])
-      messages.value = raw.reverse().map((m: any) => ({
-        ...m,
-        isDeleted: m.isDeleted ?? m.deleted ?? false,
-      }))
+      messages.value = Array.isArray(raw) ? raw.reverse().map(mapToChatMessage) : []
 
       console.log('[Chat] 메시지 로드 완료:', messages.value.length, '건')
 

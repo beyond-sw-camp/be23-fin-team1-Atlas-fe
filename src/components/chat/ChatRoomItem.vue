@@ -1,12 +1,15 @@
 <script setup lang="ts">
 /**
  * ChatRoomItem — 채팅방 목록 단건 아이템
- * Status Ribbon(좌측 4px 바) + 방이름 + 마지막 메시지 + 시간 + 안 읽은 수 + 📌 고정
+ * 1:1 채팅: 상대방 프로필 이미지 아바타
+ * 그룹 채팅: 앞 4명 미니 아바타 그리드
  */
 import type { ChatRoom } from '../../types/chat'
+import ChatAvatar from './ChatAvatar.vue'
 
 defineProps<{
   room: ChatRoom
+  currentUserPublicId: string
 }>()
 
 defineEmits<{
@@ -15,45 +18,84 @@ defineEmits<{
   unpin: [roomPublicId: string]
 }>()
 
-function formatRelativeTime(isoString?: string): string {
+/** 채팅방 참여자 중 자신을 제외하고 최대 4명 추출 (프로필 이미지용) */
+function getAvatarParticipants(room: ChatRoom, currentUserId: string) {
+  if (!room.participants || room.participants.length === 0) {
+    return [{ name: room.roomName || '?', imageUrl: undefined }]
+  }
+  const others = room.participants.filter(p => p.userPublicId !== currentUserId)
+  if (others.length === 0) {
+    return [{ name: room.roomName || '?', imageUrl: undefined }]
+  }
+  return others.slice(0, 4).map(p => ({
+    name: p.displayName || '?',
+    imageUrl: p.profileImageThumbPath || undefined,
+  }))
+}
+
+/** 1:1 채팅인지 판별 (본인 제외 1명 이하) */
+function isDirectChat(room: ChatRoom, currentUserId: string): boolean {
+  if (!room.participants) return true
+  const others = room.participants.filter(p => p.userPublicId !== currentUserId)
+  return others.length <= 1
+}
+
+function formatTime(isoString?: string): string {
   if (!isoString) return ''
-  const diff = Date.now() - new Date(isoString).getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return '방금'
-  if (minutes < 60) return `${minutes}분 전`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}시간 전`
-  const days = Math.floor(hours / 24)
-  return `${days}일 전`
+  const d = new Date(isoString)
+  return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 </script>
 
 <template>
   <button
-    :class="['chat-room-item', { 'chat-room-item--unread': room.unreadCount > 0, 'chat-room-item--pinned': !!room.pinnedAt }]"
+    :class="['chat-room-item', { 'chat-room-item--unread': room.unreadCount > 0 }]"
     type="button"
     @click="$emit('select', room.publicId)"
   >
-    <div class="chat-room-item__ribbon" />
+    <!-- 1:1 채팅: 단일 아바타 -->
+    <ChatAvatar
+      v-if="isDirectChat(room, currentUserPublicId)"
+      :image-url="getAvatarParticipants(room, currentUserPublicId)[0]?.imageUrl"
+      :name="getAvatarParticipants(room, currentUserPublicId)[0]?.name"
+      size="lg"
+    />
+
+    <!-- 그룹 채팅: 미니 아바타 다중 그리드 -->
+    <div
+      v-else
+      :class="['chat-room-item__group-avatars', `chat-room-item__group-avatars--${getAvatarParticipants(room, currentUserPublicId).length}`]"
+    >
+      <ChatAvatar
+        v-for="(p, idx) in getAvatarParticipants(room, currentUserPublicId)"
+        :key="idx"
+        :image-url="p.imageUrl"
+        :name="p.name"
+        size="sm"
+      />
+    </div>
+
+    <!-- 콘텐츠 -->
     <div class="chat-room-item__content">
       <div class="chat-room-item__head">
         <strong class="chat-room-item__name">{{ room.roomName || '이름 없음' }}</strong>
-        <div class="chat-room-item__head-right">
-          <button
-            :class="['chat-room-item__pin-btn', { 'is-pinned': !!room.pinnedAt }]"
-            type="button"
-            :title="room.pinnedAt ? '고정 해제' : '고정'"
-            @click.stop="room.pinnedAt ? $emit('unpin', room.publicId) : $emit('pin', room.publicId)"
-          >
-            <span class="material-symbols-outlined">push_pin</span>
-          </button>
-          <span class="chat-room-item__time">{{ formatRelativeTime(room.lastMessage?.sentAt) }}</span>
-        </div>
+        <span class="chat-room-item__time">{{ formatTime(room.lastMessage?.sentAt) }}</span>
       </div>
       <div class="chat-room-item__foot">
         <span class="chat-room-item__preview">{{ room.lastMessage?.messageBody ?? '' }}</span>
-        <span v-if="room.unreadCount > 0" class="chat-room-item__badge">{{ room.unreadCount }}</span>
+        <!-- 안읽음 파란 도트 -->
+        <span v-if="room.unreadCount > 0" class="chat-room-item__dot" />
       </div>
     </div>
+
+    <!-- 고정 버튼 (hover 시만 노출) -->
+    <button
+      :class="['chat-room-item__pin-btn', { 'is-pinned': !!room.pinnedAt }]"
+      type="button"
+      :title="room.pinnedAt ? '고정 해제' : '고정'"
+      @click.stop="room.pinnedAt ? $emit('unpin', room.publicId) : $emit('pin', room.publicId)"
+    >
+      <span class="material-symbols-outlined">push_pin</span>
+    </button>
   </button>
 </template>
