@@ -3642,8 +3642,8 @@ select:not(.app-language-select select):focus {
   }
 
   .app-main__head-row {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
 
   .app-main__head h1 {
@@ -3651,6 +3651,7 @@ select:not(.app-language-select select):focus {
   }
 
   .app-main__head-actions {
+    flex: 0 0 auto;
     justify-content: flex-start;
   }
 
@@ -3954,17 +3955,26 @@ select:not(.app-language-select select):focus {
 
 @media (max-width: 640px) {
 
-  .app-main__head-actions,
   .control-tower-map-shell__tabs {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
-  .app-main__head-actions .page-button,
   .control-tower-map-shell__tabs .page-button {
     width: 100%;
     min-width: 0;
+  }
+
+  .app-main__head-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .app-main__head-actions .page-button {
+    min-width: 72px;
+    width: auto;
   }
 
   .supplier-network-shell {
