@@ -1440,25 +1440,41 @@ onBeforeUnmount(() => {
               <h3>{{ preferences.language === 'ko' ? '프로필' : 'Profile' }}</h3>
             </div>
             <div class="profile-panel__head-side">
-              <button
-                class="profile-hero__avatar-button"
-                type="button"
-                :disabled="!canOpenProfileImageViewer"
-                :title="canOpenProfileImageViewer
-                  ? (preferences.language === 'ko' ? '원본 이미지 보기' : 'Open original image')
-                  : (preferences.language === 'ko' ? '등록된 프로필 이미지가 없습니다.' : 'No profile image uploaded.')"
-                @click="openProfileImageViewer"
-              >
-                <span class="profile-hero__avatar-frame" aria-hidden="true">
-                  <img
-                    v-if="profileThumbnailUrl"
-                    :src="profileThumbnailUrl"
-                    :alt="fullName"
-                    class="profile-hero__avatar-image"
-                  />
-                  <span v-else class="material-symbols-outlined profile-hero__avatar-icon">person</span>
-                </span>
-              </button>
+              <div class="profile-hero__avatar-stack">
+                <button
+                  class="profile-hero__avatar-button"
+                  type="button"
+                  :disabled="!canOpenProfileImageViewer"
+                  :title="canOpenProfileImageViewer
+                    ? (preferences.language === 'ko' ? '원본 이미지 보기' : 'Open original image')
+                    : (preferences.language === 'ko' ? '등록된 프로필 이미지가 없습니다.' : 'No profile image uploaded.')"
+                  @click="openProfileImageViewer"
+                >
+                  <span class="profile-hero__avatar-frame" aria-hidden="true">
+                    <img
+                      v-if="profileThumbnailUrl"
+                      :src="profileThumbnailUrl"
+                      :alt="fullName"
+                      class="profile-hero__avatar-image"
+                    />
+                    <span v-else class="material-symbols-outlined profile-hero__avatar-icon">person</span>
+                  </span>
+                </button>
+
+                <button
+                  v-if="isEditing"
+                  class="page-button page-button--secondary profile-hero__upload-button"
+                  type="button"
+                  :disabled="isUploadingProfileImage"
+                  @click="triggerProfileImagePicker"
+                >
+                  {{
+                    isUploadingProfileImage
+                      ? (preferences.language === 'ko' ? '업로드 중...' : 'Uploading...')
+                      : (preferences.language === 'ko' ? '이미지 변경' : 'Change Image')
+                  }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1508,49 +1524,6 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-else>
-            <div class="profile-hero profile-hero--edit">
-              <div class="profile-hero__avatar-stack">
-                <button
-                  class="profile-hero__avatar-button"
-                  type="button"
-                  :disabled="!canOpenProfileImageViewer"
-                  :title="canOpenProfileImageViewer
-                    ? (preferences.language === 'ko' ? '원본 이미지 보기' : 'Open original image')
-                    : (preferences.language === 'ko' ? '등록된 프로필 이미지가 없습니다.' : 'No profile image uploaded.')"
-                  @click="openProfileImageViewer"
-                >
-                  <span class="profile-hero__avatar-frame" aria-hidden="true">
-                    <img
-                      v-if="profileThumbnailUrl"
-                      :src="profileThumbnailUrl"
-                      :alt="fullName"
-                      class="profile-hero__avatar-image"
-                    />
-                    <span v-else class="material-symbols-outlined profile-hero__avatar-icon">person</span>
-                  </span>
-                </button>
-
-                <button
-                  class="page-button page-button--secondary profile-hero__upload-button"
-                  type="button"
-                  :disabled="isUploadingProfileImage"
-                  @click="triggerProfileImagePicker"
-                >
-                  {{
-                    isUploadingProfileImage
-                      ? (preferences.language === 'ko' ? '업로드 중...' : 'Uploading...')
-                      : (preferences.language === 'ko' ? '이미지 변경' : 'Change Image')
-                  }}
-                </button>
-              </div>
-
-              <div class="profile-hero__summary">
-                <div class="profile-hero__title-row">
-                  <strong>{{ fullName }}</strong>
-                </div>
-              </div>
-            </div>
-
             <div class="settings-form">
             <label>
               <span>{{ preferences.language === 'ko' ? '성' : 'Last Name' }}</span>
