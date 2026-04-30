@@ -108,7 +108,7 @@ function toggleCreateRoomMode() {
 <template>
   <div class="chat-room-list">
     <!-- 헤더: 생성 버튼 -->
-    <div class="chat-room-list__header">
+    <div v-if="!isCreatingRoom" class="chat-room-list__header">
       <button
         class="chat-room-list__add-btn"
         type="button"
@@ -133,13 +133,24 @@ function toggleCreateRoomMode() {
 
     <!-- 채팅방 생성 모드 -->
     <div v-if="isCreatingRoom" class="chat-room-list__create-panel">
-      <div class="chat-room-list__create-search">
-        <span class="material-symbols-outlined">person_search</span>
-        <input
-          v-model="userSearchQuery"
-          type="text"
-          placeholder="초대할 사용자 검색..."
-        />
+      <div class="chat-room-list__create-search-row">
+        <div class="chat-room-list__create-search">
+          <span class="material-symbols-outlined">person_search</span>
+          <input
+            v-model="userSearchQuery"
+            type="text"
+            placeholder="초대할 사용자 검색..."
+          />
+        </div>
+
+        <button
+          class="chat-room-list__add-btn"
+          type="button"
+          title="채팅방 생성 취소"
+          @click="toggleCreateRoomMode"
+        >
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
       <div class="chat-room-list__create-users">
         <label v-for="user in filteredAvailableUsers" :key="user.userPublicId" class="chat-room-list__invite-user">

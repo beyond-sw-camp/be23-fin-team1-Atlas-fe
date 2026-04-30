@@ -107,10 +107,17 @@
 
 /* 생성 패널 */
 .chat-room-list__create-panel { padding: 8px 20px 16px; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
+.chat-room-list__create-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
 .chat-room-list__create-search {
   display: flex; align-items: center; gap: 8px; height: 40px;
   padding: 0 14px; border-radius: 0px;
-  background: var(--chat-surface); margin-bottom: 10px;
+  background: var(--chat-surface);
 }
 .theme-dark .chat-room-list__create-search { background: #2A2A3E; }
 .chat-room-list__create-search .material-symbols-outlined { font-size: 18px; color: var(--chat-text-secondary); }
