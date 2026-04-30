@@ -9,10 +9,16 @@ import type { AppLanguage, OrganizationType, PageKey, ScreenTheme } from '../typ
 
 const ORG_STORAGE_KEY = 'atlas-organization'
 const LANG_STORAGE_KEY = 'atlas-language'
+const THEME_STORAGE_KEY = 'atlas-theme'
 
 function getStoredOrganization(): OrganizationType {
   const value = window.sessionStorage.getItem(ORG_STORAGE_KEY) ?? undefined
   return isOrganization(value) ? value : DEFAULT_ORGANIZATION
+}
+
+function getStoredTheme(): ScreenTheme {
+  const value = window.localStorage.getItem(THEME_STORAGE_KEY) ?? undefined
+  return isTheme(value) ? value : DEFAULT_THEME
 }
 
 
@@ -44,10 +50,7 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
   const router = useRouter()
 
   const pageKey = computed<PageKey>(() => getRouteNamePageKey(route.name))
-  const theme = computed<ScreenTheme>(() => {
-    const value = queryValue(route.query.theme)
-    return isTheme(value) ? value : DEFAULT_THEME
-  })
+  const theme = ref<ScreenTheme>(getStoredTheme())
   const organization = ref<OrganizationType>(getStoredOrganization())
 
 
@@ -65,11 +68,10 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
     ),
   )
 
-  function buildQuery(overrides: Partial<Record<'lang' | 'org' | 'theme', string>> = {}) {
+  function buildQuery(overrides: Partial<Record<'lang' | 'org', string>> = {}) {
     return {
       lang: overrides.lang ?? language.value,
       org: overrides.org ?? organization.value,
-      theme: overrides.theme ?? theme.value,
     }
   }
 
@@ -78,7 +80,8 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
   }
 
   function setTheme(nextTheme: ScreenTheme) {
-    router.replace({ name: pageKey.value, query: buildQuery({ theme: nextTheme }) })
+    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme)
+    theme.value = nextTheme
   }
 
   function setLanguage(nextLanguage: AppLanguage) {
