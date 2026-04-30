@@ -134,6 +134,10 @@
 
 .chat-msg__bubble-row { display: flex; align-items: flex-end; gap: 4px; }
 .chat-msg--mine .chat-msg__bubble-row { flex-direction: row-reverse; }
+.chat-msg--mine .chat-msg__bubble { order: 1; }
+.chat-msg--mine .chat-msg__unread { order: 2; }
+.chat-msg--mine .chat-msg__reply { order: 3; }
+.chat-msg--mine .chat-msg__delete { order: 4; }
 .chat-msg--other .chat-msg__bubble { order: 1; }
 .chat-msg--other .chat-msg__reply { order: 2; }
 .chat-msg--other .chat-msg__unread { order: 3; }
