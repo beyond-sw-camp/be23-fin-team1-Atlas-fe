@@ -121,7 +121,7 @@ function toggleCreateRoomMode() {
     </div>
 
     <!-- 검색바 (pill 형태) -->
-    <div class="chat-room-list__search-wrapper">
+    <div v-if="!isCreatingRoom" class="chat-room-list__search-wrapper">
       <div class="chat-room-list__search">
         <span class="material-symbols-outlined">search</span>
         <input
