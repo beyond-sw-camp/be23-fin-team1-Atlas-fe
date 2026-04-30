@@ -913,6 +913,17 @@ function formatUserAgent(value?: string | null) {
   // user-agent 가 없으면 표시할 수 없습니다.
   if (!value) return '-'
 
+  const normalizeSimpleBrowserName = (name: string) => {
+    const lowerName = name.toLowerCase()
+    return `${lowerName.charAt(0).toUpperCase()}${lowerName.slice(1)}`
+  }
+
+  const simpleBrowserMatch = value.trim().match(/^([a-zA-Z]+)(\s+[0-9][0-9.]*)?$/)
+  if (simpleBrowserMatch) {
+    const [, name, version = ''] = simpleBrowserMatch
+    return `${normalizeSimpleBrowserName(name)}${version}`
+  }
+
   // 정규식에서 첫 번째 버전만 뽑아 쓰기 위한 함수입니다.
   const pickVersion = (pattern: RegExp) => {
     const match = value.match(pattern)
@@ -1775,6 +1786,10 @@ onBeforeUnmount(() => {
               </span>
 
               <span class="page-feed__label">
+                OS: {{ formatClientOs(history.userAgent) }}
+              </span>
+
+              <span class="page-feed__label">
                 {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
                 {{ formatUserAgent(history.userAgent) }}
               </span>
@@ -2101,6 +2116,10 @@ onBeforeUnmount(() => {
 
               <span class="page-feed__label">
                 IP: {{ history.ipAddress || '-' }}
+              </span>
+
+              <span class="page-feed__label">
+                OS: {{ formatClientOs(history.userAgent) }}
               </span>
 
               <span class="page-feed__label">
