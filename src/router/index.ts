@@ -32,6 +32,7 @@ import SystemSpecPage from '../features/system/views/SystemSpecPage.vue'
 import AppShellLayout from '../layouts/AppShellLayout.vue'
 import type { OrganizationType, PageKey } from '../types'
 import OrganizationManagementPage from '../features/system/views/OrganizationManagementPage.vue'
+import InventoryPage from '../features/operations/views/InventoryPage.vue'
 
 const AUTH_ORG_STORAGE_KEY = 'atlas-organization'
 
@@ -45,6 +46,7 @@ const pageRoutes = [
   { path: 'orders', alias: ['orders-desk'], name: 'ordersDesk', component: OrdersPage, meta: { hidePageHead: true } },
   { path: 'suppliers', alias: ['supplier-control'], name: 'supplierControl', component: SuppliersPage, meta: { hidePageHead: true } },
   { path: 'items', name: 'items', component: ItemsPage, meta: { hidePageHead: true } },
+  { path: 'inventory', name: 'inventory', component: InventoryPage, meta: { hidePageHead: true } },
   { path: 'shipments', name: 'shipments', component: ShipmentsPage, meta: { hidePageHead: true } },
   { path: 'settlements', name: 'settlements', component: SettlementsPage, meta: { hidePageHead: true } },
   { path: 'logistics-nodes', name: 'logisticsNodes', component: LogisticsNodesPage, meta: { hidePageHead: true } },

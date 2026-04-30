@@ -55,7 +55,7 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
     const value = queryValue(route.query.lang) ?? window.sessionStorage.getItem(LANG_STORAGE_KEY) ?? 'ko'
     return value === 'en' ? 'en' : 'ko'
   })
-  const screenClasses = computed(() => PAGE_SHELL_CLASSES[pageKey.value])
+  const screenClasses = computed(() => PAGE_SHELL_CLASSES[pageKey.value] ?? [])
   const screenVars = computed(() =>
     Object.fromEntries(
       Object.entries(theme.value === 'light' ? DESIGN_THEME_TOKENS.light : DESIGN_THEME_TOKENS.dark).flatMap(([token, hex]) => [

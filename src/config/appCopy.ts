@@ -59,6 +59,19 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     ko: { label: '품목 관리', description: '품목 관리와 재고 임계치', pageSubtitle: 'SKU, 재고, 재발주점, 공급처 기준 운영' },
     en: { label: 'Items', description: 'Item catalog and stock thresholds', pageSubtitle: 'Operate SKUs, inventory, reorder points, and source ownership' },
   },
+    inventory: {
+      ko: {
+        label: '재고 관리',
+        description: '품목별 유통기한 재고 관리',
+        pageSubtitle: '제조일, 유통기한, 예약 수량 기준 재고를 관리합니다.',
+      },
+      en: {
+        label: 'Inventory',
+        description: 'Item inventory by expiration date',
+        pageSubtitle: 'Manage stock by item, manufacturing date, expiration date, and reserved quantity.',
+      },
+    },
+
     shipments: {
     ko: {
       label: '출하',
