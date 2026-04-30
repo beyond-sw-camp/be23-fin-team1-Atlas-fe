@@ -24,14 +24,7 @@ function getStoredTheme(): ScreenTheme {
 }
 
 function getStoredLanguage(): AppLanguage {
-  const legacySessionValue = window.sessionStorage.getItem(LANG_STORAGE_KEY) ?? undefined
-  const value = window.localStorage.getItem(LANG_STORAGE_KEY) ?? legacySessionValue
-  window.sessionStorage.removeItem(LANG_STORAGE_KEY)
-
-  if (!window.localStorage.getItem(LANG_STORAGE_KEY) && (value === 'ko' || value === 'en')) {
-    window.localStorage.setItem(LANG_STORAGE_KEY, value)
-  }
-
+  const value = window.localStorage.getItem(LANG_STORAGE_KEY) ?? undefined
   return value === 'en' ? 'en' : 'ko'
 }
 
