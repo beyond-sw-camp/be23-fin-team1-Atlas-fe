@@ -5,6 +5,9 @@
  */
 import { ref } from 'vue'
 import ChatEmojiPicker from './ChatEmojiPicker.vue'
+import { useAtlasChatStore } from '../../stores/chat'
+
+const chatStore = useAtlasChatStore()
 
 const emit = defineEmits<{
   send: [body: string]
@@ -97,6 +100,23 @@ function handleKeydown(event: KeyboardEvent) {
 
 <template>
   <div class="chat-input-wrapper">
+    <!-- 답장 프리뷰 바 (입력창 상단) -->
+    <div v-if="chatStore.replyTarget" class="chat-input__reply-bar">
+      <span class="chat-input__reply-icon material-symbols-outlined">reply</span>
+      <div class="chat-input__reply-info">
+        <strong>{{ chatStore.replyTarget.senderDisplayName }}에게 답장</strong>
+        <p>{{ chatStore.replyTarget.messageBody }}</p>
+      </div>
+      <button 
+        class="chat-input__reply-close" 
+        type="button" 
+        title="답장 취소"
+        @click="chatStore.clearReplyTarget()"
+      >
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
     <!-- 이모지 피커 (입력 영역 위에 표시) -->
     <ChatEmojiPicker
       v-if="isEmojiPickerOpen"
