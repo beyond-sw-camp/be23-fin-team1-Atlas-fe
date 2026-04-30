@@ -1976,17 +1976,51 @@ input {
 }
 
 .profile-image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 320px;
+  padding: 48px;
+  background: rgb(12 13 14 / 0.56);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .profile-image-viewer__image {
   display: block;
-  max-width: 100%;
-  max-height: 70vh;
+  max-width: min(78vw, 1180px);
+  max-height: 82vh;
   object-fit: contain;
+}
+
+.profile-image-viewer__close {
+  position: fixed;
+  top: 40px;
+  right: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #f4f4f4;
+  cursor: pointer;
+}
+
+.profile-image-viewer__close .material-symbols-outlined {
+  font-size: 34px;
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 32;
+}
+
+.profile-image-viewer__message {
+  padding: 12px 16px;
+  background: rgb(255 255 255 / 0.92);
+  color: var(--on-surface, #232829);
+  font-weight: 700;
 }
 
 .profile-kv__row {
