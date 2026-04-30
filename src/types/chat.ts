@@ -55,8 +55,13 @@ export interface MarkAsReadRequest {
 export interface ChatParticipant {
   userPublicId: string
   displayName: string
+  firstName?: string
+  middleName?: string
+  lastName?: string
   role?: string
   jobTitle?: string
+  organizationName?: string
+  organizationEnglishName?: string
   departmentName?: string
   departmentCode?: string
   profileAttachmentPublicId?: string

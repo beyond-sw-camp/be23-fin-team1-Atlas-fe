@@ -341,6 +341,7 @@ async function fetchAvailableUsers() {
     // 채팅 초대 목록에서 쓰는 형태로 변환합니다.
     availableUsers.value = users.map((user: any) => {
       const lastName = String(user.lastName || user.last_name || '').replace(/null|undefined/gi, '').trim()
+      const middleName = String(user.middleName || user.middle_name || '').replace(/null|undefined/gi, '').trim()
       const firstName = String(user.firstName || user.first_name || '').replace(/null|undefined/gi, '').trim()
       let displayName = `${lastName}${firstName}`.trim()
       
@@ -366,6 +367,15 @@ async function fetchAvailableUsers() {
       }
       
       const jobTitle = user.jobTitle || user.job_title || ''
+      const organizationName = user.organizationName || user.organization_name || user.orgName || user.org_name || ''
+      const organizationEnglishName =
+        user.organizationEnglishName ||
+        user.organization_english_name ||
+        user.organizationNameEn ||
+        user.organization_name_en ||
+        user.orgEnglishName ||
+        user.org_english_name ||
+        ''
       const departmentName = user.departmentName || user.department_name || ''
       const departmentCode = user.departmentCode || user.department_code || ''
       const profileAttachmentPublicId = user.profileAttachmentPublicId || user.profile_attachment_public_id || ''
@@ -374,7 +384,12 @@ async function fetchAvailableUsers() {
       return {
         userPublicId: user.userPublicId || user.user_public_id || user.publicId || user.public_id || user.id,
         displayName,
+        firstName,
+        middleName,
+        lastName,
         jobTitle,
+        organizationName,
+        organizationEnglishName,
         departmentName,
         departmentCode,
         profileAttachmentPublicId,
