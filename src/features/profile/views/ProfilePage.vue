@@ -1540,20 +1540,22 @@ onBeforeUnmount(() => {
 
           <div v-else>
             <div class="settings-form">
-            <label>
-              <span>{{ preferences.language === 'ko' ? '성' : 'Last Name' }}</span>
-              <input v-model="profileForm.lastName" type="text" />
-            </label>
+            <div class="profile-name-fields">
+              <label>
+                <span>{{ preferences.language === 'ko' ? '성' : 'Last Name' }}</span>
+                <input v-model="profileForm.lastName" type="text" />
+              </label>
 
-            <label>
-              <span>{{ preferences.language === 'ko' ? '이름' : 'First Name' }}</span>
-              <input v-model="profileForm.firstName" type="text" />
-            </label>
+              <label>
+                <span>{{ preferences.language === 'ko' ? '중간이름 (선택)' : 'Middle Name (Optional)' }}</span>
+                <input v-model="profileForm.middleName" type="text" />
+              </label>
 
-            <label>
-              <span>{{ preferences.language === 'ko' ? '중간이름 (선택)' : 'Middle Name (Optional)' }}</span>
-              <input v-model="profileForm.middleName" type="text" />
-            </label>
+              <label>
+                <span>{{ preferences.language === 'ko' ? '이름' : 'First Name' }}</span>
+                <input v-model="profileForm.firstName" type="text" />
+              </label>
+            </div>
 
             <label>
               <span>{{ preferences.language === 'ko' ? '이메일' : 'Email' }}</span>
@@ -1630,16 +1632,16 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="profile-kv__row">
+              <span>{{ preferences.language === 'ko' ? '조직 영문명' : 'Organization English Name' }}</span>
+              <strong>{{ organizationDetail.organizationEnglishName || '-' }}</strong>
+            </div>
+
+            <div class="profile-kv__row">
               <span>{{ preferences.language === 'ko' ? '조직 유형' : 'Organization Type' }}</span>
               <strong>{{ organizationDetail.organizationType }}</strong>
             </div>
 
             <template v-if="isOrgAdmin">
-              <div class="profile-kv__row">
-                <span>{{ preferences.language === 'ko' ? '조직 영문명' : 'Organization English Name' }}</span>
-                <strong>{{ organizationDetail.organizationEnglishName || '-' }}</strong>
-              </div>
-
               <div class="profile-kv__row">
                 <span>{{ preferences.language === 'ko' ? '사업자번호' : 'Business No' }}</span>
                 <strong>{{ organizationDetail.businessNo || '-' }}</strong>
@@ -1672,10 +1674,6 @@ onBeforeUnmount(() => {
                 <strong>{{ organizationDetail.contactPhone || '-' }}</strong>
               </div>
 
-              <div v-if="isUser" class="profile-kv__row">
-                <span>{{ preferences.language === 'ko' ? '조직 영문명' : 'Organization English Name' }}</span>
-                <strong>{{ organizationDetail.organizationEnglishName || '-' }}</strong>
-              </div>
             </template>
           </div>
 
