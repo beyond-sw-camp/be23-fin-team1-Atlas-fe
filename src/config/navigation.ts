@@ -287,8 +287,6 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '알림 채널, 미확인 경보, topic 상태 관리',
     section: 'system',
     organizations: ['mainBuyer', 'supplier', 'admin'],
-    badge: '9',
-    badgeTone: 'crit',
   },
   {
     key: 'riskRules',

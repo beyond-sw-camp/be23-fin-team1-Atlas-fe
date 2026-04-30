@@ -4,16 +4,24 @@ import { RouterLink } from 'vue-router'
 import type { ScreenTheme } from '../../types'
 import { getMyInfo } from '../../services/user'
 import { useAtlasNavigationStore } from '../../stores/navigation'
+import { useAtlasNotificationStore } from '../../stores/notification'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { useAtlasSessionStore } from '../../stores/session'
 import { useAtlasUiStore } from '../../stores/ui'
 import { PROFILE_IMAGE_UPDATED_EVENT } from '../../utils/profileImageEvents'
 
 const navigation = useAtlasNavigationStore()
+const notificationStore = useAtlasNotificationStore()
 const preferences = useAtlasPreferencesStore()
 const session = useAtlasSessionStore()
 const ui = useAtlasUiStore()
 const sidebarProfileThumbPath = ref('')
+
+type SidebarBadgeItem = {
+  key: string
+  badge?: string | number | null
+  badgeTone?: string | null
+}
 
 function toggleTheme() {
   preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
@@ -22,6 +30,27 @@ function toggleTheme() {
 function handleSidebarNavigate(navigate: () => void) {
   navigate()
   ui.closeMobileSidebar()
+}
+
+function formatNotificationBadge(count: number) {
+  if (count <= 0) return ''
+  return count > 99 ? '99+' : String(count)
+}
+
+function getSidebarBadge(item: SidebarBadgeItem) {
+  if (item.key === 'notificationsCenter') {
+    return formatNotificationBadge(notificationStore.unreadCount)
+  }
+
+  return item.badge
+}
+
+function getSidebarBadgeTone(item: SidebarBadgeItem) {
+  if (item.key === 'notificationsCenter') {
+    return 'crit'
+  }
+
+  return item.badgeTone
 }
 
 async function loadSidebarProfileImage() {
@@ -103,8 +132,14 @@ onBeforeUnmount(() => {
             <span class="app-nav-item__body">
               <span class="app-nav-item__label">{{ item.displayLabel }}</span>
             </span>
-            <span v-if="item.badge" :class="['app-nav-item__badge', item.badgeTone ? `is-${item.badgeTone}` : '']">
-              {{ item.badge }}
+            <span
+              v-if="getSidebarBadge(item)"
+              :class="[
+                'app-nav-item__badge',
+                getSidebarBadgeTone(item) ? `is-${getSidebarBadgeTone(item)}` : '',
+              ]"
+            >
+              {{ getSidebarBadge(item) }}
             </span>
           </button>
         </RouterLink>
@@ -115,7 +150,11 @@ onBeforeUnmount(() => {
       <button class="app-icon-button" type="button" @click="toggleTheme">
         <span class="material-symbols-outlined">contrast</span>
       </button>
-      <button class="app-icon-button app-icon-button--badge" type="button" @click="navigation.openNotifications">
+      <button
+        :class="['app-icon-button', { 'app-icon-button--badge': notificationStore.unreadCount > 0 }]"
+        type="button"
+        @click="navigation.openNotifications"
+      >
         <span class="material-symbols-outlined">notifications</span>
       </button>
       <button class="app-icon-button" type="button" @click="navigation.openSettings">
