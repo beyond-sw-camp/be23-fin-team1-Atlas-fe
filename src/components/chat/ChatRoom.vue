@@ -9,6 +9,7 @@ import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 import ChatAvatar from './ChatAvatar.vue'
 import { useAtlasChatStore } from '../../stores/chat'
+import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 const props = defineProps<{
   roomName: string
@@ -27,10 +28,28 @@ const emit = defineEmits<{
 }>()
 
 const chatStore = useAtlasChatStore()
+const preferences = useAtlasPreferencesStore()
 const messagesContainer = ref<HTMLElement | null>(null)
 const isMoreMenuOpen = ref(false)
 const isInviting = ref(false)
 const isShowingParticipants = ref(false)
+
+const copy = computed(() => ({
+  deleteConfirm: preferences.language === 'ko' ? '메시지를 삭제하시겠습니까?' : 'Delete this message?',
+  leaveConfirm: preferences.language === 'ko'
+    ? '정말로 이 채팅방에서 나가시겠습니까?\n나가면 채팅 목록에서 삭제됩니다.'
+    : 'Leave this chat room?\nIt will be removed from your chat list.',
+  rename: preferences.language === 'ko' ? '이름 변경' : 'Rename',
+  invite: preferences.language === 'ko' ? '초대하기' : 'Invite',
+  participants: preferences.language === 'ko' ? '참여자' : 'Participants',
+  peopleCount: (count: number) => preferences.language === 'ko' ? `${count}명` : `${count}`,
+  leave: preferences.language === 'ko' ? '나가기' : 'Leave',
+  noParticipants: preferences.language === 'ko' ? '참여자 정보 없음' : 'No participant information.',
+  me: preferences.language === 'ko' ? '나' : 'Me',
+  availableUsers: preferences.language === 'ko' ? '초대 가능한 사용자' : 'Available Users',
+  allJoined: preferences.language === 'ko' ? '모두 참여 중입니다.' : 'Everyone is already in this room.',
+  loadingMessages: preferences.language === 'ko' ? '메시지 로딩 중...' : 'Loading messages...',
+}))
 
 const availableUsersToInvite = computed(() => {
   return chatStore.availableUsers.filter(
@@ -104,7 +123,7 @@ function handleSendReference(refType: string, refCode: string, refTitle: string)
 
 /** 메시지 삭제 핸들러 */
 function handleDeleteMessage(messagePublicId: string) {
-  if (confirm('메시지를 삭제하시겠습니까?')) {
+  if (confirm(copy.value.deleteConfirm)) {
     emit('deleteMessage', messagePublicId)
   }
 }
@@ -144,7 +163,7 @@ function showParticipantsPanel() {
 
 /** 채팅방 나가기 핸들러 */
 function handleLeaveRoom() {
-  if (confirm('정말로 이 채팅방에서 나가시겠습니까?\n나가면 채팅 목록에서 삭제됩니다.')) {
+  if (confirm(copy.value.leaveConfirm)) {
     chatStore.leaveRoom()
     isMoreMenuOpen.value = false
   }
@@ -213,19 +232,19 @@ async function handleRenameRoom() {
         <div v-if="isMoreMenuOpen && !isInviting && !isShowingParticipants" class="chat-room__dropdown">
           <button class="chat-room__dropdown-item" @click="startEditingName">
             <span class="material-symbols-outlined">edit</span>
-            <span>이름 변경</span>
+            <span>{{ copy.rename }}</span>
           </button>
           <button class="chat-room__dropdown-item" @click="showInvitePanel">
             <span class="material-symbols-outlined">person_add</span>
-            <span>초대하기</span>
+            <span>{{ copy.invite }}</span>
           </button>
           <button class="chat-room__dropdown-item" @click="showParticipantsPanel">
             <span class="material-symbols-outlined">group</span>
-            <span>참여자 ({{ participants.length }}명)</span>
+            <span>{{ copy.participants }} ({{ copy.peopleCount(participants.length) }})</span>
           </button>
           <button class="chat-room__dropdown-item chat-room__dropdown-item--danger" @click="handleLeaveRoom">
             <span class="material-symbols-outlined">logout</span>
-            <span>나가기</span>
+            <span>{{ copy.leave }}</span>
           </button>
         </div>
       </Transition>
@@ -236,16 +255,16 @@ async function handleRenameRoom() {
           <button class="chat-room__dropdown-back" @click="isShowingParticipants = false">
             <span class="material-symbols-outlined">arrow_back</span>
           </button>
-          <span>참여자 ({{ participants.length }}명)</span>
+          <span>{{ copy.participants }} ({{ copy.peopleCount(participants.length) }})</span>
         </div>
         <div v-if="participants.length === 0" class="chat-room__dropdown-empty">
-          참여자 정보 없음
+          {{ copy.noParticipants }}
         </div>
         <div v-for="p in participants" :key="p.userPublicId" class="chat-room__dropdown-user">
           <ChatAvatar :image-url="p.profileImageThumbPath" :name="p.displayName" size="sm" />
           <div class="chat-room__dropdown-user-info">
             <span>{{ p.displayName }}
-              <span v-if="p.userPublicId === currentUserPublicId" class="chat-room__me-badge">(나)</span>
+              <span v-if="p.userPublicId === currentUserPublicId" class="chat-room__me-badge">({{ copy.me }})</span>
             </span>
             <span v-if="p.jobTitle" class="chat-room__dropdown-user-role">{{ p.jobTitle }}</span>
           </div>
@@ -258,10 +277,10 @@ async function handleRenameRoom() {
           <button class="chat-room__dropdown-back" @click="isInviting = false">
             <span class="material-symbols-outlined">arrow_back</span>
           </button>
-          <span>초대 가능한 사용자</span>
+          <span>{{ copy.availableUsers }}</span>
         </div>
         <div v-if="availableUsersToInvite.length === 0" class="chat-room__dropdown-empty">
-          모두 참여 중입니다.
+          {{ copy.allJoined }}
         </div>
         <button
           v-for="user in availableUsersToInvite"
@@ -278,7 +297,7 @@ async function handleRenameRoom() {
     <!-- 메시지 목록 -->
     <div ref="messagesContainer" class="chat-room__messages">
       <div v-if="isLoading" class="chat-room__loading">
-        <span>메시지 로딩 중...</span>
+        <span>{{ copy.loadingMessages }}</span>
       </div>
       <template v-else>
         <ChatMessage
