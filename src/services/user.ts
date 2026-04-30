@@ -56,6 +56,13 @@ export interface MyInfoResponse {
   organizationPublicId: string
   userPublicId: string
   role: 'USER' | 'ORG_ADMIN' | 'ADMIN'
+  firstName?: string | null
+  middleName?: string | null
+  lastName?: string | null
+  email?: string | null
+  phone?: string | null
+  jobTitle?: string | null
+  departmentName?: string | null
 }
 
 export interface MyInfoResponse extends UserProfileImageSummary {}
@@ -411,4 +418,3 @@ export async function uploadOrganizationUsersExcel(
 
   return response.data
 }
-

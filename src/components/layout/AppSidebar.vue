@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { ScreenTheme } from '../../types'
-import { getMyInfo } from '../../services/user'
+import { getMyInfo, getUserDetailByPublicId } from '../../services/user'
 import { useAtlasNavigationStore } from '../../stores/navigation'
 import { useAtlasNotificationStore } from '../../stores/notification'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
@@ -16,6 +16,10 @@ const preferences = useAtlasPreferencesStore()
 const session = useAtlasSessionStore()
 const ui = useAtlasUiStore()
 const sidebarProfileThumbPath = ref('')
+const sidebarUserFirstName = ref('')
+const sidebarUserMiddleName = ref('')
+const sidebarUserLastName = ref('')
+const sidebarUserRole = ref('')
 
 type SidebarBadgeItem = {
   key: string
@@ -53,34 +57,61 @@ function getSidebarBadgeTone(item: SidebarBadgeItem) {
   return item.badgeTone
 }
 
-async function loadSidebarProfileImage() {
+function buildSidebarUserName() {
+  const firstName = sidebarUserFirstName.value.trim()
+  const middleName = sidebarUserMiddleName.value.trim()
+  const lastName = sidebarUserLastName.value.trim()
+
+  const parts = preferences.language === 'en'
+    ? [firstName, middleName, lastName]
+    : [lastName, firstName]
+
+  const name = parts.filter(Boolean).join(' ')
+  return name || navigation.sidebarOperator.name[preferences.language]
+}
+
+function clearSidebarUserProfile() {
+  sidebarProfileThumbPath.value = ''
+  sidebarUserFirstName.value = ''
+  sidebarUserMiddleName.value = ''
+  sidebarUserLastName.value = ''
+  sidebarUserRole.value = ''
+}
+
+async function loadSidebarProfile() {
   if (!session.isAuthenticated || !session.userPublicId) {
-    sidebarProfileThumbPath.value = ''
+    clearSidebarUserProfile()
     return
   }
 
   try {
-    const response = await getMyInfo()
-    sidebarProfileThumbPath.value = response.profileImageThumbPath ?? ''
+    const myInfo = await getMyInfo()
+    const detail = await getUserDetailByPublicId(myInfo.userPublicId)
+
+    sidebarProfileThumbPath.value = detail.profileImageThumbPath ?? myInfo.profileImageThumbPath ?? ''
+    sidebarUserFirstName.value = detail.firstName ?? myInfo.firstName ?? ''
+    sidebarUserMiddleName.value = detail.middleName ?? myInfo.middleName ?? ''
+    sidebarUserLastName.value = detail.lastName ?? myInfo.lastName ?? ''
+    sidebarUserRole.value = detail.userRole ?? myInfo.role ?? session.userRole
   } catch {
-    sidebarProfileThumbPath.value = ''
+    clearSidebarUserProfile()
   }
 }
 
 onMounted(() => {
-  loadSidebarProfileImage()
-  window.addEventListener(PROFILE_IMAGE_UPDATED_EVENT, loadSidebarProfileImage)
+  loadSidebarProfile()
+  window.addEventListener(PROFILE_IMAGE_UPDATED_EVENT, loadSidebarProfile)
 })
 
 watch(
   [() => session.isAuthenticated, () => session.userPublicId],
   () => {
-    loadSidebarProfileImage()
+    loadSidebarProfile()
   },
 )
 
 onBeforeUnmount(() => {
-  window.removeEventListener(PROFILE_IMAGE_UPDATED_EVENT, loadSidebarProfileImage)
+  window.removeEventListener(PROFILE_IMAGE_UPDATED_EVENT, loadSidebarProfile)
 })
 </script>
 
@@ -100,14 +131,16 @@ onBeforeUnmount(() => {
           <img
             v-if="sidebarProfileThumbPath"
             :src="sidebarProfileThumbPath"
-            :alt="navigation.sidebarOperator.name[preferences.language]"
+            :alt="buildSidebarUserName()"
             class="app-sidebar__avatar-image"
           />
-          <template v-else>{{ navigation.sidebarOperator.initials }}</template>
+          <span v-else class="material-symbols-outlined app-sidebar__avatar-icon">person</span>
         </span>
         <span class="app-sidebar__user-copy">
-          <span class="app-sidebar__user-name">{{ navigation.sidebarOperator.name[preferences.language] }}</span>
-          <span class="app-sidebar__user-role">{{ navigation.sidebarOperator.role[preferences.language] }}</span>
+          <span class="app-sidebar__user-name">{{ buildSidebarUserName() }}</span>
+          <span class="app-sidebar__user-role">
+            {{ sidebarUserRole || navigation.sidebarOperator.role[preferences.language] }}
+          </span>
         </span>
       </button>
     </div>
