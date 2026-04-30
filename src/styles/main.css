@@ -1238,6 +1238,10 @@ select:not(.app-language-select select):focus {
   display: none;
 }
 
+.app-mobile-notification-button {
+  display: none;
+}
+
 .app-sidebar {
   position: fixed;
   top: 64px;
@@ -3529,6 +3533,11 @@ select:not(.app-language-select select):focus {
 
   .app-mobile-menu-button {
     display: inline-flex;
+  }
+
+  .app-mobile-notification-button {
+    display: inline-flex;
+    flex: 0 0 36px;
   }
 
   .app-context--org {
