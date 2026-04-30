@@ -1571,30 +1571,32 @@ onBeforeUnmount(() => {
               />
             </label>
 
-            <label>
-              <span>{{ preferences.language === 'ko' ? '직책' : 'Job Title' }}</span>
-              <input v-model="profileForm.jobTitle" type="text" />
-            </label>
+            <div class="profile-work-fields">
+              <label>
+                <span>{{ preferences.language === 'ko' ? '부서' : 'Department' }}</span>
+                <select v-model="profileForm.departmentPublicId">
+                  <option value="">
+                    {{
+                      isLoadingDepartmentOptions
+                        ? (preferences.language === 'ko' ? '부서 목록 불러오는 중...' : 'Loading departments...')
+                        : (preferences.language === 'ko' ? '부서를 선택하세요.' : 'Select a department.')
+                    }}
+                  </option>
+                  <option
+                    v-for="department in departmentOptions"
+                    :key="department.departmentPublicId"
+                    :value="department.departmentPublicId"
+                  >
+                    {{ department.departmentName }} ({{ department.departmentCode }})
+                  </option>
+                </select>
+              </label>
 
-            <label>
-              <span>{{ preferences.language === 'ko' ? '부서' : 'Department' }}</span>
-              <select v-model="profileForm.departmentPublicId">
-                <option value="">
-                  {{
-                    isLoadingDepartmentOptions
-                      ? (preferences.language === 'ko' ? '부서 목록 불러오는 중...' : 'Loading departments...')
-                      : (preferences.language === 'ko' ? '부서를 선택하세요.' : 'Select a department.')
-                  }}
-                </option>
-                <option
-                  v-for="department in departmentOptions"
-                  :key="department.departmentPublicId"
-                  :value="department.departmentPublicId"
-                >
-                  {{ department.departmentName }} ({{ department.departmentCode }})
-                </option>
-              </select>
-            </label>
+              <label>
+                <span>{{ preferences.language === 'ko' ? '직책' : 'Job Title' }}</span>
+                <input v-model="profileForm.jobTitle" type="text" />
+              </label>
+            </div>
 
             <div class="page-feed" style="margin-top: 12px;">
               <div class="page-feed__item">

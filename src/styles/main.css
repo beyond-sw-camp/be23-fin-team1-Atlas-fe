@@ -3424,7 +3424,8 @@ select:not(.app-language-select select):focus {
     text-align: left;
   }
 
-  .profile-name-fields {
+  .profile-name-fields,
+  .profile-work-fields {
     grid-template-columns: 1fr;
   }
 }
@@ -4445,7 +4446,14 @@ select:not(.app-language-select select):focus {
   gap: 14px;
 }
 
-.profile-name-fields label {
+.profile-work-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profile-name-fields label,
+.profile-work-fields label {
   min-width: 0;
 }
 
