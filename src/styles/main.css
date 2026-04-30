@@ -1935,7 +1935,7 @@ select:not(.app-language-select select):focus {
 .profile-hero__avatar-stack {
   display: grid;
   gap: 10px;
-  justify-items: start;
+  justify-items: end;
 }
 
 .profile-hero__avatar-button {
