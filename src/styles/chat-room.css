@@ -273,6 +273,7 @@
   padding: 10px 14px; border-top: 1px solid var(--chat-bubble-border);
   background: var(--chat-bg);
 }
+.chat-input--has-reply { border-top: 0; }
 .theme-dark .chat-input { background: #1E1E2E; border-top-color: #2A2A3E; }
 
 .chat-input__menu-wrapper { position: relative; flex: 0 0 auto; }

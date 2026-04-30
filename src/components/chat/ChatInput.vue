@@ -178,7 +178,7 @@ function handleKeydown(event: KeyboardEvent) {
       @close="handleEmojiClose"
     />
 
-    <div class="chat-input">
+    <div :class="['chat-input', { 'chat-input--has-reply': chatStore.replyTarget }]">
       <!-- + 버튼 (첨부 메뉴 트리거) -->
       <div class="chat-input__menu-wrapper">
         <button
