@@ -689,7 +689,6 @@ onMounted(() => {
         </div>
 
         <h1 class="stl-page__title">{{ content.title }}</h1>
-        <p class="stl-page__desc">{{ content.subtitle }}</p>
       </div>
 
       <div class="stl-page__actions">

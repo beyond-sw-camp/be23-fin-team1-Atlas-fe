@@ -1829,9 +1829,6 @@ onBeforeUnmount(() => header.clearActions())
       <div>
         <div class="terminal-page__eyebrow">공급망 운영 / 발주 관리</div>
         <h2 class="terminal-page__title">발주 관리</h2>
-        <p class="terminal-page__subtitle">
-          발주와 수주 현황을 조회하고 처리합니다.
-        </p>
       </div>
 
       <div class="design-trigger-row">

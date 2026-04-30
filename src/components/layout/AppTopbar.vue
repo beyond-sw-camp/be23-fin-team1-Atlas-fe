@@ -310,17 +310,20 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
         <span class="material-symbols-outlined">{{ ui.mobileSidebarOpen ? 'close' : 'menu' }}</span>
       </button>
       <button class="app-brand" type="button" @click="goHome">ATLAS</button>
-      <label class="app-language-select app-language-select--mobile">
-        <select
-          id="app-language-mobile"
-          name="app-language-mobile"
-          :value="preferences.language"
-          @change="handleLanguageChange"
-        >
-          <option value="ko">KO</option>
-          <option value="en">EN</option>
-        </select>
-      </label>
+      <button
+        v-if="session.isAuthenticated"
+        class="app-session-controls app-session-controls--mobile"
+        type="button"
+        :disabled="session.isRefreshingSession"
+        :aria-label="preferences.language === 'ko' ? '로그인 연장' : 'Extend Session'"
+        @click="session.extendSession()"
+      >
+        <div class="app-session-controls__meta">
+          <strong class="app-session-controls__time">
+            {{ session.sessionRemainingLabel }}
+          </strong>
+        </div>
+      </button>
       <span class="app-topbar__badge app-topbar__badge--neutral">CONTROL TERMINAL</span>
       <span v-if="notificationStore.unreadCount > 0" class="app-topbar__badge app-topbar__badge--warn">
         {{ notificationStore.unreadCount }} ALERTS
@@ -424,13 +427,9 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
       </label>
 
          <!-- 남은 시간과 로그인 연장은 바깥 박스 하나로만 묶습니다. -->
-      <div v-if="session.isAuthenticated" class="app-session-controls">
+      <div v-if="session.isAuthenticated" class="app-session-controls app-session-controls--desktop">
         <!-- 왼쪽에는 안내 문구와 시간을 보여줍니다. -->
         <div class="app-session-controls__meta">
-          <span class="app-session-controls__label">
-            {{ preferences.language === 'ko' ? '' : 'Remaining' }}
-          </span>
-
           <strong class="app-session-controls__time">
             {{ session.sessionRemainingLabel }}
           </strong>
@@ -477,9 +476,6 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
         <span class="material-symbols-outlined">settings</span>
       </button>
 
-      <button class="app-icon-button app-profile-button" type="button" @click="navigation.navigateToPage('profile')">
-        <span class="material-symbols-outlined">account_circle</span>
-      </button>
     </div>
   </header>
 </template>

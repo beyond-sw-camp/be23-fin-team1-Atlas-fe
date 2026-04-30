@@ -25,7 +25,7 @@ const routeViewKey = computed(() => {
 // 화면 상단 헤더 액션에 쓰는 스토어입니다.
 const header = useAtlasHeaderStore()
 
-// 현재 페이지 제목과 설명을 보여줄 때 쓰는 스토어입니다.
+// 현재 페이지 제목을 보여줄 때 쓰는 스토어입니다.
 const navigation = useAtlasNavigationStore()
 
 // 테마와 화면 크기 변수에 쓰는 스토어입니다.
@@ -114,14 +114,13 @@ onBeforeUnmount(() => {
                     : 'page-button--primary',
                 ]"
                 type="button"
+                :disabled="action.disabled"
                 @click="action.onClick?.()"
               >
                 {{ action.label }}
               </button>
             </div>
           </div>
-
-          <p>{{ navigation.pageSubtitle }}</p>
         </div>
 
         <RouterView :key="routeViewKey" />

@@ -260,7 +260,6 @@ watch(organizationPublicId, () => {
       <div>
         <div class="organization-profile-page__eyebrow">{{ copy.eyebrow }}</div>
         <h1>{{ copy.title }}</h1>
-        <p>{{ copy.description }}</p>
       </div>
     </header>
 

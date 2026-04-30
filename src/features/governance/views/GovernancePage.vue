@@ -82,7 +82,6 @@ onBeforeUnmount(() => {
     <header class="governance-page__header">
       <div>
         <h2 class="governance-page__title">{{ content.title }}</h2>
-        <p class="governance-page__subtitle">{{ content.subtitle }}</p>
       </div>
       <div class="design-trigger-row">
         <button class="page-button page-button--primary" type="button">{{ preferences.language === 'ko' ? '감사 시작' : 'INITIALIZE_AUDIT' }}</button>

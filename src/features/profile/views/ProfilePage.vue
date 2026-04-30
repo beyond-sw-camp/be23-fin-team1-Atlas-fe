@@ -34,7 +34,7 @@ import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSessionStore } from '../../../stores/session'
 import { notifyProfileImageUpdated } from '../../../utils/profileImageEvents'
 
-// 이 페이지에서는 헤더 액션을 따로 쓰지 않아서 비워 둡니다.
+// 페이지 제목 오른쪽 액션을 관리합니다.
 const header = useAtlasHeaderStore()
 
 // 강제 비밀번호 변경이 끝난 뒤 이동할 첫 화면을 찾을 때 씁니다.
@@ -180,6 +180,9 @@ const profileError = ref('')
 
 // 프로필 저장 성공 문구입니다.
 const profileSuccess = ref('')
+
+// 프로필 저장 완료 모달 열림 상태입니다.
+const profileSuccessModalOpen = ref(false)
 
 // 비밀번호 변경 에러 문구입니다.
 const passwordError = ref('')
@@ -491,6 +494,56 @@ function cancelEdit() {
   isEditing.value = false
 }
 
+function syncProfileHeaderActions() {
+  if (isLoadingProfile.value || profileError.value || !userDetail.value || !myInfo.value) {
+    header.clearActions()
+    return
+  }
+
+  if (!isOwnProfile.value) {
+    header.setActions([
+      {
+        key: 'profile-chat',
+        label: preferences.language === 'ko' ? '채팅하기' : 'Chat',
+        tone: 'primary',
+        onClick: openChatWithProfileUser,
+      },
+    ])
+    return
+  }
+
+  if (!isEditing.value) {
+    header.setActions([
+      {
+        key: 'profile-edit',
+        label: preferences.language === 'ko' ? '수정' : 'Edit',
+        tone: 'primary',
+        onClick: startEdit,
+      },
+    ])
+    return
+  }
+
+  header.setActions([
+    {
+      key: 'profile-cancel',
+      label: preferences.language === 'ko' ? '취소' : 'Cancel',
+      tone: 'secondary',
+      disabled: isSavingProfile.value,
+      onClick: cancelEdit,
+    },
+    {
+      key: 'profile-save',
+      label: isSavingProfile.value
+        ? (preferences.language === 'ko' ? '저장 중...' : 'Saving...')
+        : (preferences.language === 'ko' ? '저장' : 'Save'),
+      tone: 'primary',
+      disabled: isSavingProfile.value,
+      onClick: submitProfileUpdate,
+    },
+  ])
+}
+
 // 기본 정보 저장입니다.
 async function submitProfileUpdate() {
   // 내부 userId가 없으면 요청을 보낼 수 없습니다.
@@ -559,6 +612,7 @@ async function submitProfileUpdate() {
       preferences.language === 'ko'
         ? '프로필 정보가 수정되었습니다.'
         : 'Profile information has been updated.'
+    profileSuccessModalOpen.value = true
   } catch (error: any) {
     profileError.value =
       error?.payload?.message ||
@@ -703,11 +757,11 @@ async function confirmPasswordChange() {
 const fullName = computed(() => {
   if (!userDetail.value) return '-'
 
-  return [
-    userDetail.value.lastName,
-    userDetail.value.middleName,
-    userDetail.value.firstName,
-  ]
+  const nameParts = preferences.language === 'en'
+    ? [userDetail.value.firstName, userDetail.value.middleName, userDetail.value.lastName]
+    : [userDetail.value.lastName, userDetail.value.middleName, userDetail.value.firstName]
+
+  return nameParts
     .filter((value) => value && String(value).trim().length > 0)
     .join(' ')
 })
@@ -859,6 +913,17 @@ function formatUserAgent(value?: string | null) {
   // user-agent 가 없으면 표시할 수 없습니다.
   if (!value) return '-'
 
+  const normalizeSimpleBrowserName = (name: string) => {
+    const lowerName = name.toLowerCase()
+    return `${lowerName.charAt(0).toUpperCase()}${lowerName.slice(1)}`
+  }
+
+  const simpleBrowserMatch = value.trim().match(/^([a-zA-Z]+)(\s+[0-9][0-9.]*)?$/)
+  if (simpleBrowserMatch) {
+    const [, name, version = ''] = simpleBrowserMatch
+    return `${normalizeSimpleBrowserName(name)}${version}`
+  }
+
   // 정규식에서 첫 번째 버전만 뽑아 쓰기 위한 함수입니다.
   const pickVersion = (pattern: RegExp) => {
     const match = value.match(pattern)
@@ -939,6 +1004,10 @@ function formatClientOs(value?: string | null) {
   if (value.includes('Linux')) return 'Linux'
 
   return 'Other'
+}
+
+function formatClientInfo(value?: string | null) {
+  return `${formatClientOs(value)} · ${formatUserAgent(value)}`
 }
 
 
@@ -1228,6 +1297,21 @@ watch(
   },
 )
 
+watch(
+  [
+    () => isLoadingProfile.value,
+    () => profileError.value,
+    () => userDetail.value,
+    () => myInfo.value,
+    () => isOwnProfile.value,
+    () => isEditing.value,
+    () => isSavingProfile.value,
+    () => preferences.language,
+  ],
+  syncProfileHeaderActions,
+  { immediate: true },
+)
+
 // 페이지를 떠날 때도 헤더 액션을 비웁니다.
 onBeforeUnmount(() => {
   header.clearActions()
@@ -1356,55 +1440,6 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-else-if="userDetail && myInfo">
-      <!-- 상단 수정 버튼 영역입니다. -->
-      <div class="design-trigger-row" style="margin-bottom: 20px;">
-       <button
-  v-if="!isOwnProfile"
-  class="page-button page-button--primary"
-  type="button"
-  @click="openChatWithProfileUser"
->
-  {{ preferences.language === 'ko' ? '채팅하기' : 'Chat' }}
-</button>
-
-<button
-  v-else-if="!isEditing"
-  class="page-button page-button--primary"
-  type="button"
-  @click="startEdit"
->
-  {{ preferences.language === 'ko' ? '수정' : 'Edit' }}
-</button>
-
-        <template v-else>
-          <button
-            class="page-button page-button--secondary"
-            type="button"
-            :disabled="isSavingProfile"
-            @click="cancelEdit"
-          >
-            {{ preferences.language === 'ko' ? '취소' : 'Cancel' }}
-          </button>
-
-          <button
-            class="page-button page-button--primary"
-            type="button"
-            :disabled="isSavingProfile"
-            @click="submitProfileUpdate"
-          >
-            {{
-              isSavingProfile
-                ? (preferences.language === 'ko' ? '저장 중...' : 'Saving...')
-                : (preferences.language === 'ko' ? '저장' : 'Save')
-            }}
-          </button>
-        </template>
-      </div>
-
-      <div v-if="profileSuccess" class="login-hint" style="margin-bottom: 16px;">
-        {{ profileSuccess }}
-      </div>
-
       <!-- 위쪽 2칸은 내 정보와 조직 정보로 채웁니다. -->
       <section class="profile-summary">
         <article class="page-panel">
@@ -1420,25 +1455,41 @@ onBeforeUnmount(() => {
               <h3>{{ preferences.language === 'ko' ? '프로필' : 'Profile' }}</h3>
             </div>
             <div class="profile-panel__head-side">
-              <button
-                class="profile-hero__avatar-button"
-                type="button"
-                :disabled="!canOpenProfileImageViewer"
-                :title="canOpenProfileImageViewer
-                  ? (preferences.language === 'ko' ? '원본 이미지 보기' : 'Open original image')
-                  : (preferences.language === 'ko' ? '등록된 프로필 이미지가 없습니다.' : 'No profile image uploaded.')"
-                @click="openProfileImageViewer"
-              >
-                <span class="profile-hero__avatar-frame" aria-hidden="true">
-                  <img
-                    v-if="profileThumbnailUrl"
-                    :src="profileThumbnailUrl"
-                    :alt="fullName"
-                    class="profile-hero__avatar-image"
-                  />
-                  <span v-else class="material-symbols-outlined profile-hero__avatar-icon">person</span>
-                </span>
-              </button>
+              <div class="profile-hero__avatar-stack">
+                <button
+                  class="profile-hero__avatar-button"
+                  type="button"
+                  :disabled="!canOpenProfileImageViewer"
+                  :title="canOpenProfileImageViewer
+                    ? (preferences.language === 'ko' ? '원본 이미지 보기' : 'Open original image')
+                    : (preferences.language === 'ko' ? '등록된 프로필 이미지가 없습니다.' : 'No profile image uploaded.')"
+                  @click="openProfileImageViewer"
+                >
+                  <span class="profile-hero__avatar-frame" aria-hidden="true">
+                    <img
+                      v-if="profileThumbnailUrl"
+                      :src="profileThumbnailUrl"
+                      :alt="fullName"
+                      class="profile-hero__avatar-image"
+                    />
+                    <span v-else class="material-symbols-outlined profile-hero__avatar-icon">person</span>
+                  </span>
+                </button>
+
+                <button
+                  v-if="isEditing"
+                  class="page-button page-button--secondary profile-hero__upload-button"
+                  type="button"
+                  :disabled="isUploadingProfileImage"
+                  @click="triggerProfileImagePicker"
+                >
+                  {{
+                    isUploadingProfileImage
+                      ? (preferences.language === 'ko' ? '업로드 중...' : 'Uploading...')
+                      : (preferences.language === 'ko' ? '이미지 변경' : 'Change Image')
+                  }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1488,49 +1539,6 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-else>
-            <div class="profile-hero profile-hero--edit">
-              <div class="profile-hero__avatar-stack">
-                <button
-                  class="profile-hero__avatar-button"
-                  type="button"
-                  :disabled="!canOpenProfileImageViewer"
-                  :title="canOpenProfileImageViewer
-                    ? (preferences.language === 'ko' ? '원본 이미지 보기' : 'Open original image')
-                    : (preferences.language === 'ko' ? '등록된 프로필 이미지가 없습니다.' : 'No profile image uploaded.')"
-                  @click="openProfileImageViewer"
-                >
-                  <span class="profile-hero__avatar-frame" aria-hidden="true">
-                    <img
-                      v-if="profileThumbnailUrl"
-                      :src="profileThumbnailUrl"
-                      :alt="fullName"
-                      class="profile-hero__avatar-image"
-                    />
-                    <span v-else class="material-symbols-outlined profile-hero__avatar-icon">person</span>
-                  </span>
-                </button>
-
-                <button
-                  class="page-button page-button--secondary profile-hero__upload-button"
-                  type="button"
-                  :disabled="isUploadingProfileImage"
-                  @click="triggerProfileImagePicker"
-                >
-                  {{
-                    isUploadingProfileImage
-                      ? (preferences.language === 'ko' ? '업로드 중...' : 'Uploading...')
-                      : (preferences.language === 'ko' ? '이미지 변경' : 'Change Image')
-                  }}
-                </button>
-              </div>
-
-              <div class="profile-hero__summary">
-                <div class="profile-hero__title-row">
-                  <strong>{{ fullName }}</strong>
-                </div>
-              </div>
-            </div>
-
             <div class="settings-form">
             <label>
               <span>{{ preferences.language === 'ko' ? '성' : 'Last Name' }}</span>
@@ -1781,9 +1789,8 @@ onBeforeUnmount(() => {
                 IP: {{ history.ipAddress || '-' }}
               </span>
 
-              <span class="page-feed__label">
-                {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
-                {{ formatUserAgent(history.userAgent) }}
+              <span class="page-feed__label page-feed__label--plain">
+                {{ formatClientInfo(history.userAgent) }}
               </span>
             </div>
 
@@ -2110,9 +2117,8 @@ onBeforeUnmount(() => {
                 IP: {{ history.ipAddress || '-' }}
               </span>
 
-              <span class="page-feed__label">
-                {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
-                {{ formatUserAgent(history.userAgent) }}
+              <span class="page-feed__label page-feed__label--plain">
+                {{ formatClientInfo(history.userAgent) }}
               </span>
             </div>
 
@@ -2138,6 +2144,26 @@ onBeforeUnmount(() => {
             {{ preferences.language === 'ko' ? '보안 이력을 불러오는 중입니다...' : 'Loading security history...' }}
           </div>
         </div>
+      </BaseModal>
+
+      <BaseModal
+        v-model="profileSuccessModalOpen"
+        :title="preferences.language === 'ko' ? '프로필 수정 완료' : 'Profile Updated'"
+        :description="profileSuccess"
+        hide-eyebrow
+        hide-dividers
+        hide-close-button
+        size="sm"
+      >
+        <template #footer>
+          <button
+            class="page-button page-button--primary"
+            type="button"
+            @click="profileSuccessModalOpen = false"
+          >
+            {{ preferences.language === 'ko' ? '확인' : 'OK' }}
+          </button>
+        </template>
       </BaseModal>
     </template>
   </section>

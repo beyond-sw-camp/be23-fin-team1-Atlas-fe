@@ -31,6 +31,12 @@ function toggleTheme() {
   preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
 }
 
+function handleLanguageChange(event: Event) {
+  const target = event.target as HTMLSelectElement | null
+  if (!target) return
+  preferences.setLanguage(target.value === 'en' ? 'en' : 'ko')
+}
+
 function handleSidebarNavigate(navigate: () => void) {
   navigate()
   ui.closeMobileSidebar()
@@ -64,7 +70,7 @@ function buildSidebarUserName() {
 
   const parts = preferences.language === 'en'
     ? [firstName, middleName, lastName]
-    : [lastName, firstName]
+    : [lastName, middleName, firstName]
 
   const name = parts.filter(Boolean).join(' ')
   return name || navigation.sidebarOperator.name[preferences.language]
@@ -193,9 +199,17 @@ onBeforeUnmount(() => {
       <button class="app-icon-button" type="button" @click="navigation.openSettings">
         <span class="material-symbols-outlined">settings</span>
       </button>
-      <button class="app-icon-button app-profile-button" type="button" @click="navigation.navigateToPage('profile')">
-        <span class="material-symbols-outlined">account_circle</span>
-      </button>
+      <label class="app-language-select app-language-select--sidebar">
+        <select
+          id="app-language-sidebar"
+          name="app-language-sidebar"
+          :value="preferences.language"
+          @change="handleLanguageChange"
+        >
+          <option value="ko">KO</option>
+          <option value="en">EN</option>
+        </select>
+      </label>
     </div>
   </aside>
 </template>

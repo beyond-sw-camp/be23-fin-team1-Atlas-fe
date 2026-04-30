@@ -87,7 +87,6 @@ onBeforeUnmount(() => header.clearActions())
       <div>
         <div class="terminal-page__eyebrow">{{ content.eyebrow }}</div>
         <h2 class="terminal-page__title">{{ content.title }}</h2>
-        <p class="terminal-page__subtitle">{{ content.subtitle }}</p>
       </div>
       <div class="design-trigger-row">
         <button class="page-button page-button--secondary" type="button">{{ content.exportLabel }}</button>
