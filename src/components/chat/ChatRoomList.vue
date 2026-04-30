@@ -1,13 +1,13 @@
 <script setup lang="ts">
 /**
  * ChatRoomList — 참여 중인 채팅방 목록
- * 검색 필터 + 채팅방 아이템 렌더링 + 채팅방 생성
+ * 레퍼런스: "Chat" 큰 타이틀 + pill 검색바 + 아바타 아이템
  */
 import { ref, computed } from 'vue'
 import type { ChatRoom } from '../../types/chat'
 import ChatRoomItem from './ChatRoomItem.vue'
+import ChatAvatar from './ChatAvatar.vue'
 import { useAtlasChatStore } from '../../stores/chat'
-
 import { useAtlasSessionStore } from '../../stores/session'
 
 const props = defineProps<{
@@ -107,8 +107,22 @@ function toggleCreateRoomMode() {
 
 <template>
   <div class="chat-room-list">
-    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 0 16px; margin-top: 16px;">
-      <div class="chat-room-list__search" style="flex: 1; margin: 0;">
+    <!-- 헤더: "Chat" + 생성 버튼 -->
+    <div class="chat-room-list__header">
+      <h2 class="chat-room-list__title">Chat</h2>
+      <button
+        class="chat-room-list__add-btn"
+        type="button"
+        title="채팅방 생성"
+        @click="toggleCreateRoomMode"
+      >
+        <span class="material-symbols-outlined">{{ isCreatingRoom ? 'close' : 'add' }}</span>
+      </button>
+    </div>
+
+    <!-- 검색바 (pill 형태) -->
+    <div class="chat-room-list__search-wrapper">
+      <div class="chat-room-list__search">
         <span class="material-symbols-outlined">search</span>
         <input
           v-model="searchQuery"
@@ -116,60 +130,52 @@ function toggleCreateRoomMode() {
           placeholder="채팅방 검색..."
         />
       </div>
-      <button 
-        class="chat-room-list__create-btn" 
-        style="background: transparent; border: 1px solid var(--color-outline, #474747); color: inherit; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 0;"
-        @click="toggleCreateRoomMode" 
-        title="채팅방 생성">
-        <span class="material-symbols-outlined">{{ isCreatingRoom ? 'close' : 'add' }}</span>
-      </button>
     </div>
 
-    <div v-if="isCreatingRoom" style="padding: 0 16px 16px; border-bottom: 1px solid var(--color-surface-container-low, #1E1E1E);">
-      <div style="display: flex; align-items: center; border-bottom: 2px solid var(--color-outline, #474747); margin-bottom: 8px;">
-        <span class="material-symbols-outlined" style="font-size: 1rem; margin-right: 4px; color: var(--color-on-surface-variant, #C6C6C6);">search</span>
+    <!-- 채팅방 생성 모드 -->
+    <div v-if="isCreatingRoom" class="chat-room-list__create-panel">
+      <div class="chat-room-list__create-search">
+        <span class="material-symbols-outlined">person_search</span>
         <input
           v-model="userSearchQuery"
           type="text"
           placeholder="초대할 사용자 검색..."
-          class="chat-room-list__invite-search-input"
-          style="width: 100%; padding: 8px 0; background: transparent; border: none; color: inherit; outline: none;"
         />
       </div>
-      <div style="max-height: 120px; overflow-y: auto; margin-bottom: 16px; font-size: 0.875rem;">
+      <div class="chat-room-list__create-users">
         <label v-for="user in filteredAvailableUsers" :key="user.userPublicId" class="chat-room-list__invite-user">
-          <input type="checkbox" :value="user.userPublicId" v-model="selectedUsers" style="margin-right: 8px;" />
-          <span class="chat-room-list__invite-avatar" aria-hidden="true">
-            <img
-              v-if="user.profileImageThumbPath"
-              :src="user.profileImageThumbPath"
-              :alt="user.displayName"
-              class="chat-room-list__invite-avatar-image"
-            />
-            <span v-else class="material-symbols-outlined chat-room-list__invite-avatar-icon">person</span>
-          </span>
+          <input type="checkbox" :value="user.userPublicId" v-model="selectedUsers" />
+          <ChatAvatar
+            :image-url="user.profileImageThumbPath || undefined"
+            :name="user.displayName"
+            size="sm"
+          />
           <span class="chat-room-list__invite-copy">
             <span>{{ user.displayName }}</span>
-            <span v-if="user.jobTitle" style="color: #666666; font-size: 0.75rem;">{{ user.jobTitle }}</span>
+            <span v-if="user.jobTitle" class="chat-room-list__invite-role">{{ user.jobTitle }}</span>
           </span>
         </label>
-        <div v-if="filteredAvailableUsers.length === 0" style="padding: 8px 0; color: var(--color-on-surface-variant, #C6C6C6); font-size: 0.75rem; text-align: center;">검색 결과가 없습니다.</div>
+        <div v-if="filteredAvailableUsers.length === 0" class="chat-room-list__create-empty">
+          검색 결과가 없습니다.
+        </div>
       </div>
-      <button 
-        @click="handleCreateRoom"
+      <button
+        class="chat-room-list__create-submit"
         :disabled="selectedUsers.length === 0"
-        style="width: 100%; padding: 8px; background: var(--color-primary, #FFFFFF); color: var(--color-on-primary, #121212); border: none; cursor: pointer; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;"
-        :style="{ opacity: selectedUsers.length === 0 ? 0.5 : 1, cursor: selectedUsers.length === 0 ? 'not-allowed' : 'pointer' }">
+        @click="handleCreateRoom"
+      >
         채팅 시작 ({{ selectedUsers.length }}명)
       </button>
     </div>
 
+    <!-- 채팅방 목록 -->
     <div class="chat-room-list__items" v-if="!isCreatingRoom">
       <!-- 고정된 방 -->
       <ChatRoomItem
         v-for="room in pinnedRooms"
         :key="room.publicId"
         :room="room"
+        :current-user-public-id="chatStore.currentUserPublicId"
         @select="emit('selectRoom', $event)"
         @pin="handlePin"
         @unpin="handleUnpin"
@@ -183,6 +189,7 @@ function toggleCreateRoomMode() {
         v-for="room in unpinnedRooms"
         :key="room.publicId"
         :room="room"
+        :current-user-public-id="chatStore.currentUserPublicId"
         @select="emit('selectRoom', $event)"
         @pin="handlePin"
         @unpin="handleUnpin"

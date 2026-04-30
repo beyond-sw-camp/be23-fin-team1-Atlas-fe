@@ -1,13 +1,13 @@
 <script setup lang="ts">
 /**
  * ChatRoom — 채팅방 화면
- * 메시지 목록 (무한 스크롤 대비) + 입력 영역 + 초대 기능
- * 현재는 더미 데이터 기반, 추후 WebSocket 구독 추가 예정
+ * 레퍼런스: 깔끔한 헤더(←이름+아바타) + 더보기 메뉴 통합
  */
 import { ref, computed, nextTick, watch } from 'vue'
 import type { ChatMessageDto, ChatParticipant } from '../../types/chat'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
+import ChatAvatar from './ChatAvatar.vue'
 import { useAtlasChatStore } from '../../stores/chat'
 
 const props = defineProps<{
@@ -28,6 +28,7 @@ const emit = defineEmits<{
 
 const chatStore = useAtlasChatStore()
 const messagesContainer = ref<HTMLElement | null>(null)
+const isMoreMenuOpen = ref(false)
 const isInviting = ref(false)
 const isShowingParticipants = ref(false)
 
@@ -37,6 +38,15 @@ const availableUsersToInvite = computed(() => {
       u.userPublicId !== props.currentUserPublicId &&
       !props.participants.some((p) => p.userPublicId === u.userPublicId)
   )
+})
+
+/** 대표 아바타 정보 (헤더 우측) */
+const headerAvatar = computed(() => {
+  const other = props.participants.find(p => p.userPublicId !== props.currentUserPublicId)
+  if (other) {
+    return { imageUrl: other.profileImageThumbPath, name: other.displayName }
+  }
+  return { name: props.roomName, imageUrl: undefined }
 })
 
 /** 메시지 목록 변경 시 스크롤을 최하단으로 이동 */
@@ -72,6 +82,15 @@ function getSenderName(senderPublicId: string | null | undefined): string {
   return fromStore?.displayName ?? senderPublicId.slice(0, 8) + '...'
 }
 
+/** senderUserPublicId → 아바타 URL 변환 */
+function getSenderAvatarUrl(senderPublicId: string | null | undefined): string | undefined {
+  if (!senderPublicId) return undefined
+  const fromParticipants = props.participants.find((p) => p.userPublicId === senderPublicId)
+  if (fromParticipants?.profileImageThumbPath) return fromParticipants.profileImageThumbPath
+  const fromStore = chatStore.availableUsers.find((u) => u.userPublicId === senderPublicId)
+  return fromStore?.profileImageThumbPath || undefined
+}
+
 /** 시스템 메시지 본문의 publicId를 표시명으로 치환 */
 function resolveSystemMessage(body: string): string {
   // publicId 패턴: 26자리 영문대소문자/숫자 조합
@@ -92,26 +111,35 @@ function handleDeleteMessage(messagePublicId: string) {
 function handleInviteUser(userPublicId: string) {
   chatStore.inviteUser(userPublicId)
   isInviting.value = false
+  isMoreMenuOpen.value = false
 }
 
-async function toggleInvite() {
-  isInviting.value = !isInviting.value
+function toggleMoreMenu() {
+  isMoreMenuOpen.value = !isMoreMenuOpen.value
+  if (!isMoreMenuOpen.value) {
+    isInviting.value = false
+    isShowingParticipants.value = false
+  }
+}
+
+async function showInvitePanel() {
+  isInviting.value = true
   isShowingParticipants.value = false
-  if (isInviting.value && chatStore.availableUsers.length === 0) {
+  if (chatStore.availableUsers.length === 0) {
     await chatStore.fetchAvailableUsers()
   }
 }
 
-function toggleParticipants() {
-  isShowingParticipants.value = !isShowingParticipants.value
+function showParticipantsPanel() {
+  isShowingParticipants.value = true
   isInviting.value = false
 }
 
 /** 채팅방 나가기 핸들러 */
-/** 채팅방 나가기 핸들러 */
 function handleLeaveRoom() {
   if (confirm('정말로 이 채팅방에서 나가시겠습니까?\n나가면 채팅 목록에서 삭제됩니다.')) {
     chatStore.leaveRoom()
+    isMoreMenuOpen.value = false
   }
 }
 
@@ -121,6 +149,7 @@ const editedRoomName = ref('')
 function startEditingName() {
   editedRoomName.value = props.roomName
   isEditingName.value = true
+  isMoreMenuOpen.value = false
 }
 
 async function handleRenameRoom() {
@@ -135,127 +164,112 @@ async function handleRenameRoom() {
 <template>
   <div class="chat-room">
     <!-- 헤더 -->
-    <div class="chat-room__header" style="position: relative;">
+    <div class="chat-room__header">
       <button class="chat-room__back" type="button" @click="$emit('back')">
         <span class="material-symbols-outlined">arrow_back</span>
       </button>
-      <div 
-        v-if="!isEditingName" 
-        style="flex: 1; display: flex; align-items: center; overflow: hidden;"
-      >
-        <strong class="chat-room__title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;">
-          {{ roomName }}
-        </strong>
-        <button
-          type="button"
-          @click="startEditingName"
-          style="background: transparent; border: none; color: var(--color-on-surface-variant, #C6C6C6); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;"
-          title="이름 변경"
-        >
-          <span class="material-symbols-outlined" style="font-size: 1.1rem;">edit</span>
-        </button>
+
+      <!-- 방 이름 (일반 / 편집 모드) -->
+      <div v-if="!isEditingName" class="chat-room__header-center">
+        <strong class="chat-room__title">{{ roomName }}</strong>
       </div>
-      
-      <div 
-        v-else 
-        style="flex: 1; display: flex; align-items: center; gap: 4px;"
-      >
-        <input 
-          v-model="editedRoomName" 
-          type="text" 
-          @keyup.enter="handleRenameRoom" 
-          @keyup.esc="isEditingName = false" 
-          style="flex: 1; background: transparent; border: none; border-bottom: 1px solid var(--color-primary, #FFFFFF); color: inherit; outline: none; font-size: 1rem; font-weight: bold;" 
+      <div v-else class="chat-room__header-edit">
+        <input
+          v-model="editedRoomName"
+          type="text"
+          class="chat-room__edit-input"
+          @keyup.enter="handleRenameRoom"
+          @keyup.esc="isEditingName = false"
         />
-        <button 
-          @click="handleRenameRoom" 
-          style="background: transparent; border: none; color: var(--color-primary, #FFFFFF); cursor: pointer; padding: 4px;"
-        >
-          <span class="material-symbols-outlined" style="font-size: 1.1rem;">check</span>
+        <button class="chat-room__edit-confirm" @click="handleRenameRoom">
+          <span class="material-symbols-outlined">check</span>
         </button>
-        <button 
-          @click="isEditingName = false" 
-          style="background: transparent; border: none; color: var(--color-error, #FF5252); cursor: pointer; padding: 4px;"
-        >
-          <span class="material-symbols-outlined" style="font-size: 1.1rem;">close</span>
+        <button class="chat-room__edit-cancel" @click="isEditingName = false">
+          <span class="material-symbols-outlined">close</span>
         </button>
       </div>
-      
-      <button 
-        class="chat-room__leave-btn" 
-        type="button" 
-        style="background: transparent; border: none; color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; margin-right: 4px;"
-        @click="handleLeaveRoom"
-        title="방 나가기">
-        <span class="material-symbols-outlined">logout</span>
-      </button>
 
-      <button 
-        class="chat-room__invite-btn" 
-        type="button" 
-        style="background: transparent; border: none; color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px;"
-        @click="toggleInvite"
-        title="초대하기">
-        <span class="material-symbols-outlined">person_add</span>
-      </button>
+      <!-- 우측: 대표 아바타 + 더보기 -->
+      <div class="chat-room__header-right">
+        <ChatAvatar
+          :image-url="headerAvatar.imageUrl"
+          :name="headerAvatar.name"
+          size="sm"
+        />
+        <button class="chat-room__more-btn" type="button" @click="toggleMoreMenu">
+          <span class="material-symbols-outlined">more_vert</span>
+        </button>
+      </div>
 
-      <button 
-        type="button" 
-        style="background: transparent; border: none; color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px;"
-        @click="toggleParticipants"
-        title="참여자 목록">
-        <span class="material-symbols-outlined">group</span>
-      </button>
-
-      <!-- 참여자 목록 팝오버 -->
-      <div v-if="isShowingParticipants" style="position: absolute; top: 100%; right: 16px; width: 220px; max-height: 280px; overflow-y: auto; background: var(--color-surface, #131313); border: 1px solid var(--color-outline-variant, #474747); z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-        <div style="padding: 8px 12px; font-size: 0.75rem; font-weight: 600; color: var(--color-on-surface-variant, #C6C6C6); border-bottom: 1px solid var(--color-surface-container-high, #2A2A2A); text-transform: uppercase; letter-spacing: 0.05em; display: flex; justify-content: space-between; align-items: center;">
-          <span>참여자 ({{ participants.length }}명)</span>
-          <button @click="isShowingParticipants = false" style="background: transparent; border: none; color: inherit; cursor: pointer; padding: 0; display: flex;">
-            <span class="material-symbols-outlined" style="font-size: 1rem;">close</span>
+      <!-- 더보기 드롭다운 메뉴 -->
+      <Transition name="chat-menu">
+        <div v-if="isMoreMenuOpen && !isInviting && !isShowingParticipants" class="chat-room__dropdown">
+          <button class="chat-room__dropdown-item" @click="startEditingName">
+            <span class="material-symbols-outlined">edit</span>
+            <span>이름 변경</span>
+          </button>
+          <button class="chat-room__dropdown-item" @click="showInvitePanel">
+            <span class="material-symbols-outlined">person_add</span>
+            <span>초대하기</span>
+          </button>
+          <button class="chat-room__dropdown-item" @click="showParticipantsPanel">
+            <span class="material-symbols-outlined">group</span>
+            <span>참여자 ({{ participants.length }}명)</span>
+          </button>
+          <button class="chat-room__dropdown-item chat-room__dropdown-item--danger" @click="handleLeaveRoom">
+            <span class="material-symbols-outlined">logout</span>
+            <span>나가기</span>
           </button>
         </div>
-        <div v-if="participants.length === 0" style="padding: 12px; font-size: 0.875rem; text-align: center; color: var(--color-on-surface-variant, #C6C6C6);">
+      </Transition>
+
+      <!-- 참여자 목록 패널 -->
+      <div v-if="isMoreMenuOpen && isShowingParticipants" class="chat-room__dropdown">
+        <div class="chat-room__dropdown-head">
+          <button class="chat-room__dropdown-back" @click="isShowingParticipants = false">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <span>참여자 ({{ participants.length }}명)</span>
+        </div>
+        <div v-if="participants.length === 0" class="chat-room__dropdown-empty">
           참여자 정보 없음
         </div>
-        <div
-          v-for="p in participants"
-          :key="p.userPublicId"
-          style="padding: 8px 12px; border-bottom: 1px solid var(--color-surface-container-highest, #333333); display: flex; align-items: center; gap: 8px;"
-        >
-          <span class="material-symbols-outlined" style="font-size: 1.2rem; color: var(--color-on-surface-variant, #C6C6C6);">person</span>
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-size: 0.875rem; color: var(--color-on-surface, #FFFFFF); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              {{ p.displayName }}
-              <span v-if="p.userPublicId === currentUserPublicId" style="font-size: 0.7rem; color: var(--color-primary, #FFFFFF); margin-left: 4px;">(나)</span>
-            </div>
-            <div v-if="p.jobTitle" style="font-size: 0.7rem; color: var(--color-on-surface-variant, #C6C6C6);">
-              {{ p.jobTitle }}
-            </div>
+        <div v-for="p in participants" :key="p.userPublicId" class="chat-room__dropdown-user">
+          <ChatAvatar :image-url="p.profileImageThumbPath" :name="p.displayName" size="sm" />
+          <div class="chat-room__dropdown-user-info">
+            <span>{{ p.displayName }}
+              <span v-if="p.userPublicId === currentUserPublicId" class="chat-room__me-badge">(나)</span>
+            </span>
+            <span v-if="p.jobTitle" class="chat-room__dropdown-user-role">{{ p.jobTitle }}</span>
           </div>
         </div>
       </div>
 
-      <!-- 초대 팝오버 -->
-      <div v-if="isInviting" style="position: absolute; top: 100%; right: 16px; width: 200px; max-height: 250px; overflow-y: auto; background: var(--color-surface, #131313); border: 1px solid var(--color-outline-variant, #474747); z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-        <div style="padding: 8px; font-size: 0.75rem; font-weight: 600; color: var(--color-on-surface-variant, #C6C6C6); border-bottom: 1px solid var(--color-surface-container-high, #2A2A2A); text-transform: uppercase; letter-spacing: 0.05em;">
-          초대 가능한 사용자
+      <!-- 초대 패널 -->
+      <div v-if="isMoreMenuOpen && isInviting" class="chat-room__dropdown">
+        <div class="chat-room__dropdown-head">
+          <button class="chat-room__dropdown-back" @click="isInviting = false">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <span>초대 가능한 사용자</span>
         </div>
-        <div v-if="availableUsersToInvite.length === 0" style="padding: 12px; font-size: 0.875rem; text-align: center; color: var(--color-on-surface-variant, #C6C6C6);">
+        <div v-if="availableUsersToInvite.length === 0" class="chat-room__dropdown-empty">
           모두 참여 중입니다.
         </div>
         <button
           v-for="user in availableUsersToInvite"
           :key="user.userPublicId"
+          class="chat-room__dropdown-invite-btn"
           @click="handleInviteUser(user.userPublicId)"
-          style="display: block; width: 100%; padding: 8px 12px; text-align: left; background: transparent; border: none; border-bottom: 1px solid var(--color-surface-container-highest, #333333); color: var(--color-on-surface, #FFFFFF); cursor: pointer; font-size: 0.875rem;">
-          {{ user.displayName }}
+        >
+          <ChatAvatar :image-url="user.profileImageThumbPath" :name="user.displayName" size="sm" />
+          <span>{{ user.displayName }}</span>
         </button>
       </div>
     </div>
 
     <!-- 메시지 목록 -->
-    <div ref="messagesContainer" class="chat-room__messages" style="flex: 1; overflow-y: auto;">
+    <div ref="messagesContainer" class="chat-room__messages">
       <div v-if="isLoading" class="chat-room__loading">
         <span>메시지 로딩 중...</span>
       </div>
@@ -274,6 +288,7 @@ async function handleRenameRoom() {
           }"
           :current-user-public-id="currentUserPublicId"
           :sender-name="getSenderName(msg.senderUserPublicId)"
+          :sender-avatar-url="getSenderAvatarUrl(msg.senderUserPublicId)"
           @delete="handleDeleteMessage"
         />
       </template>
