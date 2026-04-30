@@ -4445,6 +4445,10 @@ select:not(.app-language-select select):focus {
   gap: 14px;
 }
 
+.profile-name-fields label {
+  min-width: 0;
+}
+
 .settings-form span {
   font-size: 0.7rem;
   font-weight: 700;
@@ -4463,6 +4467,8 @@ select:not(.app-language-select select):focus {
 
 .settings-form select,
 .settings-form input {
+  width: 100%;
+  box-sizing: border-box;
   min-height: 42px;
   padding: 0 12px;
   border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
