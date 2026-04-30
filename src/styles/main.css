@@ -19,8 +19,39 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
+}
+
+select:not(.app-language-select select) {
+  min-height: 42px !important;
+  padding: 0 28px 0 10px !important;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.24) !important;
+  border-radius: 0 !important;
+  background-color: var(--surface-container-lowest, #fff) !important;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%) !important;
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 11px) 50% !important;
+  background-size:
+    6px 6px,
+    6px 6px !important;
+  background-repeat: no-repeat !important;
+  color: inherit !important;
+  font: inherit !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+}
+
+select:not(.app-language-select select):focus {
+  outline: none !important;
+  border-color: rgb(var(--outline-rgb, 117 124 125) / 0.65) !important;
 }
 
 .material-symbols-outlined {
