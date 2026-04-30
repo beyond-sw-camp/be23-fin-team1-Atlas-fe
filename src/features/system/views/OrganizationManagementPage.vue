@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import PhoneField from '../../../components/forms/PhoneField.vue'
 import { useActorScope } from '../../../composables/useActorScope'
 import {
@@ -20,6 +21,8 @@ import {
 import { uploadAttachment } from '../../../services/file'
 import { useAtlasNavigationStore } from '../../../stores/navigation'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+
+const route = useRoute()
 
 // 조직관리 내부 탭 종류입니다.
 type OrganizationManagementTabKey = 'organization' | 'members'
@@ -339,6 +342,24 @@ function isSelectedRow(row: OrganizationListItem) {
 function formatCount(value?: number | null) {
   return value ?? 0
 }
+function getRouteOrganizationId() {
+  // 통합검색에서 넘어온 organizationId query를 읽습니다.
+  const rawValue = route.query.organizationId
+
+  // query가 배열로 올 수도 있어서 첫 값만 사용합니다.
+  const normalizedValue = Array.isArray(rawValue) ? rawValue[0] : rawValue
+
+  // 값이 없으면 자동 선택할 조직이 없는 상태입니다.
+  if (!normalizedValue) {
+    return null
+  }
+
+  const organizationId = Number(normalizedValue)
+
+  // 숫자로 바꿀 수 없는 값이면 무시합니다.
+  return Number.isFinite(organizationId) ? organizationId : null
+}
+
 
 // 타입 코드를 화면용 텍스트로 바꿉니다.
 function formatOrganizationType(value?: string) {
@@ -672,6 +693,14 @@ async function loadPage() {
 
   if (isAdminManager.value) {
     await loadOrganizationList()
+
+    // 통합검색에서 조직 ID를 넘겨준 경우, 목록 로딩 후 바로 상세를 엽니다.
+    const routeOrganizationId = getRouteOrganizationId()
+
+    if (routeOrganizationId !== null) {
+      await loadOrganizationDetailById(routeOrganizationId)
+    }
+
     return
   }
 
@@ -893,6 +922,23 @@ async function handleMemberExcelUpload(event: Event) {
 onMounted(() => {
   void loadPage()
 })
+
+watch(
+  () => route.query.organizationId,
+  async () => {
+    // 이미 조직관리 페이지에 있는 상태에서 다른 조직 검색 결과를 누르면 상세만 다시 바꿉니다.
+    if (!isAdminManager.value) {
+      return
+    }
+
+    const routeOrganizationId = getRouteOrganizationId()
+
+    if (routeOrganizationId !== null) {
+      await loadOrganizationDetailById(routeOrganizationId)
+    }
+  },
+)
+
 </script>
 
 <template>

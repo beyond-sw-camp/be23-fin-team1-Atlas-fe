@@ -35,6 +35,18 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     ko: { label: '디자인 시스템', description: '토큰, 타이포, 인터랙션 기준', pageSubtitle: 'Kinetic Blueprint 토큰, 계층, 컴포넌트 기준' },
     en: { label: 'Design System', description: 'Tokens, typography, and interaction rules', pageSubtitle: 'Kinetic Blueprint tokens, hierarchy, and component rules' },
   },
+  organizationProfile: {
+    ko: {
+      label: '조직 프로필',
+      description: '조직 기본정보와 등록 물품을 확인합니다.',
+      pageSubtitle: '검색 결과에서 진입하는 읽기 전용 조직 정보입니다.',
+    },
+    en: {
+      label: 'Organization Profile',
+      description: 'Review organization info and registered items.',
+      pageSubtitle: 'Read-only organization profile from search results.',
+    },
+  },
   controlTower: {
     ko: { label: '대시보드', description: '운영 대시보드와 핵심 위험 지표', pageSubtitle: '전체 공급망 운영 현황과 핵심 경보 모니터링' },
     en: { label: 'Dashboard', description: 'Operational dashboard and core risk metrics', pageSubtitle: 'Monitor overall network operations and high-priority alerts' },
