@@ -23,8 +23,12 @@ export interface ShipmentListResponseDto {
   currentNodePublicId?: string | null
   currentNodeName?: string | null
   currentNodeCode?: string | null
-  arrivalEta: string
+  departureEta?: string | null
+  arrivalEta?: string | null
   status: ShipmentStatus
+  temperatureRequired?: boolean
+  sealedPackagingRequired?: boolean
+  fragile?: boolean
 }
 
 export interface ShipmentResponseDto {
@@ -53,11 +57,13 @@ export interface ShipmentResponseDto {
   currentLatitude?: number | null
   currentLongitude?: number | null
   departureEta: string
-  arrivalEta: string
+  arrivalEta?: string | null
   actualDepartedAt?: string | null
   actualArrivedAt?: string | null
   status: ShipmentStatus
   temperatureRequired: boolean
+  sealedPackagingRequired: boolean
+  fragile: boolean
 }
 
 export interface CreateShipmentRequestDto {
@@ -65,24 +71,18 @@ export interface CreateShipmentRequestDto {
   purchaseOrderPublicId?: string | null
   subPoId?: number | null
   subPurchaseOrderPublicId?: string | null
-  carrierName?: string | null
-  vehicleNo?: string | null
-  trackingNo?: string | null
   originNodePublicId: string
-  destinationNodePublicId: string
   departureEta: string
-  arrivalEta: string
   temperatureRequired: boolean
+  sealedPackagingRequired: boolean
+  fragile: boolean
 }
 
 export interface UpdateShipmentRequestDto {
-  carrierName?: string | null
-  vehicleNo?: string | null
-  trackingNo?: string | null
-  originNodePublicId?: string | null
-  destinationNodePublicId?: string | null
-  departureEta?: string | null
-  arrivalEta?: string | null
+  departureEta: string
+  temperatureRequired: boolean
+  sealedPackagingRequired: boolean
+  fragile: boolean
 }
 
 export interface ShipmentMapCheckpointDto {
@@ -114,7 +114,7 @@ export interface ShipmentEtaResponseDto {
   currentNodePublicId: string
   destinationNodePublicId: string
   departureEta: string
-  arrivalEta: string
+  arrivalEta?: string | null
   actualDepartedAt?: string | null
   actualArrivedAt?: string | null
   estimatedArrivalAt: string
@@ -221,6 +221,24 @@ export async function updateShipment(
   const response = await apiClient.patch<ShipmentResponseDto>(
     `/api/supply/shipments/${publicId}`,
     data,
+  )
+  return response.data
+}
+
+export async function startShipment(
+  publicId: string,
+): Promise<ShipmentResponseDto> {
+  const response = await apiClient.patch<ShipmentResponseDto>(
+    `/api/supply/shipments/${publicId}/start`,
+  )
+  return response.data
+}
+
+export async function arriveShipment(
+  publicId: string,
+): Promise<ShipmentResponseDto> {
+  const response = await apiClient.patch<ShipmentResponseDto>(
+    `/api/supply/shipments/${publicId}/arrive`,
   )
   return response.data
 }
