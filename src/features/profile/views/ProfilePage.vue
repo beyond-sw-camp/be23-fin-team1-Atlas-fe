@@ -1006,6 +1006,10 @@ function formatClientOs(value?: string | null) {
   return 'Other'
 }
 
+function formatClientInfo(value?: string | null) {
+  return `${formatClientOs(value)} · ${formatUserAgent(value)}`
+}
+
 
 // 로그인 실패 사유 코드를 화면용 문구로 바꿉니다.
 function formatLoginFailureReason(reason?: string | null) {
@@ -1786,12 +1790,8 @@ onBeforeUnmount(() => {
               </span>
 
               <span class="page-feed__label">
-                OS: {{ formatClientOs(history.userAgent) }}
-              </span>
-
-              <span class="page-feed__label">
-                {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
-                {{ formatUserAgent(history.userAgent) }}
+                OS / {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
+                {{ formatClientInfo(history.userAgent) }}
               </span>
             </div>
 
@@ -2119,12 +2119,8 @@ onBeforeUnmount(() => {
               </span>
 
               <span class="page-feed__label">
-                OS: {{ formatClientOs(history.userAgent) }}
-              </span>
-
-              <span class="page-feed__label">
-                {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
-                {{ formatUserAgent(history.userAgent) }}
+                OS / {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
+                {{ formatClientInfo(history.userAgent) }}
               </span>
             </div>
 
