@@ -881,6 +881,10 @@ select:not(.app-language-select select):focus {
   white-space: nowrap;
 }
 
+.app-session-controls--mobile {
+  display: none;
+}
+
 .theme-dark .app-session-controls {
   background: rgb(var(--surface-container-low-rgb, 27 27 27) / 0.92);
   border-color: rgb(var(--outline-variant-rgb, 71 71 71) / 0.3);
@@ -947,6 +951,10 @@ select:not(.app-language-select select):focus {
 }
 
 .app-language-select--mobile {
+  display: none;
+}
+
+.app-language-select--sidebar {
   display: none;
 }
 
@@ -1223,10 +1231,6 @@ select:not(.app-language-select select):focus {
   width: 8px;
   height: 8px;
   background: var(--error, #9f403d);
-}
-
-.app-profile-button {
-  border-color: rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
 }
 
 .app-mobile-menu-button {
@@ -3476,13 +3480,38 @@ select:not(.app-language-select select):focus {
     gap: 12px;
   }
 
-  .app-language-select--mobile {
-    display: inline-flex;
-    margin-left: auto;
-  }
-
   .app-language-select--desktop {
     display: none;
+  }
+
+  .app-session-controls--desktop {
+    display: none;
+  }
+
+  .app-session-controls--mobile {
+    display: inline-flex;
+    flex: 0 0 142px;
+    min-height: 40px;
+    margin-left: auto;
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .app-session-controls--mobile .app-session-controls__meta {
+    min-width: 48px;
+  }
+
+  .app-session-controls--mobile .app-session-controls__time {
+    min-width: 48px;
+    font-size: 0.9rem;
+  }
+
+  .app-session-controls--mobile .app-session-controls__action {
+    min-width: 52px;
+    font-size: 0.68rem;
+    white-space: normal;
+    line-height: 1.15;
+    text-align: right;
   }
 
   .app-brand {
@@ -3510,14 +3539,6 @@ select:not(.app-language-select select):focus {
     max-width: none;
     min-width: 0;
   }
-
-  .app-session-controls {
-    order: 3;
-    width: 100%;
-    justify-content: space-between;
-    flex-wrap: wrap;
-  }
-
 
   .app-topbar__actions>.app-icon-button {
     display: none;
@@ -4040,13 +4061,24 @@ select:not(.app-language-select select):focus {
   }
 
   .app-icon-button,
-  .app-language-select--mobile select {
+  .app-language-select--sidebar,
+  .app-language-select--sidebar select {
     width: 36px;
   }
 
-  .app-language-select--mobile select {
+  .app-language-select--sidebar {
+    display: inline-flex;
+  }
+
+  .app-language-select--sidebar select {
+    height: 44px;
     padding-left: 10px;
     padding-right: 28px;
+  }
+
+  .app-sidebar__mobile-tools .app-language-select--sidebar,
+  .app-sidebar__mobile-tools .app-language-select--sidebar select {
+    width: 100%;
   }
 
   .app-search {
