@@ -22,6 +22,7 @@ import {
 } from '../../../services/item'
 import { createInitialOrgAdmin } from '../../../services/user'
 import PhoneField from '../../../components/forms/PhoneField.vue'
+import OrganizationManagementPage from './OrganizationManagementPage.vue'
 
 type SettingsTabKey = 'organization' | 'users' | 'categories'
 
@@ -65,6 +66,7 @@ const CONTENT = {
 } as const
 
 const content = computed(() => CONTENT[preferences.language])
+// 플랫폼 관리자는 설정에 들어오면 조직 관리 탭을 먼저 봅니다.
 const activeTab = ref<SettingsTabKey>('organization')
 const tabEntries = computed(() => [
   { key: 'organization' as const, label: content.value.tabs.organization },
@@ -908,105 +910,8 @@ if (!selectedOrganizationPublicId.value) {
       </button>
     </nav>
 
-    <section v-if="activeTab === 'organization'" class="settings-page__panel">
-      <div class="settings-page__grid">
-        <article class="page-panel">
-          <div class="page-panel__head">
-            <div>
-              <div class="page-panel__eyebrow">ORG CREATE</div>
-              <h3>{{ preferences.language === 'ko' ? '조직 생성' : 'Create Organization' }}</h3>
-            </div>
-          </div>
-
-          <div class="settings-form">
-            <label>
-              <span>{{ preferences.language === 'ko' ? '조직 유형' : 'Organization Type' }}</span>
-              <select v-model="organizationForm.organizationType">
-                <option value="BUYER">{{ preferences.language === 'ko' ? '발주사' : 'BUYER' }}</option>
-                <option value="SUPPLIER">{{ preferences.language === 'ko' ? '협력사' : 'SUPPLIER' }}</option>
-              </select>
-            </label>
-
-            <label>
-              <span>{{ preferences.language === 'ko' ? '조직명' : 'Organization Name' }}</span>
-              <input v-model="organizationForm.organizationName" type="text" />
-            </label>
-
-            <label>
-              <span>{{ preferences.language === 'ko' ? '조직 영문명' : 'Organization English Name' }}</span>
-              <input v-model="organizationForm.organizationEnglishName" type="text" />
-            </label>
-            <label>
-  <span>{{ preferences.language === 'ko' ? '조직 코드' : 'Organization Code' }}</span>
-
-  <!-- 백엔드 규칙:
-       영문 대문자/숫자만, 2~10자 -->
-  <input
-    v-model="organizationForm.organizationAlias"
-    type="text"
-    maxlength="10"
-    placeholder="예: ATLAS1"
-  />
-</label>
-
-
-            <label>
-              <span>{{ preferences.language === 'ko' ? '사업자번호' : 'Business No' }}</span>
-              <input v-model="organizationForm.businessNo" type="text" />
-            </label>
-
-            <label>
-              <span>{{ preferences.language === 'ko' ? '담당자 이름' : 'Contact First Name' }}</span>
-              <input v-model="organizationForm.contactFirstName" type="text" />
-            </label>
-
-            <label>
-              <span>{{ preferences.language === 'ko' ? '담당자 중간이름 (선택)' : 'Contact Middle Name (OPTIONAL)' }}</span>
-              <input v-model="organizationForm.contactMiddleName" type="text" />
-            </label>
-
-            <label>
-              <span>{{ preferences.language === 'ko' ? '담당자 성' : 'Contact Last Name' }}</span>
-              <input v-model="organizationForm.contactLastName" type="text" />
-            </label>
-
-            <label>
-              <span>{{ preferences.language === 'ko' ? '담당자 이메일' : 'Contact Email' }}</span>
-              <input v-model="organizationForm.contactEmail" type="email" />
-            </label>
-
-            <label>
-              <span>{{ preferences.language === 'ko' ? '담당자 연락처' : 'Contact Phone' }}</span>
-              <PhoneField
-                v-model="organizationForm.contactPhone"
-                v-model:valid="organizationContactPhoneValid"
-                :language="preferences.language"
-              />
-            </label>
-
-            <div v-if="organizationCreateError" class="login-error">
-              {{ organizationCreateError }}
-            </div>
-
-            <div v-if="organizationCreateSuccess" class="login-hint">
-              {{ organizationCreateSuccess }}
-            </div>
-
-            <button
-              class="page-button page-button--primary"
-              type="button"
-              :disabled="isCreatingOrganization"
-              @click="submitOrganization"
-            >
-              {{
-                isCreatingOrganization
-                  ? (preferences.language === 'ko' ? '생성 중...' : 'Creating...')
-                  : (preferences.language === 'ko' ? '조직 생성' : 'Create Organization')
-              }}
-            </button>
-          </div>
-        </article>
-      </div>
+    <section v-if="activeTab === 'organization'" class="settings-page__panel settings-page__panel--organization">
+      <OrganizationManagementPage />
     </section>
 
     <section v-else-if="activeTab === 'users'" class="settings-page__panel">
