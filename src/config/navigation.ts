@@ -31,6 +31,7 @@ export const PAGE_PATHS: Record<PageKey, string> = {
   profile: '/profile',
   systemSpec: '/system-spec',
   organizationManagement: '/organization-management',
+  organizationProfile: '/organizations',
 }
 
 export function isPageKey(value: string | undefined): value is PageKey {
@@ -54,6 +55,17 @@ export const NAV_ITEMS: NavEntry[] = [
     organizations: ['admin'],
     hidden: true,
   },
+  {
+    key: 'organizationProfile',
+    label: '조직 프로필',
+    icon: 'business',
+    description: '검색 결과에서 진입하는 읽기 전용 조직 정보입니다.',
+    pageSubtitle: '조직 기본정보와 등록 물품을 확인합니다.',
+    section: 'system',
+    organizations: ['mainBuyer', 'supplier', 'admin'],
+    hidden: true,
+  },
+
   {
     key: 'controlTower',
     label: 'Dashboard',

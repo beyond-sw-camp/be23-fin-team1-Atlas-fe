@@ -33,12 +33,20 @@ import AppShellLayout from '../layouts/AppShellLayout.vue'
 import type { OrganizationType, PageKey } from '../types'
 import OrganizationManagementPage from '../features/system/views/OrganizationManagementPage.vue'
 import InventoryPage from '../features/operations/views/InventoryPage.vue'
+import OrganizationProfilePage from '../features/system/views/OrganizationProfilePage.vue'
 
 const AUTH_ORG_STORAGE_KEY = 'atlas-organization'
 
 const PAGE_ORGANIZATIONS = Object.fromEntries(NAV_ITEMS.map((item) => [item.key, item.organizations])) as Record<PageKey, OrganizationType[]>
 
 const pageRoutes = [
+  {
+    path: 'organizations/:organizationPublicId',
+    name: 'organizationProfile',
+    component: OrganizationProfilePage,
+    meta: { hidePageHead: true },
+  },
+
   { path: 'design-system', name: 'designSystem', component: DesignSystemPage },
   { path: 'dashboard', alias: ['control-tower'], name: 'controlTower', component: ControlTowerPage },
   { path: 'impact', alias: ['impact-orders'], name: 'impactOrders', component: StructuredPage, props: { page: monitoringPageDefinitions.impactOrders } },
