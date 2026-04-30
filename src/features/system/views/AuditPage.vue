@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+import { ApiError } from '../../../services/http'
+import {
+  getKafkaEventLogs,
+  type EventLogSearchResponse,
+} from '../../../services/kafkaMonitoring'
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
@@ -61,21 +66,143 @@ const ROWS = {
 }
 
 const content = computed(() => CONTENT[preferences.language])
-const rows = computed(() => ROWS[preferences.language])
 const search = ref('')
-const activeTab = ref<string>(content.value.tabs[0])
+const activeTab = ref('')
+const eventLogs = ref<EventLogSearchResponse[]>([])
+const eventLogPage = ref(0)
+const eventLogTotalPages = ref(0)
+const eventLogTotalElements = ref(0)
+const eventLogPageSize = ref(10)
+const isLoadingEventLogs = ref(false)
+const isInitialEventLogsLoading = ref(true)
+const eventLogsErrorMessage = ref('')
 
-const filteredRows = computed(() => {
-  const query = search.value.trim().toLowerCase()
-  return rows.value.filter((row) => !query || row.some((cell) => cell.toLowerCase().includes(query)))
+const auditTabs = computed(() => content.value.tabs)
+
+const selectedStatus = computed(() => {
+  return undefined
 })
 
+const metrics = computed(() => {
+  return content.value.metrics
+})
+
+function formatAuditDateTime(value?: string | null) {
+  if (!value) return '-'
+  return value.length >= 19 ? value.substring(0, 19).replace('T', ' ') : value
+}
+
+function formatAuditStatus(value: EventLogSearchResponse['status']) {
+  if (preferences.language === 'ko') {
+    return value === 'PUBLISHED' ? '성공' : '실패'
+  }
+
+  return value
+}
+
+function buildAuditDetail(log: EventLogSearchResponse) {
+  return [
+    log.aggregatePublicId,
+    log.lastError,
+  ].filter(Boolean).join(' / ') || '-'
+}
+
+const fallbackRows = computed(() => ROWS[preferences.language])
+
+const esRows = computed(() => {
+  return eventLogs.value.map((log) => [
+    formatAuditDateTime(log.publishedAt ?? log.createdAt),
+    'SYSTEM',
+    log.eventType || '-',
+    log.topic || String(log.aggregateType ?? '-'),
+    buildAuditDetail(log),
+    'internal',
+    formatAuditStatus(log.status),
+  ])
+})
+
+const visibleRows = computed(() => {
+  const sourceRows = [
+    ...esRows.value,
+    ...fallbackRows.value,
+  ]
+  const query = search.value.trim().toLowerCase()
+
+  return sourceRows.filter((row) => {
+    return !query || row.some((cell) => cell.toLowerCase().includes(query))
+  })
+})
+
+
+async function fetchAuditLogs() {
+  isLoadingEventLogs.value = true
+  eventLogsErrorMessage.value = ''
+
+  try {
+    const response = await getKafkaEventLogs({
+      keyword: search.value.trim() || undefined,
+      status: selectedStatus.value,
+      page: eventLogPage.value,
+      size: eventLogPageSize.value,
+    })
+
+    eventLogs.value = response.content
+    eventLogTotalPages.value = response.totalPages ?? 0
+    eventLogTotalElements.value = response.totalElements ?? 0
+    eventLogPage.value = response.page ?? response.number ?? eventLogPage.value
+    eventLogPageSize.value = response.size ?? eventLogPageSize.value
+    isInitialEventLogsLoading.value = false
+  } catch (error) {
+    eventLogs.value = []
+    eventLogTotalPages.value = 0
+    eventLogTotalElements.value = 0
+    eventLogsErrorMessage.value =
+      error instanceof ApiError
+        ? error.message
+        : preferences.language === 'ko'
+          ? '감사 로그를 불러오지 못했습니다.'
+          : 'Failed to load audit logs.'
+    isInitialEventLogsLoading.value = false
+  } finally {
+    isLoadingEventLogs.value = false
+  }
+}
+
+async function searchAuditLogs() {
+  eventLogPage.value = 0
+  await fetchAuditLogs()
+}
+
+async function handleTabSelect(tab: string) {
+  activeTab.value = tab
+  await searchAuditLogs()
+}
+
+async function goToPreviousPage() {
+  if (isLoadingEventLogs.value || eventLogPage.value <= 0) return
+  eventLogPage.value -= 1
+  await fetchAuditLogs()
+}
+
+async function goToNextPage() {
+  if (isLoadingEventLogs.value || eventLogPage.value >= eventLogTotalPages.value - 1) return
+  eventLogPage.value += 1
+  await fetchAuditLogs()
+}
+
 watchEffect(() => {
-  activeTab.value = content.value.tabs[0]
+  if (!auditTabs.value.includes(activeTab.value)) {
+    activeTab.value = auditTabs.value[0]
+  }
+
   header.setActions([
     { key: 'audit-export', label: content.value.exportLabel, tone: 'secondary' },
     { key: 'audit-refresh', label: content.value.refreshLabel, tone: 'secondary' },
   ])
+})
+
+onMounted(() => {
+  void fetchAuditLogs()
 })
 
 onBeforeUnmount(() => header.clearActions())
@@ -90,12 +217,12 @@ onBeforeUnmount(() => header.clearActions())
       </div>
       <div class="design-trigger-row">
         <button class="page-button page-button--secondary" type="button">{{ content.exportLabel }}</button>
-        <button class="page-button page-button--secondary" type="button">{{ content.refreshLabel }}</button>
+        <button class="page-button page-button--secondary" type="button" @click="fetchAuditLogs">{{ content.refreshLabel }}</button>
       </div>
     </header>
 
     <section class="page-metrics terminal-page__metrics">
-      <article v-for="metric in content.metrics" :key="metric.label" :class="['page-metric', `is-${metric.tone}`]">
+      <article v-for="metric in metrics" :key="metric.label" :class="['page-metric', `is-${metric.tone}`]">
         <span class="page-metric__label">{{ metric.label }}</span>
         <strong class="page-metric__value">{{ metric.value }}</strong>
         <span class="page-metric__meta">{{ metric.meta }}</span>
@@ -105,15 +232,20 @@ onBeforeUnmount(() => header.clearActions())
     <section class="terminal-page__filter">
       <label class="terminal-page__search">
         <span>⌕</span>
-        <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
+        <input
+          v-model="search"
+          :placeholder="content.searchPlaceholder"
+          type="text"
+          @keydown.enter.prevent="searchAuditLogs"
+        />
       </label>
       <div class="terminal-page__tabs">
         <button
-          v-for="tab in content.tabs"
+          v-for="tab in auditTabs"
           :key="tab"
           :class="['terminal-page__tab', { 'is-active': activeTab === tab }]"
           type="button"
-          @click="activeTab = tab"
+          @click="handleTabSelect(tab)"
         >
           {{ tab }}
         </button>
@@ -123,15 +255,51 @@ onBeforeUnmount(() => header.clearActions())
     <article class="page-panel">
       <div class="page-panel__head">
         <div><div class="page-panel__eyebrow">AUDIT</div><h3>{{ content.tableTitle }}</h3></div>
-        <span class="page-panel__chip">{{ filteredRows.length }}</span>
+        <span class="page-panel__chip">{{ visibleRows.length }}</span>
       </div>
-      <div class="page-table terminal-page__table is-seven-cols">
+      <div v-if="false && isInitialEventLogsLoading" class="login-hint">
+        {{ preferences.language === 'ko' ? '감사 로그를 불러오는 중입니다.' : 'Loading audit logs...' }}
+      </div>
+
+      <div v-if="eventLogsErrorMessage" class="login-error">
+        {{ eventLogsErrorMessage }}
+      </div>
+
+      <div v-if="visibleRows.length === 0" class="login-hint">
+        {{ preferences.language === 'ko' ? '감사 로그가 없습니다.' : 'No audit logs found.' }}
+      </div>
+
+      <div v-else class="page-table terminal-page__table is-seven-cols">
         <div class="page-table__row page-table__row--head">
           <span v-for="column in content.columns" :key="column">{{ column }}</span>
         </div>
-        <div v-for="row in filteredRows" :key="`${row[0]}-${row[2]}`" class="page-table__row">
+        <div v-for="row in visibleRows" :key="`${row[0]}-${row[2]}`" class="page-table__row">
           <span v-for="cell in row" :key="cell">{{ cell }}</span>
         </div>
+      </div>
+
+      <div v-if="!eventLogsErrorMessage && eventLogTotalPages > 1" class="risk-rules-pagination">
+        <button
+          class="page-button page-button--secondary risk-rules-pagination__button"
+          type="button"
+          :disabled="eventLogPage === 0 || isLoadingEventLogs"
+          @click="goToPreviousPage"
+        >
+          &lt;
+        </button>
+
+        <span class="risk-rules-pagination__status">
+          {{ eventLogPage + 1 }} / {{ eventLogTotalPages }}
+        </span>
+
+        <button
+          class="page-button page-button--secondary risk-rules-pagination__button"
+          type="button"
+          :disabled="eventLogPage >= eventLogTotalPages - 1 || isLoadingEventLogs"
+          @click="goToNextPage"
+        >
+          &gt;
+        </button>
       </div>
     </article>
   </section>
