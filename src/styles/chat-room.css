@@ -134,6 +134,9 @@
 
 .chat-msg__bubble-row { display: flex; align-items: flex-end; gap: 4px; }
 .chat-msg--mine .chat-msg__bubble-row { flex-direction: row-reverse; }
+.chat-msg--other .chat-msg__bubble { order: 1; }
+.chat-msg--other .chat-msg__reply { order: 2; }
+.chat-msg--other .chat-msg__unread { order: 3; }
 
 /* 수신 말풍선 */
 .chat-msg--other .chat-msg__bubble {
@@ -215,9 +218,15 @@
 /* 입력창 상단 답장 프리뷰 바 */
 .chat-input__reply-bar {
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 14px; 
-  border-bottom: 1px solid var(--chat-bubble-border);
-  background: var(--chat-surface);
+  padding: 10px 14px;
+  border-top: 1px solid var(--chat-bubble-border);
+  border-bottom: 1px solid var(--chat-border-strong);
+  background: var(--chat-bg);
+}
+.theme-dark .chat-input__reply-bar {
+  background: #1E1E2E;
+  border-top-color: #2A2A3E;
+  border-bottom-color: #3A3A3A;
 }
 .chat-input__reply-icon { font-size: 16px; color: var(--chat-text-secondary); }
 .chat-input__reply-info { flex: 1; min-width: 0; }
