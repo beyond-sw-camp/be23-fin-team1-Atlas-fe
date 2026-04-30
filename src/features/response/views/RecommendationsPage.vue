@@ -130,7 +130,6 @@ onBeforeUnmount(() => {
       <div>
         <div class="recommendations-page__protocol">{{ content.protocol }}</div>
         <h2 class="recommendations-page__title">{{ content.title }}</h2>
-        <p class="recommendations-page__subtitle">{{ content.subtitle }}</p>
       </div>
       <div class="design-trigger-row">
         <button class="page-button page-button--secondary" type="button">{{ preferences.language === 'ko' ? '스키마 내보내기' : 'EXPORT SCHEMA' }}</button>

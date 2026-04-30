@@ -287,7 +287,6 @@ onMounted(() => {
       <div>
         <p class="terminal-page__eyebrow">{{ copy.eyebrow }}</p>
         <h1>{{ copy.title }}</h1>
-        <p>{{ copy.subtitle }}</p>
       </div>
 
       <div class="terminal-page__actions">

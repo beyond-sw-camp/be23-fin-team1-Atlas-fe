@@ -152,7 +152,6 @@ onBeforeUnmount(() => {
     <header class="documents-page__header">
       <div>
         <h2 class="documents-page__title">{{ content.title }}</h2>
-        <p class="documents-page__subtitle">{{ content.subtitle }}</p>
       </div>
       <div class="design-trigger-row">
         <button class="page-button page-button--primary" type="button">{{ preferences.language === 'ko' ? '업로드 파일' : 'UPLOAD_FILE' }}</button>

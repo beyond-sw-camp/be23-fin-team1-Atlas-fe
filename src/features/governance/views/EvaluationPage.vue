@@ -113,7 +113,6 @@ onBeforeUnmount(() => {
       <div>
         <div class="evaluation-page__eyebrow">{{ content.eyebrow }}</div>
         <h2 class="evaluation-page__title">{{ content.title }}</h2>
-        <p class="evaluation-page__subtitle">{{ content.subtitle }}</p>
       </div>
       <div class="design-trigger-row">
         <button class="page-button page-button--secondary" type="button">{{ content.exportLabel }}</button>

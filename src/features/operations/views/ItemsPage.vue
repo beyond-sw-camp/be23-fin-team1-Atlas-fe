@@ -871,7 +871,6 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       <div>
         <div class="terminal-page__eyebrow">{{ copy.eyebrow }}</div>
         <h2 class="terminal-page__title">{{ copy.title }}</h2>
-        <p class="terminal-page__subtitle">{{ copy.subtitle }}</p>
       </div>
 
       <div class="design-trigger-row">
