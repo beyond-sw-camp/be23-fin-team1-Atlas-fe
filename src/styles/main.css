@@ -1348,7 +1348,7 @@ select:not(.app-language-select select):focus {
 }
 
 .app-nav-group__label {
-  padding: 0 18px 10px;
+  padding: 8px 18px 10px;
   font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -3601,6 +3601,10 @@ select:not(.app-language-select select):focus {
     padding: 0 0 12px;
     background: transparent;
     border-top: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.12);
+  }
+
+  .app-nav-group__label {
+    padding-top: 10px;
   }
 
   .theme-dark .app-sidebar {
