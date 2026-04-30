@@ -1705,7 +1705,7 @@ onBeforeUnmount(() => {
               class="page-feed__item"
             >
               <!-- 첫 줄은 성공/실패와 시간만 보여줍니다. -->
-              <span class="page-feed__label" style="font-weight: 700; color: #111827;">
+              <span class="page-feed__label" style="font-weight: 700;">
                 <span :style="{ color: history.failureReason ? '#dc2626' : '#16a34a' }">
                   {{
                     history.failureReason
@@ -1718,7 +1718,7 @@ onBeforeUnmount(() => {
 
           <!-- 로그인 이력 모달의 둘째 줄입니다. -->
 <!-- 카드와 같은 형식으로 맞춰 둡니다. -->
-<strong class="page-feed__text" style="color: #111827;">
+<strong class="page-feed__text">
   IP {{ history.ipAddress || '-' }}
 
   <!-- user-agent 가 있으면 OS와 브라우저 정보를 보여줍니다. -->
@@ -1951,7 +1951,7 @@ onBeforeUnmount(() => {
               :key="history.loginHistoryId"
               class="page-feed__item"
             >
-              <span class="page-feed__label" style="font-weight: 700; color: #111827;">
+              <span class="page-feed__label" style="font-weight: 700;">
                 <span :style="{ color: history.failureReason ? '#dc2626' : '#16a34a' }">
                   {{
                     history.failureReason
@@ -1962,7 +1962,7 @@ onBeforeUnmount(() => {
                 / {{ formatDateTime(history.loginAt) }}
               </span>
 
-              <strong class="page-feed__text" style="color: #111827;">
+              <strong class="page-feed__text">
                 IP {{ history.ipAddress || '-' }}
                 <template v-if="history.userAgent">
                   · {{ formatClientOs(history.userAgent) }}
