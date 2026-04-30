@@ -1,6 +1,7 @@
 export interface ActionButton {
   label: string
   tone?: 'primary' | 'secondary'
+  disabled?: boolean
 }
 
 export interface MetricCard {

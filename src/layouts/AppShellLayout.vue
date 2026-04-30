@@ -114,6 +114,7 @@ onBeforeUnmount(() => {
                     : 'page-button--primary',
                 ]"
                 type="button"
+                :disabled="action.disabled"
                 @click="action.onClick?.()"
               >
                 {{ action.label }}

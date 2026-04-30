@@ -34,7 +34,7 @@ import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSessionStore } from '../../../stores/session'
 import { notifyProfileImageUpdated } from '../../../utils/profileImageEvents'
 
-// 이 페이지에서는 헤더 액션을 따로 쓰지 않아서 비워 둡니다.
+// 페이지 제목 오른쪽 액션을 관리합니다.
 const header = useAtlasHeaderStore()
 
 // 강제 비밀번호 변경이 끝난 뒤 이동할 첫 화면을 찾을 때 씁니다.
@@ -489,6 +489,56 @@ function cancelEdit() {
   profileError.value = ''
   profileSuccess.value = ''
   isEditing.value = false
+}
+
+function syncProfileHeaderActions() {
+  if (isLoadingProfile.value || profileError.value || !userDetail.value || !myInfo.value) {
+    header.clearActions()
+    return
+  }
+
+  if (!isOwnProfile.value) {
+    header.setActions([
+      {
+        key: 'profile-chat',
+        label: preferences.language === 'ko' ? '채팅하기' : 'Chat',
+        tone: 'primary',
+        onClick: openChatWithProfileUser,
+      },
+    ])
+    return
+  }
+
+  if (!isEditing.value) {
+    header.setActions([
+      {
+        key: 'profile-edit',
+        label: preferences.language === 'ko' ? '수정' : 'Edit',
+        tone: 'primary',
+        onClick: startEdit,
+      },
+    ])
+    return
+  }
+
+  header.setActions([
+    {
+      key: 'profile-cancel',
+      label: preferences.language === 'ko' ? '취소' : 'Cancel',
+      tone: 'secondary',
+      disabled: isSavingProfile.value,
+      onClick: cancelEdit,
+    },
+    {
+      key: 'profile-save',
+      label: isSavingProfile.value
+        ? (preferences.language === 'ko' ? '저장 중...' : 'Saving...')
+        : (preferences.language === 'ko' ? '저장' : 'Save'),
+      tone: 'primary',
+      disabled: isSavingProfile.value,
+      onClick: submitProfileUpdate,
+    },
+  ])
 }
 
 // 기본 정보 저장입니다.
@@ -1228,6 +1278,21 @@ watch(
   },
 )
 
+watch(
+  [
+    () => isLoadingProfile.value,
+    () => profileError.value,
+    () => userDetail.value,
+    () => myInfo.value,
+    () => isOwnProfile.value,
+    () => isEditing.value,
+    () => isSavingProfile.value,
+    () => preferences.language,
+  ],
+  syncProfileHeaderActions,
+  { immediate: true },
+)
+
 // 페이지를 떠날 때도 헤더 액션을 비웁니다.
 onBeforeUnmount(() => {
   header.clearActions()
@@ -1356,51 +1421,6 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-else-if="userDetail && myInfo">
-      <!-- 상단 수정 버튼 영역입니다. -->
-      <div class="design-trigger-row" style="margin-bottom: 20px;">
-       <button
-  v-if="!isOwnProfile"
-  class="page-button page-button--primary"
-  type="button"
-  @click="openChatWithProfileUser"
->
-  {{ preferences.language === 'ko' ? '채팅하기' : 'Chat' }}
-</button>
-
-<button
-  v-else-if="!isEditing"
-  class="page-button page-button--primary"
-  type="button"
-  @click="startEdit"
->
-  {{ preferences.language === 'ko' ? '수정' : 'Edit' }}
-</button>
-
-        <template v-else>
-          <button
-            class="page-button page-button--secondary"
-            type="button"
-            :disabled="isSavingProfile"
-            @click="cancelEdit"
-          >
-            {{ preferences.language === 'ko' ? '취소' : 'Cancel' }}
-          </button>
-
-          <button
-            class="page-button page-button--primary"
-            type="button"
-            :disabled="isSavingProfile"
-            @click="submitProfileUpdate"
-          >
-            {{
-              isSavingProfile
-                ? (preferences.language === 'ko' ? '저장 중...' : 'Saving...')
-                : (preferences.language === 'ko' ? '저장' : 'Save')
-            }}
-          </button>
-        </template>
-      </div>
-
       <div v-if="profileSuccess" class="login-hint" style="margin-bottom: 16px;">
         {{ profileSuccess }}
       </div>
