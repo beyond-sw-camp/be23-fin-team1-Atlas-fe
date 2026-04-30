@@ -181,6 +181,9 @@ const profileError = ref('')
 // 프로필 저장 성공 문구입니다.
 const profileSuccess = ref('')
 
+// 프로필 저장 완료 모달 열림 상태입니다.
+const profileSuccessModalOpen = ref(false)
+
 // 비밀번호 변경 에러 문구입니다.
 const passwordError = ref('')
 
@@ -609,6 +612,7 @@ async function submitProfileUpdate() {
       preferences.language === 'ko'
         ? '프로필 정보가 수정되었습니다.'
         : 'Profile information has been updated.'
+    profileSuccessModalOpen.value = true
   } catch (error: any) {
     profileError.value =
       error?.payload?.message ||
@@ -1421,10 +1425,6 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-else-if="userDetail && myInfo">
-      <div v-if="profileSuccess" class="login-hint" style="margin-bottom: 16px;">
-        {{ profileSuccess }}
-      </div>
-
       <!-- 위쪽 2칸은 내 정보와 조직 정보로 채웁니다. -->
       <section class="profile-summary">
         <article class="page-panel">
@@ -2131,6 +2131,25 @@ onBeforeUnmount(() => {
             {{ preferences.language === 'ko' ? '보안 이력을 불러오는 중입니다...' : 'Loading security history...' }}
           </div>
         </div>
+      </BaseModal>
+
+      <BaseModal
+        v-model="profileSuccessModalOpen"
+        :title="preferences.language === 'ko' ? '프로필 수정 완료' : 'Profile Updated'"
+        :description="profileSuccess"
+        hide-eyebrow
+        hide-dividers
+        size="sm"
+      >
+        <template #footer>
+          <button
+            class="page-button page-button--primary"
+            type="button"
+            @click="profileSuccessModalOpen = false"
+          >
+            {{ preferences.language === 'ko' ? '확인' : 'OK' }}
+          </button>
+        </template>
       </BaseModal>
     </template>
   </section>
