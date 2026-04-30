@@ -110,7 +110,7 @@
 .chat-room-list__empty p { margin: 0; font-size: 0.85rem; }
 
 /* 생성 패널 */
-.chat-room-list__create-panel { padding: 0 20px 16px; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
+.chat-room-list__create-panel { padding: 8px 20px 16px; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
 .chat-room-list__create-search {
   display: flex; align-items: center; gap: 8px; height: 40px;
   padding: 0 14px; border-radius: 0px;
