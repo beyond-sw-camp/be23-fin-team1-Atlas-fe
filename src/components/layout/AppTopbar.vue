@@ -258,7 +258,12 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
       </button>
       <strong class="app-brand">ATLAS</strong>
       <label class="app-language-select app-language-select--mobile">
-        <select :value="preferences.language" @change="handleLanguageChange">
+        <select
+          id="app-language-mobile"
+          name="app-language-mobile"
+          :value="preferences.language"
+          @change="handleLanguageChange"
+        >
           <option value="ko">KO</option>
           <option value="en">EN</option>
         </select>
@@ -275,6 +280,8 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
         <span class="material-symbols-outlined">search</span>
         <input
           v-model="searchKeyword"
+          id="app-integrated-search"
+          name="app-integrated-search"
           type="text"
           :placeholder="UI_COPY.searchPlaceholder[preferences.language]"
           @focus="handleSearchFocus"
@@ -352,7 +359,12 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
 
       <!-- 언어 선택은 검색창 오른쪽에 둡니다. -->
       <label class="app-language-select app-language-select--desktop">
-        <select :value="preferences.language" @change="handleLanguageChange">
+        <select
+          id="app-language-desktop"
+          name="app-language-desktop"
+          :value="preferences.language"
+          @change="handleLanguageChange"
+        >
           <option value="ko">KO</option>
           <option value="en">EN</option>
         </select>
