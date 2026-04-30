@@ -3750,11 +3750,11 @@ select:not(.app-language-select select):focus {
   }
 
   .base-modal__header {
-    flex-direction: column;
+    flex-direction: row;
   }
 
   .base-modal__header-actions {
-    width: 100%;
+    width: auto;
     justify-content: flex-end;
   }
 
