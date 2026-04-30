@@ -391,6 +391,16 @@ async function openProfileImageViewer() {
   }
 }
 
+function closeProfileImageViewer() {
+  profileImageViewerOpen.value = false
+}
+
+function handleProfileImageViewerKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && profileImageViewerOpen.value) {
+    closeProfileImageViewer()
+  }
+}
+
 // 페이지에 필요한 데이터를 모두 읽습니다.
 async function loadProfileData() {
   try {
@@ -1204,7 +1214,13 @@ onMounted(() => {
   header.clearActions()
   loadProfileData()
   loadDepartmentOptions()
+  window.addEventListener('keydown', handleProfileImageViewerKeydown)
 })
+
+watch(profileImageViewerOpen, (isOpen) => {
+  document.body.style.overflow = isOpen ? 'hidden' : ''
+})
+
 watch(
   () => route.params.userPublicId,
   () => {
@@ -1215,6 +1231,8 @@ watch(
 // 페이지를 떠날 때도 헤더 액션을 비웁니다.
 onBeforeUnmount(() => {
   header.clearActions()
+  window.removeEventListener('keydown', handleProfileImageViewerKeydown)
+  document.body.style.overflow = ''
 })
 </script>
 
@@ -1798,20 +1816,29 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <BaseModal
-        v-model="profileImageViewerOpen"
-        :title="preferences.language === 'ko' ? '프로필 이미지' : 'Profile Image'"
-        :description="preferences.language === 'ko'
-          ? '원본 프로필 이미지를 확인합니다.'
-          : 'View the original profile image.'"
-        size="lg"
-      >
-        <div class="profile-image-viewer">
-          <div v-if="isLoadingProfileImageViewer" class="login-hint">
+      <Teleport to="body">
+        <div
+          v-if="profileImageViewerOpen"
+          class="profile-image-viewer"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="preferences.language === 'ko' ? '프로필 이미지' : 'Profile image'"
+          @click.self="closeProfileImageViewer"
+        >
+          <button
+            class="profile-image-viewer__close"
+            type="button"
+            :aria-label="preferences.language === 'ko' ? '닫기' : 'Close'"
+            @click="closeProfileImageViewer"
+          >
+            <span class="material-symbols-outlined">close</span>
+          </button>
+
+          <div v-if="isLoadingProfileImageViewer" class="profile-image-viewer__message">
             {{ preferences.language === 'ko' ? '원본 이미지를 불러오는 중입니다...' : 'Loading original image...' }}
           </div>
 
-          <div v-else-if="profileImageViewerError" class="login-error">
+          <div v-else-if="profileImageViewerError" class="profile-image-viewer__message">
             {{ profileImageViewerError }}
           </div>
 
@@ -1822,7 +1849,7 @@ onBeforeUnmount(() => {
             class="profile-image-viewer__image"
           />
         </div>
-      </BaseModal>
+      </Teleport>
 
       <!-- 로그인 이력 더보기 모달입니다. -->
       <BaseModal
