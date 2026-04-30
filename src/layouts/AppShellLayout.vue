@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import LoginGate from '../components/auth/LoginGate.vue'
 import AppSidebar from '../components/layout/AppSidebar.vue'
@@ -17,6 +17,12 @@ import BaseModal from '../features/shared/components/BaseModal.vue'
 
 // 현재 라우트 정보입니다.
 const route = useRoute()
+
+const routeViewKey = computed(() => {
+  const orgQuery = route.query.org
+  const organization = typeof orgQuery === 'string' ? orgQuery : ''
+  return `${route.path}:${organization}`
+})
 
 // 화면 상단 헤더 액션에 쓰는 스토어입니다.
 const header = useAtlasHeaderStore()
@@ -86,7 +92,7 @@ onBeforeUnmount(() => {
          로그인 화면처럼 단순한 화면만 보여줍니다. -->
     <RouterView
       v-else-if="session.passwordChangeRequired"
-      :key="route.fullPath"
+      :key="routeViewKey"
     />
 
     <!-- 일반 로그인 상태에서는 기존 앱 셸을 그대로 보여줍니다. -->
@@ -120,7 +126,7 @@ onBeforeUnmount(() => {
           <p>{{ navigation.pageSubtitle }}</p>
         </div>
 
-        <RouterView :key="route.fullPath" />
+        <RouterView :key="routeViewKey" />
       </main>
 
       <ChatPanel />
