@@ -872,6 +872,8 @@ select:not(.app-language-select select):focus {
   display: inline-flex;
   align-items: center;
   gap: 14px;
+  flex: 0 0 182px;
+  justify-content: space-between;
   min-height: 42px;
   padding: 6px 12px;
   border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.2);
@@ -887,6 +889,7 @@ select:not(.app-language-select select):focus {
 .app-session-controls__meta {
   display: grid;
   gap: 2px;
+  min-width: 58px;
 }
 
 .app-session-controls__label {
@@ -898,8 +901,11 @@ select:not(.app-language-select select):focus {
 }
 
 .app-session-controls__time {
+  display: inline-block;
+  min-width: 58px;
   font-size: 1.08rem;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
   line-height: 1;
 }
@@ -907,6 +913,7 @@ select:not(.app-language-select select):focus {
 
 /* 濡쒓렇???곗옣? ?덉そ ?묒? 諛뺤뒪媛 ?꾨땲???띿뒪??踰꾪듉泥섎읆 ?〓땲?? */
 .app-session-controls__action {
+  min-width: 76px;
   border: 0;
   background: transparent;
   padding: 0;
