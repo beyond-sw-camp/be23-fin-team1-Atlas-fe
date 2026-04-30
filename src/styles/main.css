@@ -3616,8 +3616,12 @@ select:not(.app-language-select select):focus {
   .app-sidebar__mobile-tools {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
+    column-gap: 10px;
     margin: 12px 12px 0;
+  }
+
+  .app-sidebar__mobile-tools > * {
+    min-width: 0;
   }
 
   .app-sidebar__mobile-tools .app-icon-button {
@@ -4068,9 +4072,11 @@ select:not(.app-language-select select):focus {
 
   .app-language-select--sidebar {
     display: inline-flex;
+    min-width: 0;
   }
 
   .app-language-select--sidebar select {
+    min-width: 0;
     height: 44px;
     padding-left: 10px;
     padding-right: 28px;
