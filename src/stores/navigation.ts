@@ -75,8 +75,10 @@ const availableNavItems = computed(() =>
           .filter((item) => item.section === sectionKey && !item.hidden)
           .map((item) => ({
             ...item,
-            displayDescription: NAV_I18N[item.key][preferences.language].description,
-            displayLabel: NAV_I18N[item.key][preferences.language].label,
+            displayDescription:
+              NAV_I18N[item.key]?.[preferences.language]?.description ?? item.description,
+            displayLabel:
+              NAV_I18N[item.key]?.[preferences.language]?.label ?? item.label,
           })),
       }))
       .filter((group) => group.items.length > 0),
