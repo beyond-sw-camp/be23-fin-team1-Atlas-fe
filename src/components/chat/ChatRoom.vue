@@ -3,7 +3,7 @@
  * ChatRoom — 채팅방 화면
  * 레퍼런스: 깔끔한 헤더(←이름+아바타) + 더보기 메뉴 통합
  */
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import type { ChatMessageDto, ChatParticipant } from '../../types/chat'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
@@ -30,6 +30,8 @@ const emit = defineEmits<{
 const chatStore = useAtlasChatStore()
 const preferences = useAtlasPreferencesStore()
 const messagesContainer = ref<HTMLElement | null>(null)
+const moreButtonRef = ref<HTMLElement | null>(null)
+const dropdownRef = ref<HTMLElement | null>(null)
 const isMoreMenuOpen = ref(false)
 const isInviting = ref(false)
 const isShowingParticipants = ref(false)
@@ -148,6 +150,29 @@ function toggleMoreMenu() {
   }
 }
 
+function closeMoreMenu() {
+  isMoreMenuOpen.value = false
+  isInviting.value = false
+  isShowingParticipants.value = false
+}
+
+function handleDocumentPointerDown(event: PointerEvent) {
+  if (!isMoreMenuOpen.value) return
+  const target = event.target as Node | null
+  if (!target) return
+  if (moreButtonRef.value?.contains(target)) return
+  if (dropdownRef.value?.contains(target)) return
+  closeMoreMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
+})
+
 async function showInvitePanel() {
   isInviting.value = true
   isShowingParticipants.value = false
@@ -222,14 +247,14 @@ async function handleRenameRoom() {
           :name="headerAvatar.name"
           size="sm"
         />
-        <button class="chat-room__more-btn" type="button" @click="toggleMoreMenu">
+        <button ref="moreButtonRef" class="chat-room__more-btn" type="button" @click="toggleMoreMenu">
           <span class="material-symbols-outlined">more_vert</span>
         </button>
       </div>
 
       <!-- 더보기 드롭다운 메뉴 -->
       <Transition name="chat-menu">
-        <div v-if="isMoreMenuOpen && !isInviting && !isShowingParticipants" class="chat-room__dropdown">
+        <div v-if="isMoreMenuOpen && !isInviting && !isShowingParticipants" ref="dropdownRef" class="chat-room__dropdown">
           <button class="chat-room__dropdown-item" @click="startEditingName">
             <span class="material-symbols-outlined">edit</span>
             <span>{{ copy.rename }}</span>
@@ -250,7 +275,7 @@ async function handleRenameRoom() {
       </Transition>
 
       <!-- 참여자 목록 패널 -->
-      <div v-if="isMoreMenuOpen && isShowingParticipants" class="chat-room__dropdown">
+      <div v-if="isMoreMenuOpen && isShowingParticipants" ref="dropdownRef" class="chat-room__dropdown">
         <div class="chat-room__dropdown-head">
           <button class="chat-room__dropdown-back" @click="isShowingParticipants = false">
             <span class="material-symbols-outlined">arrow_back</span>
@@ -272,7 +297,7 @@ async function handleRenameRoom() {
       </div>
 
       <!-- 초대 패널 -->
-      <div v-if="isMoreMenuOpen && isInviting" class="chat-room__dropdown">
+      <div v-if="isMoreMenuOpen && isInviting" ref="dropdownRef" class="chat-room__dropdown">
         <div class="chat-room__dropdown-head">
           <button class="chat-room__dropdown-back" @click="isInviting = false">
             <span class="material-symbols-outlined">arrow_back</span>

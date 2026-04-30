@@ -3,7 +3,7 @@
  * ChatInput — 메시지 입력 영역
  * 레퍼런스: pill 형태 입력 + 이모지 버튼 + 원형 전송 버튼
  */
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import ChatEmojiPicker from './ChatEmojiPicker.vue'
 import { useAtlasChatStore } from '../../stores/chat'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
@@ -17,6 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const inputText = ref('')
+const inputWrapperRef = ref<HTMLElement | null>(null)
 const isMenuOpen = ref(false)
 const isRefPickerOpen = ref(false)
 const isEmojiPickerOpen = ref(false)
@@ -101,6 +102,27 @@ function closeMenu() {
   isRefPickerOpen.value = false
 }
 
+function closeFloatingMenus() {
+  closeMenu()
+  isEmojiPickerOpen.value = false
+}
+
+function handleDocumentPointerDown(event: PointerEvent) {
+  if (!isMenuOpen.value && !isRefPickerOpen.value && !isEmojiPickerOpen.value) return
+  const target = event.target as Node | null
+  if (!target) return
+  if (inputWrapperRef.value?.contains(target)) return
+  closeFloatingMenus()
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
+})
+
 function handleMenuSelect(key: string) {
   if (key === 'reference') {
     // 카드 선택 서브메뉴 열기
@@ -153,7 +175,7 @@ function handleKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="chat-input-wrapper">
+  <div ref="inputWrapperRef" class="chat-input-wrapper">
     <!-- 답장 프리뷰 바 (입력창 상단) -->
     <div v-if="chatStore.replyTarget" class="chat-input__reply-bar">
       <span class="chat-input__reply-icon material-symbols-outlined">reply</span>
