@@ -2139,6 +2139,7 @@ onBeforeUnmount(() => {
         :description="profileSuccess"
         hide-eyebrow
         hide-dividers
+        hide-close-button
         size="sm"
       >
         <template #footer>
