@@ -1721,6 +1721,10 @@ select:not(.app-language-select select):focus {
   color: var(--on-surface-variant, #596061);
 }
 
+.page-feed__label--plain {
+  text-transform: none;
+}
+
 .page-button {
   min-height: 40px;
   padding: 0 16px;

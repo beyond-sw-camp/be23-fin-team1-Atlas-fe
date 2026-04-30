@@ -1789,8 +1789,7 @@ onBeforeUnmount(() => {
                 IP: {{ history.ipAddress || '-' }}
               </span>
 
-              <span class="page-feed__label">
-                OS / {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
+              <span class="page-feed__label page-feed__label--plain">
                 {{ formatClientInfo(history.userAgent) }}
               </span>
             </div>
@@ -2118,8 +2117,7 @@ onBeforeUnmount(() => {
                 IP: {{ history.ipAddress || '-' }}
               </span>
 
-              <span class="page-feed__label">
-                OS / {{ preferences.language === 'ko' ? '브라우저' : 'Browser' }}:
+              <span class="page-feed__label page-feed__label--plain">
                 {{ formatClientInfo(history.userAgent) }}
               </span>
             </div>
