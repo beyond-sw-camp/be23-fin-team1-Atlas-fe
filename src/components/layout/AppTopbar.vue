@@ -77,6 +77,13 @@ function toggleTheme() {
   preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
 }
 
+function goHome() {
+  const home = navigation.availableNavItems[0]
+  if (home) {
+    navigation.navigateToPage(home.key)
+  }
+}
+
 function handleNotificationClick() {
   navigation.openNotifications()
 }
@@ -302,7 +309,7 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
       <button class="app-icon-button app-mobile-menu-button" type="button" @click="ui.toggleMobileSidebar">
         <span class="material-symbols-outlined">{{ ui.mobileSidebarOpen ? 'close' : 'menu' }}</span>
       </button>
-      <strong class="app-brand">ATLAS</strong>
+      <button class="app-brand" type="button" @click="goHome">ATLAS</button>
       <label class="app-language-select app-language-select--mobile">
         <select
           id="app-language-mobile"
