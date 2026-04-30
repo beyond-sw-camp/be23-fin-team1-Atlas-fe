@@ -6,8 +6,10 @@
 import { ref } from 'vue'
 import ChatEmojiPicker from './ChatEmojiPicker.vue'
 import { useAtlasChatStore } from '../../stores/chat'
+import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 const chatStore = useAtlasChatStore()
+const preferences = useAtlasPreferencesStore()
 
 const emit = defineEmits<{
   send: [body: string]
@@ -19,19 +21,71 @@ const isMenuOpen = ref(false)
 const isRefPickerOpen = ref(false)
 const isEmojiPickerOpen = ref(false)
 
+const chatInputCopy = {
+  ko: {
+    file: '파일 첨부',
+    media: '미디어 (이미지/동영상)',
+    reference: '업무 참조 카드',
+    filePending: '파일 첨부 기능은 file-service 연동 후 활성화됩니다.',
+    mediaPending: '미디어 첨부 기능은 file-service 연동 후 활성화됩니다.',
+    replyTo: (name: string) => `${name}에게 답장`,
+    cancelReply: '답장 취소',
+    attach: '첨부',
+    messagePlaceholder: '메시지를 입력하세요...',
+    emoji: '이모지',
+    send: '전송',
+    refTypes: {
+      order: '발주서',
+      returnRequest: '반품 요청',
+      risk: '리스크 이벤트',
+      recommendation: '권고안',
+    },
+  },
+  en: {
+    file: 'Attach File',
+    media: 'Media (Image/Video)',
+    reference: 'Work Reference Card',
+    filePending: 'File attachments will be available after file-service integration.',
+    mediaPending: 'Media attachments will be available after file-service integration.',
+    replyTo: (name: string) => `Replying to ${name}`,
+    cancelReply: 'Cancel Reply',
+    attach: 'Attach',
+    messagePlaceholder: 'Type your message...',
+    emoji: 'Emoji',
+    send: 'Send',
+    refTypes: {
+      order: 'Purchase Order',
+      returnRequest: 'Return Request',
+      risk: 'Risk Event',
+      recommendation: 'Recommendation',
+    },
+  },
+} as const
+
+function copy() {
+  return chatInputCopy[preferences.language]
+}
+
+function getReferenceTypeLabel(labelKey: string) {
+  return copy().refTypes[labelKey as keyof typeof chatInputCopy.ko.refTypes] ?? labelKey
+}
+
 /** + 버튼 팝업 메뉴 항목 */
-const menuItems = [
-  { key: 'file', icon: 'description', label: '파일 첨부' },
-  { key: 'media', icon: 'image', label: '미디어 (이미지/동영상)' },
-  { key: 'reference', icon: 'credit_card', label: '업무 참조 카드' },
-]
+function getMenuItems() {
+  const c = copy()
+  return [
+    { key: 'file', icon: 'description', label: c.file },
+    { key: 'media', icon: 'image', label: c.media },
+    { key: 'reference', icon: 'credit_card', label: c.reference },
+  ]
+}
 
 /** 업무 참조 카드 유형 목록 */
 const referenceTypes = [
-  { type: 'ORDER', icon: 'local_shipping', label: '발주서', code: 'PO-2026-0413', title: '발주서 참조' },
-  { type: 'RETURN_REQUEST', icon: 'assignment_return', label: '반품 요청', code: 'RT-2026-0098', title: '반품 처리 건' },
-  { type: 'RISK', icon: 'warning', label: '리스크 이벤트', code: 'RSK-2026-0015', title: '리스크 알림 건' },
-  { type: 'RECOMMENDATION', icon: 'lightbulb', label: '권고안', code: 'REC-2026-0007', title: '대응 권고안' },
+  { type: 'ORDER', icon: 'local_shipping', labelKey: 'order', code: 'PO-2026-0413', title: { ko: '발주서 참조', en: 'Purchase Order Reference' } },
+  { type: 'RETURN_REQUEST', icon: 'assignment_return', labelKey: 'returnRequest', code: 'RT-2026-0098', title: { ko: '반품 처리 건', en: 'Return Handling Case' } },
+  { type: 'RISK', icon: 'warning', labelKey: 'risk', code: 'RSK-2026-0015', title: { ko: '리스크 알림 건', en: 'Risk Alert Case' } },
+  { type: 'RECOMMENDATION', icon: 'lightbulb', labelKey: 'recommendation', code: 'REC-2026-0007', title: { ko: '대응 권고안', en: 'Response Recommendation' } },
 ]
 
 function toggleMenu() {
@@ -56,16 +110,16 @@ function handleMenuSelect(key: string) {
 
   // 파일/미디어: 아직 실제 업로드는 미구현, 동작 피드백만
   if (key === 'file') {
-    alert('파일 첨부 기능은 file-service 연동 후 활성화됩니다.')
+    alert(copy().filePending)
   } else if (key === 'media') {
-    alert('미디어 첨부 기능은 file-service 연동 후 활성화됩니다.')
+    alert(copy().mediaPending)
   }
 
   closeMenu()
 }
 
-function handleRefSelect(ref: { type: string; code: string; title: string }) {
-  emit('sendReference', ref.type, ref.code, ref.title)
+function handleRefSelect(ref: { type: string; code: string; title: Record<'ko' | 'en', string> }) {
+  emit('sendReference', ref.type, ref.code, ref.title[preferences.language])
   closeMenu()
 }
 
@@ -104,13 +158,13 @@ function handleKeydown(event: KeyboardEvent) {
     <div v-if="chatStore.replyTarget" class="chat-input__reply-bar">
       <span class="chat-input__reply-icon material-symbols-outlined">reply</span>
       <div class="chat-input__reply-info">
-        <strong>{{ chatStore.replyTarget.senderDisplayName }}에게 답장</strong>
+        <strong>{{ copy().replyTo(chatStore.replyTarget.senderDisplayName) }}</strong>
         <p>{{ chatStore.replyTarget.messageBody }}</p>
       </div>
       <button 
         class="chat-input__reply-close" 
         type="button" 
-        title="답장 취소"
+        :title="copy().cancelReply"
         @click="chatStore.clearReplyTarget()"
       >
         <span class="material-symbols-outlined">close</span>
@@ -124,13 +178,13 @@ function handleKeydown(event: KeyboardEvent) {
       @close="handleEmojiClose"
     />
 
-    <div class="chat-input">
+    <div :class="['chat-input', { 'chat-input--has-reply': chatStore.replyTarget }]">
       <!-- + 버튼 (첨부 메뉴 트리거) -->
       <div class="chat-input__menu-wrapper">
         <button
           :class="['chat-input__plus', { 'is-active': isMenuOpen }]"
           type="button"
-          title="첨부"
+          :title="copy().attach"
           @click="toggleMenu"
         >
           <span class="material-symbols-outlined">add</span>
@@ -140,7 +194,7 @@ function handleKeydown(event: KeyboardEvent) {
         <Transition name="chat-menu">
           <div v-if="isMenuOpen && !isRefPickerOpen" class="chat-input__menu">
             <button
-              v-for="item in menuItems"
+              v-for="item in getMenuItems()"
               :key="item.key"
               class="chat-input__menu-item"
               type="button"
@@ -159,7 +213,7 @@ function handleKeydown(event: KeyboardEvent) {
               <button class="chat-input__menu-back" type="button" @click="isRefPickerOpen = false">
                 <span class="material-symbols-outlined">arrow_back</span>
               </button>
-              <span class="chat-input__menu-label">업무 참조 카드</span>
+              <span class="chat-input__menu-label">{{ copy().reference }}</span>
             </div>
             <button
               v-for="rt in referenceTypes"
@@ -170,7 +224,7 @@ function handleKeydown(event: KeyboardEvent) {
             >
               <span class="material-symbols-outlined">{{ rt.icon }}</span>
               <div class="chat-input__menu-item-info">
-                <strong>{{ rt.label }}</strong>
+                <strong>{{ getReferenceTypeLabel(rt.labelKey) }}</strong>
                 <span>{{ rt.code }}</span>
               </div>
             </button>
@@ -184,7 +238,7 @@ function handleKeydown(event: KeyboardEvent) {
           v-model="inputText"
           class="chat-input__field"
           type="text"
-          placeholder="Type your message..."
+          :placeholder="copy().messagePlaceholder"
           @keydown="handleKeydown"
           @focus="closeMenu"
         />
@@ -194,14 +248,14 @@ function handleKeydown(event: KeyboardEvent) {
       <button
         :class="['chat-input__emoji-btn', { 'is-active': isEmojiPickerOpen }]"
         type="button"
-        title="이모지"
+        :title="copy().emoji"
         @click="toggleEmojiPicker"
       >
         <span class="material-symbols-outlined">sentiment_satisfied</span>
       </button>
 
       <!-- 전송 버튼 (원형, 보라 그라데이션) -->
-      <button class="chat-input__send" type="button" title="전송" @click="handleSend">
+      <button class="chat-input__send" type="button" :title="copy().send" @click="handleSend">
         <span class="material-symbols-outlined">send</span>
       </button>
     </div>

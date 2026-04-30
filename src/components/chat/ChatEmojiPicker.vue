@@ -1,7 +1,6 @@
 <script setup lang="ts">
 /**
  * ChatEmojiPicker — 이모지 피커 패널
- * 레퍼런스 이미지의 보라-파랑 그라데이션 배경 이모지 키보드 재현
  * 순수 유니코드 기반 (외부 의존성 없음)
  */
 import { ref } from 'vue'

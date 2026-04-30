@@ -4,11 +4,15 @@
  * reference_type에 따라 좌측 리본 색상이 변경됨:
  *   ORDER → primary, RETURN_REQUEST → error
  */
+import { useAtlasPreferencesStore } from '../../stores/preferences'
+
 defineProps<{
   referenceType: string
   referenceCode?: string
   referenceTitle?: string
 }>()
+
+const preferences = useAtlasPreferencesStore()
 
 function getRibbonClass(type: string): string {
   switch (type) {
@@ -24,6 +28,16 @@ function getRibbonClass(type: string): string {
 }
 
 function getTypeLabel(type: string): string {
+  const labels: Record<string, Record<'ko' | 'en', string>> = {
+    ORDER: { ko: '발주서', en: 'PURCHASE ORDER' },
+    RETURN_REQUEST: { ko: '반품 요청', en: 'RETURN REQUEST' },
+    LOT: { ko: 'LOT 추적', en: 'LOT TRACKING' },
+  }
+
+  if (labels[type]) {
+    return labels[type][preferences.language]
+  }
+
   switch (type) {
     case 'ORDER':
       return 'PURCHASE ORDER'

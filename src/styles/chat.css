@@ -13,7 +13,8 @@
   --chat-text: #121212;
   --chat-text-secondary: #474747;
   --chat-bubble-received: #FFFFFF;
-  --chat-bubble-border: #919191;
+  --chat-bubble-border: rgba(71,71,71,0.2);
+  --chat-border-strong: rgba(71,71,71,0.45);
   --chat-dot: #121212;
   --chat-radius-bubble: 0px;
   --chat-radius-pill: 0px;
@@ -26,12 +27,14 @@
   width: 400px; height: 580px;
   border-radius: 0px;
   background: var(--chat-bg);
-  box-shadow: 0 8px 40px rgba(0,0,0,0.12), 0 2px 12px rgba(0,0,0,0.06);
+  border: 1px solid var(--chat-bubble-border);
+  box-shadow: none;
   overflow: hidden;
 }
 .theme-dark .chat-panel {
   background: #1E1E2E;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  border-color: transparent;
+  box-shadow: none;
 }
 
 /* 패널 열림/닫힘 */
@@ -49,7 +52,7 @@
 }
 .chat-panel__header-left { display: flex; align-items: center; gap: 10px; }
 .chat-panel__header-left .material-symbols-outlined { font-size: 22px; color: var(--chat-primary); }
-.chat-panel__title { font-size: 1.25rem; font-weight: 700; color: var(--chat-text); }
+.chat-panel__title { font-size: 1.18rem; font-weight: 600; color: var(--chat-text); }
 .theme-dark .chat-panel__title { color: #fff; }
 .chat-panel__header-actions { display: flex; align-items: center; gap: 6px; }
 .chat-panel__close {
@@ -66,22 +69,24 @@
    ═══════════════════════════════════════════ */
 .chat-room-list { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
 
-/* 헤더 */
-.chat-room-list__header {
-  display: flex; align-items: center; justify-content: flex-end;
-  padding: 20px 20px 8px;
-}
 .chat-room-list__add-btn {
   width: 36px; height: 36px; border: none; border-radius: 0px;
-  background: var(--chat-primary); color: #fff; cursor: pointer;
+  background: #242424; color: #fff; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: transform 150ms ease;
+  transition: background 120ms ease;
 }
-.chat-room-list__add-btn:hover { transform: scale(1.05); background: #000; }
+.chat-room-list__add-btn:hover { background: #000; }
 .chat-room-list__add-btn .material-symbols-outlined { font-size: 20px; }
 
 /* 검색바 */
 .chat-room-list__search-wrapper { padding: 8px 20px 12px; }
+.chat-room-list__search-row,
+.chat-room-list__create-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 10px;
+  align-items: center;
+}
 .chat-room-list__search {
   display: flex; align-items: center; gap: 8px; height: 40px;
   padding: 0 14px; border-radius: var(--chat-radius-pill);
@@ -91,7 +96,7 @@
 .chat-room-list__search .material-symbols-outlined { font-size: 18px; color: var(--chat-text-secondary); }
 .chat-room-list__search input {
   flex: 1; height: 100%; padding: 0; border: 0; background: transparent;
-  color: var(--chat-text); font-size: 0.85rem; outline: none;
+  color: var(--chat-text); font-size: 0.85rem; font-weight: 400; outline: none;
 }
 .theme-dark .chat-room-list__search input { color: #ddd; }
 .chat-room-list__search input::placeholder { color: var(--chat-text-secondary); }
@@ -107,10 +112,13 @@
 
 /* 생성 패널 */
 .chat-room-list__create-panel { padding: 8px 20px 16px; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
+.chat-room-list__create-search-row {
+  margin-bottom: 10px;
+}
 .chat-room-list__create-search {
   display: flex; align-items: center; gap: 8px; height: 40px;
   padding: 0 14px; border-radius: 0px;
-  background: var(--chat-surface); margin-bottom: 10px;
+  background: var(--chat-surface);
 }
 .theme-dark .chat-room-list__create-search { background: #2A2A3E; }
 .chat-room-list__create-search .material-symbols-outlined { font-size: 18px; color: var(--chat-text-secondary); }
@@ -132,8 +140,8 @@
 .chat-room-list__create-empty { padding: 12px 0; text-align: center; font-size: 0.8rem; color: var(--chat-text-secondary); }
 .chat-room-list__create-submit {
   width: 100%; padding: 10px; border: none; border-radius: 0px;
-  background: var(--chat-primary); color: #fff;
-  font-weight: 600; font-size: 0.85rem; cursor: pointer;
+  background: #242424; color: #fff;
+  font-weight: 500; font-size: 0.85rem; cursor: pointer;
   transition: opacity 150ms;
 }
 .chat-room-list__create-submit:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -143,7 +151,7 @@
 .chat-room-list__pin-divider {
   display: flex; align-items: center; gap: 8px; padding: 4px 16px;
 }
-.chat-room-list__pin-divider span { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; color: var(--chat-primary); }
+.chat-room-list__pin-divider span { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em; color: var(--chat-text-secondary); }
 .chat-room-list__pin-divider::after { content: ''; flex: 1; height: 1px; background: var(--chat-bubble-border); }
 
 /* ═══════════════════════════════════════════
@@ -168,11 +176,11 @@
 .chat-room-item__group-avatars--3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 .chat-room-item__group-avatars--3 .chat-avatar:nth-child(3) { grid-column: 1 / span 2; }
 .theme-dark .chat-room-item { color: #ddd; }
-.chat-room-item:hover { background: rgba(108,99,255,0.06); }
-.theme-dark .chat-room-item:hover { background: rgba(108,99,255,0.12); }
+.chat-room-item:hover { background: var(--chat-surface); }
+.theme-dark .chat-room-item:hover { background: #2A2A3E; }
 .chat-room-item__content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .chat-room-item__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.chat-room-item__name { font-size: 0.92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-room-item__name { font-size: 0.9rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-room-item__time { flex: 0 0 auto; font-size: 0.7rem; color: var(--chat-text-secondary); }
 .chat-room-item__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .chat-room-item__preview {

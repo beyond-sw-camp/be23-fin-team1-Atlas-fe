@@ -9,6 +9,7 @@ import ChatRoomItem from './ChatRoomItem.vue'
 import ChatAvatar from './ChatAvatar.vue'
 import { useAtlasChatStore } from '../../stores/chat'
 import { useAtlasSessionStore } from '../../stores/session'
+import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 const props = defineProps<{
   rooms: ChatRoom[]
@@ -20,15 +21,28 @@ const emit = defineEmits<{
 
 const chatStore = useAtlasChatStore()
 const sessionStore = useAtlasSessionStore()
+const preferences = useAtlasPreferencesStore()
 
 const searchQuery = ref('')
 const isCreatingRoom = ref(false)
 const userSearchQuery = ref('')
 const selectedUsers = ref<string[]>([])
 
+const copy = computed(() => ({
+  roomSearchPlaceholder: preferences.language === 'ko' ? '채팅방 검색...' : 'Search chat rooms...',
+  createRoomTitle: preferences.language === 'ko' ? '채팅방 생성' : 'Create chat room',
+  cancelCreateTitle: preferences.language === 'ko' ? '채팅방 생성 취소' : 'Cancel chat room creation',
+  inviteSearchPlaceholder: preferences.language === 'ko' ? '초대할 사용자 검색...' : 'Search users to invite...',
+  noSearchResults: preferences.language === 'ko' ? '검색 결과가 없습니다.' : 'No search results.',
+  startChat: preferences.language === 'ko' ? '채팅 시작' : 'Start Chat',
+  pinned: preferences.language === 'ko' ? '고정됨' : 'PINNED',
+  noRooms: preferences.language === 'ko' ? '채팅방이 없습니다.' : 'No chat rooms.',
+  me: preferences.language === 'ko' ? '나' : 'Me',
+}))
+
 const currentUserDisplayName = computed(() => {
   const me = chatStore.availableUsers.find(u => u.userPublicId === chatStore.currentUserPublicId)
-  return me?.displayName || sessionStore.loginId || '나'
+  return me?.displayName || sessionStore.loginId || copy.value.me
 })
 
 const filteredAvailableUsers = computed(() => {
@@ -107,39 +121,49 @@ function toggleCreateRoomMode() {
 
 <template>
   <div class="chat-room-list">
-    <!-- 헤더: 생성 버튼 -->
-    <div class="chat-room-list__header">
-      <button
-        class="chat-room-list__add-btn"
-        type="button"
-        title="채팅방 생성"
-        @click="toggleCreateRoomMode"
-      >
-        <span class="material-symbols-outlined">{{ isCreatingRoom ? 'close' : 'add' }}</span>
-      </button>
-    </div>
-
     <!-- 검색바 (pill 형태) -->
     <div v-if="!isCreatingRoom" class="chat-room-list__search-wrapper">
-      <div class="chat-room-list__search">
-        <span class="material-symbols-outlined">search</span>
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="채팅방 검색..."
-        />
+      <div class="chat-room-list__search-row">
+        <div class="chat-room-list__search">
+          <span class="material-symbols-outlined">search</span>
+          <input
+            v-model="searchQuery"
+            type="text"
+            :placeholder="copy.roomSearchPlaceholder"
+          />
+        </div>
+
+        <button
+          class="chat-room-list__add-btn"
+          type="button"
+          :title="copy.createRoomTitle"
+          @click="toggleCreateRoomMode"
+        >
+          <span class="material-symbols-outlined">add</span>
+        </button>
       </div>
     </div>
 
     <!-- 채팅방 생성 모드 -->
     <div v-if="isCreatingRoom" class="chat-room-list__create-panel">
-      <div class="chat-room-list__create-search">
-        <span class="material-symbols-outlined">person_search</span>
-        <input
-          v-model="userSearchQuery"
-          type="text"
-          placeholder="초대할 사용자 검색..."
-        />
+      <div class="chat-room-list__create-search-row">
+        <div class="chat-room-list__create-search">
+          <span class="material-symbols-outlined">person_search</span>
+          <input
+            v-model="userSearchQuery"
+            type="text"
+            :placeholder="copy.inviteSearchPlaceholder"
+          />
+        </div>
+
+        <button
+          class="chat-room-list__add-btn"
+          type="button"
+          :title="copy.cancelCreateTitle"
+          @click="toggleCreateRoomMode"
+        >
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
       <div class="chat-room-list__create-users">
         <label v-for="user in filteredAvailableUsers" :key="user.userPublicId" class="chat-room-list__invite-user">
@@ -155,7 +179,7 @@ function toggleCreateRoomMode() {
           </span>
         </label>
         <div v-if="filteredAvailableUsers.length === 0" class="chat-room-list__create-empty">
-          검색 결과가 없습니다.
+          {{ copy.noSearchResults }}
         </div>
       </div>
       <button
@@ -163,7 +187,7 @@ function toggleCreateRoomMode() {
         :disabled="selectedUsers.length === 0"
         @click="handleCreateRoom"
       >
-        채팅 시작 ({{ selectedUsers.length }}명)
+        {{ copy.startChat }} ({{ selectedUsers.length }})
       </button>
     </div>
 
@@ -181,7 +205,7 @@ function toggleCreateRoomMode() {
       />
       <!-- 구분선 -->
       <div v-if="pinnedRooms.length > 0 && unpinnedRooms.length > 0" class="chat-room-list__pin-divider">
-        <span>PINNED</span>
+        <span>{{ copy.pinned }}</span>
       </div>
       <!-- 비고정 방 -->
       <ChatRoomItem
@@ -195,7 +219,7 @@ function toggleCreateRoomMode() {
       />
       <div v-if="filteredRooms.length === 0" class="chat-room-list__empty">
         <span class="material-symbols-outlined">forum</span>
-        <p>채팅방이 없습니다.</p>
+        <p>{{ copy.noRooms }}</p>
       </div>
     </div>
   </div>

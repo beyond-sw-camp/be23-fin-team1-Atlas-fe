@@ -6,6 +6,7 @@
 import type { ChatMessageDto } from '../../types/chat'
 import ChatReferenceCard from './ChatReferenceCard.vue'
 import ChatAvatar from './ChatAvatar.vue'
+import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 const props = defineProps<{
   message: ChatMessageDto
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   reply: [message: ChatMessageDto, senderDisplayName: string]
 }>()
 
+const preferences = useAtlasPreferencesStore()
 const isMine = props.message.senderUserPublicId === props.currentUserPublicId
 const isSystem =
   props.message.messageType === 'SYSTEM' ||
@@ -27,7 +29,11 @@ const isSystem =
 
 function formatTime(isoString: string): string {
   const d = new Date(isoString)
-  return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true })
+  return d.toLocaleTimeString(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
 }
 
 function handleDelete() {
@@ -35,7 +41,12 @@ function handleDelete() {
 }
 
 function handleReply() {
-  emit('reply', props.message, props.senderName || '알 수 없음')
+  emit('reply', props.message, props.senderName || (preferences.language === 'ko' ? '알 수 없음' : 'Unknown'))
+}
+
+function replyLabel(name?: string | null) {
+  const displayName = name || (preferences.language === 'ko' ? '알 수 없는 사용자' : 'Unknown user')
+  return preferences.language === 'ko' ? `${displayName}에게 답장` : `Replying to ${displayName}`
 }
 </script>
 
@@ -89,7 +100,7 @@ function handleReply() {
             v-if="isMine"
             class="chat-msg__delete"
             type="button"
-            title="메시지 삭제"
+            :title="preferences.language === 'ko' ? '메시지 삭제' : 'Delete message'"
             @click="handleDelete"
           >
             <span class="material-symbols-outlined">delete</span>
@@ -100,7 +111,7 @@ function handleReply() {
             v-if="!message.isDeleted"
             class="chat-msg__reply"
             type="button"
-            title="답장"
+            :title="preferences.language === 'ko' ? '답장' : 'Reply'"
             @click="handleReply"
           >
             <span class="material-symbols-outlined">reply</span>
@@ -118,9 +129,11 @@ function handleReply() {
               <span class="chat-msg__reply-icon material-symbols-outlined">reply</span>
               <div class="chat-msg__reply-content">
                 <strong class="chat-msg__reply-sender">
-                  {{ message.parentSenderDisplayName || '알 수 없는 사용자' }}에게 답장
+                  {{ replyLabel(message.parentSenderDisplayName) }}
                 </strong>
-                <p class="chat-msg__reply-body">{{ message.parentMessageBody || '내용을 불러올 수 없습니다.' }}</p>
+                <p class="chat-msg__reply-body">
+                  {{ message.parentMessageBody || (preferences.language === 'ko' ? '내용을 불러올 수 없습니다.' : 'Could not load content.') }}
+                </p>
               </div>
             </div>
 
@@ -135,10 +148,16 @@ function handleReply() {
 
             <div v-if="message.attachmentPublicIds?.length" class="chat-msg__attachments">
               <span class="material-symbols-outlined">attach_file</span>
-              <span>{{ message.attachmentPublicIds.length }}건 첨부</span>
+              <span>
+                {{ preferences.language === 'ko'
+                  ? `${message.attachmentPublicIds.length}건 첨부`
+                  : `${message.attachmentPublicIds.length} attachment${message.attachmentPublicIds.length === 1 ? '' : 's'}` }}
+              </span>
             </div>
 
-            <span v-if="message.editedAt" class="chat-msg__edited">(수정됨)</span>
+            <span v-if="message.editedAt" class="chat-msg__edited">
+              {{ preferences.language === 'ko' ? '(수정됨)' : '(edited)' }}
+            </span>
           </div>
 
           <!-- 상대 메시지: 안읽음 수 (버블 오른쪽) -->

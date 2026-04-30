@@ -5,10 +5,12 @@
  * 위치: 화면 우하단 고정 (position: fixed)
  */
 import { useAtlasChatStore } from '../../stores/chat'
+import { useAtlasPreferencesStore } from '../../stores/preferences'
 import ChatRoomList from './ChatRoomList.vue'
 import ChatRoom from './ChatRoom.vue'
 
 const chat = useAtlasChatStore()
+const preferences = useAtlasPreferencesStore()
 
 /** 업무 참조 카드 전송 핸들러 — ChatRoom에서 3개 인자를 받아 store 액션 호출 */
 function handleSendReference(refType: string, refCode: string, refTitle: string) {
@@ -42,7 +44,7 @@ function handleSendReference(refType: string, refCode: string, refTitle: string)
       <!-- 채팅방 뷰 -->
       <ChatRoom
               v-else-if="chat.currentView === 'room'"
-              :room-name="chat.currentRoom?.roomName || '채팅방'"
+              :room-name="chat.currentRoom?.roomName || (preferences.language === 'ko' ? '채팅방' : 'Chat Room')"
               :messages="chat.messages"
               :current-user-public-id="chat.currentUserPublicId"
               :is-loading="chat.isLoadingMessages"
