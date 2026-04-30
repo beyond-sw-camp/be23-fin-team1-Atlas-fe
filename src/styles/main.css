@@ -794,9 +794,14 @@ select:not(.app-language-select select):focus {
 }
 
 .app-brand {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
   font-size: 1.18rem;
   font-weight: 800;
   letter-spacing: -0.04em;
+  cursor: pointer;
 }
 
 .app-topbar__badge {
