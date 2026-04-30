@@ -107,9 +107,8 @@ function toggleCreateRoomMode() {
 
 <template>
   <div class="chat-room-list">
-    <!-- 헤더: "Chat" + 생성 버튼 -->
+    <!-- 헤더: 생성 버튼 -->
     <div class="chat-room-list__header">
-      <h2 class="chat-room-list__title">Chat</h2>
       <button
         class="chat-room-list__add-btn"
         type="button"
@@ -121,7 +120,7 @@ function toggleCreateRoomMode() {
     </div>
 
     <!-- 검색바 (pill 형태) -->
-    <div class="chat-room-list__search-wrapper">
+    <div v-if="!isCreatingRoom" class="chat-room-list__search-wrapper">
       <div class="chat-room-list__search">
         <span class="material-symbols-outlined">search</span>
         <input

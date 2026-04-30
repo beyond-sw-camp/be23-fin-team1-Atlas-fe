@@ -3423,6 +3423,11 @@ select:not(.app-language-select select):focus {
   .profile-kv__row strong {
     text-align: left;
   }
+
+  .profile-name-fields,
+  .profile-work-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -4435,6 +4440,23 @@ select:not(.app-language-select select):focus {
   gap: 8px;
 }
 
+.profile-name-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profile-work-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profile-name-fields label,
+.profile-work-fields label {
+  min-width: 0;
+}
+
 .settings-form span {
   font-size: 0.7rem;
   font-weight: 700;
@@ -4453,6 +4475,8 @@ select:not(.app-language-select select):focus {
 
 .settings-form select,
 .settings-form input {
+  width: 100%;
+  box-sizing: border-box;
   min-height: 42px;
   padding: 0 12px;
   border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
