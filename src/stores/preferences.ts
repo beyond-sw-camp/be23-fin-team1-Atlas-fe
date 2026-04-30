@@ -68,10 +68,9 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
     ),
   )
 
-  function buildQuery(overrides: Partial<Record<'lang' | 'org', string>> = {}) {
+  function buildQuery(overrides: Partial<Record<'lang', string>> = {}) {
     return {
       lang: overrides.lang ?? language.value,
-      org: overrides.org ?? organization.value,
     }
   }
 
@@ -103,7 +102,7 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
 
     router.replace({
       name: nextPage.key,
-      query: buildQuery({ org: nextOrganization }),
+      query: buildQuery(),
     })
   }
 

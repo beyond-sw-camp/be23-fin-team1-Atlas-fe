@@ -19,9 +19,7 @@ import BaseModal from '../features/shared/components/BaseModal.vue'
 const route = useRoute()
 
 const routeViewKey = computed(() => {
-  const orgQuery = route.query.org
-  const organization = typeof orgQuery === 'string' ? orgQuery : ''
-  return `${route.path}:${organization}`
+  return route.path
 })
 
 // 화면 상단 헤더 액션에 쓰는 스토어입니다.
