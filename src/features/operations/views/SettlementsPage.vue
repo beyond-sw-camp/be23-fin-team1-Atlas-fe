@@ -119,8 +119,10 @@ type SettlementBudgetForm = {
 }
 
 type SettlementInsightChartView = 'targetTypeAmount' | 'flowAmount'
+type MonthlyBudgetRange = 'ALL' | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'RECENT_6'
 
 const activeInsightChartView = ref<SettlementInsightChartView>('targetTypeAmount')
+const monthlyBudgetRange = ref<MonthlyBudgetRange>('ALL')
 
 const settlements = ref<SettlementListResponseDto[]>([])
 const selectedSettlement = ref<SettlementResponseDto | null>(null)
@@ -195,6 +197,24 @@ const monthlyBudgetChartPoints = computed(() => {
   })
 })
 
+// 사용자가 누른 범위 버튼에 맞춰 차트에 보여줄 월만 골라냅니다.
+const visibleMonthlyBudgetChartPoints = computed(() => {
+  switch (monthlyBudgetRange.value) {
+    case 'Q1':
+      return monthlyBudgetChartPoints.value.slice(0, 3)
+    case 'Q2':
+      return monthlyBudgetChartPoints.value.slice(3, 6)
+    case 'Q3':
+      return monthlyBudgetChartPoints.value.slice(6, 9)
+    case 'Q4':
+      return monthlyBudgetChartPoints.value.slice(9, 12)
+    case 'RECENT_6':
+      return monthlyBudgetChartPoints.value.slice(6, 12)
+    default:
+      return monthlyBudgetChartPoints.value
+  }
+})
+
 const hasMonthlyBudgetChartData = computed(() => {
   return monthlyBudgetChartPoints.value.some((point) => {
     return point.budgetAmount > 0 || point.payableAmount > 0
@@ -207,17 +227,16 @@ const monthlyPayableTotalAmount = computed(() => {
   }, 0)
 })
 
+// 예산과 지급 정산액을 둘 다 막대 그래프로 보여줍니다.
 const monthlyBudgetChartSeries = computed(() => {
   return [
     {
       name: '예산',
-      type: 'column',
-      data: monthlyBudgetChartPoints.value.map((point) => point.budgetAmount),
+      data: visibleMonthlyBudgetChartPoints.value.map((point) => point.budgetAmount),
     },
     {
       name: '지급 정산액',
-      type: 'line',
-      data: monthlyBudgetChartPoints.value.map((point) => point.payableAmount),
+      data: visibleMonthlyBudgetChartPoints.value.map((point) => point.payableAmount),
     },
   ]
 })
@@ -225,43 +244,28 @@ const monthlyBudgetChartSeries = computed(() => {
 const monthlyBudgetChartOptions = computed(() => {
   return {
     chart: {
-      type: 'line',
+      type: 'bar',
       toolbar: { show: false },
+      zoom: { enabled: false },
       fontFamily: 'Pretendard, "Segoe UI", sans-serif',
-    },
-    stroke: {
-      width: [0, 3],
-      curve: 'smooth',
     },
     plotOptions: {
       bar: {
-        columnWidth: '36%',
+        horizontal: false,
+        columnWidth: '52%',
         borderRadius: 6,
       },
     },
     colors: ['#cbd5e1', '#334155'],
     dataLabels: {
-      enabled: true,
-      enabledOnSeries: [1],
-      formatter: (value: number) => (value > 0 ? Number(value).toLocaleString() : ''),
-      style: {
-        fontSize: '11px',
-        fontWeight: 800,
-        colors: ['#334155'],
-      },
-      background: { enabled: false },
-    },
-    markers: {
-      size: [0, 5],
-      strokeWidth: 2,
-      strokeColors: '#ffffff',
+      enabled: false,
     },
     grid: {
       borderColor: '#edf1f7',
       strokeDashArray: 4,
     },
     xaxis: {
-      categories: monthlyBudgetChartPoints.value.map((point) => point.label),
+      categories: visibleMonthlyBudgetChartPoints.value.map((point) => point.label),
       labels: {
         style: {
           colors: '#98a2b3',
@@ -270,31 +274,18 @@ const monthlyBudgetChartOptions = computed(() => {
         },
       },
     },
-    yaxis: [
-      {
-        seriesName: '예산',
-        labels: {
-          formatter: (value: number) => Number(value).toLocaleString(),
-          style: {
-            colors: '#98a2b3',
-            fontSize: '11px',
-          },
+    yaxis: {
+      labels: {
+        formatter: (value: number) => Number(value).toLocaleString(),
+        style: {
+          colors: '#98a2b3',
+          fontSize: '11px',
         },
       },
-      {
-        seriesName: '지급 정산액',
-        opposite: true,
-        labels: {
-          formatter: (value: number) => Number(value).toLocaleString(),
-          style: {
-            colors: '#334155',
-            fontSize: '11px',
-          },
-        },
-      },
-    ],
+    },
     tooltip: {
       shared: true,
+      intersect: false,
       y: {
         formatter: (value: number) => `${Number(value).toLocaleString()} KRW`,
       },
@@ -688,6 +679,7 @@ onMounted(() => {
   loadReturnOptions()
 })
 </script>
+
 <template>
   <section class="stl-page">
     <header class="stl-page__header">
@@ -801,6 +793,62 @@ onMounted(() => {
           </div>
         </div>
 
+        <div class="stl-chart-tabs">
+          <button
+            class="stl-chart-tab"
+            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'ALL' }"
+            type="button"
+            @click="monthlyBudgetRange = 'ALL'"
+          >
+            전체
+          </button>
+
+          <button
+            class="stl-chart-tab"
+            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q1' }"
+            type="button"
+            @click="monthlyBudgetRange = 'Q1'"
+          >
+            1분기
+          </button>
+
+          <button
+            class="stl-chart-tab"
+            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q2' }"
+            type="button"
+            @click="monthlyBudgetRange = 'Q2'"
+          >
+            2분기
+          </button>
+
+          <button
+            class="stl-chart-tab"
+            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q3' }"
+            type="button"
+            @click="monthlyBudgetRange = 'Q3'"
+          >
+            3분기
+          </button>
+
+          <button
+            class="stl-chart-tab"
+            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q4' }"
+            type="button"
+            @click="monthlyBudgetRange = 'Q4'"
+          >
+            4분기
+          </button>
+
+          <button
+            class="stl-chart-tab"
+            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'RECENT_6' }"
+            type="button"
+            @click="monthlyBudgetRange = 'RECENT_6'"
+          >
+            최근 6개월
+          </button>
+        </div>
+
         <div v-if="isStatisticsLoading" class="stl-empty">
           <div class="stl-spinner"></div>
           통계 데이터를 불러오는 중입니다.
@@ -812,7 +860,7 @@ onMounted(() => {
 
         <apexchart
           v-else
-          type="line"
+          type="bar"
           height="330"
           :options="monthlyBudgetChartOptions"
           :series="monthlyBudgetChartSeries"
@@ -1155,6 +1203,7 @@ onMounted(() => {
     </template>
   </BaseModal>
 </template>
+
 <style scoped>
 .stl-page {
   --stl-bg: #f4f6f9;
@@ -1207,7 +1256,6 @@ onMounted(() => {
   margin: 0 0 4px;
   font-size: 1.7rem;
   line-height: 1.15;
-  letter-spacing: -0.03em;
 }
 
 .stl-page__desc {
@@ -1340,7 +1388,6 @@ onMounted(() => {
   color: var(--stl-text-primary);
   font-size: 1.35rem;
   line-height: 1.2;
-  letter-spacing: -0.03em;
 }
 
 .stl-kpi-card__sub {
@@ -1419,6 +1466,8 @@ onMounted(() => {
 .stl-chart-tabs {
   display: inline-flex;
   width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
   margin-bottom: 12px;
   padding: 4px;
   border: 1px solid var(--stl-border);
@@ -1742,6 +1791,10 @@ onMounted(() => {
 
   .stl-detail-item--wide {
     grid-column: auto;
+  }
+
+  .stl-chart-total {
+    align-items: flex-start;
   }
 }
 </style>
