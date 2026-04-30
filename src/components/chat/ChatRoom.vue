@@ -210,6 +210,34 @@ async function handleRenameRoom() {
   }
   isEditingName.value = false
 }
+
+function sanitizeNamePart(value?: string | null) {
+  return String(value || '').replace(/null|undefined/gi, '').trim()
+}
+
+function getInviteUserDisplayName(user: ChatParticipant) {
+  const firstName = sanitizeNamePart(user.firstName)
+  const middleName = sanitizeNamePart(user.middleName)
+  const lastName = sanitizeNamePart(user.lastName)
+
+  if (preferences.language === 'ko') {
+    const koreanName = `${lastName}${middleName}${firstName}`.trim()
+    if (koreanName) return koreanName
+  } else {
+    const englishName = [firstName, middleName, lastName].filter(Boolean).join(' ')
+    if (englishName) return englishName
+  }
+
+  return user.displayName || (preferences.language === 'ko' ? '이름 없음' : 'Unknown')
+}
+
+function getInviteUserMeta(user: ChatParticipant) {
+  const organizationName = preferences.language === 'ko'
+    ? sanitizeNamePart(user.organizationName) || sanitizeNamePart(user.organizationEnglishName)
+    : sanitizeNamePart(user.organizationEnglishName) || sanitizeNamePart(user.organizationName)
+  const jobTitle = sanitizeNamePart(user.jobTitle)
+  return [organizationName, jobTitle].filter(Boolean).join(' | ')
+}
 </script>
 
 <template>
@@ -313,8 +341,11 @@ async function handleRenameRoom() {
           class="chat-room__dropdown-invite-btn"
           @click="handleInviteUser(user.userPublicId)"
         >
-          <ChatAvatar :image-url="user.profileImageThumbPath" :name="user.displayName" size="sm" />
-          <span>{{ user.displayName }}</span>
+          <ChatAvatar :image-url="user.profileImageThumbPath" :name="getInviteUserDisplayName(user)" size="sm" />
+          <span class="chat-room__dropdown-user-info">
+            <span>{{ getInviteUserDisplayName(user) }}</span>
+            <span v-if="getInviteUserMeta(user)" class="chat-room__dropdown-user-role">{{ getInviteUserMeta(user) }}</span>
+          </span>
         </button>
       </div>
     </div>
