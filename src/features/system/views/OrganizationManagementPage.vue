@@ -4,16 +4,19 @@ import { useRoute } from 'vue-router'
 import PhoneField from '../../../components/forms/PhoneField.vue'
 import { useActorScope } from '../../../composables/useActorScope'
 import {
+  createOrganization,
   getMyOrganizationDetail,
   getOrganizationDetail,
   getOrganizationSupplySummary,
   getOrganizations,
   updateOrganization,
   updateOrganizationStatus,
+  type CreateOrganizationPayload,
   type OrganizationDetailResponse,
   type OrganizationListItem,
   type OrganizationStatus,
 } from '../../../services/organization'
+import { createSupplier } from '../../../services/supplier'
 import {
   uploadOrganizationUsersExcel,
   type OrganizationUserExcelUploadResponse,
@@ -26,6 +29,9 @@ const route = useRoute()
 
 // 조직관리 내부 탭 종류입니다.
 type OrganizationManagementTabKey = 'organization' | 'members'
+
+// 오른쪽 패널이 상세보기인지 신규 생성인지 구분합니다.
+type OrganizationPanelMode = 'detail' | 'create'
 
 // 현재 언어 설정을 읽습니다.
 const preferences = useAtlasPreferencesStore()
@@ -61,11 +67,14 @@ const canDeleteOrganization = computed(() => actor.isAdminRole.value)
 // 조직관리 페이지 안에서 현재 어떤 탭을 보고 있는지 저장합니다.
 const activeTab = ref<OrganizationManagementTabKey>('organization')
 
+// 플랫폼 관리자는 오른쪽 패널에서 상세보기와 생성 폼을 번갈아 봅니다.
+const organizationPanelMode = ref<OrganizationPanelMode>('detail')
+
 // 플랫폼 관리자가 보는 조직 목록입니다.
 const organizationRows = ref<OrganizationListItem[]>([])
 
-// 조직 목록은 한 페이지에 5개씩 보여줍니다.
-const ORGANIZATION_LIST_PAGE_SIZE = 5
+// 조직 목록은 한 페이지에 8개씩 보여줍니다.
+const ORGANIZATION_LIST_PAGE_SIZE = 8
 
 // 현재 보고 있는 조직 목록 페이지 번호입니다. 백엔드는 0페이지부터 시작합니다.
 const organizationListPage = ref(0)
@@ -162,6 +171,29 @@ const organizationForm = reactive({
   organizationImageThumbPath: '',
 })
 
+// 신규 조직 생성 폼입니다. 설정 페이지에 있던 생성 흐름을 조직관리 안으로 옮겼습니다.
+const organizationCreateForm = reactive<CreateOrganizationPayload>({
+  organizationType: 'SUPPLIER',
+  organizationName: '',
+  organizationEnglishName: '',
+  organizationAlias: '',
+  businessNo: '',
+  contactFirstName: '',
+  contactMiddleName: '',
+  contactLastName: '',
+  contactEmail: '',
+  contactPhone: '',
+})
+
+// 신규 조직 생성 버튼을 중복 클릭하지 못하게 막기 위한 로딩 상태입니다.
+const isCreatingOrganization = ref(false)
+
+// 생성 폼의 연락처 유효성 상태입니다.
+const organizationCreatePhoneValid = ref(false)
+
+// 생성 폼에서만 보여줄 에러 문구입니다.
+const organizationCreateError = ref('')
+
 // 화면에서 반복해서 쓰는 문구입니다.
 const copy = computed(() =>
   preferences.language === 'ko'
@@ -187,6 +219,12 @@ const copy = computed(() =>
         savingButton: '저장 중...',
         editButton: '수정',
         cancelButton: '취소',
+        createButton: '조직 생성',
+        createTitle: '조직 생성',
+        createDescription: '새 조직을 등록하면 목록에 바로 반영하고 상세 정보를 이어서 보여줍니다.',
+        creatingButton: '생성 중...',
+        buyerType: '발주사',
+        supplierType: '협력사',
         organizationTab: '조직',
         membersTab: '사원관리',
         memberExcelFile: '사원 엑셀 파일',
@@ -236,6 +274,9 @@ const copy = computed(() =>
         missingOrganizationId: '목록 응답에 organizationId가 없어 상세보기를 할 수 없습니다.',
         saveSuccess: '조직 정보가 수정되었습니다.',
         saveFailed: '조직 정보 수정에 실패했습니다.',
+        createSuccess: '조직이 생성되었습니다.',
+        createSupplierWarning: '조직은 생성되었지만 협력사 정보 자동 생성에 실패했습니다.',
+        createFailed: '조직 생성에 실패했습니다.',
         memberUploadFailed: '사원 엑셀 업로드에 실패했습니다.',
       }
     : {
@@ -260,6 +301,12 @@ const copy = computed(() =>
         savingButton: 'Saving...',
         editButton: 'Edit',
         cancelButton: 'Cancel',
+        createButton: 'Create Organization',
+        createTitle: 'Create Organization',
+        createDescription: 'Create a new organization here, then show it in the list and detail panel.',
+        creatingButton: 'Creating...',
+        buyerType: 'Buyer',
+        supplierType: 'Supplier',
         organizationTab: 'Organization',
         membersTab: 'Members',
         memberExcelFile: 'Member Excel File',
@@ -314,6 +361,9 @@ const copy = computed(() =>
           'The organization list response does not include organizationId, so detail view is unavailable.',
         saveSuccess: 'Organization information has been updated.',
         saveFailed: 'Failed to update organization information.',
+        createSuccess: 'Organization has been created.',
+        createSupplierWarning: 'Organization was created, but supplier information could not be created automatically.',
+        createFailed: 'Failed to create organization.',
         memberUploadFailed: 'Failed to upload member excel file.',
       },
 )
@@ -335,7 +385,11 @@ function hasOrganizationId(row: OrganizationListItem) {
 
 // 현재 row가 진짜 선택된 row인지 안전하게 확인합니다.
 function isSelectedRow(row: OrganizationListItem) {
-  return hasOrganizationId(row) && selectedOrganizationId.value === row.organizationId
+  return (
+    organizationPanelMode.value === 'detail' &&
+    hasOrganizationId(row) &&
+    selectedOrganizationId.value === row.organizationId
+  )
 }
 
 // 숫자 값이 없을 때도 화면이 깨지지 않게 0으로 보여줍니다.
@@ -580,8 +634,156 @@ function normalizeOrganizationAlias() {
     .slice(0, 10)
 }
 
+// 생성 폼의 조직 코드도 수정 폼과 같은 규칙으로 맞춥니다.
+function normalizeCreateOrganizationAlias() {
+  organizationCreateForm.organizationAlias = organizationCreateForm.organizationAlias
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 10)
+}
+
+// 생성 폼을 처음 상태로 되돌립니다.
+function resetCreateOrganizationForm() {
+  organizationCreateForm.organizationType = 'SUPPLIER'
+  organizationCreateForm.organizationName = ''
+  organizationCreateForm.organizationEnglishName = ''
+  organizationCreateForm.organizationAlias = ''
+  organizationCreateForm.businessNo = ''
+  organizationCreateForm.contactFirstName = ''
+  organizationCreateForm.contactMiddleName = ''
+  organizationCreateForm.contactLastName = ''
+  organizationCreateForm.contactEmail = ''
+  organizationCreateForm.contactPhone = ''
+  organizationCreatePhoneValid.value = false
+  organizationCreateError.value = ''
+}
+
+// 생성 버튼을 누르면 오른쪽 상세 패널 자리에 생성 폼을 엽니다.
+function startOrganizationCreate() {
+  activeTab.value = 'organization'
+  organizationPanelMode.value = 'create'
+  selectedOrganizationId.value = null
+  selectedOrganizationDetail.value = null
+  isEditingOrganization.value = false
+  resetMessages()
+  resetOrganizationSupplySummary()
+  resetCreateOrganizationForm()
+}
+
+// 생성 취소 시 다시 상세 패널 기본 상태로 돌아갑니다.
+function cancelOrganizationCreate() {
+  organizationPanelMode.value = 'detail'
+  organizationCreateError.value = ''
+}
+
+// 생성 직후 목록을 다시 읽고 방금 만든 조직을 상세 패널에 바로 띄웁니다.
+async function refreshListAndOpenCreatedOrganization(createdOrganizationPublicId: string) {
+  await loadOrganizationList(0)
+
+  const createdRow = organizationRows.value.find((row) => {
+    return row.organizationPublicId === createdOrganizationPublicId
+  })
+
+  if (createdRow && hasOrganizationId(createdRow)) {
+    await loadOrganizationDetailById(createdRow.organizationId)
+  }
+}
+
+// 플랫폼 관리자가 새 조직을 생성합니다.
+async function submitOrganizationCreate() {
+  organizationCreateError.value = ''
+  pageSuccess.value = ''
+  normalizeCreateOrganizationAlias()
+
+  if (
+    !organizationCreateForm.organizationName.trim() ||
+    !organizationCreateForm.organizationEnglishName.trim() ||
+    !organizationCreateForm.organizationAlias.trim() ||
+    !organizationCreateForm.businessNo.trim() ||
+    !organizationCreateForm.contactFirstName.trim() ||
+    !organizationCreateForm.contactLastName.trim() ||
+    !organizationCreateForm.contactEmail.trim() ||
+    !organizationCreateForm.contactPhone.trim()
+  ) {
+    organizationCreateError.value = copy.value.validationRequired
+    return
+  }
+
+  if (!/^[A-Z0-9]{2,10}$/.test(organizationCreateForm.organizationAlias)) {
+    organizationCreateError.value = copy.value.validationAlias
+    return
+  }
+
+  if (!organizationCreatePhoneValid.value) {
+    organizationCreateError.value = copy.value.validationPhone
+    return
+  }
+
+  try {
+    isCreatingOrganization.value = true
+
+    const normalizedAlias = organizationCreateForm.organizationAlias.trim().toUpperCase()
+
+    const response = await createOrganization({
+      organizationType: organizationCreateForm.organizationType,
+      organizationName: organizationCreateForm.organizationName.trim(),
+      organizationEnglishName: organizationCreateForm.organizationEnglishName.trim(),
+      organizationAlias: normalizedAlias,
+      businessNo: organizationCreateForm.businessNo.trim(),
+      contactFirstName: organizationCreateForm.contactFirstName.trim(),
+      contactMiddleName: organizationCreateForm.contactMiddleName?.trim() || undefined,
+      contactLastName: organizationCreateForm.contactLastName.trim(),
+      contactEmail: organizationCreateForm.contactEmail.trim(),
+      contactPhone: organizationCreateForm.contactPhone.trim(),
+    })
+
+    let supplierCreateFailed = false
+
+    if (organizationCreateForm.organizationType === 'SUPPLIER') {
+      try {
+        const primaryContactName = [
+          organizationCreateForm.contactFirstName,
+          organizationCreateForm.contactMiddleName,
+          organizationCreateForm.contactLastName,
+        ]
+          .filter((value) => value && value.trim())
+          .join(' ')
+
+        await createSupplier({
+          organizationPublicId: response.organizationPublicId,
+          supplierCode: normalizedAlias,
+          supplierName: organizationCreateForm.organizationName.trim(),
+          primaryContactName,
+          primaryContactEmail: organizationCreateForm.contactEmail.trim(),
+          primaryContactPhone: organizationCreateForm.contactPhone.trim(),
+        })
+      } catch (supplierError) {
+        console.error('Failed to create supplier after organization creation:', supplierError)
+        supplierCreateFailed = true
+      }
+    }
+
+    organizationPanelMode.value = 'detail'
+    await refreshListAndOpenCreatedOrganization(response.organizationPublicId)
+    resetCreateOrganizationForm()
+
+    pageSuccess.value = supplierCreateFailed
+      ? copy.value.createSupplierWarning
+      : copy.value.createSuccess
+  } catch (error: any) {
+    console.error('Failed to create organization:', error)
+
+    organizationCreateError.value =
+      error?.payload?.message ||
+      error?.message ||
+      copy.value.createFailed
+  } finally {
+    isCreatingOrganization.value = false
+  }
+}
+
 // 플랫폼 관리자가 보는 조직 목록을 읽습니다.
-// 플랫폼 관리자가 보는 조직 목록을 5개씩 페이징해서 불러옵니다.
+// 플랫폼 관리자가 보는 조직 목록을 8개씩 페이징해서 불러옵니다.
 async function loadOrganizationList(page = organizationListPage.value) {
   try {
     isLoadingOrganizations.value = true
@@ -607,6 +809,7 @@ async function loadOrganizationList(page = organizationListPage.value) {
     selectedOrganizationId.value = null
     selectedOrganizationDetail.value = null
     isEditingOrganization.value = false
+    organizationPanelMode.value = 'detail'
     resetOrganizationSupplySummary()
   } catch (error: any) {
     pageError.value = error?.payload?.message || copy.value.loadListFailed
@@ -638,6 +841,7 @@ async function loadOrganizationDetailById(organizationId: number) {
   }
 
   try {
+    organizationPanelMode.value = 'detail'
     selectedOrganizationId.value = organizationId
     selectedOrganizationDetail.value = null
     isEditingOrganization.value = false
@@ -667,6 +871,7 @@ async function loadOrganizationDetailById(organizationId: number) {
 // 조직 대표자는 자기 조직만 읽습니다.
 async function loadMyOrganization() {
   try {
+    organizationPanelMode.value = 'detail'
     isLoadingOrganizationDetail.value = true
     isEditingOrganization.value = false
     resetMessages()
@@ -971,6 +1176,15 @@ watch(
               <h3>{{ copy.listTitle }}</h3>
               <p class="settings-page__copy">{{ copy.listDescription }}</p>
             </div>
+
+            <button
+              class="page-button page-button--primary"
+              type="button"
+              :disabled="isCreatingOrganization"
+              @click="startOrganizationCreate"
+            >
+              {{ copy.createButton }}
+            </button>
           </div>
 
           <div v-if="isLoadingOrganizations" class="login-hint">
@@ -1047,10 +1261,20 @@ watch(
           <div class="page-panel__head organization-management-head">
             <div>
               <div class="page-panel__eyebrow">{{ copy.eyebrow }}</div>
-              <h3>{{ activeTab === 'members' ? copy.memberTitle : copy.detailTitle }}</h3>
+              <h3>
+                {{
+                  organizationPanelMode === 'create'
+                    ? copy.createTitle
+                    : activeTab === 'members'
+                      ? copy.memberTitle
+                      : copy.detailTitle
+                }}
+              </h3>
               <p class="settings-page__copy">
                 {{
-                  activeTab === 'members'
+                  organizationPanelMode === 'create'
+                    ? copy.createDescription
+                    : activeTab === 'members'
                     ? copy.memberDescription
                     : isAdminManager
                       ? copy.readOnlyDescription
@@ -1080,6 +1304,98 @@ watch(
             </div>
           </div>
 
+          <template v-if="organizationPanelMode === 'create' && isAdminManager">
+            <div v-if="organizationCreateError" class="login-error" style="margin-bottom: 12px;">
+              {{ organizationCreateError }}
+            </div>
+
+            <div class="settings-form organization-create-form">
+              <label>
+                <span>{{ copy.organizationType }}</span>
+                <select v-model="organizationCreateForm.organizationType">
+                  <option value="SUPPLIER">{{ copy.supplierType }}</option>
+                  <option value="BUYER">{{ copy.buyerType }}</option>
+                </select>
+              </label>
+
+              <label>
+                <span>{{ copy.organizationName }}</span>
+                <input v-model="organizationCreateForm.organizationName" type="text" />
+              </label>
+
+              <label>
+                <span>{{ copy.organizationEnglishName }}</span>
+                <input v-model="organizationCreateForm.organizationEnglishName" type="text" />
+              </label>
+
+              <label>
+                <span>{{ copy.organizationAlias }}</span>
+                <input
+                  v-model="organizationCreateForm.organizationAlias"
+                  type="text"
+                  maxlength="10"
+                  placeholder="ATLAS1"
+                  @input="normalizeCreateOrganizationAlias"
+                />
+              </label>
+
+              <label>
+                <span>{{ copy.businessNo }}</span>
+                <input v-model="organizationCreateForm.businessNo" type="text" />
+              </label>
+
+              <label>
+                <span>{{ copy.contactFirstName }}</span>
+                <input v-model="organizationCreateForm.contactFirstName" type="text" />
+              </label>
+
+              <label>
+                <span>{{ copy.contactMiddleName }}</span>
+                <input v-model="organizationCreateForm.contactMiddleName" type="text" />
+              </label>
+
+              <label>
+                <span>{{ copy.contactLastName }}</span>
+                <input v-model="organizationCreateForm.contactLastName" type="text" />
+              </label>
+
+              <label>
+                <span>{{ copy.contactEmail }}</span>
+                <input v-model="organizationCreateForm.contactEmail" type="email" />
+              </label>
+
+              <label>
+                <span>{{ copy.contactPhone }}</span>
+                <PhoneField
+                  v-model="organizationCreateForm.contactPhone"
+                  v-model:valid="organizationCreatePhoneValid"
+                  :language="preferences.language"
+                />
+              </label>
+            </div>
+
+            <div class="organization-form-actions">
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                :disabled="isCreatingOrganization"
+                @click="cancelOrganizationCreate"
+              >
+                {{ copy.cancelButton }}
+              </button>
+
+              <button
+                class="page-button page-button--primary"
+                type="button"
+                :disabled="isCreatingOrganization"
+                @click="submitOrganizationCreate"
+              >
+                {{ isCreatingOrganization ? copy.creatingButton : copy.createButton }}
+              </button>
+            </div>
+          </template>
+
+          <template v-else>
           <div v-if="pageError && activeTab === 'organization'" class="login-error" style="margin-bottom: 12px;">
             {{ pageError }}
           </div>
@@ -1435,6 +1751,7 @@ watch(
                 </div>
               </div>
             </div>
+          </template>
           </template>
         </article>
       </div>
