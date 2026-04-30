@@ -61,6 +61,32 @@ const activeTab = ref<OrganizationManagementTabKey>('organization')
 // 플랫폼 관리자가 보는 조직 목록입니다.
 const organizationRows = ref<OrganizationListItem[]>([])
 
+// 조직 목록은 한 페이지에 5개씩 보여줍니다.
+const ORGANIZATION_LIST_PAGE_SIZE = 5
+
+// 현재 보고 있는 조직 목록 페이지 번호입니다. 백엔드는 0페이지부터 시작합니다.
+const organizationListPage = ref(0)
+
+// 백엔드에서 내려준 전체 조직 개수입니다.
+const organizationListTotalElements = ref(0)
+
+// 백엔드에서 내려준 전체 페이지 수입니다.
+const organizationListTotalPages = ref(0)
+
+// 화면에는 0페이지가 아니라 1페이지처럼 보여주기 위한 값입니다.
+const organizationListCurrentPageNumber = computed(() => {
+  return organizationListTotalPages.value === 0 ? 0 : organizationListPage.value + 1
+})
+
+// 이전 페이지로 갈 수 있는지 확인합니다.
+const canMoveOrganizationListPrev = computed(() => organizationListPage.value > 0)
+
+// 다음 페이지로 갈 수 있는지 확인합니다.
+const canMoveOrganizationListNext = computed(() => {
+  return organizationListPage.value + 1 < organizationListTotalPages.value
+})
+
+
 // 현재 선택한 조직의 내부 ID 입니다.
 const selectedOrganizationId = ref<number | null>(null)
 
@@ -534,18 +560,29 @@ function normalizeOrganizationAlias() {
 }
 
 // 플랫폼 관리자가 보는 조직 목록을 읽습니다.
-async function loadOrganizationList() {
+// 플랫폼 관리자가 보는 조직 목록을 5개씩 페이징해서 불러옵니다.
+async function loadOrganizationList(page = organizationListPage.value) {
   try {
     isLoadingOrganizations.value = true
     pageError.value = ''
     pageSuccess.value = ''
 
+    // 백엔드 페이지는 0부터 시작하므로 현재 page 값을 그대로 보냅니다.
     const response = await getOrganizations({
-      page: 0,
-      size: 100,
-    })
+  page,
+  size: ORGANIZATION_LIST_PAGE_SIZE,
+  status: 'ACTIVE',
+})
 
+
+    // 현재 페이지에 보여줄 조직 목록입니다.
     organizationRows.value = response.content
+
+    // 백엔드가 알려준 현재 페이지와 전체 페이지 정보를 저장합니다.
+    organizationListPage.value = response.number ?? page
+    organizationListTotalElements.value = response.totalElements ?? 0
+    organizationListTotalPages.value = response.totalPages ?? 0
+
     selectedOrganizationId.value = null
     selectedOrganizationDetail.value = null
     isEditingOrganization.value = false
@@ -556,6 +593,16 @@ async function loadOrganizationList() {
     isLoadingOrganizations.value = false
   }
 }
+
+// 이전/다음 버튼을 눌렀을 때 해당 페이지 목록을 다시 불러옵니다.
+function moveOrganizationListPage(nextPage: number) {
+  if (nextPage < 0 || nextPage >= organizationListTotalPages.value) {
+    return
+  }
+
+  void loadOrganizationList(nextPage)
+}
+
 
 // 조직 내부 ID 기준으로 상세 API를 호출합니다.
 async function loadOrganizationDetailById(organizationId: number) {
@@ -871,7 +918,7 @@ onMounted(() => {
           gap: 20px;
         "
       >
-        <article v-if="isAdminManager" class="page-panel">
+               <article v-if="isAdminManager" class="page-panel">
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">{{ copy.eyebrow }}</div>
@@ -891,42 +938,61 @@ onMounted(() => {
             </div>
           </div>
 
-          <div v-else class="page-feed">
-            <div
-              v-for="row in visibleOrganizationRows"
-              :key="row.organizationPublicId || row.organizationName"
-              class="page-feed__item"
-              :class="{
-                'organization-list-item': true,
-                'is-selected': isSelectedRow(row),
-                'is-disabled': !hasOrganizationId(row),
-              }"
-              role="button"
-              tabindex="0"
-              :style="{
-                borderColor: isSelectedRow(row) ? '#111827' : undefined,
-                backgroundColor: isSelectedRow(row) ? 'rgba(17, 24, 39, 0.04)' : undefined,
-              }"
-              @click="hasOrganizationId(row) && selectOrganization(row)"
-              @keydown.enter.prevent="hasOrganizationId(row) && selectOrganization(row)"
-              @keydown.space.prevent="hasOrganizationId(row) && selectOrganization(row)"
-            >
-              <span class="page-feed__label">
-                {{ formatOrganizationType(row.organizationType) }} ·
-                {{ formatOrganizationStatus(row.status) }}
+          <div v-else class="organization-list-block">
+            <div class="page-feed">
+              <div
+                v-for="row in visibleOrganizationRows"
+                :key="row.organizationPublicId || row.organizationName"
+                class="page-feed__item"
+                :class="{
+                  'organization-list-item': true,
+                  'is-selected': isSelectedRow(row),
+                  'is-disabled': !hasOrganizationId(row),
+                }"
+                role="button"
+                tabindex="0"
+                :style="{
+                  borderColor: isSelectedRow(row) ? '#111827' : undefined,
+                  backgroundColor: isSelectedRow(row) ? 'rgba(17, 24, 39, 0.04)' : undefined,
+                }"
+                @click="hasOrganizationId(row) && selectOrganization(row)"
+                @keydown.enter.prevent="hasOrganizationId(row) && selectOrganization(row)"
+                @keydown.space.prevent="hasOrganizationId(row) && selectOrganization(row)"
+              >
+                <span class="page-feed__label">
+                  {{ formatOrganizationType(row.organizationType) }} ·
+                  {{ formatOrganizationStatus(row.status) }}
+                </span>
+
+                <strong class="page-feed__text">
+                  {{ row.organizationName }}
+                </strong>
+              </div>
+            </div>
+
+            <div class="organization-pagination">
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                :disabled="!canMoveOrganizationListPrev || isLoadingOrganizations"
+                @click="moveOrganizationListPage(organizationListPage - 1)"
+              >
+                이전
+              </button>
+
+              <span class="organization-pagination__info">
+                {{ organizationListCurrentPageNumber }} / {{ organizationListTotalPages }}
+                · 총 {{ organizationListTotalElements }}개
               </span>
 
-              <strong class="page-feed__text">
-                {{ row.organizationName }}
-              </strong>
-
-              <span class="page-feed__label">
-                {{ copy.listPhone }}: {{ row.contactPhone || '-' }}
-              </span>
-
-              <span class="page-feed__label">
-                {{ copy.listEmail }}: {{ row.contactEmail || '-' }}
-              </span>
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                :disabled="!canMoveOrganizationListNext || isLoadingOrganizations"
+                @click="moveOrganizationListPage(organizationListPage + 1)"
+              >
+                다음
+              </button>
             </div>
           </div>
         </article>
@@ -1334,6 +1400,24 @@ onMounted(() => {
 .organization-management-head {
   align-items: flex-start;
 }
+.organization-list-block {
+  display: grid;
+  gap: 12px;
+}
+
+.organization-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.organization-pagination__info {
+  color: var(--on-surface-variant, #596061);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 
 .organization-management-tabs {
   display: flex;
