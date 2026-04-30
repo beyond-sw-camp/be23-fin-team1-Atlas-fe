@@ -55,19 +55,31 @@ const CONTENT = {
     createCancelLabel: '취소',
     eyebrow: '공급망 운영 / 창고 관리',
     title: '창고 관리',
-    subtitle: '창고 목록과 활성 상태를 조회하고 운영 기준 데이터를 관리합니다.',
     searchPlaceholder: '창고 코드, 창고명, 주소 검색',
     tableTitle: '창고 목록',
     empty: '조회된 창고가 없습니다.',
     loading: '창고 목록을 불러오는 중입니다.',
     errorFallback: '창고 목록을 불러오지 못했습니다.',
-    columns: ['창고 코드', '창고명', '주소', '창고 상태', '활성 상태', '수정일', '관리'],
+    columns: ['창고 코드', '창고명', '주소', '창고 상태', '활성 상태', '관리'],
     refreshLabel: '새로고침',
     createLabel: '창고 등록',
     addressSearchLabel: '주소 검색',
     addressSearchLoadingLabel: '검색창 여는 중...',
     active: '활성',
     inactive: '비활성',
+    totalLabel: '전체 창고',
+    activeLabel: '활성 창고',
+    inactiveLabel: '비활성 창고',
+    availableLabel: '사용 가능',
+    totalSub: '등록 기준',
+    activeSub: '출하 선택 가능',
+    inactiveSub: '관리 화면 표시',
+    availableSub: '용량 상태 기준',
+    statusLabels: {
+      EMPTY: '비어 있음',
+      AVAILABLE: '사용 가능',
+      FULL: '가득 참',
+    },
   },
   en: {
     createModalTitle: 'Create Warehouse',
@@ -82,19 +94,31 @@ const CONTENT = {
     createCancelLabel: 'CANCEL',
     eyebrow: 'Supply Chain Ops / Warehouses',
     title: 'Warehouses',
-    subtitle: 'Review warehouse master data and active status for logistics operations.',
     searchPlaceholder: 'Search code, name, or address',
     tableTitle: 'Warehouse List',
     empty: 'No warehouses found.',
     loading: 'Loading warehouses...',
     errorFallback: 'Failed to load warehouses.',
-    columns: ['Code', 'Name', 'Address', 'Capacity', 'Active', 'Updated At', 'Action'],
+    columns: ['Code', 'Name', 'Address', 'Capacity', 'Active', 'Action'],
     refreshLabel: 'REFRESH',
     createLabel: 'ADD WAREHOUSE',
     addressSearchLabel: 'SEARCH ADDRESS',
     addressSearchLoadingLabel: 'OPENING...',
     active: 'Active',
     inactive: 'Inactive',
+    totalLabel: 'Total Warehouses',
+    activeLabel: 'Active',
+    inactiveLabel: 'Inactive',
+    availableLabel: 'Available',
+    totalSub: 'Registered',
+    activeSub: 'Selectable for shipment',
+    inactiveSub: 'Shown for management',
+    availableSub: 'Capacity status',
+    statusLabels: {
+      EMPTY: 'Empty',
+      AVAILABLE: 'Available',
+      FULL: 'Full',
+    },
   },
 } as const
 
@@ -286,6 +310,13 @@ const filteredNodes = computed(() => {
     )
   })
 })
+const activeNodeCount = computed(() => nodes.value.filter((node) => node.active).length)
+const inactiveNodeCount = computed(() => nodes.value.filter((node) => !node.active).length)
+const availableNodeCount = computed(() => nodes.value.filter((node) => node.capacityStatus === 'AVAILABLE').length)
+
+function formatCapacityStatus(status: LogisticsNodeCapacityStatus) {
+  return content.value.statusLabels[status] ?? status
+}
 
 function formatDate(value: string) {
   if (!value) return '-'
@@ -367,8 +398,8 @@ onBeforeUnmount(() => header.clearActions())
 </script>
 
 <template>
-  <section class="app-screen terminal-page">
-    <header class="terminal-page__header">
+  <section class="app-screen terminal-page logistics-page">
+    <header class="terminal-page__header logistics-page__header">
       <div>
         <div class="terminal-page__eyebrow">{{ content.eyebrow }}</div>
         <h2 class="terminal-page__title">{{ content.title }}</h2>
@@ -384,33 +415,71 @@ onBeforeUnmount(() => header.clearActions())
       </div>
     </header>
 
-    <section class="page-metrics terminal-page__metrics">
-      <article class="page-metric is-nominal">
-        <span class="page-metric__label">TOTAL</span>
-        <strong class="page-metric__value">{{ totalElements }}</strong>
-        <span class="page-metric__meta">nodes</span>
+    <section class="logistics-kpi-row" aria-label="warehouse summary">
+      <article class="logistics-kpi-card">
+        <div class="logistics-kpi-card__icon logistics-kpi-card__icon--blue">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9l8-4 8 4v10H4z" />
+            <path d="M8 19v-7h8v7" />
+          </svg>
+        </div>
+        <div class="logistics-kpi-card__body">
+          <span>{{ content.totalLabel }}</span>
+          <strong>{{ totalElements }}</strong>
+          <small>{{ content.totalSub }}</small>
+        </div>
       </article>
-      <article class="page-metric is-info">
-        <span class="page-metric__label">PAGE</span>
-        <strong class="page-metric__value">{{ currentPage + 1 }}</strong>
-        <span class="page-metric__meta">of {{ totalPages || 1 }}</span>
+
+      <article class="logistics-kpi-card">
+        <div class="logistics-kpi-card__icon logistics-kpi-card__icon--green">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12l4 4L19 6" />
+          </svg>
+        </div>
+        <div class="logistics-kpi-card__body">
+          <span>{{ content.activeLabel }}</span>
+          <strong>{{ activeNodeCount }}</strong>
+          <small>{{ content.activeSub }}</small>
+        </div>
       </article>
-      <article class="page-metric is-ok">
-        <span class="page-metric__label">VISIBLE</span>
-        <strong class="page-metric__value">{{ filteredNodes.length }}</strong>
-        <span class="page-metric__meta">filtered rows</span>
+
+      <article class="logistics-kpi-card">
+        <div class="logistics-kpi-card__icon logistics-kpi-card__icon--amber">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 6v6l4 2" />
+            <circle cx="12" cy="12" r="8" />
+          </svg>
+        </div>
+        <div class="logistics-kpi-card__body">
+          <span>{{ content.availableLabel }}</span>
+          <strong>{{ availableNodeCount }}</strong>
+          <small>{{ content.availableSub }}</small>
+        </div>
+      </article>
+
+      <article class="logistics-kpi-card">
+        <div class="logistics-kpi-card__icon logistics-kpi-card__icon--red">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </div>
+        <div class="logistics-kpi-card__body">
+          <span>{{ content.inactiveLabel }}</span>
+          <strong>{{ inactiveNodeCount }}</strong>
+          <small>{{ content.inactiveSub }}</small>
+        </div>
       </article>
     </section>
 
     <section class="terminal-page__content">
       <div class="terminal-page__main">
-        <section class="terminal-page__filter">
-          <label class="terminal-page__search">
+        <section class="logistics-filter-card">
+          <label class="logistics-search">
             <span>SEARCH</span>
             <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
           </label>
 
-          <div style="display: flex; gap: 8px; align-items: center;">
+          <div class="logistics-pagination">
             <button
               class="page-button page-button--secondary"
               type="button"
@@ -420,7 +489,7 @@ onBeforeUnmount(() => header.clearActions())
               이전
             </button>
 
-            <span style="font-size: 0.875rem; opacity: 0.8;">
+            <span>
               {{ currentPage + 1 }} / {{ totalPages || 1 }}
             </span>
 
@@ -435,7 +504,7 @@ onBeforeUnmount(() => header.clearActions())
           </div>
         </section>
 
-        <article class="page-panel">
+        <article class="logistics-card">
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">LOGISTICS</div>
@@ -456,25 +525,35 @@ onBeforeUnmount(() => header.clearActions())
             {{ content.empty }}
           </div>
 
-          <div v-else class="page-table terminal-page__table">
-            <div class="page-table__row page-table__row--head logistics-table">
+          <div v-else class="page-table terminal-page__table logistics-data-table">
+            <div class="page-table__row page-table__row--head logistics-table logistics-table--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
             </div>
 
             <div
               v-for="node in filteredNodes"
               :key="node.publicId"
-              class="page-table__row logistics-table"
+              class="page-table__row logistics-table logistics-table--body"
             >
-              <span>{{ node.nodeCode }}</span>
-              <span>{{ node.nodeName }}</span>
-              <span>{{ node.address || '-' }}</span>
-              <span>{{ node.capacityStatus }}</span>
-              <span>
-                {{ node.active ? content.active : content.inactive }}
+              <span class="logistics-code-cell">
+                <strong>{{ node.nodeCode }}</strong>
+                <small>{{ formatDate(node.updatedAt) }}</small>
               </span>
-              <span>{{ formatDate(node.updatedAt) }}</span>
-                <span style="display: flex; gap: 8px;">
+              <span class="logistics-name-cell">
+                <strong>{{ node.nodeName }}</strong>
+              </span>
+              <span class="logistics-address-cell">{{ node.address || '-' }}</span>
+              <span>
+                <span class="logistics-status-pill" :class="`is-${node.capacityStatus.toLowerCase()}`">
+                  {{ formatCapacityStatus(node.capacityStatus) }}
+                </span>
+              </span>
+              <span>
+                <span class="logistics-active-pill" :class="{ 'is-inactive': !node.active }">
+                  {{ node.active ? content.active : content.inactive }}
+                </span>
+              </span>
+              <span class="logistics-row-actions">
                 <button
                   class="page-button page-button--secondary"
                   type="button"
@@ -503,50 +582,46 @@ onBeforeUnmount(() => header.clearActions())
     size="md"
     @close="closeCreateModal"
   >
-    <div class="page-form" style="display: flex; flex-direction: column; gap: 16px;">
-      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-        <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
+    <div class="logistics-modal-form">
+      <label class="logistics-modal-field">
+        <span>
           {{ content.formLabels.nodeName }}
         </span>
         <input
           v-model="createForm.nodeName"
           type="text"
-          style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
         />
       </label>
 
-      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-        <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
+      <label class="logistics-modal-field">
+        <span>
           {{ content.formLabels.capacityStatus }}
         </span>
-        <div style="width: 100%; border-bottom: 2px solid var(--color-surface-container-high);">
+        <div>
           <select
             v-model="createForm.capacityStatus"
-            style="font-family: inherit; font-size: inherit; width: 100%; appearance: auto; background: transparent; color: var(--color-on-surface); padding: 8px 0; border: none; outline: none;"
           >
             <option
               v-for="option in capacityStatusOptions"
               :key="option"
               :value="option"
-              style="background-color: var(--color-surface); color: var(--color-on-surface);"
             >
-              {{ option }}
+              {{ formatCapacityStatus(option) }}
             </option>
           </select>
         </div>
       </label>
 
-      <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-        <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">
+      <label class="logistics-modal-field">
+        <span>
           {{ content.formLabels.address }}
         </span>
-        <div style="display: flex; gap: 8px; width: 100%; align-items: flex-end;">
+        <div class="logistics-address-row">
           <input
             v-model="createForm.address"
             type="text"
             readonly
             placeholder="주소 검색으로 선택해 주세요"
-            style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
           />
           <button
             class="page-button page-button--secondary"
@@ -562,7 +637,7 @@ onBeforeUnmount(() => header.clearActions())
 
     <div
       v-if="createErrorMessage"
-      style="color: var(--color-critical); font-size: 0.875rem;"
+      class="logistics-error"
     >
       {{ createErrorMessage }}
     </div>
@@ -583,3 +658,442 @@ onBeforeUnmount(() => header.clearActions())
     </template>
   </BaseModal>
 </template>
+
+<style scoped>
+.logistics-page {
+  --log-bg: #f4f6f9;
+  --log-card: #ffffff;
+  --log-border: #e5e9f0;
+  --log-text: #111827;
+  --log-muted: #667085;
+  --log-faint: #98a2b3;
+  --log-blue: #2563eb;
+  --log-blue-soft: #eff6ff;
+  --log-green: #10b981;
+  --log-green-soft: #ecfdf5;
+  --log-amber: #f59e0b;
+  --log-amber-soft: #fffbeb;
+  --log-red: #ef4444;
+  --log-red-soft: #fff1f2;
+  --log-radius: 12px;
+  --log-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 100vh;
+  padding: 28px 32px;
+  color: var(--log-text);
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.06), transparent 28rem),
+    var(--log-bg);
+  font-family: Pretendard, "Segoe UI", sans-serif;
+}
+
+.logistics-page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.logistics-page .terminal-page__title {
+  margin: 0 0 4px;
+  color: var(--log-text);
+  font-size: 1.75rem;
+  line-height: 1.15;
+}
+
+.logistics-page .terminal-page__eyebrow,
+.logistics-page .page-panel__eyebrow {
+  color: var(--log-faint);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.logistics-page .design-trigger-row,
+.logistics-pagination,
+.logistics-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logistics-row-actions {
+  justify-content: flex-end;
+}
+
+.logistics-row-actions .page-button {
+  min-height: 32px;
+  padding: 7px 10px;
+  font-size: 0.76rem;
+}
+
+.logistics-page .page-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 0.8rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.logistics-page .page-button--primary {
+  border-color: #111827;
+  background: #111827;
+  color: #fff;
+}
+
+.logistics-page .page-button--secondary {
+  border-color: var(--log-border);
+  background: var(--log-card);
+  color: var(--log-muted);
+}
+
+.logistics-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.logistics-kpi-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  min-height: 92px;
+  border: 1px solid var(--log-border);
+  border-radius: var(--log-radius);
+  padding: 18px;
+  background: var(--log-card);
+  box-shadow: var(--log-shadow);
+}
+
+.logistics-kpi-card__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+}
+
+.logistics-kpi-card__icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.logistics-kpi-card__icon--blue {
+  background: var(--log-blue-soft);
+  color: var(--log-blue);
+}
+
+.logistics-kpi-card__icon--green {
+  background: var(--log-green-soft);
+  color: var(--log-green);
+}
+
+.logistics-kpi-card__icon--amber {
+  background: var(--log-amber-soft);
+  color: var(--log-amber);
+}
+
+.logistics-kpi-card__icon--red {
+  background: var(--log-red-soft);
+  color: var(--log-red);
+}
+
+.logistics-kpi-card__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.logistics-kpi-card__body span {
+  color: var(--log-faint);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.logistics-kpi-card__body strong {
+  margin-top: 3px;
+  color: var(--log-text);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.logistics-kpi-card__body small {
+  margin-top: 3px;
+  color: var(--log-faint);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.logistics-filter-card,
+.logistics-card {
+  border: 1px solid var(--log-border);
+  border-radius: var(--log-radius);
+  padding: 20px;
+  background: var(--log-card);
+  box-shadow: var(--log-shadow);
+}
+
+.logistics-filter-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.logistics-search {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.logistics-search span {
+  color: var(--log-faint);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.logistics-search input {
+  width: 100%;
+  border: 1px solid var(--log-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--log-text);
+  font-family: inherit;
+}
+
+.logistics-pagination span {
+  color: var(--log-muted);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.logistics-page .page-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.logistics-page .page-panel__head h3 {
+  margin: 4px 0 0;
+  color: var(--log-text);
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.logistics-page .page-panel__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: #f1f5f9;
+  color: var(--log-text);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.logistics-page .page-table {
+  overflow: hidden;
+  border: 1px solid var(--log-border);
+  border-radius: var(--log-radius);
+  background: #f8fafc;
+}
+
+.logistics-data-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.logistics-page .page-table__row {
+  border: 1px solid var(--log-border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--log-muted);
+}
+
+.logistics-page .page-table__row:last-child {
+  border-bottom: 1px solid var(--log-border);
+}
+
+.logistics-page .page-table__row--head {
+  border: 0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: var(--log-faint);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.logistics-table {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, 0.8fr)
+    minmax(160px, 1fr)
+    minmax(280px, 1.8fr)
+    minmax(100px, 0.7fr)
+    minmax(90px, 0.6fr)
+    minmax(170px, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+}
+
+.logistics-table--body {
+  min-height: 76px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.logistics-table--body:hover {
+  border-color: rgba(37, 99, 235, 0.32);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.logistics-code-cell,
+.logistics-name-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.logistics-code-cell strong {
+  color: var(--log-text);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.logistics-code-cell small {
+  color: var(--log-faint);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.logistics-name-cell strong {
+  overflow: hidden;
+  color: var(--log-text);
+  font-size: 0.92rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logistics-address-cell {
+  color: var(--log-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.logistics-status-pill,
+.logistics-active-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--log-border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: var(--log-green-soft);
+  color: #047857;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.logistics-status-pill.is-empty {
+  background: var(--log-blue-soft);
+  color: var(--log-blue);
+}
+
+.logistics-status-pill.is-full,
+.logistics-active-pill.is-inactive {
+  background: var(--log-red-soft);
+  color: var(--log-red);
+}
+
+.logistics-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.logistics-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.logistics-modal-field > span {
+  color: var(--log-muted, #667085);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.logistics-modal-field input,
+.logistics-modal-field select {
+  width: 100%;
+  border: 1px solid var(--log-border, #e5e9f0);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--log-text, #111827);
+  font-family: inherit;
+}
+
+.logistics-address-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.logistics-error {
+  margin-top: 14px;
+  color: var(--color-critical);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+@media (max-width: 960px) {
+  .logistics-kpi-row {
+    grid-template-columns: 1fr;
+  }
+
+  .logistics-filter-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .logistics-address-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+</style>
