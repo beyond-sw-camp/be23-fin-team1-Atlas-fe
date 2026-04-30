@@ -4080,6 +4080,11 @@ select:not(.app-language-select select):focus {
     width: 100%;
   }
 
+  .app-sidebar__mobile-tools .app-language-select--sidebar select {
+    border-color: rgb(var(--outline-variant-rgb, 172 179 180) / 0.18) !important;
+    background-color: transparent !important;
+  }
+
   .app-search {
     order: 3;
   }
