@@ -9,6 +9,8 @@ import { useAtlasUiStore } from './ui'
 import { useAtlasSessionStore } from './session'
 
 const ADMIN_HIDDEN_PAGE_KEYS = new Set<PageKey>([
+  'controlTower',
+  'supplierNetwork',
   'ordersDesk',
   'supplierControl',
   'items',
