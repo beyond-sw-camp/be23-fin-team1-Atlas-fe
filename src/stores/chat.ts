@@ -37,7 +37,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   // STOMP 클라이언트 및 연결 상태
   const isConnected = ref(false)
   let stompClient: Client | null = null
-  const roomSubscription = ref<StompSubscription | null>(null)
+  const roomSubscriptions = ref<Map<string, StompSubscription>>(new Map())
   const typingSubscription = ref<StompSubscription | null>(null)
 
   const totalUnreadCount = computed(() =>
@@ -84,6 +84,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
       }
 
       // 채팅 패널이 열려있고 특정 방에 들어와있다면 구독 재개
+      syncRoomSubscriptions(rooms.value.map((room) => room.publicId))
       if (currentRoomPublicId.value) {
         subscribeToRoom(currentRoomPublicId.value)
       }
@@ -112,65 +113,96 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
       stompClient = null
     }
     isConnected.value = false
-    roomSubscription.value = null
+    for (const subscription of roomSubscriptions.value.values()) {
+      subscription.unsubscribe()
+    }
+    roomSubscriptions.value.clear()
     typingSubscription.value = null
   }
 
-  function subscribeToRoom(roomPublicId: string) {
+  function handleIncomingRoomMessage(roomPublicId: string, messageBody: string) {
+    try {
+      const raw = JSON.parse(messageBody)
+      // 백엔드 응답 필드 정규화 (deleted → isDeleted)
+      const chatMsg: ChatMessageDto = { ...raw, isDeleted: raw.isDeleted ?? raw.deleted ?? false }
+
+      console.log('[STOMP] 메시지 수신:', chatMsg.messageBody?.slice(0, 30))
+
+      // 현재 방의 메시지면 추가
+      if (currentRoomPublicId.value === roomPublicId) {
+        // 이미 있는 메시지인지 확인 (중복 방지)
+        const exists = messages.value.some(m => m.publicId === chatMsg.publicId)
+        if (!exists) {
+          messages.value.push(chatMsg)
+        }
+
+        // 화면을 보고 있다면 읽음 처리
+        if (isPanelOpen.value) {
+          markAsRead(roomPublicId, chatMsg.publicId)
+        }
+      }
+
+      // 룸 목록 업데이트
+      const room = rooms.value.find(r => r.publicId === roomPublicId)
+      if (room) {
+        room.lastMessage = chatMsg
+        // 현재 보고 있는 방이면 unreadCount를 올리지 않음
+        const isViewingThisRoom = currentRoomPublicId.value === roomPublicId && isPanelOpen.value
+        if (!isViewingThisRoom) {
+          room.unreadCount += 1
+          // 새 안읽음 메시지 발생 → 읽음 추적에서 제거
+          recentlyReadRoomIds.value.delete(roomPublicId)
+        }
+      }
+    } catch (e) {
+      console.error('[STOMP] Failed to parse chat message', e)
+    }
+  }
+
+  function subscribeToRoomMessages(roomPublicId: string) {
     if (!stompClient || !stompClient.connected) {
       console.warn('[STOMP] 구독 실패: 연결되지 않음. roomPublicId:', roomPublicId)
       return
     }
 
-    // 기존 구독 해제
-    if (roomSubscription.value) {
-      roomSubscription.value.unsubscribe()
-    }
-    if (typingSubscription.value) {
-      typingSubscription.value.unsubscribe()
-    }
+    if (roomSubscriptions.value.has(roomPublicId)) return
 
     const subPath = `/sub/chat.room.${roomPublicId}`
     console.log('[STOMP] 채팅방 구독 시작:', subPath)
 
-    roomSubscription.value = stompClient.subscribe(subPath, (message) => {
-      try {
-        const raw = JSON.parse(message.body)
-        // 백엔드 응답 필드 정규화 (deleted → isDeleted)
-        const chatMsg: ChatMessageDto = { ...raw, isDeleted: raw.isDeleted ?? raw.deleted ?? false }
-
-        console.log('[STOMP] 메시지 수신:', chatMsg.messageBody?.slice(0, 30))
-
-        // 현재 방의 메시지면 추가
-        if (currentRoomPublicId.value === roomPublicId) {
-          // 이미 있는 메시지인지 확인 (중복 방지)
-          const exists = messages.value.some(m => m.publicId === chatMsg.publicId)
-          if (!exists) {
-            messages.value.push(chatMsg)
-          }
-
-          // 화면을 보고 있다면 읽음 처리
-          if (isPanelOpen.value) {
-            markAsRead(roomPublicId, chatMsg.publicId)
-          }
-        }
-
-        // 룸 목록 업데이트
-        const room = rooms.value.find(r => r.publicId === roomPublicId)
-        if (room) {
-          room.lastMessage = chatMsg
-          // 현재 보고 있는 방이면 unreadCount를 올리지 않음
-          const isViewingThisRoom = currentRoomPublicId.value === roomPublicId && isPanelOpen.value
-          if (!isViewingThisRoom) {
-            room.unreadCount += 1
-            // 새 안읽음 메시지 발생 → 읽음 추적에서 제거
-            recentlyReadRoomIds.value.delete(roomPublicId)
-          }
-        }
-      } catch (e) {
-        console.error('[STOMP] Failed to parse chat message', e)
-      }
+    const subscription = stompClient.subscribe(subPath, (message) => {
+      handleIncomingRoomMessage(roomPublicId, message.body)
     })
+
+    roomSubscriptions.value.set(roomPublicId, subscription)
+  }
+
+  function syncRoomSubscriptions(roomPublicIds: string[]) {
+    if (!stompClient || !stompClient.connected) return
+
+    const nextRoomIds = new Set(roomPublicIds)
+    for (const [roomPublicId, subscription] of roomSubscriptions.value.entries()) {
+      if (!nextRoomIds.has(roomPublicId)) {
+        subscription.unsubscribe()
+        roomSubscriptions.value.delete(roomPublicId)
+      }
+    }
+
+    for (const roomPublicId of nextRoomIds) {
+      subscribeToRoomMessages(roomPublicId)
+    }
+  }
+
+  function subscribeToRoom(roomPublicId: string) {
+    subscribeToRoomMessages(roomPublicId)
+
+    if (!stompClient || !stompClient.connected) {
+      return
+    }
+
+    if (typingSubscription.value) {
+      typingSubscription.value.unsubscribe()
+    }
 
     typingSubscription.value = stompClient.subscribe(`/sub/chat.typing.${roomPublicId}`, (message) => {
       // 타이핑 상태 처리 (추후 UI 구현 필요)
@@ -211,6 +243,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
       }
 
       rooms.value = fetched
+      syncRoomSubscriptions(fetched.map((room) => room.publicId))
     } catch (e) {
       console.error('Failed to fetch rooms', e)
     }
@@ -481,10 +514,6 @@ async function fetchAvailableUsers() {
     currentRoomPublicId.value = null
     messages.value = []
     
-    if (roomSubscription.value) {
-      roomSubscription.value.unsubscribe()
-      roomSubscription.value = null
-    }
     if (typingSubscription.value) {
       typingSubscription.value.unsubscribe()
       typingSubscription.value = null
