@@ -44,6 +44,33 @@ export interface GetKafkaEventRulesParams {
   size?: number
 }
 
+export interface EventLogSearchResponse {
+  id: number
+  eventId: string
+  topic: string
+  eventType: string
+  aggregateType: string
+  aggregatePublicId: string
+  eventJson: string
+  status: 'PUBLISHED' | 'FAILED'
+  publishedAt: string | null
+  lastError: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GetEventLogsParams {
+  keyword?: string
+  topic?: string
+  eventType?: string
+  aggregateType?: string
+  aggregatePublicId?: string
+  status?: 'PUBLISHED' | 'FAILED'
+  page?: number
+  size?: number
+}
+
+
 export async function getKafkaEventRules(
   params: GetKafkaEventRulesParams = {},
 ): Promise<SpringPage<KafkaEventSummaryResponse>> {
@@ -100,4 +127,20 @@ export async function updateKafkaEventRuleEnabled(
 
 export async function deleteKafkaEventRule(ruleId: string): Promise<void> {
   await apiClient.delete(`/api/control/monitoring/kafka/events/${ruleId}`)
+}
+
+export async function getKafkaEventLogs(
+  params: GetEventLogsParams = {},
+): Promise<SpringPage<EventLogSearchResponse>> {
+  const response = await apiClient.get<SpringPage<EventLogSearchResponse>>(
+    '/api/control/monitoring/kafka/logs',
+    {
+      params: {
+        page: 0,
+        size: 20,
+        ...params,
+      },
+    },
+  )
+  return response.data
 }
