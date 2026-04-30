@@ -107,27 +107,26 @@ function toggleCreateRoomMode() {
 
 <template>
   <div class="chat-room-list">
-    <!-- 헤더: 생성 버튼 -->
-    <div v-if="!isCreatingRoom" class="chat-room-list__header">
-      <button
-        class="chat-room-list__add-btn"
-        type="button"
-        title="채팅방 생성"
-        @click="toggleCreateRoomMode"
-      >
-        <span class="material-symbols-outlined">{{ isCreatingRoom ? 'close' : 'add' }}</span>
-      </button>
-    </div>
-
     <!-- 검색바 (pill 형태) -->
     <div v-if="!isCreatingRoom" class="chat-room-list__search-wrapper">
-      <div class="chat-room-list__search">
-        <span class="material-symbols-outlined">search</span>
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="채팅방 검색..."
-        />
+      <div class="chat-room-list__search-row">
+        <div class="chat-room-list__search">
+          <span class="material-symbols-outlined">search</span>
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="채팅방 검색..."
+          />
+        </div>
+
+        <button
+          class="chat-room-list__add-btn"
+          type="button"
+          title="채팅방 생성"
+          @click="toggleCreateRoomMode"
+        >
+          <span class="material-symbols-outlined">add</span>
+        </button>
       </div>
     </div>
 
