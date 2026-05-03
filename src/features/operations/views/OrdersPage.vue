@@ -8,6 +8,7 @@ import {
   getItem,
   getItems,
   getItemCategories,
+  type SupplyType,
   type ItemCategoryResponseDto,
   type ItemResponseDto,
 } from '../../../services/item'
@@ -83,6 +84,7 @@ type OrderQueueEntry = {
 
 type CreateOrderLineForm = {
   id: number
+  selectedItemPublicId: string
   selectedItemName: string
   selectedSupplierPublicId: string
   arrivalLogisticsNodePublicId: string
@@ -172,6 +174,12 @@ const detailErrorMessage = ref('')
 const detailSuccessMessage = ref('')
 const selectedOrder = ref<PurchaseOrderDetailResponseDto | null>(null)
 
+const selectedParentCategoryId = ref('')
+const selectedMiddleCategoryId = ref('')
+const selectedLeafCategoryId = ref('')
+const itemSearchKeyword = ref('')
+const expandedItemPublicId = ref<string | null>(null)
+
 type ConfirmOrderLineForm = {
   poItemPublicId: string
   itemName: string
@@ -219,11 +227,12 @@ const editForm = ref({
 let createLineSeed = 1
 let editLineSeed = 1
 
-function createEmptyOrderLine(itemName = ''): CreateOrderLineForm {
+function createEmptyOrderLine(item: ItemResponseDto | null = null): CreateOrderLineForm {
   return {
     id: createLineSeed++,
-    selectedItemName: itemName,
-    selectedSupplierPublicId: '',
+    selectedItemPublicId: item?.publicId ?? '',
+    selectedItemName: item?.itemName ?? '',
+    selectedSupplierPublicId: item?.supplierPublicId ?? '',
     arrivalLogisticsNodePublicId: '',
     orderedQty: null,
   }
@@ -236,6 +245,28 @@ function createEmptyEditNewLine(): EditNewOrderLine {
     orderedQty: null,
   }
 }
+
+const filteredSelectableItems = computed(() => {
+  const keyword = createForm.value.itemKeyword.trim().toLowerCase()
+  const selectedCategoryPublicId = selectedCreateCategoryPublicId.value
+
+  if (!selectedCategoryPublicId && !keyword) return []
+
+  return createForm.value.itemOptions
+    .filter((item) => createForm.value.searchResultPublicIds.includes(item.publicId))
+    .filter((item) => {
+      const matchesCategory =
+        !selectedCategoryPublicId ||
+        item.itemCategoryPublicId === selectedCategoryPublicId
+
+      const matchesKeyword =
+        !keyword ||
+        item.itemName.toLowerCase().includes(keyword) ||
+        item.itemCode.toLowerCase().includes(keyword)
+
+      return matchesCategory && matchesKeyword
+    })
+})
 
 const createForm = ref({
   categoryLevel1PublicId: '',
@@ -368,7 +399,9 @@ const filteredOrders = computed(() => {
 
   return orderRows.value.filter((row) => {
     const matchesDirection =
-      directionFilter.value === 'ALL' || row.direction === directionFilter.value
+      !actor.isSupplierOrganization.value ||
+      directionFilter.value === 'ALL' ||
+      row.direction === directionFilter.value
 
     const matchesStatus =
       activeTabKey.value === 'ALL' || row.status === activeTabKey.value
@@ -658,6 +691,14 @@ function subPoStatusText(value: SubPoStatus) {
   }
 }
 
+function supplyTypeText(type: SupplyType) {
+  return type === 'MAKE_TO_ORDER' ? '주문생산형' : '재고형'
+}
+
+function orderableQtyLabel(type: SupplyType) {
+  return type === 'MAKE_TO_ORDER' ? '생산 가능 수량' : '주문 가능 재고'
+}
+
 function getOrderItemLabel(order: PurchaseOrderDetailResponseDto) {
   if (!order.items.length) return '-'
   if (order.items.length === 1) return order.items[0].itemName
@@ -908,15 +949,10 @@ function resetCreateOrderForm() {
 function openCreateOrderModal() {
   resetCreateOrderForm()
   createModalOpen.value = true
-  void searchItemsForCreateOrder()
 }
 
 function closeCreateOrderModal() {
   createModalOpen.value = false
-}
-
-function addCreateOrderLine() {
-  createForm.value.lines.unshift(createEmptyOrderLine())
 }
 
 function validateCreateOrderForm() {
@@ -925,11 +961,10 @@ function validateCreateOrderForm() {
   }
 
   for (const line of createForm.value.lines) {
-    if (!line.selectedItemName) return '품목명을 선택하세요.'
-    if (!line.selectedSupplierPublicId) return '협력사를 선택하세요.'
-    if (!line.arrivalLogisticsNodePublicId) return '도착거점을 선택하세요.'
-    if (!line.orderedQty || line.orderedQty <= 0) return '발주 수량은 0보다 커야 합니다.'
-    if (!resolveSelectedItemPublicId(line)) return '품목과 협력사 매핑이 올바르지 않습니다.'
+    if (!line.selectedItemPublicId) return '품목을 선택해 주세요.'
+if (!line.selectedSupplierPublicId) return '협력사를 선택해 주세요.'
+if (!line.arrivalLogisticsNodePublicId) return '도착 거점을 선택해 주세요.'
+if (!line.orderedQty || line.orderedQty <= 0) return '발주 수량은 0보다 커야 합니다.'
   }
 
   return ''
@@ -953,6 +988,25 @@ function partialConfirmationAllowedOf(item: ItemResponseDto | null | undefined) 
 
   return itemWithCapability?.partialConfirmationAllowed ?? null
 }
+
+function availableQtyOf(item: any) {
+  return item.capability?.availableQty ?? item.availableQty ?? null
+}
+
+function moqOf(item: any) {
+  return item.capability?.moq ?? item.moq ?? null
+}
+
+function monthlyCapacityOf(item: any) {
+  return item.capability?.monthlyCapacity ?? item.monthlyCapacity ?? null
+}
+
+function expectedDueDateText(item: ItemResponseDto | null | undefined) {
+  const leadTimeDays = leadTimeDaysOf(item)
+  if (leadTimeDays == null) return '-'
+  return formatDate(getLocalDateString(leadTimeDays))
+}
+
 
 function capabilityText(value: boolean | null | undefined) {
   if (value == null) return '-'
@@ -1019,15 +1073,7 @@ function showCreateItemCapability(itemPublicId: string) {
 }
 
 function selectCreateSearchItem(item: ItemResponseDto) {
-  const line = createEmptyOrderLine(item.itemName)
-  const suppliers = supplierOptionsOf(line)
-
-  if (suppliers.length === 1) {
-    line.selectedSupplierPublicId = suppliers[0].supplierPublicId
-  } else if (item.supplierPublicId) {
-    line.selectedSupplierPublicId = item.supplierPublicId
-  }
-
+  const line = createEmptyOrderLine(item)
   createForm.value.lines.push(line)
 }
 
@@ -1074,8 +1120,11 @@ function itemNameOptionsOf() {
 }
 
 function supplierOptionsOf(line: CreateOrderLineForm) {
+  const selectedItem = selectedCreateLineItem(line)
+  if (!selectedItem) return []
+
   return createForm.value.itemOptions
-    .filter((item) => item.itemName === line.selectedItemName)
+    .filter((item) => item.itemName === selectedItem.itemName)
     .map((item) => ({
       supplierPublicId: item.supplierPublicId,
       supplierName: item.supplierName,
@@ -1085,28 +1134,21 @@ function supplierOptionsOf(line: CreateOrderLineForm) {
     .sort((a, b) => (a.supplierName ?? '').localeCompare(b.supplierName ?? '', 'ko-KR'))
 }
 
-function selectedCreateLineItem(line: CreateOrderLineForm) {
-  if (!line.selectedItemName || !line.selectedSupplierPublicId) return null
-
-  return (
-    createForm.value.itemOptions.find(
-      (item) =>
-        item.itemName === line.selectedItemName &&
-        item.supplierPublicId === line.selectedSupplierPublicId,
-    ) ?? null
+function handleCreateLineSupplierChange(line: CreateOrderLineForm) {
+  const supplierItem = supplierOptionsOf(line).find(
+    (option) => option.supplierPublicId === line.selectedSupplierPublicId,
   )
+
+  line.selectedItemPublicId = supplierItem?.itemPublicId ?? ''
+}
+
+
+function selectedCreateLineItem(line: CreateOrderLineForm) {
+  return createForm.value.itemOptions.find((item) => item.publicId === line.selectedItemPublicId) ?? null
 }
 
 function matchingSupplierCount(line: CreateOrderLineForm) {
   return supplierOptionsOf(line).length
-}
-
-function resolveSelectedItemPublicId(line: CreateOrderLineForm) {
-  const candidate = supplierOptionsOf(line).find(
-    (option) => option.supplierPublicId === line.selectedSupplierPublicId,
-  )
-
-  return candidate?.itemPublicId ?? null
 }
 
 function selectedCreateLineUnitPrice(line: CreateOrderLineForm) {
@@ -1138,7 +1180,7 @@ async function submitCreateOrder() {
     await createPurchaseOrdersBatch({
       lines: createForm.value.lines.map((line) => ({
         supplierPublicId: line.selectedSupplierPublicId,
-        itemPublicId: resolveSelectedItemPublicId(line)!,
+        itemPublicId: line.selectedItemPublicId,
         orderedQty: Number(line.orderedQty),
         arrivalLogisticsNodePublicId: line.arrivalLogisticsNodePublicId,
       })),
@@ -1269,6 +1311,10 @@ function cancelConfirmOrder() {
 }
 
 function validateConfirmOrder() {
+  if (!selectedOrder.value) {
+    return '선택된 발주가 없습니다.'
+  }
+
   if (!confirmLines.value.length) {
     return '확정할 품목이 없습니다.'
   }
@@ -1278,17 +1324,29 @@ function validateConfirmOrder() {
       return `${line.itemName} 확정 수량을 입력하세요.`
     }
 
-    if (line.confirmedQty < 0) {
+    const confirmedQty = Number(line.confirmedQty)
+    const orderedQty = Number(line.orderedQty)
+
+    if (confirmedQty < 0) {
       return `${line.itemName} 확정 수량은 0보다 작을 수 없습니다.`
     }
 
-    if (line.confirmedQty > line.orderedQty) {
+    if (confirmedQty > orderedQty) {
       return `${line.itemName} 확정 수량은 발주 수량보다 클 수 없습니다.`
+    }
+
+    const originalItem = selectedOrder.value.items.find(
+      (item) => item.poItemPublicId === line.poItemPublicId,
+    )
+
+    if (originalItem?.partialConfirmationAllowed === false && confirmedQty !== orderedQty) {
+      return `${line.itemName}은 부분 확정이 불가합니다. 전체 수량 ${formatNumber(orderedQty)}개로 확정해야 합니다.`
     }
   }
 
   return ''
 }
+
 
 async function submitConfirmOrder() {
   if (!selectedOrder.value) return
@@ -1955,30 +2013,32 @@ onBeforeUnmount(() => header.clearActions())
           </label>
 
           <div class="orders-page__filter-actions">
-            <button
-              v-for="direction in DIRECTION_OPTIONS"
-              :key="direction.key"
-              :class="[
-                'page-button',
-                directionFilter === direction.key ? 'page-button--primary' : 'page-button--secondary',
-                'orders-page__filter-button',
-              ]"
-              type="button"
-              @click="directionFilter = direction.key"
-            >
-              {{ direction.label }}
-            </button>
+            <div v-if="actor.isSupplierOrganization.value" class="orders-page__segmented">
+              <button
+                v-for="direction in DIRECTION_OPTIONS"
+                :key="direction.key"
+                :class="[
+                  'page-button',
+                  directionFilter === direction.key ? 'page-button--primary' : 'page-button--secondary',
+                  'orders-page__filter-button',
+                ]"
+                type="button"
+                @click="directionFilter = direction.key"
+              >
+                {{ direction.label }}
+              </button>
+            </div>
 
-            <div class="orders-page__status-box">
-              <select v-model="activeTabKey" class="orders-page__status-box-select">
-                <option
-                  v-for="tab in TAB_OPTIONS"
-                  :key="tab.key"
-                  :value="tab.key"
-                >
-                  {{ tab.label }}
-                </option>
-              </select>
+            <div class="terminal-page__tabs">
+              <button
+                v-for="tab in TAB_OPTIONS"
+                :key="tab.key"
+                :class="['terminal-page__tab', { 'is-active': activeTabKey === tab.key }]"
+                type="button"
+                @click="activeTabKey = tab.key"
+              >
+                {{ tab.label }}
+              </button>
             </div>
           </div>
 
@@ -2140,90 +2200,80 @@ onBeforeUnmount(() => header.clearActions())
           </label>
         </div>
 
-        <div v-if="createSearchItemResults.length" class="orders-page__search-result-list">
+        <div v-if="filteredSelectableItems.length" class="orders-page__item-picker-list">
           <div
-            v-for="item in createSearchItemResults"
+            v-for="item in filteredSelectableItems"
             :key="item.publicId"
-            class="orders-page__search-result-card"
+            class="orders-page__item-picker-row-wrap"
           >
-            <div class="orders-page__search-result-main">
-              <strong>{{ item.itemName }}</strong>
-              <p class="orders-page__sub-text">
-                {{ item.itemCode }} / {{ item.categoryName || '미분류' }} / {{ item.supplierName }}
-              </p>
-            </div>
-
-            <div class="orders-page__search-result-meta">
+            <div class="orders-page__item-picker-row">
+              <span>{{ item.itemCode }}</span>
+              <span>{{ item.itemName }}</span>
+              <span>{{ item.categoryName }}</span>
               <span>{{ item.unit }}</span>
-              <span>{{ formatPlainAmount(unitPriceOf(item)) }}</span>
-            </div>
 
-            <div class="orders-page__search-result-actions">
               <button
                 class="page-button page-button--secondary"
                 type="button"
-                @click="showCreateItemCapability(item.publicId)"
+                @click="expandedItemPublicId = expandedItemPublicId === item.publicId ? null : item.publicId"
               >
-                {{ createForm.detailItemPublicId === item.publicId ? '닫기' : '상세' }}
+                상세
               </button>
 
               <button
-                class="page-button page-button--primary"
+                class="page-button page-button--secondary orders-page__select-button"
                 type="button"
                 @click="selectCreateSearchItem(item)"
               >
-                품목 선택
+                선택
               </button>
             </div>
+
+            <div
+              v-if="expandedItemPublicId === item.publicId"
+              class="orders-page__item-inline-detail"
+            >
+              <span>
+                품목 코드
+                <strong>{{ item.itemCode }}</strong>
+              </span>
+              <span>
+                카테고리
+                <strong>{{ item.categoryName }}</strong>
+              </span>
+              <span>
+                단위
+                <strong>{{ item.unit }}</strong>
+              </span>
+              <span>
+                품목 타입
+                <strong>{{ supplyTypeText(item.supplyType) }}</strong>
+              </span>
+              <span>
+                납기 예정일
+                <strong>{{ expectedDueDateText(item) }}</strong>
+              </span>
+              <span>
+                월간 생산량
+                <strong>{{ formatNumber(monthlyCapacityOf(item)) }}</strong>
+              </span>
+              <span>
+                최소 주문 수량
+                <strong>{{ formatNumber(moqOf(item)) }}</strong>
+              </span>
+              <span>
+                부분 확정
+                <strong>{{ capabilityText(partialConfirmationAllowedOf(item)) }}</strong>
+              </span>
+            </div>
+
           </div>
         </div>
 
         <p v-else-if="!createForm.searchLoading" class="orders-page__empty">
-          표시할 품목이 없습니다.
+          카테고리를 선택하거나 품목을 검색하세요.
         </p>
 
-        <div v-if="createSearchDetailItem" class="orders-page__item-preview">
-          <strong class="orders-page__item-preview-title">품목 capability</strong>
-
-          <div class="orders-page__item-preview-grid">
-            <div>
-              <span>품목 코드</span>
-              <strong>{{ createSearchDetailItem.itemCode }}</strong>
-            </div>
-            <div>
-              <span>품목명</span>
-              <strong>{{ createSearchDetailItem.itemName }}</strong>
-            </div>
-            <div>
-              <span>협력사</span>
-              <strong>{{ createSearchDetailItem.supplierName }}</strong>
-            </div>
-            <div>
-              <span>단위</span>
-              <strong>{{ createSearchDetailItem.unit }}</strong>
-            </div>
-            <div>
-              <span>단가</span>
-              <strong>{{ formatPlainAmount(unitPriceOf(createSearchDetailItem)) }}</strong>
-            </div>
-            <div>
-              <span>리드타임</span>
-              <strong>{{ leadTimeDaysOf(createSearchDetailItem) ?? '-' }}일</strong>
-            </div>
-            <div>
-              <span>부분 확정</span>
-              <strong>{{ capabilityText(partialConfirmationAllowedOf(createSearchDetailItem)) }}</strong>
-            </div>
-            <div>
-              <span>규격</span>
-              <strong>{{ createSearchDetailItem.spec || '-' }}</strong>
-            </div>
-            <div>
-              <span>보관기한</span>
-              <strong>{{ createSearchDetailItem.shelfLifeDays ?? '-' }}일</strong>
-            </div>
-          </div>
-        </div>
       </section>
 
 
@@ -2274,7 +2324,10 @@ onBeforeUnmount(() => header.clearActions())
 
               <label class="orders-page__form-field">
                 <span>협력사</span>
-                <select v-model="line.selectedSupplierPublicId">
+                <select
+                  v-model="line.selectedSupplierPublicId"
+                  @change="handleCreateLineSupplierChange(line)"
+                >
                   <option value="">협력사를 선택하세요.</option>
                   <option
                     v-for="supplier in supplierOptionsOf(line)"
@@ -2352,6 +2405,18 @@ onBeforeUnmount(() => header.clearActions())
                 <div>
                   <span>리드타임</span>
                   <strong>{{ leadTimeDaysOf(selectedCreateLineItem(line)) ?? '-' }}일</strong>
+                </div>
+                <div>
+                  <span>납기 예정일</span>
+                  <strong>{{ expectedDueDateText(selectedCreateLineItem(line)) }}</strong>
+                </div>
+                <div>
+                  <span>월간 생산량</span>
+                  <strong>{{ formatNumber(monthlyCapacityOf(selectedCreateLineItem(line))) }}</strong>
+                </div>
+                <div>
+                  <span>최소 주문 수량</span>
+                  <strong>{{ formatNumber(moqOf(selectedCreateLineItem(line))) }}</strong>
                 </div>
                 <div>
                   <span>부분 확정</span>

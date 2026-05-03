@@ -20,6 +20,9 @@ export type SupplierItemQualityGrade =
   | 'B'
   | 'C'
 
+export type SupplyType = 'STOCK_BASED' | 'MAKE_TO_ORDER'
+
+
 export type ManageableItemStatus = 'ACTIVE' | 'DEACTIVE'
 
 export interface ChangeItemStatusRequestDto {
@@ -101,6 +104,7 @@ export interface ItemResponseDto {
   supplierOrganizationPublicId: string
   supplierName: string
   itemCategoryPublicId: string
+  supplyType: SupplyType
   categoryName: string
   itemCode: string
   itemName: string
@@ -110,15 +114,23 @@ export interface ItemResponseDto {
   status: ItemStatus
   createdAt: string
   updatedAt: string
+  leadTimeDays: number | null
+  monthlyCapacity: number | null
+  availableQty: number | null
+  moq: number | null
+  partialConfirmationAllowed: boolean | null
+  unitPrice: number | null
 }
 
 export interface CreateItemRequestDto {
   itemCategoryPublicId: string
+  supplyType: SupplyType
   itemName: string
   unitPrice: number
   unit: ItemUnit
   spec: string
   shelfLifeDays: number
+  originLogisticsNodePublicId: string
 }
 
 export interface ItemDashboardSummaryResponseDto {
