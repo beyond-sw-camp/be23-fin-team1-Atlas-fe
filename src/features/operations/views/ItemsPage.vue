@@ -21,9 +21,14 @@ import {
   type ItemCategoryResponseDto,
   type ItemResponseDto,
   type ItemStatus,
+  type SupplyType,
   type ItemUnit,
 } from '../../../services/item'
 
+import {
+  getLogisticsNodes,
+  type LogisticsNodeResponseDto,
+} from '../../../services/logistics'
 import {
   createSupplierItemCapability,
   getSupplierItemCapabilities,
@@ -301,8 +306,10 @@ const createdItemForCapability = ref<ItemResponseDto | null>(null)
 const dashboardSummary = ref<ItemDashboardSummaryResponseDto | null>(null)
 const linkedOrders = ref<ItemLinkedPurchaseOrderResponseDto[]>([])
 
+const logisticsNodeOptions = ref<LogisticsNodeResponseDto[]>([])
 const createForm = ref({
   itemCategoryPublicId: '',
+  supplyType: 'STOCK_BASED' as SupplyType,
   itemName: '',
   unitPrice: null as number | null,
   unit: 'EA' as ItemUnit,
@@ -316,6 +323,7 @@ const createForm = ref({
   unitPriceHint: null as number | null,
   validFrom: '',
   partialConfirmationAllowed: true,
+  originLogisticsNodePublicId: '',
 })
 
 function formatNumber(value: number | null | undefined) {
@@ -327,6 +335,21 @@ function formatDate(value: string | null | undefined) {
   if (!value) return '-'
   return new Date(value).toLocaleString('ko-KR')
 }
+
+async function loadLogisticsNodeOptions() {
+  try {
+    const response = await getLogisticsNodes({ page: 0, size: 100 })
+    logisticsNodeOptions.value = response.content.filter((node) => node.active)
+  } catch {
+    logisticsNodeOptions.value = []
+  }
+}
+
+onMounted(() => {
+  void fetchItems()
+  void loadItemCategories()
+  void loadLogisticsNodeOptions()
+})
 
 function formatLeadTime(value: number | null | undefined) {
   if (value == null) return '-'
@@ -475,6 +498,7 @@ function resetCreateForm() {
   createdItemForCapability.value = null
   createForm.value = {
     itemCategoryPublicId: '',
+    supplyType: 'STOCK_BASED',
     itemName: '',
     unit: 'EA',
     unitPrice: null,
@@ -488,6 +512,7 @@ function resetCreateForm() {
     unitPriceHint: null,
     validFrom: '',
     partialConfirmationAllowed: true,
+    originLogisticsNodePublicId: '',
   }
 }
 
@@ -565,6 +590,10 @@ function validateCreateForm() {
       : 'MOQ must be greater than 0.'
   }
 
+  if (!createForm.value.originLogisticsNodePublicId) {
+    return '출발 물류거점을 선택해 주세요.'
+  }
+
   return ''
 }
 
@@ -572,11 +601,13 @@ function validateCreateForm() {
 function buildCreateItemPayload(): CreateItemRequestDto {
   return {
     itemCategoryPublicId: createForm.value.itemCategoryPublicId,
+    supplyType: createForm.value.supplyType,
     itemName: createForm.value.itemName.trim(),
     unitPrice: Number(createForm.value.unitPrice),
     unit: createForm.value.unit,
     spec: createForm.value.spec.trim(),
     shelfLifeDays: Number(createForm.value.shelfLifeDays),
+    originLogisticsNodePublicId: createForm.value.originLogisticsNodePublicId,
   }
 }
 
@@ -664,20 +695,20 @@ const itemTabs = computed<{ key: ItemTabKey; label: string }[]>(() => [
 // 나머지 카드 값은 요청대로 더미 유지했습니다.
 const metrics = computed(() => [
   {
-    label: copy.value.metrics.total,
-    value: String(rows.value.length),
+    label: '총 품목',
+    value: formatNumber(dashboardSummary.value?.totalItemCount ?? 0),
   },
   {
-    label: copy.value.metrics.active,
-    value: String(rows.value.filter((row) => row.status === 'ACTIVE').length),
+    label: '활성 품목',
+    value: formatNumber(dashboardSummary.value?.activeItemCount ?? 0),
   },
   {
-    label: copy.value.metrics.deactive,
-    value: String(rows.value.filter((row) => row.status === 'DEACTIVE').length),
+    label: '비활성 품목',
+    value: formatNumber(dashboardSummary.value?.deactiveItemCount ?? 0),
   },
   {
-    label: copy.value.metrics.orderedToday,
-    value: '0',
+    label: '금일 발주 품목',
+    value: formatNumber(dashboardSummary.value?.todayOrderedItemCount ?? 0),
   },
 ])
 
@@ -1191,6 +1222,14 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
+          <span>ITEM TYPE</span>
+          <select v-model="createForm.supplyType" :disabled="!!createdItemForCapability">
+            <option value="STOCK_BASED">재고형</option>
+            <option value="MAKE_TO_ORDER">주문생산형</option>
+          </select>
+        </label>
+
+        <label class="items-page__field">
           <span>UNIT</span>
           <select v-model="createForm.unit" :disabled="!!createdItemForCapability">
             <option v-for="unit in ITEM_UNIT_OPTIONS" :key="unit" :value="unit">
@@ -1213,6 +1252,21 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
           <span>SPEC</span>
           <textarea v-model="createForm.spec" :disabled="!!createdItemForCapability" />
         </label>
+
+        <label class="items-page__field">
+          <span>출발 물류거점</span>
+          <select v-model="createForm.originLogisticsNodePublicId" :disabled="!!createdItemForCapability">
+            <option value="">출발 물류거점을 선택하세요.</option>
+            <option
+              v-for="node in logisticsNodeOptions"
+              :key="node.publicId"
+              :value="node.publicId"
+            >
+              {{ node.nodeName }} / {{ node.nodeType }}
+            </option>
+          </select>
+        </label>
+
       </section>
 
       <section class="items-page__form-section">
@@ -1229,7 +1283,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>AVAILABLE QTY</span>
+          <span>{{ createForm.supplyType === 'MAKE_TO_ORDER' ? '생산 가능 수량' : '주문 가능 수량' }}</span>
           <input v-model.number="createForm.availableQty" type="number" min="0.01" step="0.01" />
         </label>
 

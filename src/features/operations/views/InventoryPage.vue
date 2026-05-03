@@ -34,9 +34,21 @@ const formErrorMessage = ref('')
 const form = ref({
   itemPublicId: '',
   manufacturedDate: '',
-  expirationDate: '',
   qty: null as number | null,
   memo: '',
+})
+
+const selectedCreateItem = computed(() =>
+  items.value.find((item) => item.publicId === form.value.itemPublicId) ?? null,
+)
+
+const computedExpirationDate = computed(() => {
+  if (!selectedCreateItem.value || !form.value.manufacturedDate) return ''
+
+  const date = new Date(form.value.manufacturedDate)
+  date.setDate(date.getDate() + selectedCreateItem.value.shelfLifeDays)
+
+  return date.toISOString().slice(0, 10)
 })
 
 const copy = computed(() => ({
@@ -152,7 +164,6 @@ function resetForm() {
   form.value = {
     itemPublicId: '',
     manufacturedDate: '',
-    expirationDate: '',
     qty: null,
     memo: '',
   }
@@ -186,7 +197,6 @@ function openEditModal() {
   form.value = {
     itemPublicId: selectedInventory.value.itemPublicId,
     manufacturedDate: selectedInventory.value.manufacturedDate,
-    expirationDate: selectedInventory.value.expirationDate,
     qty: selectedInventory.value.initialQty,
     memo: selectedInventory.value.memo ?? '',
   }
@@ -202,10 +212,6 @@ function closeEditModal() {
 function validateForm(isCreate: boolean) {
   if (isCreate && !form.value.itemPublicId) return '품목을 선택해 주세요.'
   if (!form.value.manufacturedDate) return '제조일을 입력해 주세요.'
-  if (!form.value.expirationDate) return '유통기한을 입력해 주세요.'
-  if (form.value.expirationDate < form.value.manufacturedDate) {
-    return '유통기한은 제조일보다 빠를 수 없습니다.'
-  }
   if (!form.value.qty || form.value.qty <= 0) return '수량은 1 이상이어야 합니다.'
   return ''
 }
@@ -222,7 +228,6 @@ async function submitCreate() {
     await createInventory({
       itemPublicId: form.value.itemPublicId,
       manufacturedDate: form.value.manufacturedDate,
-      expirationDate: form.value.expirationDate,
       qty: Number(form.value.qty),
       memo: form.value.memo || null,
     })
@@ -248,7 +253,6 @@ async function submitEdit() {
     loading.value = true
     const updated = await updateInventory(selectedInventory.value.inventoryPublicId, {
       manufacturedDate: form.value.manufacturedDate,
-      expirationDate: form.value.expirationDate,
       qty: Number(form.value.qty),
       memo: form.value.memo || null,
     })
@@ -416,9 +420,20 @@ onMounted(() => {
           </select>
         </label>
 
-        <label class="inventory-page__field"><span>제조일</span><input v-model="form.manufacturedDate" type="date" /></label>
-        <label class="inventory-page__field"><span>유통기한</span><input v-model="form.expirationDate" type="date" /></label>
-        <label class="inventory-page__field"><span>수량</span><input v-model.number="form.qty" type="number" min="1" step="1" /></label>
+        <label class="inventory-page__field">
+            <span>제조일</span>
+            <input v-model="form.manufacturedDate" type="date" />
+            </label>
+
+            <label class="inventory-page__field">
+            <span>유통기한</span>
+            <input :value="computedExpirationDate" type="date" readonly />
+            </label>
+
+            <label class="inventory-page__field">
+            <span>수량</span>
+            <input v-model.number="form.qty" type="number" min="1" step="1" />
+            </label>
         <label class="inventory-page__field inventory-page__field--full"><span>메모</span><textarea v-model="form.memo" /></label>
 
         <p v-if="formErrorMessage" class="inventory-page__error">{{ formErrorMessage }}</p>
@@ -432,9 +447,20 @@ onMounted(() => {
 
     <BaseModal v-model="editModalOpen" title="재고 수정" description="예약되지 않은 정상 재고만 수정할 수 있습니다." size="md" @close="closeEditModal">
       <div class="inventory-page__form">
-        <label class="inventory-page__field"><span>제조일</span><input v-model="form.manufacturedDate" type="date" /></label>
-        <label class="inventory-page__field"><span>유통기한</span><input v-model="form.expirationDate" type="date" /></label>
-        <label class="inventory-page__field"><span>수량</span><input v-model.number="form.qty" type="number" min="1" step="1" /></label>
+        <label class="inventory-page__field">
+            <span>제조일</span>
+            <input v-model="form.manufacturedDate" type="date" />
+            </label>
+
+            <label class="inventory-page__field">
+            <span>유통기한</span>
+            <input :value="computedExpirationDate" type="date" readonly />
+            </label>
+
+            <label class="inventory-page__field">
+            <span>수량</span>
+            <input v-model.number="form.qty" type="number" min="1" step="1" />
+            </label>
         <label class="inventory-page__field inventory-page__field--full"><span>메모</span><textarea v-model="form.memo" /></label>
 
         <p v-if="formErrorMessage" class="inventory-page__error">{{ formErrorMessage }}</p>

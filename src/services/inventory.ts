@@ -24,14 +24,12 @@ export interface ItemInventoryResponseDto {
 export interface CreateItemInventoryRequestDto {
   itemPublicId: string
   manufacturedDate: string
-  expirationDate: string
   qty: number
   memo?: string | null
 }
 
 export interface UpdateItemInventoryRequestDto {
   manufacturedDate: string
-  expirationDate: string
   qty: number
   memo?: string | null
 }
@@ -60,3 +58,22 @@ export async function updateInventory(
 export async function deleteInventory(inventoryPublicId: string) {
   await apiClient.delete(`/api/supply/inventories/${inventoryPublicId}`)
 }
+
+export interface InventorySummaryResponseDto {
+  remainingQty: number
+  reservedQty: number
+  availableQty: number
+}
+
+export async function getInventorySummary() {
+  const response = await apiClient.get<InventorySummaryResponseDto>('/api/supply/inventories/summary')
+  return response.data
+}
+
+export async function getItemInventories(itemPublicId: string) {
+  const response = await apiClient.get<ItemInventoryResponseDto[]>(
+    `/api/supply/inventories/items/${itemPublicId}`,
+  )
+  return response.data
+}
+
