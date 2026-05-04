@@ -413,13 +413,13 @@ onMounted(() => {
 
 <template>
   <section class="app-screen terminal-page inventory-page">
-    <header class="terminal-page__hero">
+    <header class="terminal-page__header">
       <div>
-        <p class="terminal-page__eyebrow">{{ copy.eyebrow }}</p>
-        <h1>{{ copy.title }}</h1>
+        <div class="terminal-page__eyebrow">{{ copy.eyebrow }}</div>
+        <h2 class="terminal-page__title">{{ copy.title }}</h2>
       </div>
 
-      <div class="terminal-page__actions">
+      <div class="design-trigger-row">
         <button class="page-button page-button--secondary" type="button">
           {{ copy.exportLabel }}
         </button>
