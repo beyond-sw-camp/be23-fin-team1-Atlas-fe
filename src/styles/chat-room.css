@@ -158,6 +158,12 @@
 }
 /* 버블 공통 */
 .chat-msg__bubble { padding: 11px 15px; display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.chat-msg__bubble.chat-msg__bubble--media {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
 .chat-msg__body { margin: 0; font-size: 0.85rem; font-weight: 400; line-height: 1.52; word-break: break-word; }
 .chat-msg__time { font-size: 0.65rem; color: var(--chat-text-secondary); padding: 0 4px; }
 .chat-msg__edited { font-size: 0.6rem; opacity: 0.6; font-style: italic; }
@@ -184,7 +190,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 2px; margin-bottom: 4px;
-  border-radius: 8px; overflow: hidden;
+  border-radius: 0px; overflow: hidden;
   max-width: 280px;
 }
 

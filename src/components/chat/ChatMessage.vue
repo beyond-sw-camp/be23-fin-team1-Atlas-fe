@@ -227,7 +227,7 @@ onMounted(async () => {
           </span>
 
           <!-- 버블 본체 -->
-          <div class="chat-msg__bubble">
+          <div :class="['chat-msg__bubble', { 'chat-msg__bubble--media': message.messageType === 'IMAGE' && !message.isDeleted }]">
             <!-- 답장 원본 메시지 미리보기 -->
             <div v-if="message.parentMessagePublicId" class="chat-msg__reply-preview">
               <span class="chat-msg__reply-icon material-symbols-outlined">reply</span>
