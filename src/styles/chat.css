@@ -187,9 +187,13 @@
   flex: 1; min-width: 0; font-size: 0.8rem; color: var(--chat-text-secondary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.chat-room-item__dot {
-  flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%;
-  background: var(--chat-dot);
+.chat-room-item__badge {
+  flex: 0 0 auto; min-width: 18px; height: 18px;
+  padding: 0 5px; border-radius: 9px;
+  background: var(--color-danger, #ef4444); color: #fff;
+  font-size: 0.7rem; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
 }
 /* 고정 버튼 */
 .chat-room-item__pin-btn {
