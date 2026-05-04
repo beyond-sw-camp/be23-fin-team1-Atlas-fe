@@ -109,6 +109,10 @@ select:not(.app-language-select select):focus {
   padding: 24px;
 }
 
+.app-dialog-host-modal {
+  z-index: 1400;
+}
+
 .base-modal__backdrop {
   position: absolute;
   inset: 0;

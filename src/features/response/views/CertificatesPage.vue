@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
@@ -220,6 +220,7 @@ async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupp
   try {
     await createSupplierCertificate(supplierPublicId, data)
     isCreateModalOpen.value = false
+    await nextTick()
     await dialog.alert('인증서가 성공적으로 등록 되었습니다.')
     await fetchCertificates()
   } catch (err: any) {

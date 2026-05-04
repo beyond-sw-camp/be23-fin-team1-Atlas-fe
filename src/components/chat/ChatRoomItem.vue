@@ -95,7 +95,19 @@ function formatTime(isoString?: string): string {
         <strong class="chat-room-item__name">
           {{ room.roomName || (preferences.language === 'ko' ? '이름 없음' : 'Untitled') }}
         </strong>
-        <span class="chat-room-item__time">{{ formatTime(getRoomTime(room)) }}</span>
+        <div class="chat-room-item__meta">
+          <span class="chat-room-item__time">{{ formatTime(getRoomTime(room)) }}</span>
+          <button
+            :class="['chat-room-item__pin-btn', { 'is-pinned': !!room.pinnedAt }]"
+            type="button"
+            :title="room.pinnedAt
+              ? (preferences.language === 'ko' ? '고정 해제' : 'Unpin')
+              : (preferences.language === 'ko' ? '고정' : 'Pin')"
+            @click.stop="room.pinnedAt ? $emit('unpin', room.publicId) : $emit('pin', room.publicId)"
+          >
+            <span class="material-symbols-outlined">push_pin</span>
+          </button>
+        </div>
       </div>
       <div class="chat-room-item__foot">
         <span class="chat-room-item__preview">{{ getRoomPreview(room) }}</span>
@@ -104,16 +116,5 @@ function formatTime(isoString?: string): string {
       </div>
     </div>
 
-    <!-- 고정 버튼 (hover 시만 노출) -->
-    <button
-      :class="['chat-room-item__pin-btn', { 'is-pinned': !!room.pinnedAt }]"
-      type="button"
-      :title="room.pinnedAt
-        ? (preferences.language === 'ko' ? '고정 해제' : 'Unpin')
-        : (preferences.language === 'ko' ? '고정' : 'Pin')"
-      @click.stop="room.pinnedAt ? $emit('unpin', room.publicId) : $emit('pin', room.publicId)"
-    >
-      <span class="material-symbols-outlined">push_pin</span>
-    </button>
   </div>
 </template>
