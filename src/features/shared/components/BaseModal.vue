@@ -15,6 +15,7 @@ const props = withDefaults(
     hideEyebrow?: boolean
     hideDividers?: boolean
     hideCloseButton?: boolean
+    modalClass?: string
   }>(),
   {
     description: undefined,
@@ -25,6 +26,7 @@ const props = withDefaults(
     hideEyebrow: false,
     hideDividers: false,
     hideCloseButton: false,
+    modalClass: undefined,
   },
 )
 
@@ -126,7 +128,13 @@ onBeforeUnmount(() => {
   </div>
 
   <Teleport to="body">
-    <div v-if="!isPagePresentation && modelValue" class="base-modal" role="dialog" aria-modal="true" :aria-label="title">
+    <div
+      v-if="!isPagePresentation && modelValue"
+      :class="['base-modal', props.modalClass]"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="title"
+    >
       <div class="base-modal__backdrop" @click="handleBackdropClick" />
 
 <section

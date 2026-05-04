@@ -50,6 +50,7 @@ function confirm() {
     :description="current?.message"
     size="sm"
     hide-eyebrow
+    modal-class="app-dialog-host-modal"
     @update:model-value="(value) => { if (!value) close() }"
     @close="close"
   >

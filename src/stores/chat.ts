@@ -129,6 +129,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   // STOMP 클라이언트 및 연결 상태
   const isConnected = ref(false)
   let stompClient: Client | null = null
+  let roomMessageSyncTimer: ReturnType<typeof setInterval> | null = null
   const roomSubscriptions = ref<Map<string, StompSubscription>>(new Map())
   const typingSubscription = ref<StompSubscription | null>(null)
 
@@ -146,6 +147,89 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   const currentRoom = computed(() =>
     rooms.value.find((r) => r.publicId === currentRoomPublicId.value) ?? null,
   )
+
+  function getParticipantDisplayName(userPublicId: string | null | undefined) {
+    if (!userPublicId) return ''
+    const fromRoom = currentRoom.value?.participants?.find((participant) => participant.userPublicId === userPublicId)
+    if (fromRoom?.displayName) return fromRoom.displayName
+    const fromUsers = availableUsers.value.find((user) => user.userPublicId === userPublicId)
+    if (fromUsers?.displayName) return fromUsers.displayName
+    return userPublicId
+  }
+
+  function buildMessagePreview(message: ChatMessageDto) {
+    const fallback = message.messageType === 'IMAGE'
+      ? '사진을 보냈습니다.'
+      : message.messageType === 'FILE'
+        ? '파일을 보냈습니다.'
+        : ''
+    const preview = (message.messageBody || fallback).trim()
+    return preview.length > 100 ? `${preview.substring(0, 100)}...` : preview
+  }
+
+  function enrichReplyPreview(message: ChatMessageDto, sourceMessages = messages.value) {
+    if (!message.parentMessagePublicId) return message
+
+    const parent = sourceMessages.find((candidate) => candidate.publicId === message.parentMessagePublicId)
+    if (!parent) return message
+
+    if (!message.parentMessageBody) {
+      message.parentMessageBody = buildMessagePreview(parent)
+    }
+    if (!message.parentSenderDisplayName) {
+      message.parentSenderDisplayName = getParticipantDisplayName(parent.senderUserPublicId)
+    }
+
+    return message
+  }
+
+  function mergeRoomMessages(nextMessages: ChatMessageDto[]) {
+    const combinedMessages = [...messages.value, ...nextMessages]
+    const previousById = new Map(messages.value.map((message) => [message.publicId, message]))
+    const merged = nextMessages.map((nextMessage) => {
+      const previous = previousById.get(nextMessage.publicId)
+      const target = previous
+        ? Object.assign(previous, {
+            ...nextMessage,
+            parentMessageBody: nextMessage.parentMessageBody ?? previous.parentMessageBody,
+            parentSenderDisplayName: nextMessage.parentSenderDisplayName ?? previous.parentSenderDisplayName,
+          })
+        : nextMessage
+
+      return enrichReplyPreview(target, combinedMessages)
+    })
+
+    messages.value = merged
+  }
+
+  async function syncCurrentRoomMessages() {
+    const roomPublicId = currentRoomPublicId.value
+    if (!roomPublicId || currentView.value !== 'room' || !isPanelOpen.value) return
+
+    try {
+      const result = await chatService.getMessages(roomPublicId)
+      if (currentRoomPublicId.value !== roomPublicId) return
+      const raw = ((result as any).content || result || [])
+      const nextMessages = Array.isArray(raw) ? raw.reverse().map(mapToChatMessage) : []
+      mergeRoomMessages(nextMessages)
+    } catch (e) {
+      console.error('[Chat] 메시지 동기화 실패:', e)
+    }
+  }
+
+  function stopRoomMessageSync() {
+    if (roomMessageSyncTimer) {
+      clearInterval(roomMessageSyncTimer)
+      roomMessageSyncTimer = null
+    }
+  }
+
+  function startRoomMessageSync() {
+    stopRoomMessageSync()
+    roomMessageSyncTimer = setInterval(() => {
+      void syncCurrentRoomMessages()
+    }, 4000)
+  }
 
   function connectStomp() {
     if (stompClient && stompClient.connected) return
@@ -210,6 +294,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   }
 
   function disconnectStomp() {
+    stopRoomMessageSync()
     if (stompClient) {
       stompClient.deactivate()
       stompClient = null
@@ -240,7 +325,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
         // 이미 있는 메시지인지 확인 (중복 방지)
         const exists = messages.value.some(m => m.publicId === chatMsg.publicId)
         if (!exists) {
-          messages.value.push(chatMsg)
+          messages.value.push(enrichReplyPreview(chatMsg))
         }
 
         // 화면을 보고 있다면 읽음 처리
@@ -545,6 +630,7 @@ async function fetchAvailableUsers() {
   async function leaveRoom() {
     if (!currentRoomPublicId.value || !currentUserPublicId.value) return
     try {
+      stopRoomMessageSync()
       await chatService.leaveRoom(currentRoomPublicId.value, currentUserPublicId.value)
       // 낙관적 업데이트: 현재 목록에서 방 제거
       rooms.value = rooms.value.filter(r => r.publicId !== currentRoomPublicId.value)
@@ -564,6 +650,7 @@ async function fetchAvailableUsers() {
   }
 
   async function openRoom(roomPublicId: string) {
+    stopRoomMessageSync()
     currentRoomPublicId.value = roomPublicId
     currentView.value = 'room'
     isLoadingMessages.value = true
@@ -583,7 +670,8 @@ async function fetchAvailableUsers() {
       }
       // 백엔드 응답 데이터 정규화
       const raw = ((result as any).content || result || [])
-      messages.value = Array.isArray(raw) ? raw.reverse().map(mapToChatMessage) : []
+      const initialMessages = Array.isArray(raw) ? raw.reverse().map(mapToChatMessage) : []
+      mergeRoomMessages(initialMessages)
 
       console.log('[Chat] 메시지 로드 완료:', messages.value.length, '건')
 
@@ -603,6 +691,7 @@ async function fetchAvailableUsers() {
             role: p.role || '',
           }))
         }
+        mergeRoomMessages(messages.value)
       } catch (participantError) {
         console.warn('[Chat] 참여자 목록 조회 실패, availableUsers 기반 폴백:', participantError)
       }
@@ -624,6 +713,7 @@ async function fetchAvailableUsers() {
       } else {
         await markAsRead(roomPublicId)
       }
+      startRoomMessageSync()
       console.log('[Chat] openRoom 완료')
     } catch (e) {
       console.error('[Chat] openRoom 에러:', e)
@@ -635,6 +725,7 @@ async function fetchAvailableUsers() {
   }
 
   async function backToList() {
+    stopRoomMessageSync()
     // 나가기 전 현재 방의 읽음 처리를 먼저 완료
     const leavingRoomId = currentRoomPublicId.value
     if (leavingRoomId) {
@@ -670,6 +761,7 @@ async function fetchAvailableUsers() {
       connectStomp()
       fetchRooms()
     } else {
+      stopRoomMessageSync()
       currentView.value = 'list'
       currentRoomPublicId.value = null
       messages.value = []
@@ -679,6 +771,7 @@ async function fetchAvailableUsers() {
   }
 
   function closePanel() {
+    stopRoomMessageSync()
     isPanelOpen.value = false
     currentView.value = 'list'
     currentRoomPublicId.value = null

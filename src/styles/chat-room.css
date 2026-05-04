@@ -329,11 +329,12 @@
 
 /* 삭제 버튼 */
 .chat-msg__delete {
-  display: none; align-items: center; justify-content: center;
+  display: inline-flex; align-items: center; justify-content: center;
+  visibility: hidden; pointer-events: none;
   width: 26px; height: 26px; padding: 0; border: none; border-radius: 0px;
   background: rgba(229,57,53,0.08); color: #E53935; cursor: pointer;
 }
-.chat-msg__bubble-row:hover .chat-msg__delete { display: inline-flex; }
+.chat-msg__bubble-row:hover .chat-msg__delete { visibility: visible; pointer-events: auto; }
 .chat-msg__delete .material-symbols-outlined { font-size: 15px; }
 /* 삭제된 메시지 */
 .chat-msg__bubble--deleted { opacity: 0.5; border: 1px dashed var(--chat-bubble-border) !important; background: transparent !important; }
@@ -345,11 +346,12 @@
 
 /* 답장 버튼 (메시지 hover 시 노출) */
 .chat-msg__reply {
-  display: none; align-items: center; justify-content: center;
+  display: inline-flex; align-items: center; justify-content: center;
+  visibility: hidden; pointer-events: none;
   width: 26px; height: 26px; padding: 0; border: none; border-radius: 0px;
   background: rgba(0,0,0,0.05); color: var(--chat-text-secondary); cursor: pointer;
 }
-.chat-msg__bubble-row:hover .chat-msg__reply { display: inline-flex; }
+.chat-msg__bubble-row:hover .chat-msg__reply { visibility: visible; pointer-events: auto; }
 .chat-msg__reply .material-symbols-outlined { font-size: 15px; }
 
 /* 버블 내 원본 메시지 미리보기 */
