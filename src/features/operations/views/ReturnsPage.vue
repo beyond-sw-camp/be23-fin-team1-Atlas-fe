@@ -412,37 +412,39 @@ onBeforeUnmount(() => header.clearActions())
             <span class="page-panel__chip">{{ filteredReturns.length }}</span>
           </div>
 
-          <div v-if="isLoading" class="page-table__empty">{{ content.loading }}</div>
-          <div v-else-if="errorMessage" class="page-table__empty">{{ errorMessage }}</div>
-          <div v-else-if="filteredReturns.length === 0" class="page-table__empty">{{ content.empty }}</div>
-
-          <div v-else class="page-table terminal-page__table returns-page__table">
+          <div class="page-table terminal-page__table returns-page__table">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
             </div>
 
-            <div v-for="item in filteredReturns" :key="item.publicId" class="page-table__row">
-              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">
-                {{ item.returnNumber }}
-              </span>
-              <span>{{ getOrgName(item.requestOrganizationName, item.requestOrganizationPublicId) }}</span>
-              <span>{{ getOrgName(item.targetOrganizationName, item.targetOrganizationPublicId) }}</span>
-              <span>{{ returnTypeText(item.returnType) }}</span>
-              <span>
-                <span :class="['resolution-chip', `resolution-chip--${(item.resolutionType || 'RETURN').toLowerCase()}`]">{{ resolutionTypeText(item.resolutionType) }}</span>
-              </span>
-              <span>{{ returnStatusText(item.returnStatus) }}</span>
-              <span>{{ formatDate(item.requestedAt) }}</span>
-              <span>
-                <button
-                  class="page-button page-button--secondary"
-                  type="button"
-                  @click="openReturnDetailPage(item)"
-                >
-                  {{ content.btnDetail }}
-                </button>
-              </span>
-            </div>
+            <div v-if="isLoading" class="terminal-page__table-message">{{ content.loading }}</div>
+            <div v-else-if="errorMessage" class="terminal-page__table-message is-error">{{ errorMessage }}</div>
+            <div v-else-if="filteredReturns.length === 0" class="terminal-page__table-message">{{ content.empty }}</div>
+
+            <template v-else>
+              <div v-for="item in filteredReturns" :key="item.publicId" class="page-table__row">
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">
+                  {{ item.returnNumber }}
+                </span>
+                <span>{{ getOrgName(item.requestOrganizationName, item.requestOrganizationPublicId) }}</span>
+                <span>{{ getOrgName(item.targetOrganizationName, item.targetOrganizationPublicId) }}</span>
+                <span>{{ returnTypeText(item.returnType) }}</span>
+                <span>
+                  <span :class="['resolution-chip', `resolution-chip--${(item.resolutionType || 'RETURN').toLowerCase()}`]">{{ resolutionTypeText(item.resolutionType) }}</span>
+                </span>
+                <span>{{ returnStatusText(item.returnStatus) }}</span>
+                <span>{{ formatDate(item.requestedAt) }}</span>
+                <span>
+                  <button
+                    class="page-button page-button--secondary"
+                    type="button"
+                    @click="openReturnDetailPage(item)"
+                  >
+                    {{ content.btnDetail }}
+                  </button>
+                </span>
+              </div>
+            </template>
           </div>
         </article>
       </div>
