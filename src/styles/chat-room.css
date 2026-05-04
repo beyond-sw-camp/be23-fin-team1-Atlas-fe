@@ -108,6 +108,30 @@
 }
 
 /* ═══════════════════════════════════════════
+   날짜 구분선
+   ═══════════════════════════════════════════ */
+.chat-room__date-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 24px auto 16px auto;
+  padding: 6px 16px;
+  background-color: rgba(0, 0, 0, 0.08);
+  border-radius: 20px;
+  font-size: 0.75rem;
+  color: var(--chat-text-secondary);
+  width: fit-content;
+}
+.theme-dark .chat-room__date-divider {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+.chat-room__date-divider .material-symbols-outlined {
+  font-size: 0.9rem;
+}
+
+/* ═══════════════════════════════════════════
    메시지 버블
    ═══════════════════════════════════════════ */
 .chat-msg { display: flex; flex-direction: column; gap: 2px; }

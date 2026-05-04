@@ -79,7 +79,16 @@ function getRoomActivityTime(room: ChatRoom) {
 const unpinnedRooms = computed(() =>
   filteredRooms.value
     .filter(r => !r.pinnedAt)
-    .sort((a, b) => getRoomActivityTime(b) - getRoomActivityTime(a))
+    .sort((a, b) => {
+      const timeA = getRoomActivityTime(a)
+      const timeB = getRoomActivityTime(b)
+
+      if (timeB === timeA) {
+        // 시간이 동일하거나 둘 다 0일 경우, 렌더링이 뒤죽박죽되지 않도록 방 이름이나 식별자로 고정 정렬
+        return b.publicId.localeCompare(a.publicId)
+      }
+      return timeB - timeA
+    })
 )
 
 function handlePin(roomPublicId: string) {

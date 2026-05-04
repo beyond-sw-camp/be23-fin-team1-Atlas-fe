@@ -99,8 +99,8 @@ function formatTime(isoString?: string): string {
       </div>
       <div class="chat-room-item__foot">
         <span class="chat-room-item__preview">{{ getRoomPreview(room) }}</span>
-        <!-- 안읽음 파란 도트 -->
-        <span v-if="room.unreadCount > 0" class="chat-room-item__dot" />
+        <!-- 안읽음 파란 도트 -> 강렬한 붉은색 숫자 배지로 변경 -->
+        <span v-if="room.unreadCount > 0" class="chat-room-item__badge">{{ room.unreadCount > 99 ? '99+' : room.unreadCount }}</span>
       </div>
     </div>
 

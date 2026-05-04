@@ -66,8 +66,11 @@ export function mapToChatRoom(r: any): ChatRoom {
       ? mapToChatMessage({
           publicId: '',
           roomPublicId: r.publicId || r.public_id || r.id || '',
+          senderUserPublicId: '',
+          messageType: 'TEXT',
           messageBody: lastMessageValue,
-          sentAt: lastMessageAt,
+          sentAt: lastMessageAt || createdAt,
+          isDeleted: false,
         })
       : undefined
 
@@ -257,6 +260,9 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
           // 새 안읽음 메시지 발생 → 읽음 추적에서 제거
           recentlyReadRoomIds.value.delete(roomPublicId)
         }
+
+        // 정렬 등 computed 속성이 즉각 반응하도록 배열 레퍼런스 강제 업데이트
+        rooms.value = [...rooms.value]
       } else {
         void fetchRooms()
       }

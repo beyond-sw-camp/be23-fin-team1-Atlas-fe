@@ -238,6 +238,30 @@ function getInviteUserMeta(user: ChatParticipant) {
   const jobTitle = sanitizeNamePart(user.jobTitle)
   return [organizationName, jobTitle].filter(Boolean).join(' | ')
 }
+
+function shouldShowDateDivider(index: number): boolean {
+  if (index === 0) return true
+  const currentMsg = props.messages[index]
+  const prevMsg = props.messages[index - 1]
+  
+  if (!currentMsg.sentAt || !prevMsg.sentAt) return false
+  
+  const currentDate = new Date(currentMsg.sentAt).toDateString()
+  const prevDate = new Date(prevMsg.sentAt).toDateString()
+  
+  return currentDate !== prevDate
+}
+
+function formatDateDivider(isoString?: string): string {
+  if (!isoString) return ''
+  const d = new Date(isoString)
+  return new Intl.DateTimeFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  }).format(d)
+}
 </script>
 
 <template>
@@ -356,24 +380,30 @@ function getInviteUserMeta(user: ChatParticipant) {
         <span>{{ copy.loadingMessages }}</span>
       </div>
       <template v-else>
-        <ChatMessage
-          v-for="msg in messages"
-          :key="msg.publicId"
-          :message="{
-            ...msg,
-            messageBody:
-              msg.messageType === 'SYSTEM' ||
-              msg.messageType === 'SYSTEM_JOIN' ||
-              msg.messageType === 'SYSTEM_LEAVE'
-                ? resolveSystemMessage(msg.messageBody)
-                : msg.messageBody,
-          }"
-          :current-user-public-id="currentUserPublicId"
-          :sender-name="getSenderName(msg.senderUserPublicId)"
-          :sender-avatar-url="getSenderAvatarUrl(msg.senderUserPublicId)"
-          @delete="handleDeleteMessage"
-          @reply="handleReplyMessage"
-        />
+        <template v-for="(msg, index) in messages" :key="msg.publicId">
+          <!-- 날짜 구분선 -->
+          <div v-if="shouldShowDateDivider(index)" class="chat-room__date-divider">
+            <span class="material-symbols-outlined">calendar_today</span>
+            {{ formatDateDivider(msg.sentAt) }}
+          </div>
+
+          <ChatMessage
+            :message="{
+              ...msg,
+              messageBody:
+                msg.messageType === 'SYSTEM' ||
+                msg.messageType === 'SYSTEM_JOIN' ||
+                msg.messageType === 'SYSTEM_LEAVE'
+                  ? resolveSystemMessage(msg.messageBody)
+                  : msg.messageBody,
+            }"
+            :current-user-public-id="currentUserPublicId"
+            :sender-name="getSenderName(msg.senderUserPublicId)"
+            :sender-avatar-url="getSenderAvatarUrl(msg.senderUserPublicId)"
+            @delete="handleDeleteMessage"
+            @reply="handleReplyMessage"
+          />
+        </template>
       </template>
     </div>
 
