@@ -9,6 +9,7 @@ import {
 } from '../../../services/return'
 import { getItems, type ItemResponseDto } from '../../../services/item'
 import { getShipments, type ShipmentListResponseDto } from '../../../services/shipment'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 
 const props = defineProps<{
   isOpen: boolean
@@ -22,6 +23,7 @@ const emit = defineEmits<{
 }>()
 
 const items = ref<ItemResponseDto[]>([])
+const dialog = useAtlasDialogStore()
 const shipments = ref<ShipmentListResponseDto[]>([])
 const isSubmitting = ref(false)
 const isLoadingItems = ref(false)
@@ -218,17 +220,17 @@ watch(
 
 async function handleSubmit() {
   if (!form.value.sourceShipmentPublicId.trim()) {
-    alert(props.language === 'ko' ? '원본 출하를 선택해주세요.' : 'Please select source shipment.')
+    await dialog.alert(props.language === 'ko' ? '원본 출하를 선택해주세요.' : 'Please select source shipment.')
     return
   }
 
   if (!form.value.returnReason.trim()) {
-    alert(props.language === 'ko' ? '반품 사유를 입력해주세요.' : 'Please enter return reason.')
+    await dialog.alert(props.language === 'ko' ? '반품 사유를 입력해주세요.' : 'Please enter return reason.')
     return
   }
 
   if (form.value.items.some((item) => !item.itemPublicId || item.returnQty <= 0)) {
-    alert(
+    await dialog.alert(
       props.language === 'ko'
         ? '모든 품목과 수량을 올바르게 입력해주세요.'
         : 'Please select items and enter valid quantity.',
@@ -240,11 +242,11 @@ async function handleSubmit() {
     isSubmitting.value = true
     console.log('[ReturnCreate] 요청 데이터:', JSON.stringify(form.value, null, 2))
     await createReturn(form.value)
-    alert(props.language === 'ko' ? '반품 요청이 완료되었습니다.' : 'Return request completed.')
+    await dialog.alert(props.language === 'ko' ? '반품 요청이 완료되었습니다.' : 'Return request completed.')
     emit('success')
   } catch (error: any) {
     console.error('Failed to create return', error)
-    alert(error.message || 'Error occurred while creating return request.')
+    await dialog.alert(error.message || 'Error occurred while creating return request.')
   } finally {
     isSubmitting.value = false
   }

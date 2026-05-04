@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch, watchEffect } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
   createOrganization,
@@ -38,6 +39,7 @@ type CategoryTreeNode = {
 }
 
 const header = useAtlasHeaderStore()
+const dialog = useAtlasDialogStore()
 const preferences = useAtlasPreferencesStore()
 
 const CONTENT = {
@@ -522,7 +524,7 @@ async function deleteSelectedCategory() {
     return
   }
 
-  const confirmed = window.confirm(
+  const confirmed = await dialog.confirm(
     preferences.language === 'ko'
       ? `'${targetCategory.categoryName}' 카테고리를 삭제하시겠습니까?`
       : `Delete '${targetCategory.categoryName}' category?`,

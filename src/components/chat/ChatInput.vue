@@ -6,9 +6,11 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import ChatEmojiPicker from './ChatEmojiPicker.vue'
 import { useAtlasChatStore } from '../../stores/chat'
+import { useAtlasDialogStore } from '../../stores/dialog'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 const chatStore = useAtlasChatStore()
+const dialog = useAtlasDialogStore()
 const preferences = useAtlasPreferencesStore()
 
 const emit = defineEmits<{
@@ -123,7 +125,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleDocumentPointerDown)
 })
 
-function handleMenuSelect(key: string) {
+async function handleMenuSelect(key: string) {
   if (key === 'reference') {
     // 카드 선택 서브메뉴 열기
     isRefPickerOpen.value = true
@@ -132,9 +134,9 @@ function handleMenuSelect(key: string) {
 
   // 파일/미디어: 아직 실제 업로드는 미구현, 동작 피드백만
   if (key === 'file') {
-    alert(copy().filePending)
+    await dialog.alert(copy().filePending)
   } else if (key === 'media') {
-    alert(copy().mediaPending)
+    await dialog.alert(copy().mediaPending)
   }
 
   closeMenu()

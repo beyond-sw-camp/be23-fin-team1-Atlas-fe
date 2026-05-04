@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useActorScope } from '../../../composables/useActorScope'
 import {
@@ -87,6 +88,7 @@ const QUALITY_GRADE_OPTIONS: SupplierItemQualityGrade[] = [
 ]
 
 const header = useAtlasHeaderStore()
+const dialog = useAtlasDialogStore()
 const preferences = useAtlasPreferencesStore()
 const actor = useActorScope()
 const router = useRouter()
@@ -381,7 +383,7 @@ async function submitCapabilityEdit() {
 
 async function submitDeleteItem() {
   if (!selectedItem.value) return
-  if (!window.confirm(copy.value.deleteConfirm)) return
+  if (!(await dialog.confirm(copy.value.deleteConfirm))) return
 
   try {
     await deleteItem(selectedItem.value.publicId)

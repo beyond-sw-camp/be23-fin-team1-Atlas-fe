@@ -6,6 +6,7 @@ import { getCertificateTypes } from '../../../services/certificate'
 import { getSuppliers, getMySupplier, type SupplierListResponseDto } from '../../../services/supplier'
 import { uploadAttachment } from '../../../services/file'
 import type { CreateSupplierCertificateRequestDto, CertificateTypeResponseDto } from '../../../services/certificate'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasSessionStore } from '../../../stores/session'
 
 const props = defineProps<{
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 }>()
 
 const session = useAtlasSessionStore()
+const dialog = useAtlasDialogStore()
 
 const form = ref<CreateSupplierCertificateRequestDto>({
   certificateTypePublicId: '',
@@ -156,20 +158,20 @@ function handleFileChange(event: Event) {
 
 async function handleSubmit() {
   if (!supplierId.value) {
-    alert(props.language === 'ko' ? '협력사 정보를 확인할 수 없습니다.' : 'Supplier information is missing.')
+    await dialog.alert(props.language === 'ko' ? '협력사 정보를 확인할 수 없습니다.' : 'Supplier information is missing.')
     return
   }
   if (!form.value.certificateTypePublicId) {
-    alert(props.language === 'ko' ? '인증 유형을 선택해주세요.' : 'Please select a certificate type.')
+    await dialog.alert(props.language === 'ko' ? '인증 유형을 선택해주세요.' : 'Please select a certificate type.')
     return
   }
   if (!form.value.issuedAt || !form.value.expiredAt) {
-    alert(props.language === 'ko' ? '발급일과 만료일을 입력해주세요.' : 'Please enter issued and expiry dates.')
+    await dialog.alert(props.language === 'ko' ? '발급일과 만료일을 입력해주세요.' : 'Please enter issued and expiry dates.')
     return
   }
 
   if (!selectedFile.value) {
-    alert(props.language === 'ko' ? '인증서 PDF 파일을 업로드해주세요.' : 'Please upload the certificate PDF file.')
+    await dialog.alert(props.language === 'ko' ? '인증서 PDF 파일을 업로드해주세요.' : 'Please upload the certificate PDF file.')
     return
   }
   
@@ -180,7 +182,7 @@ async function handleSubmit() {
     form.value.attachmentPublicId = uploadRes.attachmentPublicId
   } catch (error) {
     console.error('File upload failed', error)
-    alert(props.language === 'ko' ? '파일 업로드에 실패했습니다.' : 'File upload failed.')
+    await dialog.alert(props.language === 'ko' ? '파일 업로드에 실패했습니다.' : 'File upload failed.')
     isUploading.value = false
     return
   }

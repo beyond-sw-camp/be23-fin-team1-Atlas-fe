@@ -9,6 +9,7 @@ import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 import ChatAvatar from './ChatAvatar.vue'
 import { useAtlasChatStore } from '../../stores/chat'
+import { useAtlasDialogStore } from '../../stores/dialog'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 const props = defineProps<{
@@ -28,6 +29,7 @@ const emit = defineEmits<{
 }>()
 
 const chatStore = useAtlasChatStore()
+const dialog = useAtlasDialogStore()
 const preferences = useAtlasPreferencesStore()
 const messagesContainer = ref<HTMLElement | null>(null)
 const moreButtonRef = ref<HTMLElement | null>(null)
@@ -124,8 +126,8 @@ function handleSendReference(refType: string, refCode: string, refTitle: string)
 }
 
 /** 메시지 삭제 핸들러 */
-function handleDeleteMessage(messagePublicId: string) {
-  if (confirm(copy.value.deleteConfirm)) {
+async function handleDeleteMessage(messagePublicId: string) {
+  if (await dialog.confirm(copy.value.deleteConfirm)) {
     emit('deleteMessage', messagePublicId)
   }
 }
@@ -187,8 +189,8 @@ function showParticipantsPanel() {
 }
 
 /** 채팅방 나가기 핸들러 */
-function handleLeaveRoom() {
-  if (confirm(copy.value.leaveConfirm)) {
+async function handleLeaveRoom() {
+  if (await dialog.confirm(copy.value.leaveConfirm)) {
     chatStore.leaveRoom()
     isMoreMenuOpen.value = false
   }

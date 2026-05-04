@@ -24,6 +24,37 @@ select {
   font: inherit;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.dialog-prompt {
+  display: block;
+}
+
+.dialog-prompt__input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.3);
+  border-radius: 0;
+  padding: 0 12px;
+  background: var(--surface-container-lowest, #fff);
+  color: inherit;
+}
+
+.dialog-prompt__input:focus {
+  outline: none;
+  border-color: rgb(var(--outline-rgb, 117 124 125) / 0.72);
+}
+
 select:not(.app-language-select select) {
   min-height: 42px !important;
   padding: 0 28px 0 10px !important;
