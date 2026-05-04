@@ -645,6 +645,30 @@ async function fetchAvailableUsers() {
     clearReplyTarget()
   }
 
+  function sendFileMessage(attachmentPublicId: string, isImage: boolean = false, messageBody: string = '') {
+    if (!currentRoomPublicId.value || !stompClient || !stompClient.connected) return
+
+    const payload: any = {
+      senderUserPublicId: currentUserPublicId.value,
+      roomPublicId: currentRoomPublicId.value,
+      messageBody: messageBody || (isImage ? '사진을 보냈습니다.' : '파일을 보냈습니다.'),
+      messageType: isImage ? 'IMAGE' : 'FILE',
+      attachmentPublicIds: [attachmentPublicId],
+    }
+
+    if (replyTarget.value) {
+      payload.parentMessagePublicId = replyTarget.value.publicId
+    }
+
+    stompClient.publish({
+      destination: `/pub/chat.message.${currentRoomPublicId.value}`,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    clearReplyTarget()
+  }
+
   function sendReferenceMessage(refType: string, refCode: string, refTitle: string) {
     if (!currentRoomPublicId.value || !stompClient || !stompClient.connected) return
 
@@ -743,6 +767,7 @@ async function fetchAvailableUsers() {
     openRoom,
     backToList,
     sendMessage,
+    sendFileMessage,
     deleteMessage,
     sendReferenceMessage,
     fetchRooms,

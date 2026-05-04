@@ -165,8 +165,137 @@
 .chat-msg__attachments {
   display: flex; align-items: center; gap: 6px; padding: 6px 10px;
   border: 1px solid var(--chat-bubble-border); border-radius: 0px; font-size: 0.72rem;
+  background: transparent; color: inherit; cursor: pointer; transition: background 0.2s;
+}
+.chat-msg__attachments:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.chat-msg--other .chat-msg__attachments:hover {
+  background: rgba(0, 0, 0, 0.03);
 }
 .chat-msg__attachments .material-symbols-outlined { font-size: 16px; }
+
+/* ═══════════════════════════════════════════
+   카카오톡 스타일 미디어 그리드 및 뷰어
+   ═══════════════════════════════════════════ */
+
+/* 그리드 컨테이너 기본 (5장 이상: 3열 격자) */
+.chat-msg__medias {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px; margin-bottom: 4px;
+  border-radius: 8px; overflow: hidden;
+  max-width: 280px;
+}
+
+/* 1장: 하나만 크게 */
+.chat-msg__medias[data-count="1"] {
+  display: block; max-width: 220px;
+}
+
+/* 2장: 나란히 50:50 */
+.chat-msg__medias[data-count="2"] {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* 3장: 왼쪽 1장 크게(세로 풀), 오른쪽 2장 위아래 */
+.chat-msg__medias[data-count="3"] {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.chat-msg__medias[data-count="3"] .chat-msg__media-item:first-child {
+  grid-row: 1 / 3;
+}
+
+/* 4장: 2×2 격자 */
+.chat-msg__medias[data-count="4"] {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* 미디어 아이템 공통 */
+.chat-msg__media-item {
+  position: relative; cursor: pointer; overflow: hidden;
+}
+
+/* 이미지 & 비디오 공통 (기본: 5장 이상용 80px) */
+.chat-msg__media-img, .chat-msg__media-video {
+  width: 100%; height: 80px;
+  object-fit: contain; display: block;
+  background-color: var(--chat-surface);
+}
+
+/* 1장: 자연스러운 비율 */
+.chat-msg__medias[data-count="1"] .chat-msg__media-img,
+.chat-msg__medias[data-count="1"] .chat-msg__media-video {
+  height: auto; max-height: 240px;
+  border-radius: 8px; object-fit: contain;
+  background-color: transparent;
+}
+
+/* 2장: 넉넉한 높이 */
+.chat-msg__medias[data-count="2"] .chat-msg__media-img,
+.chat-msg__medias[data-count="2"] .chat-msg__media-video {
+  height: 140px;
+}
+
+/* 3장: 그리드 높이에 맞춤 */
+.chat-msg__medias[data-count="3"] {
+  height: 200px;
+}
+.chat-msg__medias[data-count="3"] .chat-msg__media-img,
+.chat-msg__medias[data-count="3"] .chat-msg__media-video {
+  height: 100%;
+}
+
+/* 4장: 2x2 격자 */
+.chat-msg__medias[data-count="4"] .chat-msg__media-img,
+.chat-msg__medias[data-count="4"] .chat-msg__media-video {
+  height: 120px;
+}
+
+/* 동영상 재생 오버레이 아이콘 */
+.chat-msg__media-video-play {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  color: rgba(255,255,255,0.9); background: rgba(0,0,0,0.4);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; pointer-events: none;
+}
+.chat-msg__media-video-play .material-symbols-outlined { font-size: 24px; }
+
+/* ═══════════════════════════════════════════
+   미디어 뷰어 (전체화면 모달)
+   ═══════════════════════════════════════════ */
+.chat-media-viewer {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.92); z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn 0.15s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.chat-media-viewer__close {
+  position: absolute; top: 20px; right: 20px;
+  background: transparent; border: none; color: white; cursor: pointer; z-index: 10000;
+}
+.chat-media-viewer__close span { font-size: 32px; }
+.chat-media-viewer__nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: rgba(255,255,255,0.1); border: none; color: white;
+  width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 10000; transition: background 0.2s;
+}
+.chat-media-viewer__nav:hover { background: rgba(255,255,255,0.3); }
+.chat-media-viewer__nav--prev { left: 20px; }
+.chat-media-viewer__nav--next { right: 20px; }
+.chat-media-viewer__content {
+  position: relative; max-width: 90vw; max-height: 90vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.chat-media-viewer__img, .chat-media-viewer__video {
+  max-width: 100%; max-height: 85vh; object-fit: contain;
+}
+.chat-media-viewer__info {
+  margin-top: 16px; color: rgba(255,255,255,0.7); font-size: 0.85rem;
+}
 
 /* 삭제 버튼 */
 .chat-msg__delete {
