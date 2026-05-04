@@ -861,7 +861,6 @@ onMounted(() => {
           <strong class="stl-kpi-card__value">
             {{ isStatisticsLoading ? '-' : formatStatisticsAmount(settlementStatistics?.currentMonthBudgetAmount) }}
           </strong>
-          <span class="stl-kpi-card__sub">{{ content.stats.monthlyBudgetBase }}</span>
         </div>
       </article>
 
@@ -878,7 +877,6 @@ onMounted(() => {
           <strong class="stl-kpi-card__value">
             {{ isStatisticsLoading ? '-' : formatStatisticsAmount(settlementStatistics?.payableAmountThisMonth) }}
           </strong>
-          <span class="stl-kpi-card__sub">{{ content.stats.budgetUsageBase }}</span>
         </div>
       </article>
 
@@ -894,9 +892,6 @@ onMounted(() => {
           <strong class="stl-kpi-card__value">
             {{ isStatisticsLoading ? '-' : formatRate(settlementStatistics?.currentMonthBudgetUsageRate) }}
           </strong>
-          <span class="stl-kpi-card__sub">
-            {{ budgetUsageStatusText(settlementStatistics?.currentMonthBudgetStatus) }}
-          </span>
         </div>
       </article>
 
@@ -913,7 +908,6 @@ onMounted(() => {
           <strong class="stl-kpi-card__value">
             {{ isStatisticsLoading ? '-' : formatStatisticsAmount(settlementStatistics?.receivableAmountThisMonth) }}
           </strong>
-          <span class="stl-kpi-card__sub">{{ content.stats.receivableBase }}</span>
         </div>
       </article>
     </section>
