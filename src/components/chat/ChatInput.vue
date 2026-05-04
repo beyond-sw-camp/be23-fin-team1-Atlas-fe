@@ -7,6 +7,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import ChatEmojiPicker from './ChatEmojiPicker.vue'
 import { useAtlasChatStore } from '../../stores/chat'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
+import { uploadAttachment } from '../../services/file'
 
 const chatStore = useAtlasChatStore()
 const preferences = useAtlasPreferencesStore()
@@ -21,6 +22,10 @@ const inputWrapperRef = ref<HTMLElement | null>(null)
 const isMenuOpen = ref(false)
 const isRefPickerOpen = ref(false)
 const isEmojiPickerOpen = ref(false)
+
+const fileInput = ref<HTMLInputElement | null>(null)
+const mediaInput = ref<HTMLInputElement | null>(null)
+const isUploading = ref(false)
 
 const chatInputCopy = {
   ko: {
@@ -130,14 +135,52 @@ function handleMenuSelect(key: string) {
     return
   }
 
-  // 파일/미디어: 아직 실제 업로드는 미구현, 동작 피드백만
   if (key === 'file') {
-    alert(copy().filePending)
+    fileInput.value?.click()
   } else if (key === 'media') {
-    alert(copy().mediaPending)
+    mediaInput.value?.click()
   }
 
   closeMenu()
+}
+
+async function onFileChange(event: Event, isImage: boolean = false) {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  if (files.length === 0) return
+
+  const roomPublicId = chatStore.currentRoomPublicId
+  if (!roomPublicId) return
+
+  isUploading.value = true
+  try {
+    if (isImage) {
+      // 이미지: 한 메시지에 그리드로 묶어서 전송
+      const tempRefId = `TMPCHAT${Date.now()}${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`
+      const res = await uploadAttachment(files, 'CHAT_MESSAGE', tempRefId)
+      if (res.attachmentPublicId) {
+        const messageBody = files.length > 1
+          ? `${files[0].name} 외 ${files.length - 1}건`
+          : files[0].name
+        chatStore.sendFileMessage(res.attachmentPublicId, true, messageBody)
+      }
+    } else {
+      // 파일: 카카오톡 스타일 1개 = 1메시지
+      for (const file of files) {
+        const tempRefId = `TMPCHAT${Date.now()}${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`
+        const res = await uploadAttachment(file, 'CHAT_MESSAGE', tempRefId)
+        if (res.attachmentPublicId) {
+          chatStore.sendFileMessage(res.attachmentPublicId, false, file.name)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('File upload failed:', error)
+    alert('파일 업로드에 실패했습니다.')
+  } finally {
+    isUploading.value = false
+    target.value = ''
+  }
 }
 
 function handleRefSelect(ref: { type: string; code: string; title: Record<'ko' | 'en', string> }) {
@@ -176,6 +219,10 @@ function handleKeydown(event: KeyboardEvent) {
 
 <template>
   <div ref="inputWrapperRef" class="chat-input-wrapper">
+    <!-- 숨겨진 다중 파일/미디어 입력 -->
+    <input type="file" ref="fileInput" multiple style="display: none" @change="(e) => onFileChange(e, false)" />
+    <input type="file" ref="mediaInput" accept="image/*,video/*" multiple style="display: none" @change="(e) => onFileChange(e, true)" />
+
     <!-- 답장 프리뷰 바 (입력창 상단) -->
     <div v-if="chatStore.replyTarget" class="chat-input__reply-bar">
       <span class="chat-input__reply-icon material-symbols-outlined">reply</span>
@@ -260,7 +307,8 @@ function handleKeydown(event: KeyboardEvent) {
           v-model="inputText"
           class="chat-input__field"
           type="text"
-          :placeholder="copy().messagePlaceholder"
+          :placeholder="isUploading ? '업로드 중...' : copy().messagePlaceholder"
+          :disabled="isUploading"
           @keydown="handleKeydown"
           @focus="closeMenu"
         />
