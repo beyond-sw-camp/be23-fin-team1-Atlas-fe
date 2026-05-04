@@ -15,7 +15,6 @@ import {
   type CertificateHistoryResponseDto
 } from '../../../services/certificate'
 import CertificateCreateModal from '../components/CertificateCreateModal.vue'
-import CertificateTypeCreateModal from '../components/CertificateTypeCreateModal.vue'
 import { getAttachment } from '../../../services/file'
 
 const header = useAtlasHeaderStore()
@@ -77,7 +76,6 @@ const activeTab = ref<string>('ALL')
 // Modals
 const { isOpen: traceOpen, payload: selectedCert, open: openTrace, close: closeTrace } = useModal<SupplierCertificateResponseDto>(false)
 const isCreateModalOpen = ref(false)
-const isTypeCreateModalOpen = ref(false)
 
 import { getSuppliers } from '../../../services/supplier'
 
@@ -228,11 +226,6 @@ async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupp
   }
 }
 
-async function handleTypeCreateSuccess() {
-  isTypeCreateModalOpen.value = false
-  await dialog.alert(preferences.language === 'ko' ? '인증 유형이 성공적으로 등록되었습니다.' : 'Certificate type successfully created.')
-}
-
 async function handleDownloadPdf(attachmentPublicId: string | undefined) {
   if (!attachmentPublicId) {
     await dialog.alert(preferences.language === 'ko' ? '첨부된 파일이 없습니다.' : 'No attachment found.')
@@ -276,10 +269,7 @@ onBeforeUnmount(() => header.clearActions())
       </div>
       <div class="design-trigger-row">
         <button class="page-button page-button--secondary" type="button">{{ content.exportLabel }}</button>
-        <button v-if="session.userRole === 'ADMIN'" class="page-button page-button--primary" type="button" @click="isTypeCreateModalOpen = true">
-          {{ preferences.language === 'ko' ? '인증서 유형 등록' : 'ADD CERT TYPE' }}
-        </button>
-        <button v-else class="page-button page-button--primary" type="button" @click="isCreateModalOpen = true">
+        <button v-if="session.userRole !== 'ADMIN'" class="page-button page-button--primary" type="button" @click="isCreateModalOpen = true">
           {{ content.createLabel }}
         </button>
       </div>
@@ -356,14 +346,6 @@ onBeforeUnmount(() => header.clearActions())
     :language="preferences.language" 
     @close="isCreateModalOpen = false" 
     @submit="handleCreateCertSubmit" 
-  />
-
-  <!-- Create CERT Type Modal (Admin Only) -->
-  <CertificateTypeCreateModal
-    :is-open="isTypeCreateModalOpen"
-    :language="preferences.language"
-    @close="isTypeCreateModalOpen = false"
-    @success="handleTypeCreateSuccess"
   />
 
   <!-- Trace Timeline Modal -->

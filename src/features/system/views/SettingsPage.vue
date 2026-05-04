@@ -21,11 +21,17 @@ import {
   type ItemCategoryResponseDto,
   type UpdateItemCategoryRequestDto,
 } from '../../../services/item'
+import {
+  createCertificateType,
+  getCertificateTypes,
+  type CertificateTypeResponseDto,
+  type CreateCertificateTypeRequestDto,
+} from '../../../services/certificate'
 import { createInitialOrgAdmin } from '../../../services/user'
 import PhoneField from '../../../components/forms/PhoneField.vue'
 import OrganizationManagementPage from './OrganizationManagementPage.vue'
 
-type SettingsTabKey = 'organization' | 'users' | 'categories'
+type SettingsTabKey = 'organization' | 'users' | 'categories' | 'certificateTypes'
 
 type CategoryTreeNode = {
   publicId: string
@@ -50,6 +56,7 @@ const CONTENT = {
       organization: '조직',
       users: '사용자',
       categories: '카테고리',
+      certificateTypes: '인증 분류',
     },
     saveLabel: '저장',
   },
@@ -60,6 +67,7 @@ const CONTENT = {
       organization: 'Organization',
       users: 'Users',
       categories: 'Categories',
+      certificateTypes: 'Certificate Types',
     },
     saveLabel: 'SAVE CHANGES',
   },
@@ -72,6 +80,7 @@ const tabEntries = computed(() => [
   { key: 'organization' as const, label: content.value.tabs.organization },
   { key: 'users' as const, label: content.value.tabs.users },
   { key: 'categories' as const, label: content.value.tabs.categories },
+  { key: 'certificateTypes' as const, label: content.value.tabs.certificateTypes },
 ])
 
 watchEffect(() => {
@@ -169,6 +178,22 @@ const itemCategoryEditForm = reactive({
   sortOrder: 1,
 })
 
+const certificateTypes = ref<CertificateTypeResponseDto[]>([])
+const certificateTypesLoaded = ref(false)
+const certificateTypesLoading = ref(false)
+const certificateTypeSubmitting = ref(false)
+const certificateTypeError = ref('')
+const certificateTypeSuccess = ref('')
+
+const certificateTypeForm = reactive<CreateCertificateTypeRequestDto>({
+  certificateCode: '',
+  certificateName: '',
+  issuerName: '',
+  scopeType: 'GENERAL',
+  requiredYn: false,
+  activeYn: true,
+})
+
 const categoryCopy = computed(() =>
   preferences.language === 'ko'
     ? {
@@ -212,6 +237,54 @@ const categoryCopy = computed(() =>
         statusActive: 'Active',
         statusDeactive: 'Inactive',
         statusDelete: 'Deleted',
+      },
+)
+
+const certificateTypeCopy = computed(() =>
+  preferences.language === 'ko'
+    ? {
+        listEyebrow: 'CERTIFICATE MASTER',
+        listTitle: '인증 분류 목록',
+        listDescription: '각 조직이 인증문서를 등록할 때 선택하는 플랫폼 공통 인증 분류입니다.',
+        formEyebrow: 'TYPE EDITOR',
+        formTitle: '인증 분류 생성',
+        formDescription: '플랫폼 관리자가 인증서 분류와 기본 발급 기관을 등록합니다.',
+        codeLabel: '인증 코드',
+        nameLabel: '인증명',
+        issuerLabel: '발급 기관',
+        scopeLabel: '인증 범위',
+        requiredLabel: '필수 인증',
+        activeLabel: '활성 상태',
+        submitLabel: '인증 분류 등록',
+        submittingLabel: '등록 중...',
+        empty: '등록된 인증 분류가 없습니다.',
+        columns: ['코드', '인증명', '발급 기관', '범위', '필수', '상태'],
+        yes: '예',
+        no: '아니오',
+        active: '활성',
+        inactive: '비활성',
+      }
+    : {
+        listEyebrow: 'CERTIFICATE MASTER',
+        listTitle: 'Certificate Type List',
+        listDescription: 'Platform-wide certificate types used when organizations upload certificate documents.',
+        formEyebrow: 'TYPE EDITOR',
+        formTitle: 'Create Certificate Type',
+        formDescription: 'Platform admins manage certificate classification and default issuer metadata.',
+        codeLabel: 'Certificate Code',
+        nameLabel: 'Certificate Name',
+        issuerLabel: 'Issuer',
+        scopeLabel: 'Scope',
+        requiredLabel: 'Required',
+        activeLabel: 'Active',
+        submitLabel: 'Register Type',
+        submittingLabel: 'Registering...',
+        empty: 'No certificate types registered.',
+        columns: ['Code', 'Name', 'Issuer', 'Scope', 'Required', 'Status'],
+        yes: 'Yes',
+        no: 'No',
+        active: 'Active',
+        inactive: 'Inactive',
       },
 )
 
@@ -605,12 +678,96 @@ async function submitItemCategory() {
   }
 }
 
+async function loadCertificateTypes() {
+  try {
+    certificateTypesLoading.value = true
+    certificateTypeError.value = ''
+
+    const response = await getCertificateTypes()
+
+    certificateTypes.value = [...response].sort((left, right) => {
+      const leftName = left.certificateName ?? left.name ?? ''
+      const rightName = right.certificateName ?? right.name ?? ''
+      return leftName.localeCompare(
+        rightName,
+        preferences.language === 'ko' ? 'ko-KR' : 'en-US',
+      )
+    })
+    certificateTypesLoaded.value = true
+  } catch (error: any) {
+    certificateTypeError.value =
+      error?.payload?.message ||
+      error?.message ||
+      (preferences.language === 'ko'
+        ? '인증 분류 목록을 불러오지 못했습니다.'
+        : 'Failed to load certificate types.')
+  } finally {
+    certificateTypesLoading.value = false
+  }
+}
+
+function resetCertificateTypeForm() {
+  certificateTypeForm.certificateCode = ''
+  certificateTypeForm.certificateName = ''
+  certificateTypeForm.issuerName = ''
+  certificateTypeForm.scopeType = 'GENERAL'
+  certificateTypeForm.requiredYn = false
+  certificateTypeForm.activeYn = true
+}
+
+async function submitCertificateType() {
+  certificateTypeError.value = ''
+  certificateTypeSuccess.value = ''
+
+  if (!certificateTypeForm.certificateCode.trim() || !certificateTypeForm.certificateName.trim()) {
+    certificateTypeError.value =
+      preferences.language === 'ko'
+        ? '인증 코드와 인증명을 입력해 주세요.'
+        : 'Enter certificate code and name.'
+    return
+  }
+
+  try {
+    certificateTypeSubmitting.value = true
+
+    await createCertificateType({
+      certificateCode: certificateTypeForm.certificateCode.trim(),
+      certificateName: certificateTypeForm.certificateName.trim(),
+      issuerName: certificateTypeForm.issuerName?.trim() || undefined,
+      scopeType: certificateTypeForm.scopeType,
+      requiredYn: certificateTypeForm.requiredYn,
+      activeYn: certificateTypeForm.activeYn,
+    })
+
+    certificateTypeSuccess.value =
+      preferences.language === 'ko'
+        ? '인증 분류가 등록되었습니다.'
+        : 'Certificate type created.'
+
+    resetCertificateTypeForm()
+    await loadCertificateTypes()
+  } catch (error: any) {
+    certificateTypeError.value =
+      error?.payload?.message ||
+      error?.message ||
+      (preferences.language === 'ko'
+        ? '인증 분류 등록에 실패했습니다.'
+        : 'Failed to create certificate type.')
+  } finally {
+    certificateTypeSubmitting.value = false
+  }
+}
+
 watch(
   activeTab,
   (tab) => {
     // 카테고리 탭에 처음 들어갈 때만 목록을 읽습니다.
     if (tab === 'categories' && !itemCategoriesLoaded.value) {
       void loadItemCategories()
+    }
+
+    if (tab === 'certificateTypes' && !certificateTypesLoaded.value) {
+      void loadCertificateTypes()
     }
 
     // 사용자 탭에 들어가면 조직 드롭다운 목록을 읽습니다.
@@ -1020,7 +1177,7 @@ if (!selectedOrganizationPublicId.value) {
       </div>
     </section>
 
-    <section v-else class="settings-page__panel">
+    <section v-else-if="activeTab === 'categories'" class="settings-page__panel">
       <div class="settings-page__grid">
         <article class="page-panel">
           <div class="page-panel__head">
@@ -1245,5 +1402,163 @@ if (!selectedOrganizationPublicId.value) {
 
       </div>
     </section>
+
+    <section v-else class="settings-page__panel">
+      <div class="settings-page__grid settings-page__grid--certificate-types">
+        <article class="page-panel">
+          <div class="page-panel__head">
+            <div>
+              <div class="page-panel__eyebrow">{{ certificateTypeCopy.listEyebrow }}</div>
+              <h3>{{ certificateTypeCopy.listTitle }}</h3>
+              <p class="settings-page__copy">{{ certificateTypeCopy.listDescription }}</p>
+            </div>
+            <span class="page-panel__chip">{{ certificateTypes.length }}</span>
+          </div>
+
+          <div v-if="certificateTypesLoading && !certificateTypes.length" class="page-table__empty">
+            {{ preferences.language === 'ko' ? '인증 분류를 불러오는 중입니다.' : 'Loading certificate types.' }}
+          </div>
+
+          <div v-else-if="!certificateTypes.length" class="page-table__empty">
+            {{ certificateTypeCopy.empty }}
+          </div>
+
+          <div v-else class="page-table settings-certificate-types__table">
+            <div class="page-table__row page-table__row--head">
+              <span v-for="column in certificateTypeCopy.columns" :key="column">{{ column }}</span>
+            </div>
+
+            <div
+              v-for="certificateType in certificateTypes"
+              :key="certificateType.publicId"
+              class="page-table__row"
+            >
+              <span>{{ certificateType.certificateCode || '-' }}</span>
+              <strong>{{ certificateType.certificateName || certificateType.name || '-' }}</strong>
+              <span>{{ certificateType.issuerName || '-' }}</span>
+              <span>{{ certificateType.scopeType || 'GENERAL' }}</span>
+              <span>{{ certificateType.requiredYn ? certificateTypeCopy.yes : certificateTypeCopy.no }}</span>
+              <span>{{ certificateType.activeYn === false ? certificateTypeCopy.inactive : certificateTypeCopy.active }}</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="page-panel">
+          <div class="page-panel__head">
+            <div>
+              <div class="page-panel__eyebrow">{{ certificateTypeCopy.formEyebrow }}</div>
+              <h3>{{ certificateTypeCopy.formTitle }}</h3>
+              <p class="settings-page__copy">{{ certificateTypeCopy.formDescription }}</p>
+            </div>
+          </div>
+
+          <div v-if="certificateTypeError" class="login-error">
+            {{ certificateTypeError }}
+          </div>
+
+          <div v-if="certificateTypeSuccess" class="login-hint">
+            {{ certificateTypeSuccess }}
+          </div>
+
+          <div class="settings-form">
+            <label>
+              <span>{{ certificateTypeCopy.codeLabel }}</span>
+              <input v-model="certificateTypeForm.certificateCode" type="text" placeholder="ISO-9001" maxlength="50" />
+            </label>
+
+            <label>
+              <span>{{ certificateTypeCopy.nameLabel }}</span>
+              <input v-model="certificateTypeForm.certificateName" type="text" placeholder="품질경영시스템" maxlength="100" />
+            </label>
+
+            <label>
+              <span>{{ certificateTypeCopy.issuerLabel }}</span>
+              <input v-model="certificateTypeForm.issuerName" type="text" placeholder="ISO" maxlength="100" />
+            </label>
+
+            <label>
+              <span>{{ certificateTypeCopy.scopeLabel }}</span>
+              <select v-model="certificateTypeForm.scopeType">
+                <option value="GENERAL">GENERAL</option>
+                <option value="QUALITY">QUALITY</option>
+                <option value="SAFETY">SAFETY</option>
+                <option value="ENVIRONMENT">ENVIRONMENT</option>
+              </select>
+            </label>
+
+            <div class="settings-certificate-types__toggles">
+              <label>
+                <input v-model="certificateTypeForm.requiredYn" type="checkbox" />
+                <span>{{ certificateTypeCopy.requiredLabel }}</span>
+              </label>
+
+              <label>
+                <input v-model="certificateTypeForm.activeYn" type="checkbox" />
+                <span>{{ certificateTypeCopy.activeLabel }}</span>
+              </label>
+            </div>
+
+            <button
+              class="page-button page-button--primary"
+              type="button"
+              :disabled="certificateTypeSubmitting"
+              @click="submitCertificateType"
+            >
+              {{
+                certificateTypeSubmitting
+                  ? certificateTypeCopy.submittingLabel
+                  : certificateTypeCopy.submitLabel
+              }}
+            </button>
+          </div>
+        </article>
+      </div>
+    </section>
   </section>
 </template>
+
+<style scoped>
+.settings-page__grid--certificate-types {
+  align-items: start;
+}
+
+.settings-certificate-types__table .page-table__row {
+  grid-template-columns: 1fr 1.4fr 1.2fr 1fr 0.8fr 0.8fr;
+}
+
+.settings-certificate-types__toggles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-certificate-types__toggles label {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--color-surface-container-high);
+  padding: 0 14px;
+}
+
+.settings-certificate-types__toggles input {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-certificate-types__toggles span {
+  color: var(--color-on-surface);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .settings-certificate-types__table .page-table__row {
+    min-width: 720px;
+  }
+
+  .settings-certificate-types__toggles {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
