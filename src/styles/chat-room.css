@@ -381,17 +381,43 @@
 
 /* 참조 카드 */
 .chat-ref-card {
-  display: flex; flex-direction: column; gap: 4px;
-  padding: 10px 12px 10px 16px; border-left: 3px solid var(--chat-border-strong);
-  background: rgba(0,0,0,0.05); border-radius: 0px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 14px; border-left: 4px solid var(--chat-border-strong);
+  background: var(--chat-surface); border-radius: 0px; cursor: pointer;
+  transition: all 0.2s ease;
+  border-top: 1px solid var(--chat-border);
+  border-right: 1px solid var(--chat-border);
+  border-bottom: 1px solid var(--chat-border);
 }
-.chat-ref-card--order { border-left-color: var(--chat-border-strong); }
-.chat-ref-card--return { border-left-color: #E53935; }
-.chat-ref-card__type { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-text-secondary); }
-.chat-ref-card__code { font-size: 0.82rem; font-weight: 600; }
-.chat-ref-card__title { margin: 0; font-size: 0.72rem; color: var(--chat-text-secondary); }
-.chat-msg--mine .chat-ref-card { background: rgba(255,255,255,0.1); }
+.chat-ref-card:hover {
+  background: var(--chat-border);
+}
+.chat-ref-card--order { border-left-color: #2E5CFF; } /* 발주서 블루 */
+.chat-ref-card--return { border-left-color: #E53935; } /* 반품 레드 */
+
+.chat-ref-card__header {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.chat-ref-card__type { 
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; 
+  text-transform: uppercase; color: var(--chat-text-secondary); 
+}
+.chat-ref-card__link-icon {
+  font-size: 14px; color: var(--chat-text-muted);
+}
+.chat-ref-card__code { font-size: 0.9rem; font-weight: 600; color: var(--chat-text); }
+.chat-ref-card__title { margin: 0; font-size: 0.75rem; color: var(--chat-text-secondary); line-height: 1.4; }
+
+.chat-msg--mine .chat-ref-card { 
+  background: rgba(255,255,255,0.1); 
+  border-top-color: rgba(255,255,255,0.1);
+  border-right-color: rgba(255,255,255,0.1);
+  border-bottom-color: rgba(255,255,255,0.1);
+}
+.chat-msg--mine .chat-ref-card:hover { background: rgba(255,255,255,0.15); }
 .chat-msg--mine .chat-ref-card__type, .chat-msg--mine .chat-ref-card__title { color: rgba(255,255,255,0.7); }
+.chat-msg--mine .chat-ref-card__code { color: #FFF; }
+.chat-msg--mine .chat-ref-card__link-icon { color: rgba(255,255,255,0.5); }
 
 /* ═══════════════════════════════════════════
    입력 영역

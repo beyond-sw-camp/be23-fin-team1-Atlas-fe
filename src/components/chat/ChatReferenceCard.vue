@@ -5,14 +5,18 @@
  *   ORDER → primary, RETURN_REQUEST → error
  */
 import { useAtlasPreferencesStore } from '../../stores/preferences'
+import { useRouter } from 'vue-router'
+import { useAtlasChatStore } from '../../stores/chat'
 
-defineProps<{
+const props = defineProps<{
   referenceType: string
   referenceCode?: string
   referenceTitle?: string
 }>()
 
 const preferences = useAtlasPreferencesStore()
+const router = useRouter()
+const chatStore = useAtlasChatStore()
 
 function getRibbonClass(type: string): string {
   switch (type) {
@@ -49,12 +53,44 @@ function getTypeLabel(type: string): string {
       return type
   }
 }
+
+function handleCardClick() {
+  if (!props.referenceCode) return
+  
+  // 클릭 시 채팅 패널을 잠시 숨기고 화면 이동
+  chatStore.closePanel()
+
+  if (props.referenceType === 'ORDER') {
+    // 발주서 목록/상세 페이지로 이동
+    router.push(`/orders`)
+  } else if (props.referenceType === 'RETURN_REQUEST') {
+    // 반품 목록/상세 페이지로 이동
+    router.push(`/returns`)
+  }
+}
 </script>
 
 <template>
-  <div :class="['chat-ref-card', getRibbonClass(referenceType)]">
-    <span class="chat-ref-card__type">{{ getTypeLabel(referenceType) }}</span>
+  <div :class="['chat-ref-card', getRibbonClass(referenceType)]" @click="handleCardClick" role="button" tabindex="0">
+    <div class="chat-ref-card__header">
+      <span class="chat-ref-card__type">{{ getTypeLabel(referenceType) }}</span>
+      <span class="material-symbols-outlined chat-ref-card__link-icon">open_in_new</span>
+    </div>
     <strong class="chat-ref-card__code">{{ referenceCode ?? '—' }}</strong>
     <p v-if="referenceTitle" class="chat-ref-card__title">{{ referenceTitle }}</p>
   </div>
 </template>
+
+<style scoped>
+.chat-ref-card {
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+.chat-ref-card:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+.chat-ref-card:active {
+  transform: translateY(0);
+}
+</style>

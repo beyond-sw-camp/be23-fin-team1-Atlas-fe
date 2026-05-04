@@ -12,9 +12,9 @@ import ChatRoom from './ChatRoom.vue'
 const chat = useAtlasChatStore()
 const preferences = useAtlasPreferencesStore()
 
-/** 업무 참조 카드 전송 핸들러 — ChatRoom에서 3개 인자를 받아 store 액션 호출 */
-function handleSendReference(refType: string, refCode: string, refTitle: string) {
-  chat.sendReferenceMessage(refType, refCode, refTitle)
+/** 업무 참조 카드 전송 핸들러 — ChatRoom에서 4개 인자를 받아 store 액션 호출 */
+function handleSendReference(refType: string, refPublicId: string, refCode: string, refTitle: string) {
+  chat.sendReferenceMessage(refType, refPublicId, refCode, refTitle)
 }
 </script>
 

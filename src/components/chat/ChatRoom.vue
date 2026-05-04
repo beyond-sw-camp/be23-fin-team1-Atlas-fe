@@ -24,7 +24,7 @@ const emit = defineEmits<{
   back: []
   send: [body: string]
   deleteMessage: [messagePublicId: string]
-  sendReference: [refType: string, refCode: string, refTitle: string]
+  sendReference: [refType: string, refPublicId: string, refCode: string, refTitle: string]
 }>()
 
 const chatStore = useAtlasChatStore()
@@ -118,9 +118,9 @@ function resolveSystemMessage(body: string): string {
   return body.replace(/[0-9A-Za-z]{26}/g, (id) => getSenderName(id))
 }
 
-/** 업무 참조 카드 전송 핸들러 — ChatInput에서 3개 인자를 받아 상위로 전달 */
-function handleSendReference(refType: string, refCode: string, refTitle: string) {
-  emit('sendReference', refType, refCode, refTitle)
+/** 업무 참조 카드 전송 핸들러 — ChatInput에서 4개 인자를 받아 상위로 전달 */
+function handleSendReference(refType: string, refPublicId: string, refCode: string, refTitle: string) {
+  emit('sendReference', refType, refPublicId, refCode, refTitle)
 }
 
 /** 메시지 삭제 핸들러 */
