@@ -382,9 +382,20 @@ const selectedArrivalLogisticsNodeText = computed(() => {
 
   return Array.from(new Set(nodes)).join(', ')
 })
+const selectedOriginLogisticsNodeText = computed(() => {
+  const node = activeLogisticsNodes.value.find((item) => item.publicId === createForm.value.originNodePublicId)
+  return node ? formatNodeDisplay(node.nodeName, node.nodeCode, node.publicId) : '-'
+})
 
 const selectedOrderHasDestinationNode = computed(() =>
   Boolean(selectedPurchaseOrderDetail.value?.items.some((item) => item.arrivalLogisticsNodePublicId)),
+)
+const selectedCreateOrder = computed(() =>
+  acceptedPurchaseOrders.value.find((order) => order.poPublicId === createForm.value.purchaseOrderPublicId) ?? null,
+)
+const selectedOrderItemCount = computed(() => selectedPurchaseOrderDetail.value?.items.length ?? 0)
+const selectedOrderTotalQuantity = computed(() =>
+  selectedPurchaseOrderDetail.value?.items.reduce((sum, item) => sum + Number(item.confirmedQty ?? item.orderedQty ?? 0), 0) ?? 0,
 )
 
 const trackNodeOptions = computed(() => {
@@ -1147,67 +1158,113 @@ onMounted(() => {
       <div class="shipment-create-modal">
         <div v-if="nodeErrorMessage" class="page-table__empty">{{ nodeErrorMessage }}</div>
 
-        <div class="shipment-form-grid">
-          <label class="shipment-field">
-            <span>{{ content.order }} <strong>*</strong></span>
-            <select
-              :value="createForm.purchaseOrderPublicId"
-              class="page-input"
-              :disabled="isOrderOptionsLoading"
-              @change="handlePurchaseOrderSelect(($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">{{ isOrderOptionsLoading ? content.loading : content.select }}</option>
-              <option v-for="order in acceptedPurchaseOrders" :key="order.poPublicId" :value="order.poPublicId">
-                {{ order.poNumber }} / {{ order.supplierName }} / {{ order.poStatus }}
-              </option>
-            </select>
-          </label>
-
-          <label class="shipment-field">
-            <span>{{ content.originNode }} <strong>*</strong></span>
-            <select v-model="createForm.originNodePublicId" class="page-input">
-              <option value="">{{ content.select }}</option>
-              <option v-for="node in activeLogisticsNodes" :key="node.publicId" :value="node.publicId">
-                {{ formatNodeDisplay(node.nodeName, node.nodeCode, node.publicId) }}
-              </option>
-            </select>
-          </label>
-
-          <label class="shipment-field shipment-field--wide">
-            <span>{{ content.destinationNode }}</span>
-            <strong>{{ selectedArrivalLogisticsNodeText }}</strong>
-          </label>
-
-          <label class="shipment-field">
-            <span>{{ content.departureEta }} <strong>*</strong></span>
-            <div class="shipment-date-time-row">
-              <input v-model="createDepartureDate" type="date" class="page-input" />
-              <select v-model="createDepartureTime" class="page-input">
-                <option value="">{{ content.select }}</option>
-                <option v-for="time in departureTimeOptions" :key="time" :value="time">
-                  {{ time }}
-                </option>
-              </select>
+        <div class="shipment-create-shell">
+          <section class="shipment-create-primary">
+            <div class="shipment-create-section-head">
+              <div>
+                <span>{{ content.createEyebrow }}</span>
+                <h3>{{ content.createTitle }}</h3>
+              </div>
+              <strong>{{ createDepartureEta || '--:--' }}</strong>
             </div>
-          </label>
 
-          <div class="shipment-field shipment-field--wide">
-            <span>{{ content.options }}</span>
-            <div class="shipment-option-row">
-              <label>
-                <input v-model="createForm.temperatureRequired" type="checkbox" />
-                {{ content.temperatureRequired }}
+            <div class="shipment-form-grid shipment-create-form-grid">
+              <label class="shipment-field shipment-field--wide">
+                <span>{{ content.order }} <strong>*</strong></span>
+                <select
+                  :value="createForm.purchaseOrderPublicId"
+                  class="page-input"
+                  :disabled="isOrderOptionsLoading"
+                  @change="handlePurchaseOrderSelect(($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="">{{ isOrderOptionsLoading ? content.loading : content.select }}</option>
+                  <option v-for="order in acceptedPurchaseOrders" :key="order.poPublicId" :value="order.poPublicId">
+                    {{ order.poNumber }} / {{ order.supplierName }} / {{ order.poStatus }}
+                  </option>
+                </select>
               </label>
-              <label>
-                <input v-model="createForm.sealedPackagingRequired" type="checkbox" />
-                {{ content.sealedPackagingRequired }}
+
+              <label class="shipment-field">
+                <span>{{ content.originNode }} <strong>*</strong></span>
+                <select v-model="createForm.originNodePublicId" class="page-input">
+                  <option value="">{{ content.select }}</option>
+                  <option v-for="node in activeLogisticsNodes" :key="node.publicId" :value="node.publicId">
+                    {{ formatNodeDisplay(node.nodeName, node.nodeCode, node.publicId) }}
+                  </option>
+                </select>
               </label>
-              <label>
-                <input v-model="createForm.fragile" type="checkbox" />
-                {{ content.fragile }}
+
+              <label class="shipment-field">
+                <span>{{ content.departureEta }} <strong>*</strong></span>
+                <div class="shipment-date-time-row">
+                  <input v-model="createDepartureDate" type="date" class="page-input" />
+                  <select v-model="createDepartureTime" class="page-input">
+                    <option value="">{{ content.select }}</option>
+                    <option v-for="time in departureTimeOptions" :key="time" :value="time">
+                      {{ time }}
+                    </option>
+                  </select>
+                </div>
               </label>
             </div>
-          </div>
+
+            <div class="shipment-create-route">
+              <div>
+                <span>{{ content.originNode }}</span>
+                <strong>{{ selectedOriginLogisticsNodeText }}</strong>
+              </div>
+              <em>→</em>
+              <div>
+                <span>{{ content.destinationNode }}</span>
+                <strong>{{ selectedArrivalLogisticsNodeText }}</strong>
+              </div>
+            </div>
+          </section>
+
+          <aside class="shipment-create-aside">
+            <section class="shipment-create-spec">
+              <span>{{ content.order }}</span>
+              <strong>{{ selectedCreateOrder?.poNumber ?? '-' }}</strong>
+              <p>{{ selectedCreateOrder?.supplierName ?? content.destinationFromOrder }}</p>
+            </section>
+
+            <section class="shipment-create-spec-grid">
+              <div>
+                <span>ITEMS</span>
+                <strong>{{ selectedOrderItemCount }}</strong>
+              </div>
+              <div>
+                <span>QTY</span>
+                <strong>{{ selectedOrderTotalQuantity }}</strong>
+              </div>
+              <div>
+                <span>{{ content.status }}</span>
+                <strong>{{ selectedCreateOrder?.poStatus ?? '-' }}</strong>
+              </div>
+              <div>
+                <span>{{ content.destinationNode }}</span>
+                <strong>{{ selectedOrderHasDestinationNode ? 'READY' : '-' }}</strong>
+              </div>
+            </section>
+
+            <section class="shipment-create-options">
+              <span>{{ content.options }}</span>
+              <div class="shipment-option-row">
+                <label :class="{ 'is-selected': createForm.temperatureRequired }">
+                  <input v-model="createForm.temperatureRequired" type="checkbox" />
+                  {{ content.temperatureRequired }}
+                </label>
+                <label :class="{ 'is-selected': createForm.sealedPackagingRequired }">
+                  <input v-model="createForm.sealedPackagingRequired" type="checkbox" />
+                  {{ content.sealedPackagingRequired }}
+                </label>
+                <label :class="{ 'is-selected': createForm.fragile }">
+                  <input v-model="createForm.fragile" type="checkbox" />
+                  {{ content.fragile }}
+                </label>
+              </div>
+            </section>
+          </aside>
         </div>
 
         <div v-if="orderErrorMessage" class="page-table__empty">{{ orderErrorMessage }}</div>
@@ -2289,13 +2346,20 @@ onMounted(() => {
 }
 
 :global(.base-modal__surface:has(.shipment-create-modal)) {
-  width: min(calc(100vw - 48px), 920px);
-  max-width: 920px;
+  width: min(calc(100vw - 48px), 1120px);
+  max-width: 1120px;
   max-height: min(88vh, 900px);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:global(.base-modal__surface--page:has(.shipment-create-modal)) {
+  max-height: none;
+  margin-inline: auto;
 }
 
 :global(.base-modal__surface:has(.shipment-create-modal) .base-modal__body) {
-  padding: 22px 24px 24px;
+  padding: 24px 28px 28px;
 }
 
 :global(.base-modal__surface:has(.shipment-create-modal) .base-modal__footer .page-button) {
@@ -2317,31 +2381,201 @@ onMounted(() => {
 }
 
 .shipment-create-modal {
-  --ship-border: #e5e9f0;
-  --ship-text: #111827;
-  --ship-muted: #667085;
-  --ship-faint: #98a2b3;
+  --ship-border: rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
+  --ship-strong-border: rgb(var(--outline-variant-rgb, 71 71 71) / 0.42);
+  --ship-surface: rgb(var(--surface-container-low-rgb, 245 245 245) / 0.9);
+  --ship-field: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.96);
+  --ship-text: var(--on-surface, #121212);
+  --ship-muted: var(--on-surface-variant, #474747);
+  --ship-faint: #919191;
 
   display: grid;
-  gap: 14px;
+  gap: 16px;
+}
+
+.shipment-create-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.shipment-create-primary,
+.shipment-create-aside,
+.shipment-create-spec,
+.shipment-create-options {
+  border: 1px solid var(--ship-border);
+  border-radius: 0;
+  background: var(--ship-surface);
+}
+
+.shipment-create-primary {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border-left: 4px solid var(--ship-text);
+}
+
+.shipment-create-aside {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  background: transparent;
+}
+
+.shipment-create-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--ship-border);
+}
+
+.shipment-create-section-head span,
+.shipment-create-spec span,
+.shipment-create-spec-grid span,
+.shipment-create-options > span {
+  color: var(--ship-muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shipment-create-section-head h3 {
+  margin: 4px 0 0;
+  color: var(--ship-text);
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.shipment-create-section-head > strong {
+  color: var(--ship-text);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+
+.shipment-create-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .shipment-create-modal .shipment-form-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
 .shipment-create-modal .shipment-field {
   border: 1px solid var(--ship-border);
   border-radius: 0;
   padding: 12px;
-  background: #f8fafc;
+  background: var(--ship-field);
 }
 
 .shipment-create-modal .shipment-field .page-input {
-  min-height: 40px;
+  min-height: 44px;
+  border: 0;
+  border-bottom: 2px solid var(--ship-strong-border);
   border-radius: 0;
-  background: #fff;
+  background: transparent;
+}
+
+.shipment-create-modal .shipment-field .page-input:focus {
+  border-bottom-color: var(--ship-text);
+  box-shadow: none;
+  outline: none;
+}
+
+.shipment-create-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.shipment-create-route > div {
+  min-height: 92px;
+  border: 1px solid var(--ship-border);
+  border-radius: 0;
+  padding: 14px;
+  background: var(--ship-field);
+}
+
+.shipment-create-route span {
+  display: block;
+  color: var(--ship-muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shipment-create-route strong {
+  display: block;
+  margin-top: 12px;
+  color: var(--ship-text);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.shipment-create-route em {
+  display: grid;
+  place-items: center;
+  color: var(--ship-faint);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.shipment-create-spec,
+.shipment-create-options {
+  padding: 14px;
+}
+
+.shipment-create-spec {
+  border-left: 4px solid var(--ship-text);
+}
+
+.shipment-create-spec strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--ship-text);
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.shipment-create-spec p {
+  margin: 8px 0 0;
+  color: var(--ship-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.shipment-create-spec-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shipment-create-spec-grid > div {
+  min-height: 86px;
+  border: 1px solid var(--ship-border);
+  border-radius: 0;
+  padding: 12px;
+  background: var(--ship-field);
+}
+
+.shipment-create-spec-grid strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--ship-text);
+  font-size: 1.05rem;
+  line-height: 1.2;
+  word-break: keep-all;
+}
+
+.shipment-create-options {
+  display: grid;
+  gap: 12px;
 }
 
 .shipment-date-time-row {
@@ -2581,6 +2815,20 @@ onMounted(() => {
 
   .korea-map-layout :deep(.shipment-korea-map) {
     min-height: 420px;
+  }
+
+  .shipment-create-shell,
+  .shipment-create-route {
+    grid-template-columns: 1fr;
+  }
+
+  .shipment-create-route em {
+    min-height: 18px;
+    transform: rotate(90deg);
+  }
+
+  .shipment-create-spec-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
