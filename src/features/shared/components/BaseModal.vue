@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { resolveDefaultCopy } from '../../../config/defaultCopy'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 
@@ -11,6 +11,7 @@ const props = withDefaults(
     closeOnBackdrop?: boolean
     closeOnEscape?: boolean
     size?: 'sm' | 'md' | 'lg'
+    presentation?: 'modal' | 'page'
     hideEyebrow?: boolean
     hideDividers?: boolean
     hideCloseButton?: boolean
@@ -20,6 +21,7 @@ const props = withDefaults(
     closeOnBackdrop: true,
     closeOnEscape: true,
     size: 'md',
+    presentation: 'modal',
     hideEyebrow: false,
     hideDividers: false,
     hideCloseButton: false,
@@ -32,6 +34,7 @@ const emit = defineEmits<{
 }>()
 
 const preferences = useAtlasPreferencesStore()
+const isPagePresentation = computed(() => props.presentation === 'page')
 
 function close() {
   emit('update:modelValue', false)
@@ -45,7 +48,12 @@ function handleBackdropClick() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.modelValue && props.closeOnEscape) {
+  if (
+    event.key === 'Escape' &&
+    props.modelValue &&
+    props.closeOnEscape &&
+    !isPagePresentation.value
+  ) {
     close()
   }
 }
@@ -53,7 +61,7 @@ function handleKeydown(event: KeyboardEvent) {
 watch(
   () => props.modelValue,
   (isOpen) => {
-    document.body.style.overflow = isOpen ? 'hidden' : ''
+    document.body.style.overflow = isOpen && !isPagePresentation.value ? 'hidden' : ''
   },
 )
 
@@ -68,8 +76,57 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <div v-if="isPagePresentation && modelValue" class="base-modal-page" role="region" :aria-label="title">
+    <section
+      :class="[
+        'base-modal__surface',
+        `base-modal__surface--${size}`,
+        'base-modal__surface--page',
+        { 'base-modal__surface--clean': hideDividers },
+      ]"
+    >
+      <header
+        class="base-modal__header"
+        :style="props.hideDividers ? { borderBottom: '0', paddingBottom: '16px' } : undefined"
+      >
+        <div class="base-modal__heading">
+          <span v-if="!props.hideEyebrow && !isPagePresentation" class="base-modal__eyebrow">
+            {{ resolveDefaultCopy('Modal', preferences.language) }}
+          </span>
+          <h2>{{ resolveDefaultCopy(title, preferences.language) }}</h2>
+          <p v-if="description">{{ resolveDefaultCopy(description, preferences.language) }}</p>
+        </div>
+
+        <div class="base-modal__header-actions">
+          <slot name="header-actions" />
+
+          <button
+            v-if="!props.hideCloseButton"
+            class="page-button page-button--secondary base-modal__close"
+            type="button"
+            :aria-label="resolveDefaultCopy('Close modal', preferences.language)"
+            @click="close"
+          >
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+      </header>
+
+      <div v-if="$slots.default" class="base-modal__body">
+        <slot />
+      </div>
+      <footer
+        v-if="$slots.footer"
+        class="base-modal__footer"
+        :style="props.hideDividers ? { borderTop: '0', paddingTop: '0' } : undefined"
+      >
+        <slot name="footer" />
+      </footer>
+    </section>
+  </div>
+
   <Teleport to="body">
-    <div v-if="modelValue" class="base-modal" role="dialog" aria-modal="true" :aria-label="title">
+    <div v-if="!isPagePresentation && modelValue" class="base-modal" role="dialog" aria-modal="true" :aria-label="title">
       <div class="base-modal__backdrop" @click="handleBackdropClick" />
 
 <section

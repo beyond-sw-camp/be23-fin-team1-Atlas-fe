@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useActorScope } from '../../../composables/useActorScope'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
@@ -17,6 +18,7 @@ type InventoryTabKey = 'ALL' | InventoryStatus
 
 const actor = useActorScope()
 const preferences = useAtlasPreferencesStore()
+const router = useRouter()
 
 const rows = ref<ItemInventoryResponseDto[]>([])
 const items = ref<ItemResponseDto[]>([])
@@ -51,35 +53,168 @@ const computedExpirationDate = computed(() => {
   return date.toISOString().slice(0, 10)
 })
 
-const copy = computed(() => ({
-  eyebrow: '공급망 운영 / 재고 관리',
-  title: '재고 관리',
-  subtitle: '품목별 제조일, 유통기한, 예약 수량 기준으로 재고를 관리합니다.',
-  createLabel: '재고 생성',
-  exportLabel: '내보내기',
-  searchPlaceholder: '품목명, 품목코드, 상태 검색',
-  tableTitle: '재고 목록',
-  columns: [
-    '품목코드',
-    '품목명',
-    '단위',
-    '제조일',
-    '유통기한',
-    '초기 수량',
-    '잔여 수량',
-    '예약 수량',
-    '주문 가능',
-    '상태',
-    '상세',
-  ],
-}))
+const copy = computed(() =>
+  preferences.language === 'ko'
+    ? {
+        eyebrow: '공급망 운영 / 재고 관리',
+        title: '재고 관리',
+        createLabel: '재고 생성',
+        exportLabel: '내보내기',
+        searchPlaceholder: '품목명, 품목코드, 상태 검색',
+        tableTitle: '재고 목록',
+        detailButton: '상세',
+        detailTitle: '재고 상세',
+        detailFallback: '재고 상세',
+        detailEyebrow: '상세',
+        editInventory: '재고 수정',
+        deleteInventory: '재고 삭제',
+        createModalTitle: '재고 생성',
+        createModalDescription: '품목을 선택하고 유통기한별 재고를 생성합니다.',
+        editModalTitle: '재고 수정',
+        editModalDescription: '예약되지 않은 정상 재고만 수정할 수 있습니다.',
+        item: '품목',
+        selectItem: '품목 선택',
+        cancel: '취소',
+        createDone: '생성 완료',
+        save: '저장',
+        fields: {
+          itemCode: '품목코드',
+          itemName: '품목명',
+          unit: '단위',
+          manufacturedDate: '제조일',
+          expirationDate: '유통기한',
+          initialQty: '초기 수량',
+          remainingQty: '잔여 수량',
+          reservedQty: '예약 수량',
+          availableQty: '주문 가능',
+          status: '상태',
+          memo: '메모',
+          qty: '수량',
+        },
+        columns: [
+          '품목코드',
+          '품목명',
+          '단위',
+          '제조일',
+          '유통기한',
+          '초기 수량',
+          '잔여 수량',
+          '예약 수량',
+          '주문 가능',
+          '상태',
+          '상세',
+        ],
+        tabs: {
+          ALL: '전체',
+          ACTIVE: '정상',
+          RESERVED: '예약',
+          EXHAUSTED: '소진',
+          EXPIRED: '만료',
+          DELETED: '삭제',
+        },
+        metrics: {
+          totalRemaining: '총 잔여 재고',
+          totalReserved: '예약 재고',
+          totalAvailable: '주문 가능 재고',
+          expiredCount: '만료 재고',
+        },
+        messages: {
+          listFail: '재고 목록을 불러오지 못했습니다.',
+          selectItem: '품목을 선택해 주세요.',
+          manufacturedDate: '제조일을 입력해 주세요.',
+          expirationDate: '유통기한을 입력해 주세요.',
+          invalidDate: '유통기한은 제조일보다 빠를 수 없습니다.',
+          invalidQty: '수량은 1 이상이어야 합니다.',
+          createFail: '재고 생성에 실패했습니다.',
+          editFail: '재고 수정에 실패했습니다.',
+          deleteConfirm: '이 재고를 삭제/폐기하시겠습니까?',
+          deleteFail: '재고 삭제에 실패했습니다.',
+        },
+      }
+    : {
+        eyebrow: 'Supply Operations / Inventory',
+        title: 'Inventory',
+        createLabel: 'Create Inventory',
+        exportLabel: 'Export',
+        searchPlaceholder: 'Search item name, item code, or status',
+        tableTitle: 'Inventory List',
+        detailButton: 'Detail',
+        detailTitle: 'Inventory Detail',
+        detailFallback: 'Inventory Detail',
+        detailEyebrow: 'Detail',
+        editInventory: 'Edit Inventory',
+        deleteInventory: 'Delete Inventory',
+        createModalTitle: 'Create Inventory',
+        createModalDescription: 'Select an item and create inventory by expiration date.',
+        editModalTitle: 'Edit Inventory',
+        editModalDescription: 'Only active inventory with no reservation can be edited.',
+        item: 'Item',
+        selectItem: 'Select item',
+        cancel: 'Cancel',
+        createDone: 'Create',
+        save: 'Save',
+        fields: {
+          itemCode: 'Item Code',
+          itemName: 'Item Name',
+          unit: 'Unit',
+          manufacturedDate: 'Manufactured Date',
+          expirationDate: 'Expiration Date',
+          initialQty: 'Initial Qty',
+          remainingQty: 'Remaining Qty',
+          reservedQty: 'Reserved Qty',
+          availableQty: 'Available Qty',
+          status: 'Status',
+          memo: 'Memo',
+          qty: 'Qty',
+        },
+        columns: [
+          'Item Code',
+          'Item Name',
+          'Unit',
+          'Manufactured Date',
+          'Expiration Date',
+          'Initial Qty',
+          'Remaining Qty',
+          'Reserved Qty',
+          'Available Qty',
+          'Status',
+          'Detail',
+        ],
+        tabs: {
+          ALL: 'All',
+          ACTIVE: 'Active',
+          RESERVED: 'Reserved',
+          EXHAUSTED: 'Exhausted',
+          EXPIRED: 'Expired',
+          DELETED: 'Deleted',
+        },
+        metrics: {
+          totalRemaining: 'Total Remaining',
+          totalReserved: 'Reserved',
+          totalAvailable: 'Available to Order',
+          expiredCount: 'Expired',
+        },
+        messages: {
+          listFail: 'Failed to load inventory.',
+          selectItem: 'Select an item.',
+          manufacturedDate: 'Enter the manufactured date.',
+          expirationDate: 'Enter the expiration date.',
+          invalidDate: 'Expiration date cannot be earlier than manufactured date.',
+          invalidQty: 'Quantity must be at least 1.',
+          createFail: 'Failed to create inventory.',
+          editFail: 'Failed to update inventory.',
+          deleteConfirm: 'Delete or dispose this inventory?',
+          deleteFail: 'Failed to delete inventory.',
+        },
+      },
+)
 
 const tabs = computed(() => [
-  { key: 'ALL' as const, label: '전체' },
-  { key: 'ACTIVE' as const, label: '정상' },
-  { key: 'RESERVED' as const, label: '예약' },
-  { key: 'EXHAUSTED' as const, label: '소진' },
-  { key: 'EXPIRED' as const, label: '만료' },
+  { key: 'ALL' as const, label: copy.value.tabs.ALL },
+  { key: 'ACTIVE' as const, label: copy.value.tabs.ACTIVE },
+  { key: 'RESERVED' as const, label: copy.value.tabs.RESERVED },
+  { key: 'EXHAUSTED' as const, label: copy.value.tabs.EXHAUSTED },
+  { key: 'EXPIRED' as const, label: copy.value.tabs.EXPIRED },
 ])
 
 const metrics = computed(() => {
@@ -89,10 +224,10 @@ const metrics = computed(() => {
   const expiredCount = rows.value.filter((row) => row.status === 'EXPIRED').length
 
   return [
-    { label: '총 잔여 재고', value: formatNumber(totalRemaining) },
-    { label: '예약 재고', value: formatNumber(totalReserved) },
-    { label: '주문 가능 재고', value: formatNumber(totalAvailable) },
-    { label: '만료 재고', value: formatNumber(expiredCount) },
+    { label: copy.value.metrics.totalRemaining, value: formatNumber(totalRemaining) },
+    { label: copy.value.metrics.totalReserved, value: formatNumber(totalReserved) },
+    { label: copy.value.metrics.totalAvailable, value: formatNumber(totalAvailable) },
+    { label: copy.value.metrics.expiredCount, value: formatNumber(expiredCount) },
   ]
 })
 
@@ -113,24 +248,11 @@ const filteredRows = computed(() => {
 
 function formatNumber(value: number | null | undefined) {
   if (value == null) return '-'
-  return value.toLocaleString('ko-KR')
+  return value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')
 }
 
 function statusText(status: InventoryStatus) {
-  switch (status) {
-    case 'ACTIVE':
-      return '정상'
-    case 'RESERVED':
-      return '예약'
-    case 'EXHAUSTED':
-      return '소진'
-    case 'EXPIRED':
-      return '만료'
-    case 'DELETED':
-      return '삭제'
-    default:
-      return status
-  }
+  return copy.value.tabs[status] ?? status
 }
 
 function canEdit(row: ItemInventoryResponseDto) {
@@ -155,7 +277,7 @@ async function fetchPageData() {
     items.value = itemPage.content
   } catch (error: any) {
     rows.value = []
-    errorMessage.value = error.message ?? '재고 목록을 불러오지 못했습니다.'
+    errorMessage.value = error.message ?? copy.value.messages.listFail
   }
 }
 
@@ -181,8 +303,10 @@ function closeCreateModal() {
 }
 
 function openDetail(row: ItemInventoryResponseDto) {
-  selectedInventory.value = row
-  detailModalOpen.value = true
+  router.push({
+    name: 'operationDetail',
+    params: { kind: 'inventory', publicId: row.inventoryPublicId },
+  })
 }
 
 function closeDetail() {
@@ -210,9 +334,9 @@ function closeEditModal() {
 }
 
 function validateForm(isCreate: boolean) {
-  if (isCreate && !form.value.itemPublicId) return '품목을 선택해 주세요.'
-  if (!form.value.manufacturedDate) return '제조일을 입력해 주세요.'
-  if (!form.value.qty || form.value.qty <= 0) return '수량은 1 이상이어야 합니다.'
+  if (isCreate && !form.value.itemPublicId) return copy.value.messages.selectItem
+  if (!form.value.manufacturedDate) return copy.value.messages.manufacturedDate
+  if (!form.value.qty || form.value.qty <= 0) return copy.value.messages.invalidQty
   return ''
 }
 
@@ -234,7 +358,7 @@ async function submitCreate() {
     await fetchPageData()
     closeCreateModal()
   } catch (error: any) {
-    formErrorMessage.value = error.message ?? '재고 생성에 실패했습니다.'
+    formErrorMessage.value = error.message ?? copy.value.messages.createFail
   } finally {
     loading.value = false
   }
@@ -261,7 +385,7 @@ async function submitEdit() {
     await fetchPageData()
     closeEditModal()
   } catch (error: any) {
-    formErrorMessage.value = error.message ?? '재고 수정에 실패했습니다.'
+    formErrorMessage.value = error.message ?? copy.value.messages.editFail
   } finally {
     loading.value = false
   }
@@ -269,14 +393,14 @@ async function submitEdit() {
 
 async function submitDelete() {
   if (!selectedInventory.value || !canDelete(selectedInventory.value)) return
-  if (!window.confirm('이 재고를 삭제/폐기하시겠습니까?')) return
+  if (!window.confirm(copy.value.messages.deleteConfirm)) return
 
   try {
     await deleteInventory(selectedInventory.value.inventoryPublicId)
     await fetchPageData()
     closeDetail()
   } catch (error: any) {
-    errorMessage.value = error.message ?? '재고 삭제에 실패했습니다.'
+    errorMessage.value = error.message ?? copy.value.messages.deleteFail
   }
 }
 
@@ -359,7 +483,7 @@ onMounted(() => {
             <span>{{ statusText(row.status) }}</span>
             <span>
               <button class="page-button page-button--secondary" type="button" @click="openDetail(row)">
-                상세
+                {{ copy.detailButton }}
               </button>
             </span>
           </div>
@@ -369,8 +493,8 @@ onMounted(() => {
 
     <BaseModal
       v-model="detailModalOpen"
-      title="재고 상세"
-      :description="selectedInventory?.itemName ?? '재고 상세'"
+      :title="copy.detailTitle"
+      :description="selectedInventory?.itemName ?? copy.detailFallback"
       size="lg"
       @close="closeDetail"
     >
@@ -378,42 +502,42 @@ onMounted(() => {
         <article class="page-panel">
           <div class="page-panel__head">
             <div>
-              <div class="page-panel__eyebrow">DETAIL</div>
+              <div class="page-panel__eyebrow">{{ copy.detailEyebrow }}</div>
               <h3>{{ selectedInventory.itemName }}</h3>
             </div>
             <span class="page-panel__chip">{{ statusText(selectedInventory.status) }}</span>
           </div>
 
           <div class="page-feed inventory-page__detail-grid">
-            <div class="page-feed__item"><span class="page-feed__label">품목코드</span><strong class="page-feed__text">{{ selectedInventory.itemCode }}</strong></div>
-            <div class="page-feed__item"><span class="page-feed__label">단위</span><strong class="page-feed__text">{{ selectedInventory.unit }}</strong></div>
-            <div class="page-feed__item"><span class="page-feed__label">제조일</span><strong class="page-feed__text">{{ selectedInventory.manufacturedDate }}</strong></div>
-            <div class="page-feed__item"><span class="page-feed__label">유통기한</span><strong class="page-feed__text">{{ selectedInventory.expirationDate }}</strong></div>
-            <div class="page-feed__item"><span class="page-feed__label">초기 수량</span><strong class="page-feed__text">{{ formatNumber(selectedInventory.initialQty) }}</strong></div>
-            <div class="page-feed__item"><span class="page-feed__label">잔여 수량</span><strong class="page-feed__text">{{ formatNumber(selectedInventory.remainingQty) }}</strong></div>
-            <div class="page-feed__item"><span class="page-feed__label">예약 수량</span><strong class="page-feed__text">{{ formatNumber(selectedInventory.reservedQty) }}</strong></div>
-            <div class="page-feed__item"><span class="page-feed__label">주문 가능</span><strong class="page-feed__text">{{ formatNumber(selectedInventory.availableQty) }}</strong></div>
-            <div class="page-feed__item inventory-page__field--full"><span class="page-feed__label">메모</span><strong class="page-feed__text">{{ selectedInventory.memo || '-' }}</strong></div>
+            <div class="page-feed__item"><span class="page-feed__label">{{ copy.fields.itemCode }}</span><strong class="page-feed__text">{{ selectedInventory.itemCode }}</strong></div>
+            <div class="page-feed__item"><span class="page-feed__label">{{ copy.fields.unit }}</span><strong class="page-feed__text">{{ selectedInventory.unit }}</strong></div>
+            <div class="page-feed__item"><span class="page-feed__label">{{ copy.fields.manufacturedDate }}</span><strong class="page-feed__text">{{ selectedInventory.manufacturedDate }}</strong></div>
+            <div class="page-feed__item"><span class="page-feed__label">{{ copy.fields.expirationDate }}</span><strong class="page-feed__text">{{ selectedInventory.expirationDate }}</strong></div>
+            <div class="page-feed__item"><span class="page-feed__label">{{ copy.fields.initialQty }}</span><strong class="page-feed__text">{{ formatNumber(selectedInventory.initialQty) }}</strong></div>
+            <div class="page-feed__item"><span class="page-feed__label">{{ copy.fields.remainingQty }}</span><strong class="page-feed__text">{{ formatNumber(selectedInventory.remainingQty) }}</strong></div>
+            <div class="page-feed__item"><span class="page-feed__label">{{ copy.fields.reservedQty }}</span><strong class="page-feed__text">{{ formatNumber(selectedInventory.reservedQty) }}</strong></div>
+            <div class="page-feed__item"><span class="page-feed__label">{{ copy.fields.availableQty }}</span><strong class="page-feed__text">{{ formatNumber(selectedInventory.availableQty) }}</strong></div>
+            <div class="page-feed__item inventory-page__field--full"><span class="page-feed__label">{{ copy.fields.memo }}</span><strong class="page-feed__text">{{ selectedInventory.memo || '-' }}</strong></div>
           </div>
         </article>
 
         <div class="inventory-page__actions">
           <button class="page-button page-button--secondary" type="button" :disabled="!canEdit(selectedInventory)" @click="openEditModal">
-            재고 수정
+            {{ copy.editInventory }}
           </button>
           <button class="page-button page-button--secondary" type="button" :disabled="!canDelete(selectedInventory)" @click="submitDelete">
-            재고 삭제
+            {{ copy.deleteInventory }}
           </button>
         </div>
       </div>
     </BaseModal>
 
-    <BaseModal v-model="createModalOpen" title="재고 생성" description="품목을 선택하고 유통기한별 재고를 생성합니다." size="md" @close="closeCreateModal">
+    <BaseModal v-model="createModalOpen" :title="copy.createModalTitle" :description="copy.createModalDescription" size="md" @close="closeCreateModal">
       <div class="inventory-page__form">
         <label class="inventory-page__field">
-          <span>품목</span>
+          <span>{{ copy.item }}</span>
           <select v-model="form.itemPublicId">
-            <option value="">품목 선택</option>
+            <option value="">{{ copy.selectItem }}</option>
             <option v-for="item in items" :key="item.publicId" :value="item.publicId">
               {{ item.itemCode }} / {{ item.itemName }} / {{ item.unit }}
             </option>
@@ -421,53 +545,47 @@ onMounted(() => {
         </label>
 
         <label class="inventory-page__field">
-            <span>제조일</span>
-            <input v-model="form.manufacturedDate" type="date" />
-            </label>
+          <span>{{ copy.fields.manufacturedDate }}</span>
+          <input v-model="form.manufacturedDate" type="date" />
+        </label>
 
-            <label class="inventory-page__field">
-            <span>유통기한</span>
-            <input :value="computedExpirationDate" type="date" readonly />
-            </label>
+        <label class="inventory-page__field">
+          <span>{{ copy.fields.expirationDate }}</span>
+          <input :value="computedExpirationDate" type="date" readonly />
+        </label>
 
-            <label class="inventory-page__field">
-            <span>수량</span>
-            <input v-model.number="form.qty" type="number" min="1" step="1" />
-            </label>
-        <label class="inventory-page__field inventory-page__field--full"><span>메모</span><textarea v-model="form.memo" /></label>
+        <label class="inventory-page__field"><span>{{ copy.fields.qty }}</span><input v-model.number="form.qty" type="number" min="1" step="1" /></label>
+        <label class="inventory-page__field inventory-page__field--full"><span>{{ copy.fields.memo }}</span><textarea v-model="form.memo" /></label>
 
         <p v-if="formErrorMessage" class="inventory-page__error">{{ formErrorMessage }}</p>
 
         <div class="inventory-page__actions">
-          <button class="page-button page-button--secondary" type="button" @click="closeCreateModal">취소</button>
-          <button class="page-button page-button--primary" type="button" :disabled="loading" @click="submitCreate">생성 완료</button>
+          <button class="page-button page-button--secondary" type="button" @click="closeCreateModal">{{ copy.cancel }}</button>
+          <button class="page-button page-button--primary" type="button" :disabled="loading" @click="submitCreate">{{ copy.createDone }}</button>
         </div>
       </div>
     </BaseModal>
 
-    <BaseModal v-model="editModalOpen" title="재고 수정" description="예약되지 않은 정상 재고만 수정할 수 있습니다." size="md" @close="closeEditModal">
+    <BaseModal v-model="editModalOpen" :title="copy.editModalTitle" :description="copy.editModalDescription" size="md" @close="closeEditModal">
       <div class="inventory-page__form">
         <label class="inventory-page__field">
-            <span>제조일</span>
-            <input v-model="form.manufacturedDate" type="date" />
-            </label>
+          <span>{{ copy.fields.manufacturedDate }}</span>
+          <input v-model="form.manufacturedDate" type="date" />
+        </label>
 
-            <label class="inventory-page__field">
-            <span>유통기한</span>
-            <input :value="computedExpirationDate" type="date" readonly />
-            </label>
+        <label class="inventory-page__field">
+          <span>{{ copy.fields.expirationDate }}</span>
+          <input :value="computedExpirationDate" type="date" readonly />
+        </label>
 
-            <label class="inventory-page__field">
-            <span>수량</span>
-            <input v-model.number="form.qty" type="number" min="1" step="1" />
-            </label>
-        <label class="inventory-page__field inventory-page__field--full"><span>메모</span><textarea v-model="form.memo" /></label>
+        <label class="inventory-page__field"><span>{{ copy.fields.qty }}</span><input v-model.number="form.qty" type="number" min="1" step="1" /></label>
+        <label class="inventory-page__field inventory-page__field--full"><span>{{ copy.fields.memo }}</span><textarea v-model="form.memo" /></label>
 
         <p v-if="formErrorMessage" class="inventory-page__error">{{ formErrorMessage }}</p>
 
         <div class="inventory-page__actions">
-          <button class="page-button page-button--secondary" type="button" @click="closeEditModal">취소</button>
-          <button class="page-button page-button--primary" type="button" :disabled="loading" @click="submitEdit">저장</button>
+          <button class="page-button page-button--secondary" type="button" @click="closeEditModal">{{ copy.cancel }}</button>
+          <button class="page-button page-button--primary" type="button" :disabled="loading" @click="submitEdit">{{ copy.save }}</button>
         </div>
       </div>
     </BaseModal>

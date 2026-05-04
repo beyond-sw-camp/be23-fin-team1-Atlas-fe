@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { getReturnRequests, type ReturnRequestResponseDto } from '../../../services/return'
 import { getOrganizations } from '../../../services/organization'
 import { useAtlasHeaderStore } from '../../../stores/header'
@@ -9,12 +10,15 @@ import ReturnTimelineModal from '../components/ReturnTimelineModal.vue'
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
+const route = useRoute()
+const router = useRouter()
 
 const activeTab = ref<'ALL' | 'REQUESTED' | 'IN_TRANSIT' | 'COMPLETED'>('ALL')
 const returns = ref<ReturnRequestResponseDto[]>([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const isCreateModalOpen = ref(false)
+const isCreatePage = computed(() => route.name === 'returnCreate')
 const isTimelineModalOpen = ref(false)
 const selectedReturn = ref<ReturnRequestResponseDto | null>(null)
 const orgNameMap = ref<Record<string, string>>({})
@@ -39,13 +43,24 @@ const CONTENT = {
     },
     metrics: {
       total: '총 반품',
-      pending: '요청/승인',
-      moving: '회수 중',
-      done: '완료',
-      totalMeta: '전체 건수',
+      returnRate: '전체 반품율',
+      recovery: '회수 진행률',
+      completed: '처리 완료율',
       pendingMeta: '처리 대기',
-      movingMeta: '이동 진행',
-      doneMeta: '처리 완료',
+      returnRateMeta: '출하 모수 필요',
+      recoveryMeta: '회수/입고 진행',
+      completedMeta: '완료 건수 기준',
+    },
+    insight: {
+      reason: '반품 사유',
+      resolution: '처리 방식',
+      quantity: '반품 수량',
+      watch: '주의 필요',
+      reasonMeta: '최다 발생 사유',
+      resolutionMeta: '주요 처리 방식',
+      quantityMeta: '품목 수량 합계',
+      watchMeta: '요청/승인 대기',
+      noData: '데이터 없음',
     },
   },
   en: {
@@ -67,13 +82,24 @@ const CONTENT = {
     },
     metrics: {
       total: 'TOTAL RETURNS',
-      pending: 'PENDING',
-      moving: 'IN TRANSIT',
-      done: 'COMPLETED',
-      totalMeta: 'ALL RECORDS',
+      returnRate: 'RETURN RATE',
+      recovery: 'RECOVERY RATE',
+      completed: 'COMPLETION RATE',
       pendingMeta: 'AWAITING',
-      movingMeta: 'SHIPPING',
-      doneMeta: 'DONE',
+      returnRateMeta: 'SHIPMENT BASE NEEDED',
+      recoveryMeta: 'IN TRANSIT/RECEIVED',
+      completedMeta: 'COMPLETED RECORDS',
+    },
+    insight: {
+      reason: 'RETURN REASON',
+      resolution: 'RESOLUTION',
+      quantity: 'RETURN QTY',
+      watch: 'WATCH',
+      reasonMeta: 'TOP REASON',
+      resolutionMeta: 'PRIMARY METHOD',
+      quantityMeta: 'TOTAL ITEM QUANTITY',
+      watchMeta: 'REQUESTED/APPROVED',
+      noData: 'NO DATA',
     },
   },
 } as const
@@ -109,41 +135,85 @@ const tabs = computed(() => [
 
 const metrics = computed(() => {
   const all = returns.value
-  const requested = all.filter(
-    (item) => item.returnStatus === 'REQUESTED' || item.returnStatus === 'APPROVED',
-  ).length
   const inTransit = all.filter(
     (item) => item.returnStatus === 'IN_TRANSIT' || item.returnStatus === 'RECEIVED',
   ).length
   const completed = all.filter((item) => item.returnStatus === 'COMPLETED').length
+  const recoveryRate = all.length > 0 ? Math.round((inTransit / all.length) * 100) : 0
+  const completedRate = all.length > 0 ? Math.round((completed / all.length) * 100) : 0
 
   return [
     {
       label: content.value.metrics.total,
       value: String(all.length),
-      meta: content.value.metrics.totalMeta,
+      meta: content.value.metrics.pendingMeta,
       tone: 'nominal',
     },
     {
-      label: content.value.metrics.pending,
-      value: String(requested),
-      meta: content.value.metrics.pendingMeta,
+      label: content.value.metrics.returnRate,
+      value: '-',
+      meta: content.value.metrics.returnRateMeta,
       tone: 'warning',
     },
     {
-      label: content.value.metrics.moving,
-      value: String(inTransit),
-      meta: content.value.metrics.movingMeta,
+      label: content.value.metrics.recovery,
+      value: `${recoveryRate}%`,
+      meta: content.value.metrics.recoveryMeta,
       tone: 'info',
     },
     {
-      label: content.value.metrics.done,
-      value: String(completed),
-      meta: content.value.metrics.doneMeta,
+      label: content.value.metrics.completed,
+      value: `${completedRate}%`,
+      meta: `${completed}${preferences.language === 'ko' ? '건 완료' : ' completed'}`,
       tone: 'nominal',
     },
   ]
 })
+
+const insights = computed(() => {
+  const topReturnType = getTopValue(returns.value.map((item) => item.returnType))
+  const topResolutionType = getTopValue(returns.value.map((item) => item.resolutionType))
+  const returnedItems = returns.value.reduce(
+    (sum, item) => sum + item.items.reduce((itemSum, returnItem) => itemSum + returnItem.returnQty, 0),
+    0,
+  )
+  const pending = returns.value.filter(
+    (item) => item.returnStatus === 'REQUESTED' || item.returnStatus === 'APPROVED',
+  ).length
+
+  return [
+    {
+      label: content.value.insight.reason,
+      value: topReturnType ? returnTypeText(topReturnType.value) : content.value.insight.noData,
+      meta: topReturnType ? `${topReturnType.count}${preferences.language === 'ko' ? '건' : ' cases'}` : content.value.insight.reasonMeta,
+    },
+    {
+      label: content.value.insight.resolution,
+      value: topResolutionType ? resolutionTypeText(topResolutionType.value) : content.value.insight.noData,
+      meta: topResolutionType ? `${topResolutionType.count}${preferences.language === 'ko' ? '건' : ' cases'}` : content.value.insight.resolutionMeta,
+    },
+    {
+      label: content.value.insight.quantity,
+      value: String(returnedItems),
+      meta: content.value.insight.quantityMeta,
+    },
+    {
+      label: content.value.insight.watch,
+      value: String(pending),
+      meta: content.value.insight.watchMeta,
+    },
+  ]
+})
+
+function getTopValue(values: string[]) {
+  const counts = values.reduce<Record<string, number>>((acc, value) => {
+    if (!value) return acc
+    acc[value] = (acc[value] ?? 0) + 1
+    return acc
+  }, {})
+  const [value, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] ?? []
+  return value ? { value, count } : null
+}
 
 function formatDate(value?: string | null) {
   if (!value) return '-'
@@ -244,8 +314,28 @@ function openTimeline(returnRequest: ReturnRequestResponseDto) {
   isTimelineModalOpen.value = true
 }
 
-function handleCreateSuccess() {
+function openReturnDetailPage(returnRequest: ReturnRequestResponseDto) {
+  router.push({
+    name: 'operationDetail',
+    params: { kind: 'returns', publicId: returnRequest.publicId },
+  })
+}
+
+function openCreatePage() {
+  if (isCreatePage.value) return
+  router.push({ name: 'returnCreate' })
+}
+
+function closeCreatePage() {
   isCreateModalOpen.value = false
+
+  if (isCreatePage.value) {
+    router.push({ name: 'returns' })
+  }
+}
+
+function handleCreateSuccess() {
+  closeCreatePage()
   fetchReturns()
 }
 
@@ -264,8 +354,8 @@ onBeforeUnmount(() => header.clearActions())
 </script>
 
 <template>
-  <section class="app-screen terminal-page">
-    <header class="terminal-page__header">
+  <section class="app-screen terminal-page returns-page">
+    <header v-if="!isCreatePage" class="terminal-page__header">
       <div>
         <div class="terminal-page__eyebrow">{{ content.eyebrow }}</div>
         <h2 class="terminal-page__title">{{ content.title }}</h2>
@@ -275,13 +365,13 @@ onBeforeUnmount(() => header.clearActions())
         <button class="page-button page-button--secondary" type="button" @click="fetchReturns">
           {{ content.refresh }}
         </button>
-        <button class="page-button page-button--primary" type="button" @click="isCreateModalOpen = true">
+        <button class="page-button page-button--primary" type="button" @click="openCreatePage">
           {{ content.newReturn }}
         </button>
       </div>
     </header>
 
-    <section class="page-metrics terminal-page__metrics">
+    <section v-if="!isCreatePage" class="page-metrics terminal-page__metrics">
       <article v-for="metric in metrics" :key="metric.label" :class="['page-metric', `is-${metric.tone}`]">
         <span class="page-metric__label">{{ metric.label }}</span>
         <strong class="page-metric__value">{{ metric.value }}</strong>
@@ -289,7 +379,15 @@ onBeforeUnmount(() => header.clearActions())
       </article>
     </section>
 
-    <section class="terminal-page__content">
+    <section v-if="!isCreatePage" class="returns-page__insights">
+      <article v-for="insight in insights" :key="insight.label" class="returns-page__insight">
+        <span>{{ insight.label }}</span>
+        <strong>{{ insight.value }}</strong>
+        <small>{{ insight.meta }}</small>
+      </article>
+    </section>
+
+    <section v-if="!isCreatePage" class="terminal-page__content">
       <div class="terminal-page__main">
         <section class="terminal-page__filter">
           <div class="terminal-page__tabs">
@@ -318,7 +416,7 @@ onBeforeUnmount(() => header.clearActions())
           <div v-else-if="errorMessage" class="page-table__empty">{{ errorMessage }}</div>
           <div v-else-if="filteredReturns.length === 0" class="page-table__empty">{{ content.empty }}</div>
 
-          <div v-else class="page-table terminal-page__table is-eight-cols">
+          <div v-else class="page-table terminal-page__table returns-page__table">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
             </div>
@@ -339,7 +437,7 @@ onBeforeUnmount(() => header.clearActions())
                 <button
                   class="page-button page-button--secondary"
                   type="button"
-                  @click="openTimeline(item)"
+                  @click="openReturnDetailPage(item)"
                 >
                   {{ content.btnDetail }}
                 </button>
@@ -351,13 +449,15 @@ onBeforeUnmount(() => header.clearActions())
     </section>
 
     <ReturnCreateModal
-      :is-open="isCreateModalOpen"
+      :is-open="isCreatePage || isCreateModalOpen"
       :language="preferences.language"
-      @close="isCreateModalOpen = false"
+      :presentation="isCreatePage ? 'page' : 'modal'"
+      @close="closeCreatePage"
       @success="handleCreateSuccess"
     />
 
     <ReturnTimelineModal
+      v-if="!isCreatePage"
       :is-open="isTimelineModalOpen"
       :language="preferences.language"
       :target-return="selectedReturn"

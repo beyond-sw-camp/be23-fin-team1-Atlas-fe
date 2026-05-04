@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 필요한 Vue 함수만 한 번에 가져옵니다.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
@@ -54,6 +55,7 @@ type CreateSupplierFormState = {
 }
 
 const preferences = useAtlasPreferencesStore()
+const router = useRouter()
 // 현재 로그인 조직 타입을 확인하려고 세션 스토어를 씁니다.
 const session = useAtlasSessionStore()
 
@@ -93,6 +95,34 @@ const CONTENT = {
     regionTitle: '권역별 지출',
     detailTitle: '협력사 상세 조회',
     detailDescription: '선택한 협력사의 상세 정보를 확인합니다.',
+    createDescription: '관리자 권한으로 협력사 마스터를 등록합니다.',
+    form: {
+      organization: '협력사 조직',
+      selectOrganization: '조직을 선택하세요.',
+      supplierCode: '협력사 코드',
+      supplierCodePlaceholder: '예: SUP-001',
+      supplierName: '협력사명',
+      supplierNamePlaceholder: '협력사명을 입력하세요.',
+      contactName: '담당자명',
+      contactNamePlaceholder: '담당자명을 입력하세요.',
+      contactEmail: '담당자 이메일',
+      contactPhone: '담당자 연락처',
+      cancel: '취소',
+      submit: '등록',
+      loadingDetail: '상세 정보를 불러오는 중...',
+    },
+    detail: {
+      documentType: '문서유형',
+      documentNo: '문서번호',
+      parentPoNo: '상위발주번호',
+      role: '구분',
+      status: '상태',
+      orderedAt: '발주일시',
+      amount: '금액',
+      purchaseOrder: '메인 발주',
+      subPurchaseOrder: '서브 발주',
+      noRelatedOrders: '연결된 발주 이력이 없습니다.',
+    },
   },
   en: {
     eyebrow: 'Supply Chain Ops / Suppliers',
@@ -119,6 +149,34 @@ const CONTENT = {
     regionTitle: 'Spend By Region',
     detailTitle: 'Supplier Detail',
     detailDescription: 'Review the selected supplier detail information.',
+    createDescription: 'Create supplier master data as admin.',
+    form: {
+      organization: 'Supplier Organization',
+      selectOrganization: 'Select organization.',
+      supplierCode: 'Supplier Code',
+      supplierCodePlaceholder: 'e.g. SUP-001',
+      supplierName: 'Supplier Name',
+      supplierNamePlaceholder: 'Enter supplier name.',
+      contactName: 'Contact Name',
+      contactNamePlaceholder: 'Enter contact name.',
+      contactEmail: 'Contact Email',
+      contactPhone: 'Contact Phone',
+      cancel: 'Cancel',
+      submit: 'Register',
+      loadingDetail: 'Loading detail...',
+    },
+    detail: {
+      documentType: 'TYPE',
+      documentNo: 'DOCUMENT NO',
+      parentPoNo: 'PARENT PO NO',
+      role: 'ROLE',
+      status: 'STATUS',
+      orderedAt: 'ORDERED AT',
+      amount: 'AMOUNT',
+      purchaseOrder: 'PURCHASE ORDER',
+      subPurchaseOrder: 'SUB PURCHASE ORDER',
+      noRelatedOrders: 'No related orders.',
+    },
   },
 }
 
@@ -511,6 +569,13 @@ async function openSupplierDetail(publicId: string) {
   }
 }
 
+function openSupplierDetailPage(publicId: string) {
+  router.push({
+    name: 'operationDetail',
+    params: { kind: 'suppliers', publicId },
+  })
+}
+
 
 
 
@@ -620,7 +685,7 @@ async function submitCreateSupplier() {
 </script>
 
 <template>
-  <section class="app-screen terminal-page">
+  <section class="app-screen terminal-page suppliers-page">
     <header class="terminal-page__header">
       <div>
         <div class="terminal-page__eyebrow">{{ content.eyebrow }}</div>
@@ -672,7 +737,7 @@ async function submitCreateSupplier() {
         </section>
 
         <article class="page-panel">
-          <div class="page-table terminal-page__table is-ten-cols">
+          <div class="page-table terminal-page__table suppliers-page__table">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
             </div>
@@ -686,7 +751,7 @@ async function submitCreateSupplier() {
                   v-if="row.publicId"
                   class="page-button page-button--secondary"
                   type="button"
-                  @click="openSupplierDetail(row.publicId)"
+                  @click="openSupplierDetailPage(row.publicId)"
                 >
                   {{ preferences.language === 'ko' ? '상세' : 'DETAIL' }}
                 </button>
@@ -761,19 +826,19 @@ async function submitCreateSupplier() {
   <BaseModal
   v-model="createModalOpen"
   :title="content.createLabel"
-  :description="preferences.language === 'ko' ? '관리자 권한으로 협력사 마스터를 등록합니다.' : 'Create supplier master data as admin.'"
+  :description="content.createDescription"
   size="md"
   @close="closeCreateModal"
 >
   <div class="page-form" style="display: flex; flex-direction: column; gap: 16px;">
     <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">협력사 조직</span>
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">{{ content.form.organization }}</span>
       <div style="width: 100%; border-bottom: 2px solid var(--color-surface-container-high);">
         <select
           v-model="createForm.organizationPublicId"
           style="font-family: inherit; font-size: inherit; width: 100%; appearance: auto; background: transparent; color: var(--color-on-surface); padding: 8px 0; border: none; outline: none;"
         >
-          <option value="">조직을 선택하세요.</option>
+          <option value="">{{ content.form.selectOrganization }}</option>
           <option
             v-for="organization in supplierOrganizationOptions"
             :key="organization.organizationPublicId"
@@ -786,37 +851,37 @@ async function submitCreateSupplier() {
     </label>
 
     <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">협력사 코드</span>
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">{{ content.form.supplierCode }}</span>
       <input
         v-model="createForm.supplierCode"
         type="text"
-        placeholder="예: SUP-001"
+        :placeholder="content.form.supplierCodePlaceholder"
         style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
       />
     </label>
 
     <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">협력사명</span>
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">{{ content.form.supplierName }}</span>
       <input
         v-model="createForm.supplierName"
         type="text"
-        placeholder="협력사명을 입력하세요."
+        :placeholder="content.form.supplierNamePlaceholder"
         style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
       />
     </label>
 
     <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">담당자명</span>
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">{{ content.form.contactName }}</span>
       <input
         v-model="createForm.primaryContactName"
         type="text"
-        placeholder="담당자명을 입력하세요."
+        :placeholder="content.form.contactNamePlaceholder"
         style="font-family: inherit; font-size: inherit; width: 100%; background: transparent; color: var(--color-on-surface); border: none; outline: none; border-bottom: 2px solid var(--color-surface-container-high); padding: 8px 0;"
       />
     </label>
 
     <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">담당자 이메일</span>
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">{{ content.form.contactEmail }}</span>
       <input
         v-model="createForm.primaryContactEmail"
         type="email"
@@ -826,7 +891,7 @@ async function submitCreateSupplier() {
     </label>
 
     <label style="display: flex; flex-direction: column; align-items: flex-start; border-bottom: none;">
-      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">담당자 연락처</span>
+      <span style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 4px;">{{ content.form.contactPhone }}</span>
       <input
         v-model="createForm.primaryContactPhone"
         type="text"
@@ -841,7 +906,7 @@ async function submitCreateSupplier() {
 
     <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
       <button class="page-button page-button--secondary" type="button" @click="closeCreateModal">
-        취소
+        {{ content.form.cancel }}
       </button>
       <button
         class="page-button page-button--primary"
@@ -849,7 +914,7 @@ async function submitCreateSupplier() {
         :disabled="createLoading"
         @click="submitCreateSupplier"
       >
-        등록
+        {{ content.form.submit }}
       </button>
     </div>
   </div>
@@ -864,7 +929,7 @@ async function submitCreateSupplier() {
   >
     <div v-if="detailLoading" class="page-feed">
       <div class="page-feed__item">
-        <strong class="page-feed__text">상세 정보를 불러오는 중...</strong>
+        <strong class="page-feed__text">{{ content.form.loadingDetail }}</strong>
       </div>
     </div>
 
@@ -924,13 +989,13 @@ async function submitCreateSupplier() {
           style="margin-top: 8px;"
         >
           <div class="page-table__row page-table__row--head">
-            <span>{{ preferences.language === 'ko' ? '문서유형' : 'TYPE' }}</span>
-            <span>{{ preferences.language === 'ko' ? '문서번호' : 'DOCUMENT NO' }}</span>
-            <span>{{ preferences.language === 'ko' ? '상위발주번호' : 'PARENT PO NO' }}</span>
-            <span>{{ preferences.language === 'ko' ? '구분' : 'ROLE' }}</span>
-            <span>{{ preferences.language === 'ko' ? '상태' : 'STATUS' }}</span>
-            <span>{{ preferences.language === 'ko' ? '발주일시' : 'ORDERED AT' }}</span>
-            <span>{{ preferences.language === 'ko' ? '금액' : 'AMOUNT' }}</span>
+            <span>{{ content.detail.documentType }}</span>
+            <span>{{ content.detail.documentNo }}</span>
+            <span>{{ content.detail.parentPoNo }}</span>
+            <span>{{ content.detail.role }}</span>
+            <span>{{ content.detail.status }}</span>
+            <span>{{ content.detail.orderedAt }}</span>
+            <span>{{ content.detail.amount }}</span>
           </div>
 
           <div
@@ -940,8 +1005,8 @@ async function submitCreateSupplier() {
           >
             <span>
               {{ order.orderType === 'PURCHASE_ORDER'
-                ? (preferences.language === 'ko' ? '메인 발주' : 'PURCHASE ORDER')
-                : (preferences.language === 'ko' ? '서브 발주' : 'SUB PURCHASE ORDER') }}
+                ? content.detail.purchaseOrder
+                : content.detail.subPurchaseOrder }}
             </span>
             <span>{{ order.orderType === 'PURCHASE_ORDER' ? order.poNumber : order.subPoNumber }}</span>
             <span>{{ order.parentPoNumber ?? '-' }}</span>
@@ -953,7 +1018,7 @@ async function submitCreateSupplier() {
         </div>
 
         <p v-else style="margin: 8px 0 0;">
-          {{ preferences.language === 'ko' ? '연결된 발주 이력이 없습니다.' : 'No related orders.' }}
+          {{ content.detail.noRelatedOrders }}
         </p>
       </div>
     </div>

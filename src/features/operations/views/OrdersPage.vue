@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
+import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useActorScope } from '../../../composables/useActorScope'
 import { apiClient } from '../../../services/http'
 import {
@@ -118,37 +120,423 @@ type EditNewOrderLine = {
   orderedQty: number | null
 }
 
-const TABLE_COLUMNS = [
-  '문서번호',
-  '거래처',
-  '협력사 상태',
-  '품목',
-  '수량',
-  '총금액',
-  '발주일',
-  '예상 납기일',
-  '상태',
-  '작업',
-]
-
-const DIRECTION_OPTIONS: { key: OrderDirectionFilter; label: string }[] = [
-  { key: 'ALL', label: '전체' },
-  { key: 'ISSUED', label: '발주' },
-  { key: 'RECEIVED', label: '수주' },
-]
-
-const TAB_OPTIONS: { key: OrderTabKey; label: string }[] = [
-  { key: 'ALL', label: '전체' },
-  { key: 'CREATED', label: '확인 대기' },
-  { key: 'PARTIALLY_CONFIRMED', label: '부분 확정' },
-  { key: 'CONFIRMED', label: '확정' },
-  { key: 'REJECTED', label: '반려' },
-  { key: 'CANCELLED', label: '취소' },
-  { key: 'COMPLETED', label: '완료' },
-]
-
 const header = useAtlasHeaderStore()
+const route = useRoute()
+const router = useRouter()
 const actor = useActorScope()
+const preferences = useAtlasPreferencesStore()
+
+const copy = computed(() =>
+  preferences.language === 'ko'
+    ? {
+        pageEyebrow: '공급망 운영 / 발주 관리',
+        pageTitle: '발주 관리',
+        export: '내보내기',
+        refresh: '새로고침',
+        createOrder: '신규 발주',
+        queueTitle: '확인 대기함',
+        queueEmpty: '확인 대기 건이 없습니다.',
+        valueTitle: '카테고리별 금액',
+        valueEmpty: '표시할 카테고리 금액이 없습니다.',
+        counterpartyTitle: '주요 거래처',
+        counterpartyEmpty: '표시할 거래처 집계가 없습니다.',
+        searchLabel: '검색',
+        searchPlaceholder: '발주번호, 거래처, 품목명으로 검색하세요.',
+        tableTitle: '발주 테이블',
+        loadingOrders: '주문 데이터를 불러오는 중입니다.',
+        emptyOrders: '조건에 맞는 주문이 없습니다.',
+        detail: '상세',
+        loadingDetail: '발주 상세 정보를 불러오는 중입니다.',
+        createTitle: '발주 등록',
+        createDescription: '카테고리와 품목을 먼저 고른 뒤, 협력사와 도착거점을 지정해 발주 행을 구성합니다.',
+        itemSearch: '품목 검색',
+        rootCategory: '상위 카테고리',
+        secondCategory: '중간 카테고리',
+        thirdCategory: '하위 카테고리',
+        itemSearchPlaceholder: '품목명 또는 품목코드를 입력하세요.',
+        uncategorized: '미분류',
+        selectItem: '품목 선택',
+        emptyItems: '표시할 품목이 없습니다.',
+        itemCapability: '품목 capability',
+        itemCode: '품목 코드',
+        itemName: '품목명',
+        supplier: '협력사',
+        unit: '유닛',
+        unitPrice: '단가',
+        leadTime: '리드타임',
+        partialConfirmation: '부분 확정',
+        supplyType: '품목 타입',
+        monthlyCapacity: '월간 생산량',
+        minimumOrderQty: '최소 주문 수량',
+        spec: '규격',
+        shelfLife: '보관기한',
+        days: '일',
+        all: '전체',
+        searching: '검색 중',
+        search: '검색',
+        close: '닫기',
+        selectedItems: '선택한 발주 품목',
+        selectHint: '검색 결과에서 품목을 선택하면 아래에 발주 행이 생성됩니다.',
+        itemLine: '품목 행',
+        deleteLine: '행 삭제',
+        selectItemName: '품목명을 선택하세요.',
+        selectSupplier: '협력사를 선택하세요.',
+        orderQty: '발주 수량',
+        expectedAmount: '예상 금액',
+        arrivalNode: '도착거점',
+        selectArrivalNode: '도착거점을 선택하세요.',
+        selectedItemInfo: '선택 품목 정보',
+        category: '카테고리',
+        supplierCandidates: '협력사 후보',
+        supplierCandidatesCount: (count: number) => `${count}곳`,
+        cancel: '취소',
+        submit: '등록',
+        save: '저장',
+        orderDetail: '발주 상세',
+        basicInfo: '기본 정보',
+        orderNumber: '발주 번호',
+        targetSupplier: '발주 대상 협력사명',
+        supplierStatus: '협력사 상태',
+        orderStatus: '발주 상태',
+        orderDate: '발주 날짜',
+        expectedDueDate: '예상 납기일',
+        totalAmount: '총 금액',
+        memo: '메모',
+        itemDetail: '품목 상세',
+        item: '품목',
+        confirmedQty: '확정 수량',
+        confirmQtyInput: '확정 수량 입력',
+        beforeAcceptInput: '수락 전 입력',
+        linkedSubOrders: '연결된 서브발주',
+        subOrderDetail: '서브발주 상세',
+        noSubOrders: '연결된 서브발주가 없습니다.',
+        reject: '반려',
+        accept: '수락',
+        cancelConfirmInput: '확정 입력 취소',
+        acceptAfterConfirm: '확정 수량 입력 후 수락',
+        createSubOrder: '서브발주 생성',
+        editOrder: '발주 수정',
+        cancelOrder: '발주 취소',
+        editOrderDescription: '확인 대기 상태의 발주 메모와 품목 수량을 수정합니다.',
+        loadingEdit: '발주 수정 정보를 불러오는 중입니다.',
+        memoPlaceholder: '발주 메모를 입력하세요.',
+        existingItems: '기존 품목',
+        undoDelete: '삭제 취소',
+        deleteItem: '품목 삭제',
+        addItem: '품목 추가',
+        addLine: '추가 행',
+        newItem: '추가 품목',
+        selectItemPlaceholder: '품목을 선택하세요.',
+        createSubOrderTitle: '서브발주 등록',
+        createSubOrderDescription: '선택한 부모 발주 기준으로 하위 협력사에 서브발주를 생성합니다.',
+        baseOrder: '기준 발주',
+        downstreamSupplier: '하위 협력사',
+        selectDownstreamSupplier: '하위 협력사를 선택하세요.',
+        subOrderItems: '서브발주 품목',
+        subOrderQty: '서브발주 수량',
+        subOrderDetailTitle: '서브발주 상세',
+        loadingSubOrderDetail: '서브발주 상세 정보를 불러오는 중입니다.',
+        subOrderNumber: '서브발주번호',
+        parentOrderNumber: '부모 발주번호',
+        issuerSupplier: '발행 협력사',
+        receiverSupplier: '수신 협력사',
+        moreItems: (count: number) => `외 ${count}건`,
+        orderCountSummary: (count: number, amount: string) => `${count}건 / ${amount}`,
+        selectedOrderFallback: '선택한 발주의 상세 정보를 확인합니다.',
+        selectedSubOrderFallback: '선택한 서브발주의 상세 정보를 확인합니다.',
+        columns: ['발주번호', '거래처', '협력사 상태', '품목', '수량', '총금액', '발주일', '예상 납기일', '상태', '작업'],
+        directionOptions: [
+          { key: 'ALL' as const, label: '전체' },
+          { key: 'ISSUED' as const, label: '발주' },
+          { key: 'RECEIVED' as const, label: '수주' },
+        ],
+        tabOptions: [
+          { key: 'ALL' as const, label: '전체' },
+          { key: 'CREATED' as const, label: '확인 대기' },
+          { key: 'PARTIALLY_CONFIRMED' as const, label: '부분 확정' },
+          { key: 'CONFIRMED' as const, label: '확정' },
+          { key: 'REJECTED' as const, label: '반려' },
+          { key: 'CANCELLED' as const, label: '취소' },
+          { key: 'COMPLETED' as const, label: '완료' },
+        ],
+        metrics: {
+          totalOrders: '총 발주',
+          buyerMeta: '메인 발주사 전체 발주',
+          pending: '확인 대기',
+          pendingMeta: '확인 대기 중인 발주',
+          completed: '납기 완료',
+          completedMeta: '완료 처리된 발주',
+          totalAmount: '총 금액',
+          amountMeta: '발주 기준 총 금액',
+          issuedCount: '발주 수',
+          receivedCount: '수주 수',
+          totalAmountIssued: '총 금액 (발주 기준)',
+        },
+        supplierStatuses: {
+          ACTIVE: '활성',
+          INACTIVE: '비활성',
+          SUSPENDED: '중지',
+          TERMINATED: '종료',
+        },
+        orderStatuses: {
+          CREATED: '확인 대기',
+          PARTIALLY_CONFIRMED: '부분 확정',
+          CONFIRMED: '확정',
+          REJECTED: '반려',
+          CANCELLED: '취소',
+          COMPLETED: '완료',
+          DELETED: '삭제',
+        },
+        messages: {
+          loadOrdersFail: '주문 정보를 불러오지 못했습니다.',
+          selectAtLeastOne: '검색 결과에서 발주할 품목을 1개 이상 선택하세요.',
+          invalidOrderQty: '발주 수량은 0보다 커야 합니다.',
+          invalidItemSupplierMapping: '품목과 협력사 매핑이 올바르지 않습니다.',
+          itemSearchFail: '품목 검색에 실패했습니다.',
+          createFail: '발주 등록에 실패했습니다.',
+          loadDetailFail: '발주 상세 정보를 불러오지 못했습니다.',
+          noConfirmItems: '확정할 품목이 없습니다.',
+          confirmQtyRequired: (name: string) => `${name} 확정 수량을 입력하세요.`,
+          confirmQtyNegative: (name: string) => `${name} 확정 수량은 0보다 작을 수 없습니다.`,
+          confirmQtyTooLarge: (name: string) => `${name} 확정 수량은 발주 수량보다 클 수 없습니다.`,
+          confirmAcceptQuestion: '입력한 확정 수량으로 수주를 수락하시겠습니까?',
+          acceptSuccess: '수주를 수락했습니다.',
+          acceptFail: '수주 수락에 실패했습니다.',
+          rejectOrderQuestion: '이 발주를 반려하시겠습니까?',
+          rejectOrderSuccess: '발주를 반려했습니다.',
+          rejectOrderFail: '발주 반려에 실패했습니다.',
+          cancelOrderQuestion: '이 발주를 취소하시겠습니까?',
+          cancelOrderSuccess: '발주를 취소했습니다.',
+          cancelOrderFail: '발주 취소에 실패했습니다.',
+          loadEditFail: '발주 수정 정보를 불러오지 못했습니다.',
+          editMinimumItem: '발주 품목은 최소 1개 이상 유지해야 합니다.',
+          editExistingQtyPositive: '기존 품목 수량은 0보다 커야 합니다.',
+          editSelectNewItem: '추가 품목을 선택하세요.',
+          editNewQtyPositive: '추가 품목 수량은 0보다 커야 합니다.',
+          editDuplicateNewItem: '동일한 추가 품목이 중복되었습니다.',
+          editSuccess: '발주를 수정했습니다.',
+          editFail: '발주 수정에 실패했습니다.',
+          missingParentOrder: '부모 발주 정보가 없습니다.',
+          selectDownstreamSupplier: '하위 협력사를 선택하세요.',
+          selectSubOrderItems: '서브발주 품목을 1개 이상 선택하세요.',
+          subOrderQtyPositive: '서브발주 수량은 0보다 커야 합니다.',
+          subOrderCreateSuccess: '서브발주를 등록했습니다.',
+          subOrderCreateFail: '서브발주 등록에 실패했습니다.',
+          subOrderAcceptQuestion: '이 수주를 수락하시겠습니까?',
+          subOrderAcceptSuccess: '수주를 수락했습니다.',
+          subOrderAcceptFail: '수주 수락에 실패했습니다.',
+          subOrderRejectQuestion: '이 서브발주를 반려하시겠습니까?',
+          subOrderRejectSuccess: '서브발주를 반려했습니다.',
+          subOrderRejectFail: '서브발주 반려에 실패했습니다.',
+        },
+      }
+    : {
+        pageEyebrow: 'Supply Operations / Purchase Orders',
+        pageTitle: 'Purchase Orders',
+        export: 'Export',
+        refresh: 'Refresh',
+        createOrder: 'New Order',
+        queueTitle: 'Approval Queue',
+        queueEmpty: 'No orders waiting for confirmation.',
+        valueTitle: 'Category Amounts',
+        valueEmpty: 'No category amount to display.',
+        counterpartyTitle: 'Top Counterparties',
+        counterpartyEmpty: 'No counterparty aggregate to display.',
+        searchLabel: 'Search',
+        searchPlaceholder: 'Search document no., counterparty, or item name.',
+        tableTitle: 'Order Table',
+        loadingOrders: 'Loading order data.',
+        emptyOrders: 'No orders match the current conditions.',
+        detail: 'Detail',
+        loadingDetail: 'Loading order detail.',
+        createTitle: 'Create Purchase Order',
+        createDescription: 'Select categories and items, then assign suppliers and arrival nodes.',
+        itemSearch: 'Item Search',
+        rootCategory: 'Root Category',
+        secondCategory: 'Middle Category',
+        thirdCategory: 'Leaf Category',
+        itemSearchPlaceholder: 'Enter item name or item code.',
+        uncategorized: 'Uncategorized',
+        selectItem: 'Select Item',
+        emptyItems: 'No items to display.',
+        itemCapability: 'Item Capability',
+        itemCode: 'Item Code',
+        itemName: 'Item Name',
+        supplier: 'Supplier',
+        unit: 'Unit',
+        unitPrice: 'Unit Price',
+        leadTime: 'Lead Time',
+        partialConfirmation: 'Partial Confirmation',
+        supplyType: 'Supply Type',
+        monthlyCapacity: 'Monthly Capacity',
+        minimumOrderQty: 'Minimum Order Qty',
+        spec: 'Spec',
+        shelfLife: 'Shelf Life',
+        days: 'days',
+        all: 'All',
+        searching: 'Searching',
+        search: 'Search',
+        close: 'Close',
+        selectedItems: 'Selected Order Items',
+        selectHint: 'Select items from the search results to create order lines below.',
+        itemLine: 'Item Line',
+        deleteLine: 'Delete Line',
+        selectItemName: 'Select an item name.',
+        selectSupplier: 'Select a supplier.',
+        orderQty: 'Order Qty',
+        expectedAmount: 'Expected Amount',
+        arrivalNode: 'Arrival Node',
+        selectArrivalNode: 'Select an arrival node.',
+        selectedItemInfo: 'Selected Item Info',
+        category: 'Category',
+        supplierCandidates: 'Supplier Candidates',
+        supplierCandidatesCount: (count: number) => `${count} candidates`,
+        cancel: 'Cancel',
+        submit: 'Submit',
+        save: 'Save',
+        orderDetail: 'Order Detail',
+        basicInfo: 'Basic Info',
+        orderNumber: 'Order Number',
+        targetSupplier: 'Target Supplier',
+        supplierStatus: 'Supplier Status',
+        orderStatus: 'Order Status',
+        orderDate: 'Order Date',
+        expectedDueDate: 'Expected Due Date',
+        totalAmount: 'Total Amount',
+        memo: 'Memo',
+        itemDetail: 'Item Detail',
+        item: 'Item',
+        confirmedQty: 'Confirmed Qty',
+        confirmQtyInput: 'Confirm Quantity Input',
+        beforeAcceptInput: 'Before Accept',
+        linkedSubOrders: 'Linked Sub Orders',
+        subOrderDetail: 'Sub Order Detail',
+        noSubOrders: 'No linked sub orders.',
+        reject: 'Reject',
+        accept: 'Accept',
+        cancelConfirmInput: 'Cancel Confirmation Input',
+        acceptAfterConfirm: 'Accept After Quantity Confirmation',
+        createSubOrder: 'Create Sub Order',
+        editOrder: 'Edit Order',
+        cancelOrder: 'Cancel Order',
+        editOrderDescription: 'Edit memo and item quantities for an order waiting for confirmation.',
+        loadingEdit: 'Loading order edit information.',
+        memoPlaceholder: 'Enter order memo.',
+        existingItems: 'Existing Items',
+        undoDelete: 'Undo Delete',
+        deleteItem: 'Delete Item',
+        addItem: 'Add Item',
+        addLine: 'Add Line',
+        newItem: 'New Item',
+        selectItemPlaceholder: 'Select an item.',
+        createSubOrderTitle: 'Create Sub Order',
+        createSubOrderDescription: 'Create a sub order for downstream suppliers from the selected parent order.',
+        baseOrder: 'Base Order',
+        downstreamSupplier: 'Downstream Supplier',
+        selectDownstreamSupplier: 'Select a downstream supplier.',
+        subOrderItems: 'Sub Order Items',
+        subOrderQty: 'Sub Order Qty',
+        subOrderDetailTitle: 'Sub Order Detail',
+        loadingSubOrderDetail: 'Loading sub order detail.',
+        subOrderNumber: 'Sub Order Number',
+        parentOrderNumber: 'Parent Order Number',
+        issuerSupplier: 'Issuer Supplier',
+        receiverSupplier: 'Receiver Supplier',
+        moreItems: (count: number) => `and ${count} more`,
+        orderCountSummary: (count: number, amount: string) => `${count} orders / ${amount}`,
+        selectedOrderFallback: 'Review the selected order detail.',
+        selectedSubOrderFallback: 'Review the selected sub order detail.',
+        columns: ['Document No.', 'Counterparty', 'Supplier Status', 'Item', 'Qty', 'Total Amount', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
+        directionOptions: [
+          { key: 'ALL' as const, label: 'All' },
+          { key: 'ISSUED' as const, label: 'Issued' },
+          { key: 'RECEIVED' as const, label: 'Received' },
+        ],
+        tabOptions: [
+          { key: 'ALL' as const, label: 'All' },
+          { key: 'CREATED' as const, label: 'Pending' },
+          { key: 'PARTIALLY_CONFIRMED' as const, label: 'Partially Confirmed' },
+          { key: 'CONFIRMED' as const, label: 'Confirmed' },
+          { key: 'REJECTED' as const, label: 'Rejected' },
+          { key: 'CANCELLED' as const, label: 'Cancelled' },
+          { key: 'COMPLETED' as const, label: 'Completed' },
+        ],
+        metrics: {
+          totalOrders: 'Total Orders',
+          buyerMeta: 'All main buyer orders',
+          pending: 'Pending',
+          pendingMeta: 'Orders waiting for confirmation',
+          completed: 'Due Complete',
+          completedMeta: 'Completed orders',
+          totalAmount: 'Total Amount',
+          amountMeta: 'Total issued amount',
+          issuedCount: 'Issued',
+          receivedCount: 'Received',
+          totalAmountIssued: 'Total Amount (Issued)',
+        },
+        supplierStatuses: {
+          ACTIVE: 'Active',
+          INACTIVE: 'Inactive',
+          SUSPENDED: 'Suspended',
+          TERMINATED: 'Terminated',
+        },
+        orderStatuses: {
+          CREATED: 'Pending',
+          PARTIALLY_CONFIRMED: 'Partially Confirmed',
+          CONFIRMED: 'Confirmed',
+          REJECTED: 'Rejected',
+          CANCELLED: 'Cancelled',
+          COMPLETED: 'Completed',
+          DELETED: 'Deleted',
+        },
+        messages: {
+          loadOrdersFail: 'Failed to load orders.',
+          selectAtLeastOne: 'Select at least one item from the search results.',
+          invalidOrderQty: 'Order quantity must be greater than 0.',
+          invalidItemSupplierMapping: 'The item and supplier mapping is invalid.',
+          itemSearchFail: 'Failed to search items.',
+          createFail: 'Failed to create purchase order.',
+          loadDetailFail: 'Failed to load order detail.',
+          noConfirmItems: 'No items to confirm.',
+          confirmQtyRequired: (name: string) => `Enter confirmed quantity for ${name}.`,
+          confirmQtyNegative: (name: string) => `Confirmed quantity for ${name} cannot be less than 0.`,
+          confirmQtyTooLarge: (name: string) => `Confirmed quantity for ${name} cannot exceed ordered quantity.`,
+          confirmAcceptQuestion: 'Accept this order with the entered confirmed quantities?',
+          acceptSuccess: 'Order accepted.',
+          acceptFail: 'Failed to accept order.',
+          rejectOrderQuestion: 'Reject this order?',
+          rejectOrderSuccess: 'Order rejected.',
+          rejectOrderFail: 'Failed to reject order.',
+          cancelOrderQuestion: 'Cancel this order?',
+          cancelOrderSuccess: 'Order cancelled.',
+          cancelOrderFail: 'Failed to cancel order.',
+          loadEditFail: 'Failed to load order edit information.',
+          editMinimumItem: 'At least one order item must remain.',
+          editExistingQtyPositive: 'Existing item quantity must be greater than 0.',
+          editSelectNewItem: 'Select an item to add.',
+          editNewQtyPositive: 'New item quantity must be greater than 0.',
+          editDuplicateNewItem: 'The same new item is duplicated.',
+          editSuccess: 'Order updated.',
+          editFail: 'Failed to update order.',
+          missingParentOrder: 'Parent order information is missing.',
+          selectDownstreamSupplier: 'Select a downstream supplier.',
+          selectSubOrderItems: 'Select at least one sub order item.',
+          subOrderQtyPositive: 'Sub order quantity must be greater than 0.',
+          subOrderCreateSuccess: 'Sub order created.',
+          subOrderCreateFail: 'Failed to create sub order.',
+          subOrderAcceptQuestion: 'Accept this received order?',
+          subOrderAcceptSuccess: 'Received order accepted.',
+          subOrderAcceptFail: 'Failed to accept received order.',
+          subOrderRejectQuestion: 'Reject this sub order?',
+          subOrderRejectSuccess: 'Sub order rejected.',
+          subOrderRejectFail: 'Failed to reject sub order.',
+        },
+      },
+)
+
+const TABLE_COLUMNS = computed(() => copy.value.columns)
+const DIRECTION_OPTIONS = computed(() => copy.value.directionOptions)
+const TAB_OPTIONS = computed(() => copy.value.tabOptions)
 
 const purchaseOrders = ref<PurchaseOrderDetailResponseDto[]>([])
 const receivedSubOrders = ref<SubPurchaseOrderResponseDto[]>([])
@@ -196,6 +584,7 @@ const confirmLines = ref<ConfirmOrderLineForm[]>([])
 const createModalOpen = ref(false)
 const createLoading = ref(false)
 const createErrorMessage = ref('')
+const isCreatePage = computed(() => route.name === 'orderCreate')
 
 const subOrderModalOpen = ref(false)
 const subOrderCreateLoading = ref(false)
@@ -314,25 +703,25 @@ const dashboardMetrics = computed(() => {
 
   if (actor.isBuyerOrganization.value) {
     return [
-      { label: '총 발주', value: formatNumber(summary?.issuedOrderCount ?? 0), meta: '메인 발주사 전체 발주', tone: 'nominal' },
-      { label: '확인 대기', value: formatNumber(summary?.pendingOrderCount ?? 0), meta: '확인 대기 중인 발주', tone: 'warning' },
-      { label: '납기 완료', value: formatNumber(summary?.completedOrderCount ?? 0), meta: '완료 처리된 발주', tone: 'info' },
-      { label: '총 금액', value: formatDashboardAmount(issuedTotalAmount.value), meta: '발주 기준 총 금액', tone: 'critical' },
+      { label: copy.value.metrics.totalOrders, value: formatNumber(summary?.issuedOrderCount ?? 0), meta: copy.value.metrics.buyerMeta, tone: 'nominal' },
+      { label: copy.value.metrics.pending, value: formatNumber(summary?.pendingOrderCount ?? 0), meta: copy.value.metrics.pendingMeta, tone: 'warning' },
+      { label: copy.value.metrics.completed, value: formatNumber(summary?.completedOrderCount ?? 0), meta: copy.value.metrics.completedMeta, tone: 'info' },
+      { label: copy.value.metrics.totalAmount, value: formatDashboardAmount(issuedTotalAmount.value), meta: copy.value.metrics.amountMeta, tone: 'critical' },
     ]
   }
 
   return [
-    { label: '총 발주', value: formatNumber(summary?.totalOrderCount ?? 0), tone: 'nominal' },
-    { label: '발주 수', value: formatNumber(summary?.issuedOrderCount ?? 0), tone: 'warning' },
-    { label: '수주 수', value: formatNumber(summary?.receivedOrderCount ?? 0), tone: 'info' },
-    { label: '총 금액 (발주 기준)', value: formatDashboardAmount(issuedTotalAmount.value), tone: 'critical' },
+    { label: copy.value.metrics.totalOrders, value: formatNumber(summary?.totalOrderCount ?? 0), tone: 'nominal' },
+    { label: copy.value.metrics.issuedCount, value: formatNumber(summary?.issuedOrderCount ?? 0), tone: 'warning' },
+    { label: copy.value.metrics.receivedCount, value: formatNumber(summary?.receivedOrderCount ?? 0), tone: 'info' },
+    { label: copy.value.metrics.totalAmountIssued, value: formatDashboardAmount(issuedTotalAmount.value), tone: 'critical' },
   ]
 })
 
 function getSubOrderItemLabel(subOrder: SubPurchaseOrderResponseDto) {
   if (!(subOrder.items ?? []).length) return '-'
   if ((subOrder.items ?? []).length === 1) return subOrder.items?.[0].itemName ?? '-'
-  return `${subOrder.items?.[0].itemName ?? '-'} 외 ${(subOrder.items?.length ?? 1) - 1}건`
+  return `${subOrder.items?.[0].itemName ?? '-'} ${copy.value.moreItems((subOrder.items?.length ?? 1) - 1)}`
 }
 
 function getExpectedDueDate(items: Array<{ expectedDueDate: string | null }>) {
@@ -508,33 +897,36 @@ const topCounterpartyRows = computed(() => {
     .slice(0, 4)
     .map(([name, summary]) => ({
       name,
-      text: `${summary.orderCount}건 / ${formatDashboardAmount(summary.totalAmount)}`,
+        text: copy.value.orderCountSummary(
+          summary.orderCount,
+          formatDashboardAmount(summary.totalAmount),
+        ),
     }))
 })
 
 const selectedOrderDescription = computed(() =>
   selectedOrder.value
     ? `${selectedOrder.value.poNumber} / ${selectedOrder.value.supplierName}`
-    : '선택한 발주의 상세 정보를 확인합니다.',
+    : copy.value.selectedOrderFallback,
 )
 
 const selectedSubOrderDescription = computed(() =>
   selectedSubOrder.value
     ? `${selectedSubOrder.value.subPoNumber} / ${selectedSubOrder.value.supplierName}`
-    : '선택한 서브발주의 상세 정보를 확인합니다.',
+    : copy.value.selectedSubOrderFallback,
 )
 
 watchEffect(() => {
   const nextActions: HeaderAction[] = [
     {
       key: 'orders-export',
-      label: '내보내기',
+      label: copy.value.export,
       tone: 'secondary',
       onClick: downloadOrdersCsv,
     },
     {
       key: 'orders-refresh',
-      label: '새로고침',
+      label: copy.value.refresh,
       tone: 'secondary',
       onClick: loadOrderDashboard,
     },
@@ -543,7 +935,7 @@ watchEffect(() => {
   if (actor.canCreatePurchaseOrder.value) {
     nextActions.push({
       key: 'orders-create',
-      label: '신규 발주',
+      label: copy.value.createOrder,
       tone: 'primary',
       onClick: openCreateOrderModal,
     })
@@ -586,7 +978,7 @@ function normalizeErrorMessage(error: unknown, fallback: string) {
 function formatNumber(value: number | null | undefined) {
   if (value == null || Number.isNaN(Number(value))) return '-'
 
-  return new Intl.NumberFormat('ko-KR', {
+  return new Intl.NumberFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
     maximumFractionDigits: 2,
   }).format(Number(value))
 }
@@ -604,7 +996,7 @@ function formatAmount(
   if (!currency) return formatPlainAmount(value)
 
   try {
-    return new Intl.NumberFormat('ko-KR', {
+    return new Intl.NumberFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
       style: 'currency',
       currency,
       maximumFractionDigits: currency === 'KRW' || currency === 'JPY' ? 0 : 2,
@@ -631,64 +1023,33 @@ function formatDate(value: string | null | undefined) {
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return '-'
-  return new Date(value).toLocaleString('ko-KR')
+  return new Date(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')
 }
 
 function supplierStatusText(value: SupplierStatus) {
-  switch (value) {
-    case 'ACTIVE':
-      return '활성'
-    case 'INACTIVE':
-      return '비활성'
-    case 'SUSPENDED':
-      return '중지'
-    case 'TERMINATED':
-      return '종료'
-    default:
-      return value
-  }
+  return copy.value.supplierStatuses[value] ?? value
 }
 
 function poStatusText(value: PoStatus) {
-  switch (value) {
-    case 'CREATED':
-      return '확인 대기'
-    case 'PARTIALLY_CONFIRMED':
-      return '부분 확정'
-    case 'CONFIRMED':
-      return '확정'
-    case 'REJECTED':
-      return '반려'
-    case 'CANCELLED':
-      return '취소'
-    case 'COMPLETED':
-      return '완료'
-    case 'DELETED':
-      return '삭제'
-    default:
-      return value
-  }
+  return copy.value.orderStatuses[value] ?? value
 }
 
 function subPoStatusText(value: SubPoStatus) {
-  switch (value) {
-    case 'CREATED':
-      return '확인 대기'
-    case 'PARTIALLY_CONFIRMED':
-      return '부분 확정'
-    case 'CONFIRMED':
-      return '확정'
-    case 'REJECTED':
-      return '반려'
-    case 'CANCELLED':
-      return '취소'
-    case 'COMPLETED':
-      return '완료'
-    case 'DELETED':
-      return '삭제'
-    default:
-      return value
-  }
+  return copy.value.orderStatuses[value] ?? value
+}
+
+function supplierStatusTone(value: SupplierStatus) {
+  if (value === 'ACTIVE') return 'is-success'
+  if (value === 'SUSPENDED') return 'is-warning'
+  if (value === 'TERMINATED') return 'is-critical'
+  return 'is-muted'
+}
+
+function orderStatusTone(value: PoStatus | SubPoStatus) {
+  if (value === 'PARTIALLY_CONFIRMED' || value === 'CONFIRMED' || value === 'COMPLETED') return 'is-success'
+  if (value === 'CREATED') return 'is-warning'
+  if (value === 'REJECTED' || value === 'CANCELLED' || value === 'DELETED') return 'is-critical'
+  return 'is-muted'
 }
 
 function supplyTypeText(type: SupplyType) {
@@ -702,7 +1063,7 @@ function orderableQtyLabel(type: SupplyType) {
 function getOrderItemLabel(order: PurchaseOrderDetailResponseDto) {
   if (!order.items.length) return '-'
   if (order.items.length === 1) return order.items[0].itemName
-  return `${order.items[0].itemName} 외 ${order.items.length - 1}건`
+  return `${order.items[0].itemName} ${copy.value.moreItems(order.items.length - 1)}`
 }
 
 function getOrderQtyLabel(order: PurchaseOrderDetailResponseDto) {
@@ -924,7 +1285,7 @@ async function loadOrderDashboard() {
     receivedSubOrders.value = []
     sentSubOrders.value = []
     dashboardSummary.value = emptyDashboardSummary()
-    errorMessage.value = normalizeErrorMessage(error, '주문 정보를 불러오지 못했습니다.')
+    errorMessage.value = normalizeErrorMessage(error, copy.value.messages.loadOrdersFail)
   } finally {
     loading.value = false
   }
@@ -948,23 +1309,30 @@ function resetCreateOrderForm() {
 
 function openCreateOrderModal() {
   resetCreateOrderForm()
-  createModalOpen.value = true
+  if (!isCreatePage.value) {
+    router.push({ name: 'orderCreate' })
+  }
+  void searchItemsForCreateOrder()
 }
 
 function closeCreateOrderModal() {
   createModalOpen.value = false
+  if (isCreatePage.value) {
+    router.push({ name: 'ordersDesk' })
+  }
 }
 
 function validateCreateOrderForm() {
   if (!createForm.value.lines.length) {
-    return '검색 결과에서 발주할 품목을 1개 이상 선택하세요.'
+    return copy.value.messages.selectAtLeastOne
   }
 
   for (const line of createForm.value.lines) {
-    if (!line.selectedItemPublicId) return '품목을 선택해 주세요.'
-if (!line.selectedSupplierPublicId) return '협력사를 선택해 주세요.'
-if (!line.arrivalLogisticsNodePublicId) return '도착 거점을 선택해 주세요.'
-if (!line.orderedQty || line.orderedQty <= 0) return '발주 수량은 0보다 커야 합니다.'
+    if (!line.selectedItemName) return copy.value.selectItemName
+    if (!line.selectedSupplierPublicId) return copy.value.selectSupplier
+    if (!line.arrivalLogisticsNodePublicId) return copy.value.selectArrivalNode
+    if (!line.orderedQty || line.orderedQty <= 0) return copy.value.messages.invalidOrderQty
+    if (!resolveSelectedItemPublicId(line)) return copy.value.messages.invalidItemSupplierMapping
   }
 
   return ''
@@ -1079,6 +1447,7 @@ function selectCreateSearchItem(item: ItemResponseDto) {
 
 function handleCreateLineItemNameChange(line: CreateOrderLineForm) {
   line.selectedSupplierPublicId = ''
+  line.selectedItemPublicId = ''
 }
 
 async function searchItemsForCreateOrder() {
@@ -1107,7 +1476,7 @@ async function searchItemsForCreateOrder() {
     createForm.value.searchResultPublicIds = response.content.map((item) => item.publicId)
   } catch (error) {
     createForm.value.searchResultPublicIds = []
-    createErrorMessage.value = normalizeErrorMessage(error, '품목 검색에 실패했습니다.')
+    createErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.itemSearchFail)
   } finally {
     createForm.value.searchLoading = false
   }
@@ -1120,11 +1489,11 @@ function itemNameOptionsOf() {
 }
 
 function supplierOptionsOf(line: CreateOrderLineForm) {
-  const selectedItem = selectedCreateLineItem(line)
-  if (!selectedItem) return []
+  const selectedItemName = line.selectedItemName || selectedCreateLineItem(line)?.itemName
+  if (!selectedItemName) return []
 
   return createForm.value.itemOptions
-    .filter((item) => item.itemName === selectedItem.itemName)
+    .filter((item) => item.itemName === selectedItemName)
     .map((item) => ({
       supplierPublicId: item.supplierPublicId,
       supplierName: item.supplierName,
@@ -1144,7 +1513,19 @@ function handleCreateLineSupplierChange(line: CreateOrderLineForm) {
 
 
 function selectedCreateLineItem(line: CreateOrderLineForm) {
-  return createForm.value.itemOptions.find((item) => item.publicId === line.selectedItemPublicId) ?? null
+  return (
+    createForm.value.itemOptions.find((item) => item.publicId === line.selectedItemPublicId) ??
+    createForm.value.itemOptions.find(
+      (item) =>
+        item.itemName === line.selectedItemName &&
+        item.supplierPublicId === line.selectedSupplierPublicId,
+    ) ??
+    null
+  )
+}
+
+function resolveSelectedItemPublicId(line: CreateOrderLineForm) {
+  return selectedCreateLineItem(line)?.publicId ?? ''
 }
 
 function matchingSupplierCount(line: CreateOrderLineForm) {
@@ -1180,16 +1561,16 @@ async function submitCreateOrder() {
     await createPurchaseOrdersBatch({
       lines: createForm.value.lines.map((line) => ({
         supplierPublicId: line.selectedSupplierPublicId,
-        itemPublicId: line.selectedItemPublicId,
+        itemPublicId: resolveSelectedItemPublicId(line),
         orderedQty: Number(line.orderedQty),
         arrivalLogisticsNodePublicId: line.arrivalLogisticsNodePublicId,
       })),
     })
 
-    createModalOpen.value = false
+    closeCreateOrderModal()
     await loadOrderDashboard()
   } catch (error) {
-    createErrorMessage.value = normalizeErrorMessage(error, '발주 등록에 실패했습니다.')
+    createErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.createFail)
   } finally {
     createLoading.value = false
   }
@@ -1212,7 +1593,7 @@ async function openOrderDetail(order: PurchaseOrderDetailResponseDto) {
   } catch (error) {
     detailErrorMessage.value = normalizeErrorMessage(
       error,
-      '발주 상세 정보를 불러오지 못했습니다.',
+      copy.value.messages.loadDetailFail,
     )
   } finally {
     detailLoading.value = false
@@ -1233,6 +1614,13 @@ async function openOrderDetailById(poPublicId: string) {
   } catch {
     // 무시
   }
+}
+
+function openOrderDetailPage(poPublicId: string) {
+  router.push({
+    name: 'operationDetail',
+    params: { kind: 'orders', publicId: poPublicId },
+  })
 }
 
 function closeOrderDetailModal() {
@@ -1316,23 +1704,23 @@ function validateConfirmOrder() {
   }
 
   if (!confirmLines.value.length) {
-    return '확정할 품목이 없습니다.'
+    return copy.value.messages.noConfirmItems
   }
 
   for (const line of confirmLines.value) {
     if (line.confirmedQty == null) {
-      return `${line.itemName} 확정 수량을 입력하세요.`
+      return copy.value.messages.confirmQtyRequired(line.itemName)
     }
 
     const confirmedQty = Number(line.confirmedQty)
     const orderedQty = Number(line.orderedQty)
 
     if (confirmedQty < 0) {
-      return `${line.itemName} 확정 수량은 0보다 작을 수 없습니다.`
+      return copy.value.messages.confirmQtyNegative(line.itemName)
     }
 
     if (confirmedQty > orderedQty) {
-      return `${line.itemName} 확정 수량은 발주 수량보다 클 수 없습니다.`
+      return copy.value.messages.confirmQtyTooLarge(line.itemName)
     }
 
     const originalItem = selectedOrder.value.items.find(
@@ -1358,7 +1746,7 @@ async function submitConfirmOrder() {
     return
   }
 
-  if (!window.confirm('입력한 확정 수량으로 수주를 수락하시겠습니까?')) return
+  if (!window.confirm(copy.value.messages.confirmAcceptQuestion)) return
 
   try {
     detailActionLoading.value = true
@@ -1377,9 +1765,9 @@ async function submitConfirmOrder() {
     confirmMode.value = false
     confirmLines.value = []
 
-    await afterOrderMutation('수주를 수락했습니다.')
+    await afterOrderMutation(copy.value.messages.acceptSuccess)
   } catch (error) {
-    confirmErrorMessage.value = normalizeErrorMessage(error, '수주 수락에 실패했습니다.')
+    confirmErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.acceptFail)
   } finally {
     detailActionLoading.value = false
   }
@@ -1387,7 +1775,7 @@ async function submitConfirmOrder() {
 
 async function submitRejectOrder() {
   if (!selectedOrder.value) return
-  if (!window.confirm('이 발주를 반려하시겠습니까?')) return
+  if (!window.confirm(copy.value.messages.rejectOrderQuestion)) return
 
   try {
     detailActionLoading.value = true
@@ -1395,9 +1783,9 @@ async function submitRejectOrder() {
     detailSuccessMessage.value = ''
 
     await rejectPurchaseOrder(selectedOrder.value.poPublicId)
-    await afterOrderMutation('발주를 반려했습니다.')
+    await afterOrderMutation(copy.value.messages.rejectOrderSuccess)
   } catch (error) {
-    detailErrorMessage.value = normalizeErrorMessage(error, '발주 반려에 실패했습니다.')
+    detailErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.rejectOrderFail)
   } finally {
     detailActionLoading.value = false
   }
@@ -1405,7 +1793,7 @@ async function submitRejectOrder() {
 
 async function submitCancelOrder() {
   if (!selectedOrder.value) return
-  if (!window.confirm('이 발주를 취소하시겠습니까?')) return
+  if (!window.confirm(copy.value.messages.cancelOrderQuestion)) return
 
   try {
     detailActionLoading.value = true
@@ -1416,9 +1804,9 @@ async function submitCancelOrder() {
       poStatus: 'CANCELLED',
     })
 
-    await afterOrderMutation('발주를 취소했습니다.')
+    await afterOrderMutation(copy.value.messages.cancelOrderSuccess)
   } catch (error) {
-    detailErrorMessage.value = normalizeErrorMessage(error, '발주 취소에 실패했습니다.')
+    detailErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.cancelOrderFail)
   } finally {
     detailActionLoading.value = false
   }
@@ -1504,7 +1892,7 @@ async function openEditOrderModal() {
     await loadEditableSupplierItems(detail.supplierPublicId)
     resetEditOrderForm(detail)
   } catch (error) {
-    editOrderErrorMessage.value = normalizeErrorMessage(error, '발주 수정 정보를 불러오지 못했습니다.')
+    editOrderErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.loadEditFail)
   } finally {
     editOrderLoading.value = false
   }
@@ -1553,20 +1941,20 @@ function validateEditOrderForm() {
   const newLines = activeEditNewLines()
 
   if (!keptExistingLines.length && !newLines.length) {
-    return '발주 품목은 최소 1개 이상 유지해야 합니다.'
+    return copy.value.messages.editMinimumItem
   }
 
   for (const line of keptExistingLines) {
     if (!line.orderedQty || line.orderedQty <= 0) {
-      return '기존 품목 수량은 0보다 커야 합니다.'
+      return copy.value.messages.editExistingQtyPositive
     }
   }
 
   const selectedNewItemIds = new Set<string>()
   for (const line of newLines) {
-    if (!line.itemPublicId) return '추가 품목을 선택하세요.'
-    if (!line.orderedQty || line.orderedQty <= 0) return '추가 품목 수량은 0보다 커야 합니다.'
-    if (selectedNewItemIds.has(line.itemPublicId)) return '동일한 추가 품목이 중복되었습니다.'
+    if (!line.itemPublicId) return copy.value.messages.editSelectNewItem
+    if (!line.orderedQty || line.orderedQty <= 0) return copy.value.messages.editNewQtyPositive
+    if (selectedNewItemIds.has(line.itemPublicId)) return copy.value.messages.editDuplicateNewItem
     selectedNewItemIds.add(line.itemPublicId)
   }
 
@@ -1628,9 +2016,9 @@ async function submitEditOrder() {
     }
 
     closeEditOrderModal()
-    await afterOrderMutation('발주를 수정했습니다.')
+    await afterOrderMutation(copy.value.messages.editSuccess)
   } catch (error) {
-    editOrderErrorMessage.value = normalizeErrorMessage(error, '발주 수정에 실패했습니다.')
+    editOrderErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.editFail)
   } finally {
     editOrderSaving.value = false
   }
@@ -1664,16 +2052,16 @@ function closeCreateSubOrderModal() {
 }
 
 function validateSubOrderForm() {
-  if (!selectedOrder.value) return '부모 발주 정보가 없습니다.'
-  if (!subOrderForm.value.supplierPublicId) return '하위 협력사를 선택하세요.'
+  if (!selectedOrder.value) return copy.value.messages.missingParentOrder
+  if (!subOrderForm.value.supplierPublicId) return copy.value.messages.selectDownstreamSupplier
 
   const selectedLines = subOrderForm.value.lines.filter((line) => line.selected)
 
-  if (!selectedLines.length) return '서브발주 품목을 1개 이상 선택하세요.'
+  if (!selectedLines.length) return copy.value.messages.selectSubOrderItems
 
   for (const line of selectedLines) {
     if (!line.orderedQty || line.orderedQty <= 0) {
-      return '서브발주 수량은 0보다 커야 합니다.'
+      return copy.value.messages.subOrderQtyPositive
     }
   }
 
@@ -1711,11 +2099,11 @@ async function submitCreateSubOrder() {
     await loadReceivedSubOrders()
     await loadSentSubOrders()
     await refreshSelectedOrder()
-    detailSuccessMessage.value = '서브발주를 등록했습니다.'
+    detailSuccessMessage.value = copy.value.messages.subOrderCreateSuccess
   } catch (error) {
     subOrderCreateErrorMessage.value = normalizeErrorMessage(
       error,
-      '서브발주 등록에 실패했습니다.',
+      copy.value.messages.subOrderCreateFail,
     )
   } finally {
     subOrderCreateLoading.value = false
@@ -1786,7 +2174,7 @@ async function afterSubOrderMutation(successMessage: string) {
 
 async function submitAcceptSubOrder() {
   if (!selectedSubOrder.value) return
-  if (!window.confirm('이 수주를 수락하시겠습니까?')) return
+  if (!window.confirm(copy.value.messages.subOrderAcceptQuestion)) return
 
   try {
     subOrderActionLoading.value = true
@@ -1802,9 +2190,9 @@ async function submitAcceptSubOrder() {
       )
     }
 
-    await afterSubOrderMutation('수주를 수락했습니다.')
+    await afterSubOrderMutation(copy.value.messages.subOrderAcceptSuccess)
   } catch (error) {
-    subOrderDetailErrorMessage.value = normalizeErrorMessage(error, '수주 수락에 실패했습니다.')
+    subOrderDetailErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.subOrderAcceptFail)
   } finally {
     subOrderActionLoading.value = false
   }
@@ -1812,7 +2200,7 @@ async function submitAcceptSubOrder() {
 
 async function submitRejectSubOrder() {
   if (!selectedSubOrder.value) return
-  if (!window.confirm('이 서브발주를 반려하시겠습니까?')) return
+  if (!window.confirm(copy.value.messages.subOrderRejectQuestion)) return
 
   try {
     subOrderActionLoading.value = true
@@ -1820,11 +2208,11 @@ async function submitRejectSubOrder() {
     subOrderSuccessMessage.value = ''
 
     await rejectSubPurchaseOrder(selectedSubOrder.value.subPoPublicId)
-    await afterSubOrderMutation('서브발주를 반려했습니다.')
+    await afterSubOrderMutation(copy.value.messages.subOrderRejectSuccess)
   } catch (error) {
     subOrderDetailErrorMessage.value = normalizeErrorMessage(
       error,
-      '서브발주 반려에 실패했습니다.',
+      copy.value.messages.subOrderRejectFail,
     )
   } finally {
     subOrderActionLoading.value = false
@@ -1835,7 +2223,7 @@ function downloadOrdersCsv() {
   if (!filteredOrders.value.length) return
 
   const rows = [
-    TABLE_COLUMNS,
+    TABLE_COLUMNS.value,
     ...filteredOrders.value.map((order) => [
       order.number,
       order.counterpartyName,
@@ -1848,7 +2236,7 @@ function downloadOrdersCsv() {
       order.kind === 'PO'
         ? poStatusText(order.status as PoStatus)
         : subPoStatusText(order.status as SubPoStatus),
-      '상세',
+      copy.value.detail,
     ]),
   ]
 
@@ -1876,25 +2264,29 @@ onMounted(async () => {
     loadCategoryOptions(),
     loadLogisticsNodeOptions(),
   ])
+
+  if (isCreatePage.value) {
+    await searchItemsForCreateOrder()
+  }
 })
 
 onBeforeUnmount(() => header.clearActions())
 </script>
 
 <template>
-  <section class="app-screen terminal-page">
+  <section v-if="!isCreatePage" class="app-screen terminal-page">
     <header class="terminal-page__header">
       <div>
-        <div class="terminal-page__eyebrow">공급망 운영 / 발주 관리</div>
-        <h2 class="terminal-page__title">발주 관리</h2>
+        <div class="terminal-page__eyebrow">{{ copy.pageEyebrow }}</div>
+        <h2 class="terminal-page__title">{{ copy.pageTitle }}</h2>
       </div>
 
       <div class="design-trigger-row">
         <button class="page-button page-button--secondary" type="button" @click="downloadOrdersCsv">
-          내보내기
+          {{ copy.export }}
         </button>
         <button class="page-button page-button--secondary" type="button" @click="loadOrderDashboard">
-          새로고침
+          {{ copy.refresh }}
         </button>
         <button
           class="page-button page-button--primary"
@@ -1902,7 +2294,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="!actor.canCreatePurchaseOrder"
           @click="openCreateOrderModal"
         >
-          신규 발주
+          {{ copy.createOrder }}
         </button>
       </div>
     </header>
@@ -1923,7 +2315,7 @@ onBeforeUnmount(() => header.clearActions())
         <div class="page-panel__head">
           <div>
             <div class="page-panel__eyebrow">APPROVAL</div>
-            <h3>확인 대기함</h3>
+            <h3>{{ copy.queueTitle }}</h3>
           </div>
         </div>
 
@@ -1938,7 +2330,7 @@ onBeforeUnmount(() => header.clearActions())
               type="button"
               @click="
                 queueEntry.kind === 'PO'
-                  ? openOrderDetailById(queueEntry.publicId)
+                  ? openOrderDetailPage(queueEntry.publicId)
                   : openSubOrderDetail(queueEntry.publicId, 'RECEIVED')
               "
             >
@@ -1949,14 +2341,14 @@ onBeforeUnmount(() => header.clearActions())
           </div>
         </div>
 
-        <p v-else class="orders-page__empty">확인 대기 건이 없습니다.</p>
+        <p v-else class="orders-page__empty">{{ copy.queueEmpty }}</p>
       </article>
 
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
             <div class="page-panel__eyebrow">VALUE</div>
-            <h3>카테고리별 금액</h3>
+            <h3>{{ copy.valueTitle }}</h3>
           </div>
         </div>
 
@@ -1974,14 +2366,14 @@ onBeforeUnmount(() => header.clearActions())
           </div>
         </div>
 
-        <p v-else class="orders-page__empty">표시할 카테고리 금액이 없습니다.</p>
+        <p v-else class="orders-page__empty">{{ copy.valueEmpty }}</p>
       </article>
 
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
             <div class="page-panel__eyebrow">COUNTERPARTY</div>
-            <h3>주요 거래처</h3>
+            <h3>{{ copy.counterpartyTitle }}</h3>
           </div>
         </div>
 
@@ -1996,7 +2388,7 @@ onBeforeUnmount(() => header.clearActions())
           </div>
         </div>
 
-        <p v-else class="orders-page__empty">표시할 거래처 집계가 없습니다.</p>
+        <p v-else class="orders-page__empty">{{ copy.counterpartyEmpty }}</p>
       </article>
     </section>
 
@@ -2004,11 +2396,11 @@ onBeforeUnmount(() => header.clearActions())
       <div class="terminal-page__main">
         <section class="terminal-page__filter">
           <label class="terminal-page__search">
-            <span>검색</span>
+            <span>{{ copy.searchLabel }}</span>
             <input
               v-model="search"
               type="text"
-              placeholder="문서번호, 거래처, 품목명으로 검색하세요."
+              :placeholder="copy.searchPlaceholder"
             />
           </label>
 
@@ -2050,15 +2442,15 @@ onBeforeUnmount(() => header.clearActions())
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">OPERATIONS</div>
-              <h3>발주 테이블</h3>
+              <h3>{{ copy.tableTitle }}</h3>
             </div>
             <span class="page-panel__chip">{{ filteredOrders.length }}</span>
           </div>
 
           <p v-if="errorMessage" class="orders-page__error">{{ errorMessage }}</p>
-          <p v-else-if="loading" class="orders-page__empty">주문 데이터를 불러오는 중입니다.</p>
+          <p v-else-if="loading" class="orders-page__empty">{{ copy.loadingOrders }}</p>
           <p v-else-if="!filteredOrders.length" class="orders-page__empty">
-            조건에 맞는 주문이 없습니다.
+            {{ copy.emptyOrders }}
           </p>
 
           <div v-else class="page-table terminal-page__table is-ten-cols">
@@ -2073,18 +2465,24 @@ onBeforeUnmount(() => header.clearActions())
             >
               <span>{{ order.number }}</span>
               <span>{{ order.counterpartyName }}</span>
-              <span>{{ supplierStatusText(order.supplierStatus) }}</span>
+              <span>
+                <span :class="['page-status-chip', supplierStatusTone(order.supplierStatus)]">
+                  {{ supplierStatusText(order.supplierStatus) }}
+                </span>
+              </span>
               <span>{{ order.itemLabel }}</span>
               <span>{{ order.qtyLabel }}</span>
               <span>{{ formatAmount(order.totalAmount, order.currencyCode) }}</span>
               <span>{{ formatDateTime(order.orderedAt) }}</span>
               <span>{{ formatDate(order.expectedDueDate) }}</span>
               <span>
-                {{
-                  order.kind === 'PO'
-                    ? poStatusText(order.status as PoStatus)
-                    : subPoStatusText(order.status as SubPoStatus)
-                }}
+                <span :class="['page-status-chip', orderStatusTone(order.status)]">
+                  {{
+                    order.kind === 'PO'
+                      ? poStatusText(order.status as PoStatus)
+                      : subPoStatusText(order.status as SubPoStatus)
+                  }}
+                </span>
               </span>
               <span class="action-cell">
                 <button
@@ -2092,11 +2490,11 @@ onBeforeUnmount(() => header.clearActions())
                   type="button"
                   @click="
                     order.kind === 'PO'
-                      ? openOrderDetailById(order.id)
+                      ? openOrderDetailPage(order.id)
                       : openSubOrderDetail(order.id, 'ISSUED')
                   "
                 >
-                  상세
+                  {{ copy.detail }}
                 </button>
               </span>
             </div>
@@ -2109,28 +2507,29 @@ onBeforeUnmount(() => header.clearActions())
   </section>
 
   <BaseModal
-    v-model="createModalOpen"
-    title="발주 등록"
-    description="카테고리와 품목을 먼저 고른 뒤, 협력사와 도착거점을 지정해 발주 행을 구성합니다."
+    :model-value="isCreatePage || createModalOpen"
+    :title="copy.createTitle"
+    :description="copy.createDescription"
+    :presentation="isCreatePage ? 'page' : 'modal'"
     size="lg"
     hide-dividers
-    @close="closeCreateOrderModal"
+    @update:model-value="(value) => { if (!value) closeCreateOrderModal() }"
   >
     <div class="orders-page__form orders-page__create-modal-body">
       <section class="orders-page__detail-section">
         <div class="orders-page__section-head">
-          <strong>품목 검색</strong>
+          <strong>{{ copy.itemSearch }}</strong>
         </div>
 
         <div class="orders-page__create-filter-grid">
           <label class="orders-page__form-field">
-            <span>상위 카테고리</span>
+            <span>{{ copy.rootCategory }}</span>
             <select
               v-model="createForm.categoryLevel1PublicId"
               :disabled="createForm.searchLoading"
               @change="handleCreateRootCategoryChange"
             >
-              <option value="">전체</option>
+              <option value="">{{ copy.all }}</option>
               <option
                 v-for="category in createRootCategories"
                 :key="category.publicId"
@@ -2142,13 +2541,13 @@ onBeforeUnmount(() => header.clearActions())
           </label>
 
           <label class="orders-page__form-field">
-            <span>중간 카테고리</span>
+            <span>{{ copy.secondCategory }}</span>
             <select
               v-model="createForm.categoryLevel2PublicId"
               :disabled="createForm.searchLoading || !createSecondCategories.length"
               @change="handleCreateSecondCategoryChange"
             >
-              <option value="">전체</option>
+              <option value="">{{ copy.all }}</option>
               <option
                 v-for="category in createSecondCategories"
                 :key="category.publicId"
@@ -2160,13 +2559,13 @@ onBeforeUnmount(() => header.clearActions())
           </label>
 
           <label class="orders-page__form-field">
-            <span>하위 카테고리</span>
+            <span>{{ copy.thirdCategory }}</span>
             <select
               v-model="createForm.categoryLevel3PublicId"
               :disabled="createForm.searchLoading || !createThirdCategories.length"
               @change="handleCreateThirdCategoryChange"
             >
-              <option value="">전체</option>
+              <option value="">{{ copy.all }}</option>
               <option
                 v-for="category in createThirdCategories"
                 :key="category.publicId"
@@ -2178,12 +2577,12 @@ onBeforeUnmount(() => header.clearActions())
           </label>
 
           <label class="orders-page__form-field orders-page__form-field--wide">
-            <span>품목 검색</span>
+            <span>{{ copy.itemSearch }}</span>
             <div class="orders-page__field-with-button">
               <input
                 v-model="createForm.itemKeyword"
                 type="text"
-                placeholder="품목명 또는 품목코드를 입력하세요."
+                :placeholder="copy.itemSearchPlaceholder"
                 :disabled="createForm.searchLoading"
                 @input="handleCreateKeywordInput"
                 @keyup.enter="searchItemsForCreateOrder"
@@ -2194,7 +2593,7 @@ onBeforeUnmount(() => header.clearActions())
                 :disabled="createForm.searchLoading"
                 @click="searchItemsForCreateOrder"
               >
-                {{ createForm.searchLoading ? '검색 중' : '검색' }}
+                {{ createForm.searchLoading ? copy.searching : copy.search }}
               </button>
             </div>
           </label>
@@ -2209,7 +2608,8 @@ onBeforeUnmount(() => header.clearActions())
             <div class="orders-page__item-picker-row">
               <span>{{ item.itemCode }}</span>
               <span>{{ item.itemName }}</span>
-              <span>{{ item.categoryName }}</span>
+              <span>{{ item.categoryName || copy.uncategorized }}</span>
+              <span>{{ item.supplierName }}</span>
               <span>{{ item.unit }}</span>
 
               <button
@@ -2217,7 +2617,7 @@ onBeforeUnmount(() => header.clearActions())
                 type="button"
                 @click="expandedItemPublicId = expandedItemPublicId === item.publicId ? null : item.publicId"
               >
-                상세
+                {{ expandedItemPublicId === item.publicId ? copy.close : copy.detail }}
               </button>
 
               <button
@@ -2225,7 +2625,7 @@ onBeforeUnmount(() => header.clearActions())
                 type="button"
                 @click="selectCreateSearchItem(item)"
               >
-                선택
+                {{ copy.selectItem }}
               </button>
             </div>
 
@@ -2271,20 +2671,19 @@ onBeforeUnmount(() => header.clearActions())
         </div>
 
         <p v-else-if="!createForm.searchLoading" class="orders-page__empty">
-          카테고리를 선택하거나 품목을 검색하세요.
+          {{ copy.emptyItems }}
         </p>
-
       </section>
 
 
       <section class="orders-page__detail-section">
         <div class="orders-page__section-head">
-          <strong>선택한 발주 품목</strong>
+          <strong>{{ copy.selectedItems }}</strong>
           <span class="page-panel__chip">{{ createForm.lines.length }}</span>
         </div>
 
         <p v-if="!createForm.lines.length" class="orders-page__empty">
-          검색 결과에서 품목을 선택하면 아래에 발주 행이 생성됩니다.
+          {{ copy.selectHint }}
         </p>
 
         <div v-else class="orders-page__line-list">
@@ -2294,24 +2693,24 @@ onBeforeUnmount(() => header.clearActions())
             class="orders-page__line-card"
           >
             <div class="orders-page__line-head">
-              <strong>{{ line.selectedItemName || '품목 행' }}</strong>
+              <strong>{{ line.selectedItemName || copy.itemLine }}</strong>
               <button
                 class="page-button page-button--secondary"
                 type="button"
                 @click="removeCreateOrderLine(line.id)"
               >
-                행 삭제
+                {{ copy.deleteLine }}
               </button>
             </div>
 
             <div class="orders-page__line-grid">
               <label class="orders-page__form-field">
-                <span>품목명</span>
+                <span>{{ copy.itemName }}</span>
                 <select
                   v-model="line.selectedItemName"
                   @change="handleCreateLineItemNameChange(line)"
                 >
-                  <option value="">품목명을 선택하세요.</option>
+                  <option value="">{{ copy.selectItemName }}</option>
                   <option
                     v-for="itemName in itemNameOptionsOf()"
                     :key="itemName"
@@ -2323,12 +2722,12 @@ onBeforeUnmount(() => header.clearActions())
               </label>
 
               <label class="orders-page__form-field">
-                <span>협력사</span>
+                <span>{{ copy.supplier }}</span>
                 <select
                   v-model="line.selectedSupplierPublicId"
                   @change="handleCreateLineSupplierChange(line)"
                 >
-                  <option value="">협력사를 선택하세요.</option>
+                  <option value="">{{ copy.selectSupplier }}</option>
                   <option
                     v-for="supplier in supplierOptionsOf(line)"
                     :key="`${supplier.supplierPublicId}-${supplier.itemPublicId}`"
@@ -2340,7 +2739,7 @@ onBeforeUnmount(() => header.clearActions())
               </label>
 
               <label class="orders-page__form-field">
-                <span>발주 수량</span>
+                <span>{{ copy.orderQty }}</span>
                 <input
                   v-model.number="line.orderedQty"
                   type="number"
@@ -2350,7 +2749,7 @@ onBeforeUnmount(() => header.clearActions())
               </label>
 
               <label class="orders-page__form-field">
-                <span>단가</span>
+                <span>{{ copy.unitPrice }}</span>
                 <input
                   :value="formatPlainAmount(selectedCreateLineUnitPrice(line))"
                   type="text"
@@ -2359,7 +2758,7 @@ onBeforeUnmount(() => header.clearActions())
               </label>
 
               <label class="orders-page__form-field">
-                <span>예상 금액</span>
+                <span>{{ copy.expectedAmount }}</span>
                 <input
                   :value="formatPlainAmount(selectedCreateLineAmount(line))"
                   type="text"
@@ -2368,9 +2767,9 @@ onBeforeUnmount(() => header.clearActions())
               </label>
 
               <label class="orders-page__form-field">
-                <span>도착거점</span>
+                <span>{{ copy.arrivalNode }}</span>
                 <select v-model="line.arrivalLogisticsNodePublicId">
-                  <option value="">도착거점을 선택하세요.</option>
+                  <option value="">{{ copy.selectArrivalNode }}</option>
                   <option
                     v-for="node in logisticsNodeOptions"
                     :key="node.publicId"
@@ -2383,43 +2782,43 @@ onBeforeUnmount(() => header.clearActions())
             </div>
 
             <div v-if="selectedCreateLineItem(line)" class="orders-page__item-preview">
-              <strong class="orders-page__item-preview-title">선택 품목 정보</strong>
+              <strong class="orders-page__item-preview-title">{{ copy.selectedItemInfo }}</strong>
 
               <div class="orders-page__item-preview-grid">
                 <div>
-                  <span>품목 코드</span>
+                  <span>{{ copy.itemCode }}</span>
                   <strong>{{ selectedCreateLineItem(line)?.itemCode }}</strong>
                 </div>
                 <div>
-                  <span>카테고리</span>
+                  <span>{{ copy.category }}</span>
                   <strong>{{ selectedCreateLineItem(line)?.categoryName }}</strong>
                 </div>
                 <div>
-                  <span>협력사 후보</span>
-                  <strong>{{ matchingSupplierCount(line) }}곳</strong>
+                  <span>{{ copy.supplierCandidates }}</span>
+                  <strong>{{ copy.supplierCandidatesCount(matchingSupplierCount(line)) }}</strong>
                 </div>
                 <div>
-                  <span>단위</span>
+                  <span>{{ copy.unit }}</span>
                   <strong>{{ selectedCreateLineItem(line)?.unit }}</strong>
                 </div>
                 <div>
-                  <span>리드타임</span>
-                  <strong>{{ leadTimeDaysOf(selectedCreateLineItem(line)) ?? '-' }}일</strong>
+                  <span>{{ copy.leadTime }}</span>
+                  <strong>{{ leadTimeDaysOf(selectedCreateLineItem(line)) ?? '-' }}{{ copy.days }}</strong>
                 </div>
                 <div>
-                  <span>납기 예정일</span>
+                  <span>{{ copy.expectedDueDate }}</span>
                   <strong>{{ expectedDueDateText(selectedCreateLineItem(line)) }}</strong>
                 </div>
                 <div>
-                  <span>월간 생산량</span>
+                  <span>{{ copy.monthlyCapacity }}</span>
                   <strong>{{ formatNumber(monthlyCapacityOf(selectedCreateLineItem(line))) }}</strong>
                 </div>
                 <div>
-                  <span>최소 주문 수량</span>
+                  <span>{{ copy.minimumOrderQty }}</span>
                   <strong>{{ formatNumber(moqOf(selectedCreateLineItem(line))) }}</strong>
                 </div>
                 <div>
-                  <span>부분 확정</span>
+                  <span>{{ copy.partialConfirmation }}</span>
                   <strong>
                     {{ capabilityText(partialConfirmationAllowedOf(selectedCreateLineItem(line))) }}
                   </strong>
@@ -2440,7 +2839,7 @@ onBeforeUnmount(() => header.clearActions())
           type="button"
           @click="closeCreateOrderModal"
         >
-          취소
+          {{ copy.cancel }}
         </button>
 
         <button
@@ -2449,7 +2848,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="createLoading"
           @click="submitCreateOrder"
         >
-          등록
+          {{ copy.submit }}
         </button>
       </div>
     </div>
@@ -2457,51 +2856,51 @@ onBeforeUnmount(() => header.clearActions())
 
   <BaseModal
     v-model="orderDetailModalOpen"
-    title="발주 상세"
+    :title="copy.orderDetail"
     :description="selectedOrderDescription"
     size="lg"
     @close="closeOrderDetailModal"
   >
-    <div v-if="detailLoading" class="orders-page__empty">발주 상세 정보를 불러오는 중입니다.</div>
+    <div v-if="detailLoading" class="orders-page__empty">{{ copy.loadingDetail }}</div>
     <p v-else-if="detailErrorMessage" class="orders-page__error">{{ detailErrorMessage }}</p>
 
     <div v-else-if="selectedOrder" class="orders-page__detail-stack">
       <section class="orders-page__detail-section">
         <div class="orders-page__section-head">
-          <strong>기본 정보</strong>
+          <strong>{{ copy.basicInfo }}</strong>
         </div>
 
         <div class="orders-page__detail-grid">
           <div class="orders-page__detail-item">
-            <span>발주 번호</span>
+            <span>{{ copy.orderNumber }}</span>
             <strong>{{ selectedOrder.poNumber }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>발주 대상 협력사명</span>
+            <span>{{ copy.targetSupplier }}</span>
             <strong>{{ selectedOrder.supplierName }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>협력사 상태</span>
+            <span>{{ copy.supplierStatus }}</span>
             <strong>{{ supplierStatusText(selectedOrder.supplierStatus) }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>발주 상태</span>
+            <span>{{ copy.orderStatus }}</span>
             <strong>{{ poStatusText(selectedOrder.poStatus) }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>발주 날짜</span>
+            <span>{{ copy.orderDate }}</span>
             <strong>{{ formatDateTime(selectedOrder.orderedAt) }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>예상 납기일</span>
+            <span>{{ copy.expectedDueDate }}</span>
             <strong>{{ formatDate(selectedOrderExpectedDueDate) }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>총 금액</span>
+            <span>{{ copy.totalAmount }}</span>
             <strong>{{ formatAmount(selectedOrder.totalAmount, selectedOrder.currencyCode) }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>메모</span>
+            <span>{{ copy.memo }}</span>
             <strong>{{ selectedOrder.memo || '-' }}</strong>
           </div>
         </div>
@@ -2509,17 +2908,17 @@ onBeforeUnmount(() => header.clearActions())
 
       <section class="orders-page__detail-section">
         <div class="orders-page__section-head">
-          <strong>품목 상세</strong>
+          <strong>{{ copy.itemDetail }}</strong>
         </div>
 
         <div class="orders-page__detail-table">
           <div class="orders-page__detail-row orders-page__detail-row--head">
-            <span>품목</span>
-            <span>발주 수량</span>
-            <span>확정 수량</span>
-            <span>유닛</span>
-            <span>예상 납기일</span>
-            <span>총 금액</span>
+            <span>{{ copy.item }}</span>
+            <span>{{ copy.orderQty }}</span>
+            <span>{{ copy.confirmedQty }}</span>
+            <span>{{ copy.unit }}</span>
+            <span>{{ copy.expectedDueDate }}</span>
+            <span>{{ copy.totalAmount }}</span>
           </div>
 
           <div
@@ -2545,8 +2944,8 @@ onBeforeUnmount(() => header.clearActions())
   class="orders-page__detail-section"
 >
   <div class="orders-page__section-head">
-    <strong>확정 수량 입력</strong>
-    <span class="page-panel__chip">수락 전 입력</span>
+    <strong>{{ copy.confirmQtyInput }}</strong>
+    <span class="page-panel__chip">{{ copy.beforeAcceptInput }}</span>
   </div>
 
   <div class="orders-page__line-list">
@@ -2562,7 +2961,7 @@ onBeforeUnmount(() => header.clearActions())
 
       <div class="orders-page__line-grid">
         <label class="orders-page__form-field">
-          <span>발주 수량</span>
+          <span>{{ copy.orderQty }}</span>
           <input
             :value="`${formatNumber(line.orderedQty)} ${line.unit}`"
             type="text"
@@ -2571,7 +2970,7 @@ onBeforeUnmount(() => header.clearActions())
         </label>
 
         <label class="orders-page__form-field">
-          <span>확정 수량</span>
+          <span>{{ copy.confirmedQty }}</span>
           <input
             v-model.number="line.confirmedQty"
             type="number"
@@ -2598,7 +2997,7 @@ onBeforeUnmount(() => header.clearActions())
         class="orders-page__detail-section"
       >
         <div class="orders-page__section-head">
-          <strong>연결된 서브발주</strong>
+          <strong>{{ copy.linkedSubOrders }}</strong>
         </div>
 
         <div v-if="parentSubOrders.length" class="orders-page__suborder-list">
@@ -2621,13 +3020,13 @@ onBeforeUnmount(() => header.clearActions())
                 type="button"
                 @click="openSubOrderDetail(subOrder.subPoPublicId, 'ISSUED')"
               >
-                서브발주 상세
+                {{ copy.subOrderDetail }}
               </button>
             </div>
           </div>
         </div>
 
-        <p v-else class="orders-page__empty">연결된 서브발주가 없습니다.</p>
+        <p v-else class="orders-page__empty">{{ copy.noSubOrders }}</p>
       </section>
 
       <p v-if="detailSuccessMessage" class="orders-page__success">{{ detailSuccessMessage }}</p>
@@ -2640,7 +3039,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="detailActionLoading"
           @click="submitRejectOrder"
         >
-          반려
+          {{ copy.reject }}
         </button>
 
         <button
@@ -2650,7 +3049,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="detailActionLoading"
           @click="submitAcceptOrder"
         >
-          수락
+          {{ copy.accept }}
         </button>
 
         <button
@@ -2660,7 +3059,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="detailActionLoading"
           @click="cancelConfirmOrder"
         >
-          확정 입력 취소
+          {{ copy.cancelConfirmInput }}
         </button>
 
         <button
@@ -2670,7 +3069,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="detailActionLoading"
           @click="submitConfirmOrder"
         >
-          확정 수량 입력 후 수락
+          {{ copy.acceptAfterConfirm }}
         </button>
 
         <button
@@ -2680,7 +3079,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="detailActionLoading"
           @click="openCreateSubOrderModal"
         >
-          서브발주 생성
+          {{ copy.createSubOrder }}
         </button>
 
         <button
@@ -2690,7 +3089,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="detailActionLoading"
           @click="openEditOrderModal"
         >
-          발주 수정
+          {{ copy.editOrder }}
         </button>
 
         <button
@@ -2700,7 +3099,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="detailActionLoading"
           @click="submitCancelOrder"
         >
-          발주 취소
+          {{ copy.cancelOrder }}
         </button>
       </div>
     </div>
@@ -2708,21 +3107,21 @@ onBeforeUnmount(() => header.clearActions())
 
   <BaseModal
     v-model="editOrderModalOpen"
-    title="발주 수정"
-    description="확인 대기 상태의 발주 메모와 품목 수량을 수정합니다."
+    :title="copy.editOrder"
+    :description="copy.editOrderDescription"
     size="lg"
     @close="closeEditOrderModal"
   >
-    <div v-if="editOrderLoading" class="orders-page__empty">발주 수정 정보를 불러오는 중입니다.</div>
+    <div v-if="editOrderLoading" class="orders-page__empty">{{ copy.loadingEdit }}</div>
 
     <div v-else class="orders-page__form">
       <label class="orders-page__form-field">
-        <span>메모</span>
-        <input v-model="editForm.memo" type="text" placeholder="발주 메모를 입력하세요." />
+        <span>{{ copy.memo }}</span>
+        <input v-model="editForm.memo" type="text" :placeholder="copy.memoPlaceholder" />
       </label>
 
       <div class="orders-page__section-head">
-        <strong>기존 품목</strong>
+        <strong>{{ copy.existingItems }}</strong>
       </div>
 
       <div class="orders-page__line-list">
@@ -2738,18 +3137,18 @@ onBeforeUnmount(() => header.clearActions())
               type="button"
               @click="line.deleted = !line.deleted"
             >
-              {{ line.deleted ? '삭제 취소' : '품목 삭제' }}
+              {{ line.deleted ? copy.undoDelete : copy.deleteItem }}
             </button>
           </div>
 
           <div class="orders-page__line-grid">
             <label class="orders-page__form-field">
-              <span>유닛</span>
+              <span>{{ copy.unit }}</span>
               <input :value="line.unit" type="text" disabled />
             </label>
 
             <label class="orders-page__form-field">
-              <span>발주 수량</span>
+              <span>{{ copy.orderQty }}</span>
               <input
                 v-model.number="line.orderedQty"
                 type="number"
@@ -2763,9 +3162,9 @@ onBeforeUnmount(() => header.clearActions())
       </div>
 
       <div class="orders-page__section-head">
-        <strong>품목 추가</strong>
+        <strong>{{ copy.addItem }}</strong>
         <button class="page-button page-button--secondary" type="button" @click="addEditOrderLine">
-          추가 행
+          {{ copy.addLine }}
         </button>
       </div>
 
@@ -2776,21 +3175,21 @@ onBeforeUnmount(() => header.clearActions())
           class="orders-page__line-card"
         >
           <div class="orders-page__line-head">
-            <strong>추가 품목</strong>
+            <strong>{{ copy.newItem }}</strong>
             <button
               class="page-button page-button--secondary"
               type="button"
               @click="removeEditOrderNewLine(line.key)"
             >
-              행 삭제
+              {{ copy.deleteLine }}
             </button>
           </div>
 
           <div class="orders-page__line-grid">
             <label class="orders-page__form-field">
-              <span>품목</span>
+              <span>{{ copy.item }}</span>
               <select v-model="line.itemPublicId">
-                <option value="">품목을 선택하세요.</option>
+                <option value="">{{ copy.selectItemPlaceholder }}</option>
                 <option
                   v-for="item in editSelectableItems(line.key)"
                   :key="item.publicId"
@@ -2802,7 +3201,7 @@ onBeforeUnmount(() => header.clearActions())
             </label>
 
             <label class="orders-page__form-field">
-              <span>발주 수량</span>
+              <span>{{ copy.orderQty }}</span>
               <input
                 v-model.number="line.orderedQty"
                 type="number"
@@ -2819,7 +3218,7 @@ onBeforeUnmount(() => header.clearActions())
 
       <div class="orders-page__actions">
         <button class="page-button page-button--secondary" type="button" @click="closeEditOrderModal">
-          취소
+          {{ copy.cancel }}
         </button>
         <button
           class="page-button page-button--primary"
@@ -2827,7 +3226,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="editOrderSaving"
           @click="submitEditOrder"
         >
-          저장
+          {{ copy.save }}
         </button>
       </div>
     </div>
@@ -2835,22 +3234,22 @@ onBeforeUnmount(() => header.clearActions())
 
   <BaseModal
     v-model="subOrderModalOpen"
-    title="서브발주 등록"
-    description="선택한 부모 발주 기준으로 하위 협력사에 서브발주를 생성합니다."
+    :title="copy.createSubOrderTitle"
+    :description="copy.createSubOrderDescription"
     size="lg"
     @close="closeCreateSubOrderModal"
   >
     <div v-if="selectedOrder" class="orders-page__form">
       <div class="orders-page__form-grid">
         <label class="orders-page__form-field">
-          <span>기준 발주</span>
+          <span>{{ copy.baseOrder }}</span>
           <input :value="selectedOrder.poNumber" type="text" disabled />
         </label>
 
         <label class="orders-page__form-field">
-          <span>하위 협력사</span>
+          <span>{{ copy.downstreamSupplier }}</span>
           <select v-model="subOrderForm.supplierPublicId">
-            <option value="">하위 협력사를 선택하세요.</option>
+            <option value="">{{ copy.selectDownstreamSupplier }}</option>
             <option
               v-for="supplier in downstreamSupplierOptions"
               :key="supplierPublicIdOf(supplier)"
@@ -2863,7 +3262,7 @@ onBeforeUnmount(() => header.clearActions())
       </div>
 
       <div class="orders-page__section-head">
-        <strong>서브발주 품목</strong>
+        <strong>{{ copy.subOrderItems }}</strong>
       </div>
 
       <div class="orders-page__line-list">
@@ -2879,7 +3278,7 @@ onBeforeUnmount(() => header.clearActions())
 
           <div class="orders-page__line-grid">
             <label class="orders-page__form-field">
-              <span>서브발주 수량</span>
+              <span>{{ copy.subOrderQty }}</span>
               <input
                 v-model.number="line.orderedQty"
                 type="number"
@@ -2898,7 +3297,7 @@ onBeforeUnmount(() => header.clearActions())
 
       <div class="orders-page__actions">
         <button class="page-button page-button--secondary" type="button" @click="closeCreateSubOrderModal">
-          취소
+          {{ copy.cancel }}
         </button>
         <button
           class="page-button page-button--primary"
@@ -2906,7 +3305,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="subOrderCreateLoading"
           @click="submitCreateSubOrder"
         >
-          등록
+          {{ copy.submit }}
         </button>
       </div>
     </div>
@@ -2914,13 +3313,13 @@ onBeforeUnmount(() => header.clearActions())
 
   <BaseModal
     v-model="subOrderDetailModalOpen"
-    title="서브발주 상세"
+    :title="copy.subOrderDetailTitle"
     :description="selectedSubOrderDescription"
     size="lg"
     @close="closeSubOrderDetailModal"
   >
     <div v-if="subOrderDetailLoading" class="orders-page__empty">
-      서브발주 상세 정보를 불러오는 중입니다.
+      {{ copy.loadingSubOrderDetail }}
     </div>
     <p v-else-if="subOrderDetailErrorMessage" class="orders-page__error">
       {{ subOrderDetailErrorMessage }}
@@ -2929,44 +3328,44 @@ onBeforeUnmount(() => header.clearActions())
     <div v-else-if="selectedSubOrder" class="orders-page__detail-stack">
       <section class="orders-page__detail-section">
         <div class="orders-page__section-head">
-          <strong>기본 정보</strong>
+          <strong>{{ copy.basicInfo }}</strong>
         </div>
 
         <div class="orders-page__detail-grid">
           <div class="orders-page__detail-item">
-            <span>서브발주번호</span>
+            <span>{{ copy.subOrderNumber }}</span>
             <strong>{{ selectedSubOrder.subPoNumber }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>부모 발주번호</span>
+            <span>{{ copy.parentOrderNumber }}</span>
             <strong>{{ selectedSubOrder.parentPoNumber }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>발행 협력사</span>
+            <span>{{ copy.issuerSupplier }}</span>
             <strong>{{ selectedSubOrder.issuerSupplierName }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>수신 협력사</span>
+            <span>{{ copy.receiverSupplier }}</span>
             <strong>{{ selectedSubOrder.supplierName }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>협력사 상태</span>
+            <span>{{ copy.supplierStatus }}</span>
             <strong>{{ supplierStatusText(selectedSubOrder.supplierStatus) }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>발주 상태</span>
+            <span>{{ copy.orderStatus }}</span>
             <strong>{{ subPoStatusText(selectedSubOrder.subPoStatus) }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>발주 날짜</span>
+            <span>{{ copy.orderDate }}</span>
             <strong>{{ formatDateTime(selectedSubOrder.orderedAt) }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>예상 납기일</span>
+            <span>{{ copy.expectedDueDate }}</span>
             <strong>{{ formatDate(selectedSubOrderExpectedDueDate) }}</strong>
           </div>
           <div class="orders-page__detail-item">
-            <span>총 금액</span>
+            <span>{{ copy.totalAmount }}</span>
             <strong>{{ formatPlainAmount(selectedSubOrder.totalAmount) }}</strong>
           </div>
         </div>
@@ -2974,17 +3373,17 @@ onBeforeUnmount(() => header.clearActions())
 
       <section class="orders-page__detail-section">
         <div class="orders-page__section-head">
-          <strong>품목 상세</strong>
+          <strong>{{ copy.itemDetail }}</strong>
         </div>
 
         <div class="orders-page__detail-table">
           <div class="orders-page__detail-row orders-page__detail-row--head">
-            <span>품목</span>
-            <span>발주 수량</span>
-            <span>확정 수량</span>
-            <span>유닛</span>
-            <span>예상 납기일</span>
-            <span>총 금액</span>
+            <span>{{ copy.item }}</span>
+            <span>{{ copy.orderQty }}</span>
+            <span>{{ copy.confirmedQty }}</span>
+            <span>{{ copy.unit }}</span>
+            <span>{{ copy.expectedDueDate }}</span>
+            <span>{{ copy.totalAmount }}</span>
           </div>
 
           <div
@@ -3015,7 +3414,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="subOrderActionLoading"
           @click="submitRejectSubOrder"
         >
-          반려
+          {{ copy.reject }}
         </button>
 
         <button
@@ -3025,7 +3424,7 @@ onBeforeUnmount(() => header.clearActions())
           :disabled="subOrderActionLoading"
           @click="submitAcceptSubOrder"
         >
-          수락
+          {{ copy.accept }}
         </button>
       </div>
     </div>

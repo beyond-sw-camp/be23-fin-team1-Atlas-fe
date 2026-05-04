@@ -287,7 +287,7 @@ export const NAV_ITEMS: NavEntry[] = [
     description: '시스템 감사 로그',
     pageSubtitle: '사용자, 시스템, 보안 이벤트 감사 로그',
     section: 'system',
-    organizations: ['mainBuyer', 'admin', 'supplier'],
+    organizations: ['admin'],
   },
   {
     key: 'collaboration',

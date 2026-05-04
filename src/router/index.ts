@@ -18,6 +18,7 @@ import SettlementsPage from '../features/operations/views/SettlementsPage.vue'
 import OrdersPage from '../features/operations/views/OrdersPage.vue'
 import SuppliersPage from '../features/operations/views/SuppliersPage.vue'
 import ReturnsPage from '../features/operations/views/ReturnsPage.vue'
+import OperationDetailPage from '../features/operations/views/OperationDetailPage.vue'
 import ProfilePage from '../features/profile/views/ProfilePage.vue'
 import { responsePageDefinitions } from '../features/response/definitions'
 import CertificatesPage from '../features/response/views/CertificatesPage.vue'
@@ -36,6 +37,7 @@ import InventoryPage from '../features/operations/views/InventoryPage.vue'
 import OrganizationProfilePage from '../features/system/views/OrganizationProfilePage.vue'
 
 const AUTH_ORG_STORAGE_KEY = 'atlas-organization'
+const AUTH_USER_ROLE_STORAGE_KEY = 'atlas-user-role'
 
 const PAGE_ORGANIZATIONS = Object.fromEntries(NAV_ITEMS.map((item) => [item.key, item.organizations])) as Record<PageKey, OrganizationType[]>
 
@@ -51,13 +53,18 @@ const pageRoutes = [
   { path: 'dashboard', alias: ['control-tower'], name: 'controlTower', component: ControlTowerPage },
   { path: 'impact', alias: ['impact-orders'], name: 'impactOrders', component: StructuredPage, props: { page: monitoringPageDefinitions.impactOrders } },
   { path: 'network', alias: ['supplier-network'], name: 'supplierNetwork', component: SupplierNetworkPage, meta: { hidePageHead: true } },
+  { path: 'orders/create', name: 'orderCreate', component: OrdersPage, meta: { hidePageHead: true } },
   { path: 'orders', alias: ['orders-desk'], name: 'ordersDesk', component: OrdersPage, meta: { hidePageHead: true } },
+  { path: 'operations/:kind/:publicId', name: 'operationDetail', component: OperationDetailPage, meta: { hidePageHead: true } },
   { path: 'suppliers', alias: ['supplier-control'], name: 'supplierControl', component: SuppliersPage, meta: { hidePageHead: true } },
   { path: 'items', name: 'items', component: ItemsPage, meta: { hidePageHead: true } },
   { path: 'inventory', name: 'inventory', component: InventoryPage, meta: { hidePageHead: true } },
+  { path: 'shipments/create', name: 'shipmentCreate', component: ShipmentsPage, meta: { hidePageHead: true } },
   { path: 'shipments', name: 'shipments', component: ShipmentsPage, meta: { hidePageHead: true } },
+  { path: 'settlements/budgets/create', name: 'settlementBudgetCreate', component: SettlementsPage, meta: { hidePageHead: true } },
   { path: 'settlements', name: 'settlements', component: SettlementsPage, meta: { hidePageHead: true } },
   { path: 'logistics-nodes', name: 'logisticsNodes', component: LogisticsNodesPage, meta: { hidePageHead: true } },
+  { path: 'returns/create', name: 'returnCreate', component: ReturnsPage, meta: { hidePageHead: true } },
   { path: 'returns', name: 'returns', component: ReturnsPage, meta: { hidePageHead: true } },
   { path: 'certificates', alias: ['certificate-watch'], name: 'certificateWatch', component: CertificatesPage, meta: { hidePageHead: true } },
   { path: 'risks', alias: ['risk-events'], name: 'shipmentOps', component: StructuredPage, props: { page: responsePageDefinitions.shipmentOps } },
@@ -104,6 +111,7 @@ router.beforeEach((to) => {
 
   const targetPage: PageKey = currentName
   const storedOrg = typeof window === 'undefined' ? undefined : window.sessionStorage.getItem(AUTH_ORG_STORAGE_KEY) ?? undefined
+  const storedRole = typeof window === 'undefined' ? undefined : window.sessionStorage.getItem(AUTH_USER_ROLE_STORAGE_KEY) ?? undefined
   const organization = isOrganization(storedOrg) ? storedOrg : DEFAULT_ORGANIZATION
   const allowedOrganizations = PAGE_ORGANIZATIONS[targetPage]
 
@@ -113,6 +121,13 @@ router.beforeEach((to) => {
 
     return {
       name: fallbackPage,
+      query: to.query,
+    }
+  }
+
+  if (targetPage === 'auditTrail' && (organization !== 'admin' || storedRole !== 'ADMIN')) {
+    return {
+      name: DEFAULT_PAGE,
       query: to.query,
     }
   }

@@ -41,6 +41,10 @@ function getNavItemsForOrganization(
       return userRole === 'ADMIN' || userRole === 'ORG_ADMIN'
     }
 
+    if (item.key === 'auditTrail') {
+      return organization === 'admin' && userRole === 'ADMIN'
+    }
+
     return true
   })
 }

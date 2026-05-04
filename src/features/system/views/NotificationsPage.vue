@@ -13,6 +13,7 @@ const session = useAtlasSessionStore()
 
 const searchQuery = ref('')
 const activeTab = ref('ALL')
+const isPreferencesModalOpen = ref(false)
 const pageSize = 20
 
 const CONTENT = {
@@ -22,6 +23,8 @@ const CONTENT = {
     subtitle: '리스크 이벤트, 시스템 메시지, 운영 알림을 확인하고 읽음 상태를 관리합니다.',
     search: '제목, 메시지, 유형 검색...',
     readAll: '전체 읽음',
+    preferencesButton: '알림 설정',
+    preferencesClose: '닫기',
     tableTitle: '알림 목록',
     preferencesTitle: '개인 알림 설정',
     preferencesEyebrow: 'PREFERENCES',
@@ -58,6 +61,8 @@ const CONTENT = {
     subtitle: 'Review risk events, system messages, and operational notifications.',
     search: 'Search title, message, type...',
     readAll: 'Mark all read',
+    preferencesButton: 'Notification Settings',
+    preferencesClose: 'Close',
     tableTitle: 'Notification List',
     preferencesTitle: 'Notification Preferences',
     preferencesEyebrow: 'PREFERENCES',
@@ -177,6 +182,7 @@ function formatDateTime(value: string) {
   if (!value) return '-'
 
   return new Intl.DateTimeFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -259,6 +265,9 @@ onBeforeUnmount(() => {
         <p class="terminal-page__eyebrow">{{ content.eyebrow }}</p>
         <h1 class="terminal-page__title">{{ content.title }}</h1>
       </div>
+      <button class="page-button page-button--secondary notifications-page__settings-button" type="button" @click="isPreferencesModalOpen = true">
+        {{ content.preferencesButton }}
+      </button>
     </header>
 
     <section class="page-metrics terminal-page__metrics">
@@ -333,7 +342,9 @@ onBeforeUnmount(() => {
             <small>{{ notification.message }}</small>
           </span>
           <span>
-            {{ notification.readYn ? content.readStatus.read : content.readStatus.unread }}
+            <span class="notifications-page__read-chip" :class="notification.readYn ? 'is-read' : 'is-unread'">
+              {{ notification.readYn ? content.readStatus.read : content.readStatus.unread }}
+            </span>
           </span>
           <span class="notifications-page__actions">
             <button
@@ -372,56 +383,60 @@ onBeforeUnmount(() => {
       </button>
     </nav>
 
-    <article class="page-panel notifications-page__preferences">
-      <div class="page-panel__head">
-        <div>
-          <span class="page-panel__eyebrow">{{ content.preferencesEyebrow }}</span>
-          <h3>{{ content.preferencesTitle }}</h3>
-          <p class="notifications-page__preferences-description">{{ content.preferencesDescription }}</p>
-        </div>
-        <span class="page-panel__chip">{{ visiblePreferences.length }}</span>
-      </div>
-
-      <div v-if="notificationStore.isLoadingPreferences" class="notifications-page__state">
-        {{ content.preferencesLoading }}
-      </div>
-      <div v-else-if="notificationStore.preferencesErrorMessage" class="notifications-page__state is-error">
-        <strong>{{ notificationStore.preferencesErrorMessage }}</strong>
-        <button class="page-button page-button--secondary" type="button" @click="notificationStore.fetchPreferences()">
-          {{ content.retry }}
-        </button>
-      </div>
-      <div v-else-if="visiblePreferences.length === 0" class="notifications-page__state">
-        {{ content.preferencesEmpty }}
-      </div>
-
-      <div v-else class="notifications-page__preference-list">
-        <div
-          v-for="preference in visiblePreferences"
-          :key="preference.category"
-          class="notifications-page__preference-item"
-        >
-          <div class="notifications-page__preference-copy">
-            <strong>{{ preference.label }}</strong>
-            <span>{{ preference.description }}</span>
-            <small>{{ preference.category }}</small>
+    <div v-if="isPreferencesModalOpen" class="notifications-page__modal-backdrop" @click.self="isPreferencesModalOpen = false">
+      <article class="page-panel notifications-page__preferences notifications-page__preferences-modal" role="dialog" aria-modal="true">
+        <div class="page-panel__head">
+          <div>
+            <span class="page-panel__eyebrow">{{ content.preferencesEyebrow }}</span>
+            <h3>{{ content.preferencesTitle }}</h3>
+            <p class="notifications-page__preferences-description">{{ content.preferencesDescription }}</p>
           </div>
-          <div class="notifications-page__preference-control">
-            <span class="notifications-page__preference-status">
-              {{ preference.enabled ? content.enabled : content.disabled }}
-            </span>
-            <button
-              class="risk-rules-toggle notifications-page__preference-toggle"
-              :class="{ 'is-on': preference.enabled }"
-              type="button"
-              role="switch"
-              :aria-checked="preference.enabled"
-              :disabled="!preference.userConfigurable || isPreferenceUpdating(preference.category)"
-              @click="handlePreferenceToggle(preference.category, !preference.enabled)"
-            />
+          <button class="page-button page-button--secondary" type="button" @click="isPreferencesModalOpen = false">
+            {{ content.preferencesClose }}
+          </button>
+        </div>
+
+        <div v-if="notificationStore.isLoadingPreferences" class="notifications-page__state">
+          {{ content.preferencesLoading }}
+        </div>
+        <div v-else-if="notificationStore.preferencesErrorMessage" class="notifications-page__state is-error">
+          <strong>{{ notificationStore.preferencesErrorMessage }}</strong>
+          <button class="page-button page-button--secondary" type="button" @click="notificationStore.fetchPreferences()">
+            {{ content.retry }}
+          </button>
+        </div>
+        <div v-else-if="visiblePreferences.length === 0" class="notifications-page__state">
+          {{ content.preferencesEmpty }}
+        </div>
+
+        <div v-else class="notifications-page__preference-list">
+          <div
+            v-for="preference in visiblePreferences"
+            :key="preference.category"
+            class="notifications-page__preference-item"
+          >
+            <div class="notifications-page__preference-copy">
+              <strong>{{ preference.label }}</strong>
+              <span>{{ preference.description }}</span>
+              <small>{{ preference.category }}</small>
+            </div>
+            <div class="notifications-page__preference-control">
+              <span class="notifications-page__preference-status">
+                {{ preference.enabled ? content.enabled : content.disabled }}
+              </span>
+              <button
+                class="risk-rules-toggle notifications-page__preference-toggle"
+                :class="{ 'is-on': preference.enabled }"
+                type="button"
+                role="switch"
+                :aria-checked="preference.enabled"
+                :disabled="!preference.userConfigurable || isPreferenceUpdating(preference.category)"
+                @click="handlePreferenceToggle(preference.category, !preference.enabled)"
+              />
+            </div>
           </div>
         </div>
-      </div>
-    </article>
+      </article>
+    </div>
   </section>
 </template>

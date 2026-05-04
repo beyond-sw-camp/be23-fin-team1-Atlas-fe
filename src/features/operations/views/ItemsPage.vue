@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
@@ -88,6 +89,7 @@ const QUALITY_GRADE_OPTIONS: SupplierItemQualityGrade[] = [
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
 const actor = useActorScope()
+const router = useRouter()
 
 const copy = computed(() =>
   preferences.language === 'ko'
@@ -134,6 +136,54 @@ const copy = computed(() =>
         submitLabel: '완료',
         retrySubmitLabel: '완료',
         emptyCapability: '연결된 공급 역량 정보가 없습니다.',
+        masterEyebrow: '품목',
+        capabilityEyebrow: '품목 공급 역량',
+        linkedOrdersTitle: '연결된 발주 목록',
+        noLinkedOrders: '연결된 발주가 없습니다.',
+        labels: {
+          category: '카테고리',
+          itemCode: '품목 코드',
+          itemName: '품목명',
+          unit: '단위',
+          supplierName: '협력사명',
+          itemStatus: '품목 상태',
+          spec: '규격',
+          shelfLife: '유통기한',
+          createdAt: '품목 생성 시각',
+          updatedAt: '품목 수정 시각',
+          availableQty: '현재 가용 수량',
+          moq: '최소 발주 수량',
+          qualityGrade: '품질 등급',
+          leadTime: '리드타임',
+          monthlyCapacity: '월간 생산 가능량',
+          unitPriceHint: '기준 단가',
+          validFrom: '적용 시작일',
+          capabilityCreatedAt: '공급 역량 생성 시각',
+          qty: '수량',
+          confirmed: '확정',
+          dueDate: '납기',
+          status: '상태',
+          partialConfirmation: '부분 확정',
+          qualityPrice: '품질 단가',
+          capabilityValidFrom: '공급 역량 적용 시작일',
+        },
+        options: {
+          none: '선택 안 함',
+          active: '활성',
+          deactive: '비활성',
+          allowed: '허용',
+          disallowed: '비허용',
+        },
+        editTitle: '품목 수정',
+        editDescription: '공급역량과 활성 상태만 변경합니다.',
+        editAction: '품목 수정',
+        deleteAction: '품목 삭제',
+        deleteConfirm: '이 품목을 삭제하시겠습니까?',
+        deleteFailed: '품목 삭제에 실패했습니다.',
+        editFailed: '품목 수정에 실패했습니다.',
+        createComplete: '등록 완료',
+        saveLabel: '저장',
+        loading: '불러오는 중...',
       }
     : {
         eyebrow: 'Supply Chain Ops / Items',
@@ -178,6 +228,54 @@ const copy = computed(() =>
         submitLabel: 'Create',
         retrySubmitLabel: 'Retry',
         emptyCapability: 'No linked capability data.',
+        masterEyebrow: 'Item',
+        capabilityEyebrow: 'Item Capability',
+        linkedOrdersTitle: 'Linked Purchase Orders',
+        noLinkedOrders: 'No linked purchase orders.',
+        labels: {
+          category: 'Category',
+          itemCode: 'Item Code',
+          itemName: 'Item Name',
+          unit: 'Unit',
+          supplierName: 'Supplier',
+          itemStatus: 'Item Status',
+          spec: 'Spec',
+          shelfLife: 'Shelf Life',
+          createdAt: 'Item Created At',
+          updatedAt: 'Item Updated At',
+          availableQty: 'Available Qty',
+          moq: 'MOQ',
+          qualityGrade: 'Quality Grade',
+          leadTime: 'Lead Time',
+          monthlyCapacity: 'Monthly Capacity',
+          unitPriceHint: 'Base Unit Price',
+          validFrom: 'Valid From',
+          capabilityCreatedAt: 'Capability Created At',
+          qty: 'Qty',
+          confirmed: 'Confirmed',
+          dueDate: 'Due',
+          status: 'Status',
+          partialConfirmation: 'Partial Confirmation',
+          qualityPrice: 'Quality Price',
+          capabilityValidFrom: 'Capability Valid From',
+        },
+        options: {
+          none: 'None',
+          active: 'Active',
+          deactive: 'Inactive',
+          allowed: 'Allowed',
+          disallowed: 'Disallowed',
+        },
+        editTitle: 'Edit Item',
+        editDescription: 'Only capability and active status can be changed.',
+        editAction: 'Edit Item',
+        deleteAction: 'Delete Item',
+        deleteConfirm: 'Delete this item?',
+        deleteFailed: 'Failed to delete item.',
+        editFailed: 'Failed to edit item.',
+        createComplete: 'Complete',
+        saveLabel: 'Save',
+        loading: 'Loading...',
       },
 )
 
@@ -273,7 +371,7 @@ async function submitCapabilityEdit() {
     closeCapabilityEditModal()
   } catch (error: any) {
     capabilityEditErrorMessage.value =
-      error.message ?? '품목 수정에 실패했습니다.'
+      error.message ?? copy.value.editFailed
   } finally {
     capabilityEditLoading.value = false
   }
@@ -283,7 +381,7 @@ async function submitCapabilityEdit() {
 
 async function submitDeleteItem() {
   if (!selectedItem.value) return
-  if (!window.confirm('이 품목을 삭제하시겠습니까?')) return
+  if (!window.confirm(copy.value.deleteConfirm)) return
 
   try {
     await deleteItem(selectedItem.value.publicId)
@@ -291,7 +389,7 @@ async function submitDeleteItem() {
     closeItemDetail()
   } catch (error: any) {
     detailErrorMessage.value =
-      error.message ?? '품목 삭제에 실패했습니다.'
+      error.message ?? copy.value.deleteFailed
   }
 }
 
@@ -328,12 +426,12 @@ const createForm = ref({
 
 function formatNumber(value: number | null | undefined) {
   if (value == null) return '-'
-  return value.toLocaleString('ko-KR')
+  return value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')
 }
 
 function formatDate(value: string | null | undefined) {
   if (!value) return '-'
-  return new Date(value).toLocaleString('ko-KR')
+  return new Date(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')
 }
 
 async function loadLogisticsNodeOptions() {
@@ -758,6 +856,13 @@ async function openItemDetail(row: ItemTableRow) {
   }
 }
 
+function openItemDetailPage(row: ItemTableRow) {
+  router.push({
+    name: 'operationDetail',
+    params: { kind: 'items', publicId: row.publicId },
+  })
+}
+
 function closeItemDetail() {
   detailModalOpen.value = false
   detailLoading.value = false
@@ -973,7 +1078,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
                 v-if="index === 1"
                 class="items-page__link-button"
                 type="button"
-                @click="openItemDetail(row)"
+                @click="openItemDetailPage(row)"
               >
                 {{ cell }}
               </button>
@@ -986,9 +1091,9 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
               <button
                 class="page-button page-button--secondary"
                 type="button"
-                @click="openItemDetail(row)"
+                @click="openItemDetailPage(row)"
               >
-                상세
+                {{ copy.columns[10] }}
               </button>
             </span>
           </div>
@@ -1007,8 +1112,8 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   >
     <div v-if="detailLoading" class="page-feed">
       <div class="page-feed__item">
-        <span class="page-feed__label">카테고리</span>
-        <strong class="page-feed__text">Loading...</strong>
+        <span class="page-feed__label">{{ copy.labels.category }}</span>
+        <strong class="page-feed__text">{{ copy.loading }}</strong>
       </div>
     </div>
 
@@ -1019,50 +1124,50 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         <article class="page-panel">
           <div class="page-panel__head">
             <div>
-              <div class="page-panel__eyebrow">품목</div>
+              <div class="page-panel__eyebrow">{{ copy.masterEyebrow }}</div>
               <h3>Item Master</h3>
             </div>
           </div>
 
           <div class="page-feed">
             <div class="page-feed__item">
-              <span class="page-feed__label">품목 코드</span>
+              <span class="page-feed__label">{{ copy.labels.itemCode }}</span>
               <strong class="page-feed__text">{{ selectedItem.itemCode }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">품목명</span>
+              <span class="page-feed__label">{{ copy.labels.itemName }}</span>
               <strong class="page-feed__text">{{ selectedItem.itemName }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">카테고리</span>
+              <span class="page-feed__label">{{ copy.labels.category }}</span>
               <strong class="page-feed__text">{{ getItemCategoryPath(selectedItem) }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">단위</span>
+              <span class="page-feed__label">{{ copy.labels.unit }}</span>
               <strong class="page-feed__text">{{ selectedItem.unit }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">협력사명</span>
+              <span class="page-feed__label">{{ copy.labels.supplierName }}</span>
               <strong class="page-feed__text">{{ selectedItem.supplierName }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">품목 상태</span>
+              <span class="page-feed__label">{{ copy.labels.itemStatus }}</span>
               <strong class="page-feed__text">{{ itemStatusText(selectedItem.status) }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">규격</span>
+              <span class="page-feed__label">{{ copy.labels.spec }}</span>
               <strong class="page-feed__text">{{ selectedItem.spec }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">유통기한</span>
+              <span class="page-feed__label">{{ copy.labels.shelfLife }}</span>
               <strong class="page-feed__text">{{ formatLeadTime(selectedItem.shelfLifeDays) }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">품목 생성 시각</span>
+              <span class="page-feed__label">{{ copy.labels.createdAt }}</span>
               <strong class="page-feed__text">{{ formatDate(selectedItem.createdAt) }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">품목 수정 시각</span>
+              <span class="page-feed__label">{{ copy.labels.updatedAt }}</span>
               <strong class="page-feed__text">{{ formatDate(selectedItem.updatedAt) }}</strong>
             </div>
           </div>
@@ -1071,42 +1176,42 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         <article class="page-panel">
           <div class="page-panel__head">
             <div>
-              <div class="page-panel__eyebrow">품목 공급 역량</div>
+              <div class="page-panel__eyebrow">{{ copy.capabilityEyebrow }}</div>
               <h3>Item Capability</h3>
             </div>
           </div>
 
           <div v-if="selectedCapability" class="page-feed">
             <div class="page-feed__item">
-              <span class="page-feed__label">현재 가용 수량</span>
+              <span class="page-feed__label">{{ copy.labels.availableQty }}</span>
               <strong class="page-feed__text">{{ formatNumber(selectedCapability.availableQty) }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">최소 발주 수량</span>
+              <span class="page-feed__label">{{ copy.labels.moq }}</span>
               <strong class="page-feed__text">{{ formatNumber(selectedCapability.moq) }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">품질 등급</span>
+              <span class="page-feed__label">{{ copy.labels.qualityGrade }}</span>
               <strong class="page-feed__text">{{ qualityGradeText(selectedCapability.qualityGrade) }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">리드타임</span>
+              <span class="page-feed__label">{{ copy.labels.leadTime }}</span>
               <strong class="page-feed__text">{{ formatLeadTime(selectedCapability.leadTimeDays) }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">월간 생산 가능량</span>
+              <span class="page-feed__label">{{ copy.labels.monthlyCapacity }}</span>
               <strong class="page-feed__text">{{ formatNumber(selectedCapability.monthlyCapacity) }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">기준 단가</span>
+              <span class="page-feed__label">{{ copy.labels.unitPriceHint }}</span>
               <strong class="page-feed__text">{{ formatNumber(selectedCapability.unitPriceHint) }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">적용 시작일</span>
+              <span class="page-feed__label">{{ copy.labels.validFrom }}</span>
               <strong class="page-feed__text">{{ selectedCapability.validFrom ?? '-' }}</strong>
             </div>
             <div class="page-feed__item">
-              <span class="page-feed__label">공급 역량 생성 시각</span>
+              <span class="page-feed__label">{{ copy.labels.capabilityCreatedAt }}</span>
               <strong class="page-feed__text">{{ formatDate(selectedCapability.createdAt) }}</strong>
             </div>
           </div>
@@ -1125,7 +1230,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">PURCHASE ORDERS</div>
-              <h3>연결된 발주 목록</h3>
+              <h3>{{ copy.linkedOrdersTitle }}</h3>
             </div>
             <span class="page-panel__chip">{{ linkedOrders.length }}</span>
           </div>
@@ -1144,9 +1249,9 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 
                 <div class="items-page__linked-order-meta">
                   <span>{{ poStatusText(order.poStatus) }}</span>
-                  <span>수량 {{ formatNumber(order.orderedQty) }}</span>
-                  <span>확정 {{ formatNumber(order.confirmedQty) }}</span>
-                  <span>납기 {{ order.expectedDueDate ?? '-' }}</span>
+                  <span>{{ copy.labels.qty }} {{ formatNumber(order.orderedQty) }}</span>
+                  <span>{{ copy.labels.confirmed }} {{ formatNumber(order.confirmedQty) }}</span>
+                  <span>{{ copy.labels.dueDate }} {{ order.expectedDueDate ?? '-' }}</span>
                   <span>{{ formatDate(order.orderedAt) }}</span>
                 </div>
               </div>
@@ -1155,7 +1260,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 
           <div v-else class="page-feed">
             <div class="page-feed__item">
-              <strong class="page-feed__text">연결된 발주가 없습니다.</strong>
+              <strong class="page-feed__text">{{ copy.noLinkedOrders }}</strong>
             </div>
           </div>
         </article>
@@ -1170,14 +1275,14 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
           type="button"
           @click="openCapabilityEditModal"
         >
-          품목 수정
+          {{ copy.editAction }}
         </button>
         <button
           class="page-button page-button--secondary"
           type="button"
           @click="submitDeleteItem"
         >
-          품목 삭제
+          {{ copy.deleteAction }}
         </button>
       </div>
       
@@ -1295,7 +1400,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         <label class="items-page__field">
           <span>QUALITY GRADE</span>
           <select v-model="createForm.qualityGrade">
-            <option value="">선택 안 함</option>
+            <option value="">{{ copy.options.none }}</option>
             <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
               {{ qualityGradeText(grade) }}
             </option>
@@ -1305,8 +1410,8 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         <label class="items-page__field">
           <span>PARTIAL CONFIRMATION</span>
           <select v-model="createForm.partialConfirmationAllowed">
-            <option :value="true">허용</option>
-            <option :value="false">비허용</option>
+            <option :value="true">{{ copy.options.allowed }}</option>
+            <option :value="false">{{ copy.options.disallowed }}</option>
           </select>
         </label>
 
@@ -1316,7 +1421,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 
       <div class="items-page__actions">
         <button class="page-button page-button--secondary" type="button" @click="closeCreateModal">
-          취소
+          {{ copy.cancelLabel }}
         </button>
         <button
           class="page-button page-button--primary"
@@ -1324,7 +1429,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
           :disabled="createLoading"
           @click="submitCreateItem"
         >
-          등록 완료
+          {{ copy.createComplete }}
         </button>
       </div>
     </div>
@@ -1332,45 +1437,45 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 
   <BaseModal
   v-model="capabilityEditModalOpen"
-  title="품목 수정"
-  description="공급역량과 활성 상태만 변경합니다."
+  :title="copy.editTitle"
+  :description="copy.editDescription"
   size="md"
   @close="closeCapabilityEditModal"
 >
   <div class="items-page__form">
     <section class="items-page__form-section">
       <label class="items-page__field">
-        <span>상태</span>
+        <span>{{ copy.labels.status }}</span>
         <select v-model="capabilityEditForm.status">
-          <option value="ACTIVE">활성</option>
-          <option value="DEACTIVE">비활성</option>
+          <option value="ACTIVE">{{ copy.options.active }}</option>
+          <option value="DEACTIVE">{{ copy.options.deactive }}</option>
         </select>
       </label>
 
       <label class="items-page__field">
-        <span>리드타임</span>
+        <span>{{ copy.labels.leadTime }}</span>
         <input v-model.number="capabilityEditForm.leadTimeDays" type="number" min="0" />
       </label>
 
       <label class="items-page__field">
-        <span>월간 생산 가능량</span>
+        <span>{{ copy.labels.monthlyCapacity }}</span>
         <input v-model.number="capabilityEditForm.monthlyCapacity" type="number" min="1" step="1" />
       </label>
 
       <label class="items-page__field">
-        <span>현재 가용 수량</span>
+        <span>{{ copy.labels.availableQty }}</span>
         <input v-model.number="capabilityEditForm.availableQty" type="number" min="1" step="1" />
       </label>
 
       <label class="items-page__field">
-        <span>최소 발주 수량</span>
+        <span>{{ copy.labels.moq }}</span>
         <input v-model.number="capabilityEditForm.moq" type="number" min="1" step="1" />
       </label>
 
       <label class="items-page__field">
-        <span>품질 등급</span>
+        <span>{{ copy.labels.qualityGrade }}</span>
         <select v-model="capabilityEditForm.qualityGrade">
-          <option value="">선택 안함</option>
+          <option value="">{{ copy.options.none }}</option>
           <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
             {{ qualityGradeText(grade) }}
           </option>
@@ -1378,20 +1483,20 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       </label>
 
       <label class="items-page__field">
-        <span>품질 단가</span>
+        <span>{{ copy.labels.qualityPrice }}</span>
         <input v-model.number="capabilityEditForm.unitPriceHint" type="number" min="0" step="0.01" />
       </label>
 
       <label class="items-page__field">
-        <span>공급 역량 적용 시작일</span>
+        <span>{{ copy.labels.capabilityValidFrom }}</span>
         <input v-model="capabilityEditForm.validFrom" type="date" />
       </label>
 
       <label class="items-page__field">
-        <span>부분 확정</span>
+        <span>{{ copy.labels.partialConfirmation }}</span>
         <select v-model="capabilityEditForm.partialConfirmationAllowed">
-          <option :value="true">허용</option>
-          <option :value="false">비허용</option>
+          <option :value="true">{{ copy.options.allowed }}</option>
+          <option :value="false">{{ copy.options.disallowed }}</option>
         </select>
       </label>
     </section>
@@ -1402,7 +1507,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 
     <div class="items-page__actions">
       <button class="page-button page-button--secondary" type="button" @click="closeCapabilityEditModal">
-        취소
+        {{ copy.cancelLabel }}
       </button>
       <button
         class="page-button page-button--primary"
@@ -1410,7 +1515,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         :disabled="capabilityEditLoading"
         @click="submitCapabilityEdit"
       >
-        저장
+        {{ copy.saveLabel }}
       </button>
     </div>
   </div>

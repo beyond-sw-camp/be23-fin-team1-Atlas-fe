@@ -13,6 +13,7 @@ import { getShipments, type ShipmentListResponseDto } from '../../../services/sh
 const props = defineProps<{
   isOpen: boolean
   language: 'ko' | 'en'
+  presentation?: 'modal' | 'page'
 }>()
 
 const emit = defineEmits<{
@@ -255,6 +256,7 @@ async function handleSubmit() {
     :model-value="isOpen"
     :title="content.title"
     :description="content.desc"
+    :presentation="props.presentation ?? 'modal'"
     size="lg"
     @update:model-value="emit('close')"
   >

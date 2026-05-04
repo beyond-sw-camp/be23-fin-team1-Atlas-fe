@@ -49,7 +49,6 @@ const CONTENT = {
       users: '사용자',
       categories: '카테고리',
     },
-    resetLabel: '초기화',
     saveLabel: '저장',
   },
   en: {
@@ -60,7 +59,6 @@ const CONTENT = {
       users: 'Users',
       categories: 'Categories',
     },
-    resetLabel: 'RESET',
     saveLabel: 'SAVE CHANGES',
   },
 } as const
@@ -76,7 +74,6 @@ const tabEntries = computed(() => [
 
 watchEffect(() => {
   header.setActions([
-    { key: 'settings-reset', label: content.value.resetLabel, tone: 'secondary' },
     { key: 'settings-save', label: content.value.saveLabel, tone: 'primary' },
   ])
 })
@@ -889,9 +886,6 @@ if (!selectedOrganizationPublicId.value) {
       </div>
 
       <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button">
-          {{ content.resetLabel }}
-        </button>
         <button class="page-button page-button--primary" type="button">
           {{ content.saveLabel }}
         </button>
