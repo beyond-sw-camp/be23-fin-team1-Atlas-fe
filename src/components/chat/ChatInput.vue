@@ -8,13 +8,14 @@ import ChatEmojiPicker from './ChatEmojiPicker.vue'
 import { useAtlasChatStore } from '../../stores/chat'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { uploadAttachment } from '../../services/file'
+import ChatReferenceSearchModal from './ChatReferenceSearchModal.vue'
 
 const chatStore = useAtlasChatStore()
 const preferences = useAtlasPreferencesStore()
 
 const emit = defineEmits<{
   send: [body: string]
-  sendReference: [refType: string, refCode: string, refTitle: string]
+  sendReference: [refType: string, refPublicId: string, refCode: string, refTitle: string]
 }>()
 
 const inputText = ref('')
@@ -22,6 +23,8 @@ const inputWrapperRef = ref<HTMLElement | null>(null)
 const isMenuOpen = ref(false)
 const isRefPickerOpen = ref(false)
 const isEmojiPickerOpen = ref(false)
+const isSearchModalOpen = ref(false)
+const selectedSearchType = ref('')
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const mediaInput = ref<HTMLInputElement | null>(null)
@@ -87,12 +90,20 @@ function getMenuItems() {
 }
 
 /** 업무 참조 카드 유형 목록 */
-const referenceTypes = [
-  { type: 'ORDER', icon: 'local_shipping', labelKey: 'order', code: 'PO-2026-0413', title: { ko: '발주서 참조', en: 'Purchase Order Reference' } },
-  { type: 'RETURN_REQUEST', icon: 'assignment_return', labelKey: 'returnRequest', code: 'RT-2026-0098', title: { ko: '반품 처리 건', en: 'Return Handling Case' } },
-  { type: 'RISK', icon: 'warning', labelKey: 'risk', code: 'RSK-2026-0015', title: { ko: '리스크 알림 건', en: 'Risk Alert Case' } },
-  { type: 'RECOMMENDATION', icon: 'lightbulb', labelKey: 'recommendation', code: 'REC-2026-0007', title: { ko: '대응 권고안', en: 'Response Recommendation' } },
-]
+const referenceTypes = ref([
+  { type: 'ORDER', icon: 'receipt_long', title: { ko: '발주서', en: 'Purchase Order' } },
+  { type: 'RETURN_REQUEST', icon: 'assignment_return', title: { ko: '반품 요청', en: 'Return Request' } },
+])
+
+function openSearchModal(type: string) {
+  selectedSearchType.value = type
+  isSearchModalOpen.value = true
+  closeMenu()
+}
+
+function handleRefSelectFromModal(refType: string, refPublicId: string, refCode: string, refTitle: string) {
+  emit('sendReference', refType, refPublicId, refCode, refTitle)
+}
 
 function toggleMenu() {
   isMenuOpen.value = !isMenuOpen.value
@@ -289,17 +300,21 @@ function handleKeydown(event: KeyboardEvent) {
               :key="rt.type"
               class="chat-input__menu-item"
               type="button"
-              @click="handleRefSelect(rt)"
+              @click="openSearchModal(rt.type)"
             >
               <span class="material-symbols-outlined">{{ rt.icon }}</span>
-              <div class="chat-input__menu-item-info">
-                <strong>{{ getReferenceTypeLabel(rt.labelKey) }}</strong>
-                <span>{{ rt.code }}</span>
-              </div>
+              <span>{{ rt.title[preferences.language] }} 검색</span>
             </button>
           </div>
         </Transition>
       </div>
+
+      <ChatReferenceSearchModal
+        :is-open="isSearchModalOpen"
+        :reference-type="selectedSearchType"
+        @close="isSearchModalOpen = false"
+        @select="handleRefSelectFromModal"
+      />
 
       <!-- 메시지 입력 (pill 형태) -->
       <div class="chat-input__field-wrapper">

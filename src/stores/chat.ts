@@ -669,7 +669,7 @@ async function fetchAvailableUsers() {
     clearReplyTarget()
   }
 
-  function sendReferenceMessage(refType: string, refCode: string, refTitle: string) {
+  function sendReferenceMessage(refType: string, refPublicId: string, refCode: string, refTitle: string) {
     if (!currentRoomPublicId.value || !stompClient || !stompClient.connected) return
 
     stompClient.publish({
@@ -681,7 +681,7 @@ async function fetchAvailableUsers() {
         messageBody: `${refTitle} 건을 공유합니다.`,
         messageType: 'REFERENCE',
         referenceType: refType,
-        referencePublicId: `ref-${Date.now()}`,
+        referencePublicId: refPublicId,
         referenceCode: refCode,
         referenceTitle: refTitle,
       }),
