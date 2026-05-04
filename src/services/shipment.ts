@@ -8,9 +8,13 @@ export type ShipmentStatus =
   | 'DELAYED'
   | 'CANCELLED'
 
+export type ShipmentSourceType = 'ORDER' | 'RETURN' | 'EXCHANGE'
+
 export interface ShipmentListResponseDto {
   publicId: string
   shipmentNumber: string
+  sourceType?: ShipmentSourceType | null
+  sourcePublicId?: string | null
   purchaseOrderPublicId?: string | null
   subPurchaseOrderPublicId?: string | null
   carrierName?: string | null
@@ -34,6 +38,8 @@ export interface ShipmentListResponseDto {
 export interface ShipmentResponseDto {
   publicId: string
   shipmentNumber: string
+  sourceType?: ShipmentSourceType | null
+  sourcePublicId?: string | null
   poId: number
   purchaseOrderPublicId?: string | null
   subPoId?: number | null
