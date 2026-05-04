@@ -56,11 +56,27 @@ export function mapToChatMessage(m: any): ChatMessageDto {
 
 export function mapToChatRoom(r: any): ChatRoom {
   if (!r) return r as any
+
+  let parsedLastMessage: ChatMessageDto | undefined = undefined
+  if (r.lastMessage && typeof r.lastMessage === 'object') {
+    parsedLastMessage = mapToChatMessage(r.lastMessage)
+  } else if (r.lastMessage || r.lastMessageAt || r.last_message || r.last_message_at) {
+    parsedLastMessage = {
+      publicId: '',
+      roomPublicId: String(r.publicId || r.public_id || ''),
+      senderUserPublicId: '',
+      messageType: 'TEXT',
+      messageBody: String(r.lastMessage || r.last_message || ''),
+      sentAt: r.lastMessageAt || r.last_message_at || r.createdAt || r.created_at,
+      isDeleted: false
+    }
+  }
+
   return {
     publicId: String(r.publicId || r.public_id || r.id || ''),
     roomName: String(r.roomName || r.room_name || r.name || ''),
     roomStatus: r.roomStatus || r.room_status,
-    lastMessage: r.lastMessage || r.last_message ? mapToChatMessage(r.lastMessage || r.last_message) : undefined,
+    lastMessage: parsedLastMessage,
     unreadCount: Number(r.unreadCount ?? r.unread_count ?? 0),
     participants: Array.isArray(r.participants) ? r.participants.map(mapToParticipant) : [],
     pinnedAt: r.pinnedAt || r.pinned_at || null
@@ -211,6 +227,9 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
           // 새 안읽음 메시지 발생 → 읽음 추적에서 제거
           recentlyReadRoomIds.value.delete(roomPublicId)
         }
+        
+        // 정렬 등 computed 속성이 즉각 반응하도록 배열 레퍼런스 강제 업데이트
+        rooms.value = [...rooms.value]
       }
     } catch (e) {
       console.error('[STOMP] Failed to parse chat message', e)

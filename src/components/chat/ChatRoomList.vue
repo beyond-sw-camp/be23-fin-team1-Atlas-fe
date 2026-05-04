@@ -75,8 +75,21 @@ const unpinnedRooms = computed(() =>
   filteredRooms.value
     .filter(r => !r.pinnedAt)
     .sort((a, b) => {
-      const timeA = a.lastMessage?.sentAt ? new Date(a.lastMessage.sentAt).getTime() : 0
-      const timeB = b.lastMessage?.sentAt ? new Date(b.lastMessage.sentAt).getTime() : 0
+      let timeA = 0
+      if (a.lastMessage?.sentAt) {
+        timeA = new Date(a.lastMessage.sentAt).getTime()
+        if (isNaN(timeA)) timeA = 0
+      }
+      let timeB = 0
+      if (b.lastMessage?.sentAt) {
+        timeB = new Date(b.lastMessage.sentAt).getTime()
+        if (isNaN(timeB)) timeB = 0
+      }
+
+      if (timeB === timeA) {
+        // 시간이 동일하거나 둘 다 0일 경우, 렌더링이 뒤죽박죽되지 않도록 방 이름이나 식별자로 고정 정렬
+        return b.publicId.localeCompare(a.publicId)
+      }
       return timeB - timeA
     })
 )
