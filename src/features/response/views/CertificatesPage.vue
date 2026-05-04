@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSessionStore } from '../../../stores/session'
 import { 
@@ -18,6 +19,7 @@ import CertificateTypeCreateModal from '../components/CertificateTypeCreateModal
 import { getAttachment } from '../../../services/file'
 
 const header = useAtlasHeaderStore()
+const dialog = useAtlasDialogStore()
 const preferences = useAtlasPreferencesStore()
 const session = useAtlasSessionStore()
 const router = useRouter()
@@ -183,34 +185,34 @@ async function handleCertSelect(cert: SupplierCertificateResponseDto) {
 
 async function handleApprove() {
   if (!selectedCert.value) return
-  if (!confirm('해당 인증서를 승인하시겠습니까?')) return
+  if (!(await dialog.confirm('해당 인증서를 승인하시겠습니까?'))) return
 
   try {
     await approveCertificate(selectedCert.value.publicId)
-    alert('승인되었습니다.')
+    await dialog.alert('승인되었습니다.')
     await fetchCertificates()
     // refresh history
     certHistories.value = await getCertificateHistories(selectedCert.value.publicId)
     // update local payload reference status
     selectedCert.value.certificateStatus = 'APPROVED'
   } catch (err: any) {
-    alert('Failed to approve: ' + err.message)
+    await dialog.alert('Failed to approve: ' + err.message)
   }
 }
 
 async function handleReject() {
   if (!selectedCert.value) return
-  const reason = prompt('반려 사유를 입력해주세요.')
+  const reason = await dialog.prompt('반려 사유를 입력해주세요.')
   if (reason === null) return
 
   try {
     await rejectCertificate(selectedCert.value.publicId, reason)
-    alert('반려되었습니다.')
+    await dialog.alert('반려되었습니다.')
     await fetchCertificates()
     certHistories.value = await getCertificateHistories(selectedCert.value.publicId)
     selectedCert.value.certificateStatus = 'REJECTED'
   } catch (err: any) {
-    alert('Failed to reject: ' + err.message)
+    await dialog.alert('Failed to reject: ' + err.message)
   }
 }
 
@@ -218,21 +220,21 @@ async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupp
   try {
     await createSupplierCertificate(supplierPublicId, data)
     isCreateModalOpen.value = false
-    alert('인증서가 성공적으로 등록 되었습니다.')
+    await dialog.alert('인증서가 성공적으로 등록 되었습니다.')
     await fetchCertificates()
   } catch (err: any) {
-    alert('Error creating certificate: ' + err.message)
+    await dialog.alert('Error creating certificate: ' + err.message)
   }
 }
 
-function handleTypeCreateSuccess() {
+async function handleTypeCreateSuccess() {
   isTypeCreateModalOpen.value = false
-  alert(preferences.language === 'ko' ? '인증 유형이 성공적으로 등록되었습니다.' : 'Certificate type successfully created.')
+  await dialog.alert(preferences.language === 'ko' ? '인증 유형이 성공적으로 등록되었습니다.' : 'Certificate type successfully created.')
 }
 
 async function handleDownloadPdf(attachmentPublicId: string | undefined) {
   if (!attachmentPublicId) {
-    alert(preferences.language === 'ko' ? '첨부된 파일이 없습니다.' : 'No attachment found.')
+    await dialog.alert(preferences.language === 'ko' ? '첨부된 파일이 없습니다.' : 'No attachment found.')
     return
   }
   try {
@@ -246,11 +248,11 @@ async function handleDownloadPdf(attachmentPublicId: string | undefined) {
         throw new Error('File URL not found')
       }
     } else {
-      alert(preferences.language === 'ko' ? '파일을 찾을 수 없습니다.' : 'File not found.')
+      await dialog.alert(preferences.language === 'ko' ? '파일을 찾을 수 없습니다.' : 'File not found.')
     }
   } catch (err) {
     console.error('Download failed:', err)
-    alert(preferences.language === 'ko' ? '다운로드 중 오류가 발생했습니다.' : 'Error during download.')
+    await dialog.alert(preferences.language === 'ko' ? '다운로드 중 오류가 발생했습니다.' : 'Error during download.')
   }
 }
 

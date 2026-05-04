@@ -22,6 +22,7 @@ import {
   type OrganizationUserExcelUploadResponse,
 } from '../../../services/user'
 import { uploadAttachment } from '../../../services/file'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasNavigationStore } from '../../../stores/navigation'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 
@@ -35,6 +36,7 @@ type OrganizationPanelMode = 'detail' | 'create'
 
 // 현재 언어 설정을 읽습니다.
 const preferences = useAtlasPreferencesStore()
+const dialog = useAtlasDialogStore()
 
 // 페이지 이동에 사용합니다.
 const navigation = useAtlasNavigationStore()
@@ -1041,7 +1043,7 @@ async function submitOrganizationStatusUpdate(nextStatus: OrganizationStatus) {
         ? copy.value.deactivateConfirm
         : copy.value.deleteConfirm
 
-  if (!window.confirm(confirmMessage)) {
+  if (!(await dialog.confirm(confirmMessage))) {
     return
   }
 

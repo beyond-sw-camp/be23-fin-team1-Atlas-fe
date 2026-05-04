@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { BaseModal } from '../../shared'
 import { createCertificateType, type CreateCertificateTypeRequestDto } from '../../../services/certificate'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 
 const props = defineProps<{
   isOpen: boolean
@@ -23,6 +24,7 @@ const form = ref<CreateCertificateTypeRequestDto>({
 })
 
 const isSubmitting = ref(false)
+const dialog = useAtlasDialogStore()
 
 const content = computed(() => {
   return props.language === 'ko'
@@ -54,14 +56,14 @@ const content = computed(() => {
 
 async function handleSubmit() {
   if (!form.value.certificateCode.trim() || !form.value.certificateName.trim()) {
-    alert(props.language === 'ko' ? '인증 코드와 인증명은 필수입니다.' : 'Cert Code and Name are required.')
+    await dialog.alert(props.language === 'ko' ? '인증 코드와 인증명은 필수입니다.' : 'Cert Code and Name are required.')
     return
   }
   
   try {
     isSubmitting.value = true
     await createCertificateType({ ...form.value })
-    alert(props.language === 'ko' ? '새 인증 유형이 성공적으로 등록되었습니다.' : 'New certificate type registered successfully.')
+    await dialog.alert(props.language === 'ko' ? '새 인증 유형이 성공적으로 등록되었습니다.' : 'New certificate type registered successfully.')
     form.value.certificateCode = ''
     form.value.certificateName = ''
     form.value.issuerName = ''
@@ -72,7 +74,7 @@ async function handleSubmit() {
     emit('success')
   } catch (error: any) {
     console.error('Failed to create certificate type', error)
-    alert(error.message || 'Error occurred while creating certificate type.')
+    await dialog.alert(error.message || 'Error occurred while creating certificate type.')
   } finally {
     isSubmitting.value = false
   }

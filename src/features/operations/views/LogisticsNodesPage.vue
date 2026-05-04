@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
   activateLogisticsNode,
@@ -40,6 +41,7 @@ declare global {
 }
 
 const header = useAtlasHeaderStore()
+const dialog = useAtlasDialogStore()
 const preferences = useAtlasPreferencesStore()
 const router = useRouter()
 
@@ -280,7 +282,7 @@ async function openAddressSearch() {
   } catch (error) {
     const message = error instanceof Error ? error.message : content.value.addressOpenFailed
 
-    alert(message)
+    await dialog.alert(message)
   } finally {
     isAddressScriptLoading.value = false
   }
@@ -291,7 +293,7 @@ async function handleCreateSubmit() {
   const address = createForm.value.address.trim()
 
   if (!nodeName || !address) {
-    alert(content.value.addressRequired)
+    await dialog.alert(content.value.addressRequired)
     return
   }
 
@@ -324,7 +326,7 @@ async function handleCreateSubmit() {
       error instanceof Error ? error.message : content.value.errorFallback
 
     createErrorMessage.value = message
-    alert(message)
+    await dialog.alert(message)
   } finally {
     isCreateSubmitting.value = false
   }
@@ -403,7 +405,7 @@ async function handleToggleActive(node: LogisticsNodeResponseDto) {
     const message =
       error instanceof Error ? error.message : content.value.statusUpdateFailed
 
-    alert(message)
+    await dialog.alert(message)
   }
 }
 

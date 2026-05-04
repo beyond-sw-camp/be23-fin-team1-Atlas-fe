@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useActorScope } from '../../../composables/useActorScope'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { getManagedItems, type ItemResponseDto } from '../../../services/item'
 import {
@@ -17,6 +18,7 @@ import {
 type InventoryTabKey = 'ALL' | InventoryStatus
 
 const actor = useActorScope()
+const dialog = useAtlasDialogStore()
 const preferences = useAtlasPreferencesStore()
 const router = useRouter()
 
@@ -393,7 +395,7 @@ async function submitEdit() {
 
 async function submitDelete() {
   if (!selectedInventory.value || !canDelete(selectedInventory.value)) return
-  if (!window.confirm(copy.value.messages.deleteConfirm)) return
+  if (!(await dialog.confirm(copy.value.messages.deleteConfirm))) return
 
   try {
     await deleteInventory(selectedInventory.value.inventoryPublicId)

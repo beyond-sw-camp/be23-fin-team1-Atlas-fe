@@ -7,6 +7,7 @@ import {
   type ReturnRequestResponseDto,
   type ReturnStatusHistoryResponseDto,
 } from '../../../services/return'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 
 const props = defineProps<{
   isOpen: boolean
@@ -21,6 +22,7 @@ const emit = defineEmits<{
 }>()
 
 const histories = ref<ReturnStatusHistoryResponseDto[]>([])
+const dialog = useAtlasDialogStore()
 const isLoading = ref(false)
 const isUpdating = ref(false)
 const reasonText = ref('')
@@ -262,7 +264,7 @@ async function doUpdateStatus(
   if (!props.targetReturn) return
 
   if (!reasonText.value.trim()) {
-    alert(content.value.reasonAlert)
+    await dialog.alert(content.value.reasonAlert)
     return
   }
 
@@ -279,7 +281,7 @@ async function doUpdateStatus(
     reasonText.value = ''
     emit('statusChanged')
   } catch (error: any) {
-    alert(error.message || 'Status update failed.')
+    await dialog.alert(error.message || 'Status update failed.')
   } finally {
     isUpdating.value = false
   }

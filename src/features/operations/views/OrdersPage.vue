@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useActorScope } from '../../../composables/useActorScope'
 import { apiClient } from '../../../services/http'
@@ -121,6 +122,7 @@ type EditNewOrderLine = {
 }
 
 const header = useAtlasHeaderStore()
+const dialog = useAtlasDialogStore()
 const route = useRoute()
 const router = useRouter()
 const actor = useActorScope()
@@ -1746,7 +1748,7 @@ async function submitConfirmOrder() {
     return
   }
 
-  if (!window.confirm(copy.value.messages.confirmAcceptQuestion)) return
+  if (!(await dialog.confirm(copy.value.messages.confirmAcceptQuestion))) return
 
   try {
     detailActionLoading.value = true
@@ -1775,7 +1777,7 @@ async function submitConfirmOrder() {
 
 async function submitRejectOrder() {
   if (!selectedOrder.value) return
-  if (!window.confirm(copy.value.messages.rejectOrderQuestion)) return
+  if (!(await dialog.confirm(copy.value.messages.rejectOrderQuestion))) return
 
   try {
     detailActionLoading.value = true
@@ -1793,7 +1795,7 @@ async function submitRejectOrder() {
 
 async function submitCancelOrder() {
   if (!selectedOrder.value) return
-  if (!window.confirm(copy.value.messages.cancelOrderQuestion)) return
+  if (!(await dialog.confirm(copy.value.messages.cancelOrderQuestion))) return
 
   try {
     detailActionLoading.value = true
@@ -2174,7 +2176,7 @@ async function afterSubOrderMutation(successMessage: string) {
 
 async function submitAcceptSubOrder() {
   if (!selectedSubOrder.value) return
-  if (!window.confirm(copy.value.messages.subOrderAcceptQuestion)) return
+  if (!(await dialog.confirm(copy.value.messages.subOrderAcceptQuestion))) return
 
   try {
     subOrderActionLoading.value = true
@@ -2200,7 +2202,7 @@ async function submitAcceptSubOrder() {
 
 async function submitRejectSubOrder() {
   if (!selectedSubOrder.value) return
-  if (!window.confirm(copy.value.messages.subOrderRejectQuestion)) return
+  if (!(await dialog.confirm(copy.value.messages.subOrderRejectQuestion))) return
 
   try {
     subOrderActionLoading.value = true
