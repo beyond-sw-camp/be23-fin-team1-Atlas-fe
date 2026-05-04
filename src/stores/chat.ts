@@ -206,6 +206,12 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     try {
       const raw = JSON.parse(messageBody)
       const chatMsg: ChatMessageDto = mapToChatMessage(raw)
+      const messageRoomPublicId = chatMsg.roomPublicId || roomPublicId
+
+      if (messageRoomPublicId !== roomPublicId) {
+        console.warn('[STOMP] 메시지 roomPublicId 불일치:', { topicRoomPublicId: roomPublicId, messageRoomPublicId })
+        return
+      }
 
       console.log('[STOMP] 메시지 수신:', chatMsg.messageBody?.slice(0, 30))
 
@@ -539,6 +545,7 @@ async function fetchAvailableUsers() {
     currentView.value = 'room'
     isLoadingMessages.value = true
     messages.value = []
+    const requestedRoomPublicId = roomPublicId
 
     console.log('[Chat] openRoom 시작:', roomPublicId)
 
@@ -548,6 +555,9 @@ async function fetchAvailableUsers() {
     try {
       // 과거 메시지 조회
       const result = await chatService.getMessages(roomPublicId)
+      if (currentRoomPublicId.value !== requestedRoomPublicId) {
+        return
+      }
       // 백엔드 응답 데이터 정규화
       const raw = ((result as any).content || result || [])
       messages.value = Array.isArray(raw) ? raw.reverse().map(mapToChatMessage) : []
@@ -557,6 +567,9 @@ async function fetchAvailableUsers() {
       // 참여자 목록 조회
       try {
         const participantResult = await chatService.searchParticipants(roomPublicId, '', 100)
+        if (currentRoomPublicId.value !== requestedRoomPublicId) {
+          return
+        }
         const participantList = (participantResult as any).content || participantResult || []
         const room = rooms.value.find(r => r.publicId === roomPublicId)
         if (room) {
@@ -592,7 +605,9 @@ async function fetchAvailableUsers() {
     } catch (e) {
       console.error('[Chat] openRoom 에러:', e)
     } finally {
-      isLoadingMessages.value = false
+      if (currentRoomPublicId.value === requestedRoomPublicId) {
+        isLoadingMessages.value = false
+      }
     }
   }
 
