@@ -70,21 +70,18 @@ const pinnedRooms = computed(() =>
     .sort((a, b) => new Date(b.pinnedAt!).getTime() - new Date(a.pinnedAt!).getTime())
 )
 
+function getRoomActivityTime(room: ChatRoom) {
+  const timestamp = room.lastMessage?.sentAt || room.lastMessageAt || room.createdAt
+  return timestamp ? new Date(timestamp).getTime() : 0
+}
+
 // 비고정방: 최신 메시지 순
 const unpinnedRooms = computed(() =>
   filteredRooms.value
     .filter(r => !r.pinnedAt)
     .sort((a, b) => {
-      let timeA = 0
-      if (a.lastMessage?.sentAt) {
-        timeA = new Date(a.lastMessage.sentAt).getTime()
-        if (isNaN(timeA)) timeA = 0
-      }
-      let timeB = 0
-      if (b.lastMessage?.sentAt) {
-        timeB = new Date(b.lastMessage.sentAt).getTime()
-        if (isNaN(timeB)) timeB = 0
-      }
+      const timeA = getRoomActivityTime(a)
+      const timeB = getRoomActivityTime(b)
 
       if (timeB === timeA) {
         // 시간이 동일하거나 둘 다 0일 경우, 렌더링이 뒤죽박죽되지 않도록 방 이름이나 식별자로 고정 정렬

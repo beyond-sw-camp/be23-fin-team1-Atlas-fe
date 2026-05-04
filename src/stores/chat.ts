@@ -15,6 +15,7 @@ import { useAtlasSessionStore } from './session'
 import { useAtlasNotificationStore } from './notification'
 
 const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8080/ws-control'
+const ROOM_LIST_SIZE = 100
 
 // --- Backend to Frontend Mapper (Anti-Corruption Layer) ---
 export function mapToParticipant(p: any): ChatParticipant {
@@ -56,33 +57,56 @@ export function mapToChatMessage(m: any): ChatMessageDto {
 
 export function mapToChatRoom(r: any): ChatRoom {
   if (!r) return r as any
-
-  let parsedLastMessage: ChatMessageDto | undefined = undefined
-  if (r.lastMessage && typeof r.lastMessage === 'object') {
-    parsedLastMessage = mapToChatMessage(r.lastMessage)
-  } else if (r.lastMessage || r.lastMessageAt || r.last_message || r.last_message_at) {
-    parsedLastMessage = {
-      publicId: '',
-      roomPublicId: String(r.publicId || r.public_id || ''),
-      senderUserPublicId: '',
-      messageType: 'TEXT',
-      messageBody: String(r.lastMessage || r.last_message || ''),
-      sentAt: r.lastMessageAt || r.last_message_at || r.createdAt || r.created_at,
-      isDeleted: false
-    }
-  }
+  const lastMessageValue = r.lastMessage || r.last_message
+  const lastMessageAt = r.lastMessageAt || r.last_message_at
+  const createdAt = r.createdAt || r.created_at
+  const lastMessage = lastMessageValue && typeof lastMessageValue === 'object'
+    ? mapToChatMessage(lastMessageValue)
+    : lastMessageValue
+      ? mapToChatMessage({
+          publicId: '',
+          roomPublicId: r.publicId || r.public_id || r.id || '',
+          senderUserPublicId: '',
+          messageType: 'TEXT',
+          messageBody: lastMessageValue,
+          sentAt: lastMessageAt || createdAt,
+          isDeleted: false,
+        })
+      : undefined
 
   return {
     publicId: String(r.publicId || r.public_id || r.id || ''),
     roomName: String(r.roomName || r.room_name || r.name || ''),
     roomStatus: r.roomStatus || r.room_status,
-    lastMessage: parsedLastMessage,
+    createdAt,
+    lastMessageAt,
+    lastMessageText: typeof lastMessageValue === 'string' ? lastMessageValue : undefined,
+    lastMessage,
     unreadCount: Number(r.unreadCount ?? r.unread_count ?? 0),
     participants: Array.isArray(r.participants) ? r.participants.map(mapToParticipant) : [],
     pinnedAt: r.pinnedAt || r.pinned_at || null
   }
 }
 // -----------------------------------------------------------
+
+function isChatNotification(notification: any) {
+  const eventType = String(notification?.eventType || '').toLowerCase()
+  const domainType = String(notification?.domainType || '').toLowerCase()
+  const notificationType = String(notification?.notificationType || '').toLowerCase()
+  const deepLinkUrl = String(notification?.deepLinkUrl || '').toLowerCase()
+
+  return (
+    eventType.startsWith('chat.') ||
+    eventType.includes('chat-room') ||
+    eventType.includes('chat_message') ||
+    eventType.includes('chat-message') ||
+    domainType === 'chat' ||
+    domainType === 'chat_room' ||
+    domainType === 'chat-room' ||
+    notificationType.includes('chat') ||
+    deepLinkUrl.includes('/chat')
+  )
+}
 
 export const useAtlasChatStore = defineStore('atlasChat', () => {
   const sessionStore = useAtlasSessionStore()
@@ -150,6 +174,9 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
           try {
             const notification = JSON.parse(message.body)
             notificationStore.handleIncomingNotification(notification)
+            if (isChatNotification(notification)) {
+              void fetchRooms()
+            }
             console.log('[STOMP] 알림 수신:', notification)
           } catch (e) {
             console.error('[STOMP] 알림 파싱 실패', e)
@@ -199,6 +226,12 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     try {
       const raw = JSON.parse(messageBody)
       const chatMsg: ChatMessageDto = mapToChatMessage(raw)
+      const messageRoomPublicId = chatMsg.roomPublicId || roomPublicId
+
+      if (messageRoomPublicId !== roomPublicId) {
+        console.warn('[STOMP] 메시지 roomPublicId 불일치:', { topicRoomPublicId: roomPublicId, messageRoomPublicId })
+        return
+      }
 
       console.log('[STOMP] 메시지 수신:', chatMsg.messageBody?.slice(0, 30))
 
@@ -227,9 +260,11 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
           // 새 안읽음 메시지 발생 → 읽음 추적에서 제거
           recentlyReadRoomIds.value.delete(roomPublicId)
         }
-        
+
         // 정렬 등 computed 속성이 즉각 반응하도록 배열 레퍼런스 강제 업데이트
         rooms.value = [...rooms.value]
+      } else {
+        void fetchRooms()
       }
     } catch (e) {
       console.error('[STOMP] Failed to parse chat message', e)
@@ -308,7 +343,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   async function fetchRooms() {
     if (!currentUserPublicId.value) return
     try {
-      const result = await chatService.getRooms(currentUserPublicId.value)
+      const result = await chatService.getRooms(currentUserPublicId.value, '', ROOM_LIST_SIZE)
       // 데이터 정규화 매퍼 적용
       const rawFetched = (result as any).content || result || []
       const fetched: ChatRoom[] = Array.isArray(rawFetched) ? rawFetched.map(mapToChatRoom) : []
@@ -514,9 +549,15 @@ async function fetchAvailableUsers() {
       // 낙관적 업데이트: 현재 목록에서 방 제거
       rooms.value = rooms.value.filter(r => r.publicId !== currentRoomPublicId.value)
       // 목록으로 돌아가기
-      backToList()
-      // 최신 갱신을 위해 방 목록 비동기 호출
-      fetchRooms()
+      currentView.value = 'list'
+      currentRoomPublicId.value = null
+      messages.value = []
+      replyTarget.value = null
+      if (typingSubscription.value) {
+        typingSubscription.value.unsubscribe()
+        typingSubscription.value = null
+      }
+      await fetchRooms()
     } catch (e) {
       console.error('Failed to leave room', e)
     }
@@ -527,6 +568,7 @@ async function fetchAvailableUsers() {
     currentView.value = 'room'
     isLoadingMessages.value = true
     messages.value = []
+    const requestedRoomPublicId = roomPublicId
 
     console.log('[Chat] openRoom 시작:', roomPublicId)
 
@@ -536,6 +578,9 @@ async function fetchAvailableUsers() {
     try {
       // 과거 메시지 조회
       const result = await chatService.getMessages(roomPublicId)
+      if (currentRoomPublicId.value !== requestedRoomPublicId) {
+        return
+      }
       // 백엔드 응답 데이터 정규화
       const raw = ((result as any).content || result || [])
       messages.value = Array.isArray(raw) ? raw.reverse().map(mapToChatMessage) : []
@@ -545,6 +590,9 @@ async function fetchAvailableUsers() {
       // 참여자 목록 조회
       try {
         const participantResult = await chatService.searchParticipants(roomPublicId, '', 100)
+        if (currentRoomPublicId.value !== requestedRoomPublicId) {
+          return
+        }
         const participantList = (participantResult as any).content || participantResult || []
         const room = rooms.value.find(r => r.publicId === roomPublicId)
         if (room) {
@@ -580,7 +628,9 @@ async function fetchAvailableUsers() {
     } catch (e) {
       console.error('[Chat] openRoom 에러:', e)
     } finally {
-      isLoadingMessages.value = false
+      if (currentRoomPublicId.value === requestedRoomPublicId) {
+        isLoadingMessages.value = false
+      }
     }
   }
 
@@ -611,7 +661,7 @@ async function fetchAvailableUsers() {
       typingSubscription.value.unsubscribe()
       typingSubscription.value = null
     }
-    fetchRooms()
+    await fetchRooms()
   }
 
   function togglePanel() {

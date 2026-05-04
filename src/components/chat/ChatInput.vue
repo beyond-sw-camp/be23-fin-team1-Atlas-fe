@@ -29,6 +29,7 @@ const selectedSearchType = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const mediaInput = ref<HTMLInputElement | null>(null)
 const isUploading = ref(false)
+const isComposing = ref(false)
 
 const chatInputCopy = {
   ko: {
@@ -216,10 +217,22 @@ function handleSend() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
+  if (event.isComposing || isComposing.value || event.keyCode === 229) {
+    return
+  }
+
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault()
     handleSend()
   }
+}
+
+function handleCompositionStart() {
+  isComposing.value = true
+}
+
+function handleCompositionEnd() {
+  isComposing.value = false
 }
 </script>
 
@@ -320,6 +333,8 @@ function handleKeydown(event: KeyboardEvent) {
           :placeholder="isUploading ? '업로드 중...' : copy().messagePlaceholder"
           :disabled="isUploading"
           @keydown="handleKeydown"
+          @compositionstart="handleCompositionStart"
+          @compositionend="handleCompositionEnd"
           @focus="closeMenu"
         />
       </div>
