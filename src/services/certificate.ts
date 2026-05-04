@@ -16,6 +16,9 @@ export interface CertificateTypeResponseDto {
   certificateName?: string
   certificateCode?: string
   description?: string
+  scopeType?: string
+  requiredYn?: boolean
+  activeYn?: boolean
   issuerName?: string
 }
 
