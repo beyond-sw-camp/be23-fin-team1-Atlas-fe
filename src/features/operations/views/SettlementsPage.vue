@@ -106,6 +106,12 @@ const CONTENT = {
       noTargetTypeAmount: '정산 유형 금액이 없습니다.',
       total: '합계',
       amount: '금액',
+      budgetStatuses: {
+        SAFE: '정상',
+        WARNING: '주의',
+        EXCEEDED: '예산 초과',
+        NO_BUDGET: '예산 등록 안 됨.',
+      },
     },
     budgetModal: {
       title: '월별 예산 등록',
@@ -199,6 +205,12 @@ const CONTENT = {
       noTargetTypeAmount: 'No settlement type amount.',
       total: 'Total',
       amount: 'Amount',
+      budgetStatuses: {
+        SAFE: 'Safe',
+        WARNING: 'Warning',
+        EXCEEDED: 'Over Budget',
+        NO_BUDGET: 'Budget not registered.',
+      },
     },
     budgetModal: {
       title: 'Register Monthly Budget',
@@ -283,6 +295,13 @@ const CHART_MONTH_LABELS = [
 ]
 
 const monthLabel = (month: number) => preferences.language === 'ko' ? `${month}월` : `M${month}`
+
+type BudgetUsageStatusLabel = keyof typeof CONTENT.ko.stats.budgetStatuses
+
+function budgetUsageStatusText(value: string | null | undefined) {
+  const status = (value ?? 'NO_BUDGET') as BudgetUsageStatusLabel
+  return content.value.stats.budgetStatuses[status] ?? value ?? content.value.stats.budgetStatuses.NO_BUDGET
+}
 
 // 월별 예산 대비 지급 정산액 차트 데이터입니다.
 const monthlyBudgetChartPoints = computed(() => {
@@ -876,7 +895,7 @@ onMounted(() => {
             {{ isStatisticsLoading ? '-' : formatRate(settlementStatistics?.currentMonthBudgetUsageRate) }}
           </strong>
           <span class="stl-kpi-card__sub">
-            {{ settlementStatistics?.currentMonthBudgetStatus ?? 'NO_BUDGET' }}
+            {{ budgetUsageStatusText(settlementStatistics?.currentMonthBudgetStatus) }}
           </span>
         </div>
       </article>
@@ -1738,14 +1757,19 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  border: 1px dashed var(--stl-border);
+  border-radius: 0;
+  background: #fff;
+  padding: 36px 20px;
   color: var(--stl-text-muted);
   text-align: center;
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .stl-empty--sm {
-  min-height: 84px;
+  min-height: 96px;
+  padding: 28px 18px;
 }
 
 .stl-empty--error {

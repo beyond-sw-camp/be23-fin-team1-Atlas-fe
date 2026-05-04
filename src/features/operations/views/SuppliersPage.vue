@@ -761,7 +761,7 @@ async function submitCreateSupplier() {
           </div>
 
 
-          <p v-if="errorMessage" style="margin: 0 0 12px; color: var(--color-error);">
+          <p v-if="errorMessage" class="terminal-page__table-message is-error">
             {{ errorMessage }}
           </p>
         </article>

@@ -47,6 +47,10 @@ import {
   getLogisticsNodes,
   type LogisticsNodeResponseDto,
 } from '../../../services/logistics'
+import {
+  getOrganizations,
+  type OrganizationListItem,
+} from '../../../services/organization'
 
 type OrderTabKey =
   | 'ALL'
@@ -246,7 +250,7 @@ const copy = computed(() =>
         orderCountSummary: (count: number, amount: string) => `${count}건 / ${amount}`,
         selectedOrderFallback: '선택한 발주의 상세 정보를 확인합니다.',
         selectedSubOrderFallback: '선택한 서브발주의 상세 정보를 확인합니다.',
-        columns: ['발주번호', '거래처', '협력사 상태', '품목', '수량', '총금액', '발주일', '예상 납기일', '상태', '작업'],
+        columns: ['발주번호', '거래처', '협력사 상태', '품목', '수량', '총금액(단위 천)', '발주일', '예상 납기일', '상태', '작업'],
         directionOptions: [
           { key: 'ALL' as const, label: '전체' },
           { key: 'ISSUED' as const, label: '발주' },
@@ -268,11 +272,11 @@ const copy = computed(() =>
           pendingMeta: '확인 대기 중인 발주',
           completed: '납기 완료',
           completedMeta: '완료 처리된 발주',
-          totalAmount: '총 금액',
-          amountMeta: '발주 기준 총 금액',
+          totalAmount: '총금액(단위 천)',
+          amountMeta: '발주 기준 총금액(단위 천)',
           issuedCount: '발주 수',
           receivedCount: '수주 수',
-          totalAmountIssued: '총 금액 (발주 기준)',
+          totalAmountIssued: '총금액(단위 천)',
         },
         supplierStatuses: {
           ACTIVE: '활성',
@@ -448,7 +452,7 @@ const copy = computed(() =>
         orderCountSummary: (count: number, amount: string) => `${count} orders / ${amount}`,
         selectedOrderFallback: 'Review the selected order detail.',
         selectedSubOrderFallback: 'Review the selected sub order detail.',
-        columns: ['Document No.', 'Counterparty', 'Supplier Status', 'Item', 'Qty', 'Total Amount', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
+        columns: ['Document No.', 'Counterparty', 'Supplier Status', 'Item', 'Qty', 'Total Amount (K)', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
         directionOptions: [
           { key: 'ALL' as const, label: 'All' },
           { key: 'ISSUED' as const, label: 'Issued' },
@@ -470,11 +474,11 @@ const copy = computed(() =>
           pendingMeta: 'Orders waiting for confirmation',
           completed: 'Due Complete',
           completedMeta: 'Completed orders',
-          totalAmount: 'Total Amount',
-          amountMeta: 'Total issued amount',
+          totalAmount: 'Total Amount (K)',
+          amountMeta: 'Total issued amount in thousands',
           issuedCount: 'Issued',
           receivedCount: 'Received',
-          totalAmountIssued: 'Total Amount (Issued)',
+          totalAmountIssued: 'Total Amount (K)',
         },
         supplierStatuses: {
           ACTIVE: 'Active',
@@ -547,6 +551,7 @@ const parentSubOrders = ref<SubPurchaseOrderResponseDto[]>([])
 const supplierOptions = ref<SupplierListResponseDto[]>([])
 const categoryOptions = ref<ItemCategoryResponseDto[]>([])
 const itemMap = ref<Record<string, ItemResponseDto>>({})
+const organizationMap = ref<Record<string, OrganizationListItem>>({})
 const logisticsNodeOptions = ref<LogisticsNodeResponseDto[]>([])
 
 const dashboardSummary = ref<OrderDashboardSummaryResponseDto | null>(null)
@@ -680,20 +685,6 @@ const downstreamSupplierOptions = computed(() =>
   ),
 )
 
-const currentCurrency = computed<CurrencyCode | null>(() => {
-  if (!actor.isBuyerOrganization.value) return null
-
-  const codes = Array.from(
-    new Set(
-      purchaseOrders.value
-        .map((order) => order.currencyCode)
-        .filter((value): value is CurrencyCode => !!value),
-    ),
-  )
-
-  return codes.length === 1 ? codes[0] : null
-})
-
 const issuedTotalAmount = computed(() =>
   actor.isSupplierOrganization.value
     ? sentSubOrders.value.reduce((sum, subOrder) => sum + toNumber(subOrder.totalAmount), 0)
@@ -708,7 +699,7 @@ const dashboardMetrics = computed(() => {
       { label: copy.value.metrics.totalOrders, value: formatNumber(summary?.issuedOrderCount ?? 0), meta: copy.value.metrics.buyerMeta, tone: 'nominal' },
       { label: copy.value.metrics.pending, value: formatNumber(summary?.pendingOrderCount ?? 0), meta: copy.value.metrics.pendingMeta, tone: 'warning' },
       { label: copy.value.metrics.completed, value: formatNumber(summary?.completedOrderCount ?? 0), meta: copy.value.metrics.completedMeta, tone: 'info' },
-      { label: copy.value.metrics.totalAmount, value: formatDashboardAmount(issuedTotalAmount.value), meta: copy.value.metrics.amountMeta, tone: 'critical' },
+      { label: copy.value.metrics.totalAmount, value: formatThousandAmount(issuedTotalAmount.value), meta: copy.value.metrics.amountMeta, tone: 'critical' },
     ]
   }
 
@@ -716,7 +707,7 @@ const dashboardMetrics = computed(() => {
     { label: copy.value.metrics.totalOrders, value: formatNumber(summary?.totalOrderCount ?? 0), tone: 'nominal' },
     { label: copy.value.metrics.issuedCount, value: formatNumber(summary?.issuedOrderCount ?? 0), tone: 'warning' },
     { label: copy.value.metrics.receivedCount, value: formatNumber(summary?.receivedOrderCount ?? 0), tone: 'info' },
-    { label: copy.value.metrics.totalAmountIssued, value: formatDashboardAmount(issuedTotalAmount.value), tone: 'critical' },
+    { label: copy.value.metrics.totalAmountIssued, value: formatThousandAmount(issuedTotalAmount.value), tone: 'critical' },
   ]
 })
 
@@ -746,7 +737,7 @@ const orderRows = computed<OrderDisplayRow[]>(() => {
     direction: actor.isSupplierOrganization.value ? ('RECEIVED' as const) : ('ISSUED' as const),
     number: order.poNumber,
     counterpartyName: actor.isSupplierOrganization.value
-      ? order.buyerOrganizationPublicId
+      ? organizationDisplayName(order.buyerOrganizationPublicId)
       : order.supplierName,
     supplierStatus: order.supplierStatus,
     itemLabel: getOrderItemLabel(order),
@@ -815,7 +806,7 @@ const queueEntries = computed<OrderQueueEntry[]>(() => {
           kind: 'PO' as const,
           publicId: order.poPublicId,
           number: order.poNumber,
-          counterpartyName: order.buyerOrganizationPublicId,
+          counterpartyName: organizationDisplayName(order.buyerOrganizationPublicId),
           itemLabel: getOrderItemLabel(order),
           orderedAt: order.orderedAt,
           direction: 'RECEIVED' as const,
@@ -870,7 +861,7 @@ const categoryRows = computed(() => {
 
   return rows.map(([label, value]) => ({
     label,
-    value: formatDashboardAmount(value),
+    value: formatThousandAmount(value),
     width: `${Math.max(16, Math.round((value / maxValue) * 100))}%`,
   }))
 })
@@ -901,7 +892,7 @@ const topCounterpartyRows = computed(() => {
       name,
         text: copy.value.orderCountSummary(
           summary.orderCount,
-          formatDashboardAmount(summary.totalAmount),
+          formatThousandAmount(summary.totalAmount),
         ),
     }))
 })
@@ -930,7 +921,7 @@ watchEffect(() => {
       key: 'orders-refresh',
       label: copy.value.refresh,
       tone: 'secondary',
-      onClick: loadOrderDashboard,
+      onClick: refreshOrdersPage,
     },
   ]
 
@@ -1008,10 +999,19 @@ function formatAmount(
   }
 }
 
-function formatDashboardAmount(value: number) {
-  return currentCurrency.value
-    ? formatAmount(value, currentCurrency.value)
-    : formatPlainAmount(value)
+function formatThousandAmount(value: number | null | undefined) {
+  if (value == null || Number.isNaN(Number(value))) return '-'
+  return formatNumber(Number(value) / 1000)
+}
+
+function organizationDisplayName(organizationPublicId: string) {
+  const organization = organizationMap.value[organizationPublicId]
+  if (!organization) return organizationPublicId
+
+  const englishName = organization.organizationEnglishName?.trim()
+  return englishName
+    ? `${organization.organizationName}(${englishName})`
+    : organization.organizationName
 }
 
 function formatDate(value: string | null | undefined) {
@@ -1106,6 +1106,20 @@ async function loadLogisticsNodeOptions() {
       .sort((a, b) => a.nodeName.localeCompare(b.nodeName, 'ko-KR'))
   } catch {
     logisticsNodeOptions.value = []
+  }
+}
+
+async function loadOrganizationLookup() {
+  try {
+    const response = await getOrganizations({ page: 0, size: 500 })
+    organizationMap.value = Object.fromEntries(
+      response.content.map((organization) => [
+        organization.organizationPublicId,
+        organization,
+      ]),
+    )
+  } catch {
+    organizationMap.value = {}
   }
 }
 
@@ -2232,7 +2246,7 @@ function downloadOrdersCsv() {
       supplierStatusText(order.supplierStatus),
       order.itemLabel,
       order.qtyLabel,
-      formatAmount(order.totalAmount, order.currencyCode),
+      formatThousandAmount(order.totalAmount),
       formatDateTime(order.orderedAt),
       formatDate(order.expectedDueDate),
       order.kind === 'PO'
@@ -2254,6 +2268,13 @@ function downloadOrdersCsv() {
   window.URL.revokeObjectURL(url)
 }
 
+async function refreshOrdersPage() {
+  await Promise.all([
+    loadOrderDashboard(),
+    loadOrganizationLookup(),
+  ])
+}
+
 function escapeCsvCell(value: unknown) {
   return `"${String(value ?? '').replace(/"/g, '""')}"`
 }
@@ -2262,6 +2283,7 @@ onMounted(async () => {
   resetCreateOrderForm()
   await Promise.all([
     loadOrderDashboard(),
+    loadOrganizationLookup(),
     loadSupplierOptions(),
     loadCategoryOptions(),
     loadLogisticsNodeOptions(),
@@ -2287,7 +2309,7 @@ onBeforeUnmount(() => header.clearActions())
         <button class="page-button page-button--secondary" type="button" @click="downloadOrdersCsv">
           {{ copy.export }}
         </button>
-        <button class="page-button page-button--secondary" type="button" @click="loadOrderDashboard">
+        <button class="page-button page-button--secondary" type="button" @click="refreshOrdersPage">
           {{ copy.refresh }}
         </button>
         <button
@@ -2397,12 +2419,19 @@ onBeforeUnmount(() => header.clearActions())
     <section class="terminal-page__content orders-page__content">
       <div class="terminal-page__main">
         <section class="terminal-page__filter">
-          <label class="terminal-page__search">
-            <span>{{ copy.searchLabel }}</span>
+          <label class="terminal-page__search orders-page__search-field">
+            <span
+              v-if="!search"
+              class="material-symbols-outlined orders-page__search-icon"
+              aria-hidden="true"
+            >
+              search
+            </span>
             <input
               v-model="search"
               type="text"
-              :placeholder="copy.searchPlaceholder"
+              placeholder=""
+              :aria-label="copy.searchPlaceholder"
             />
           </label>
 
@@ -2423,17 +2452,17 @@ onBeforeUnmount(() => header.clearActions())
               </button>
             </div>
 
-            <div class="terminal-page__tabs">
-              <button
-                v-for="tab in TAB_OPTIONS"
-                :key="tab.key"
-                :class="['terminal-page__tab', { 'is-active': activeTabKey === tab.key }]"
-                type="button"
-                @click="activeTabKey = tab.key"
-              >
-                {{ tab.label }}
-              </button>
-            </div>
+            <label class="orders-page__status-select">
+              <select v-model="activeTabKey" :aria-label="copy.orderStatus">
+                <option
+                  v-for="tab in TAB_OPTIONS"
+                  :key="tab.key"
+                  :value="tab.key"
+                >
+                  {{ tab.label }}
+                </option>
+              </select>
+            </label>
           </div>
 
 
@@ -2449,57 +2478,59 @@ onBeforeUnmount(() => header.clearActions())
             <span class="page-panel__chip">{{ filteredOrders.length }}</span>
           </div>
 
-          <p v-if="errorMessage" class="orders-page__error">{{ errorMessage }}</p>
-          <p v-else-if="loading" class="orders-page__empty">{{ copy.loadingOrders }}</p>
-          <p v-else-if="!filteredOrders.length" class="orders-page__empty">
-            {{ copy.emptyOrders }}
-          </p>
-
-          <div v-else class="page-table terminal-page__table is-ten-cols">
+          <div class="page-table terminal-page__table orders-page__table is-ten-cols">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in TABLE_COLUMNS" :key="column">{{ column }}</span>
             </div>
 
-            <div
-              v-for="order in filteredOrders"
-              :key="`${order.kind}-${order.id}`"
-              class="page-table__row"
-            >
-              <span>{{ order.number }}</span>
-              <span>{{ order.counterpartyName }}</span>
-              <span>
-                <span :class="['page-status-chip', supplierStatusTone(order.supplierStatus)]">
-                  {{ supplierStatusText(order.supplierStatus) }}
+            <p v-if="errorMessage" class="terminal-page__table-message is-error">{{ errorMessage }}</p>
+            <p v-else-if="loading" class="terminal-page__table-message">{{ copy.loadingOrders }}</p>
+            <p v-else-if="!filteredOrders.length" class="terminal-page__table-message">
+              {{ copy.emptyOrders }}
+            </p>
+
+            <template v-else>
+              <div
+                v-for="order in filteredOrders"
+                :key="`${order.kind}-${order.id}`"
+                class="page-table__row"
+              >
+                <span>{{ order.number }}</span>
+                <span>{{ order.counterpartyName }}</span>
+                <span>
+                  <span :class="['page-status-chip', supplierStatusTone(order.supplierStatus)]">
+                    {{ supplierStatusText(order.supplierStatus) }}
+                  </span>
                 </span>
-              </span>
-              <span>{{ order.itemLabel }}</span>
-              <span>{{ order.qtyLabel }}</span>
-              <span>{{ formatAmount(order.totalAmount, order.currencyCode) }}</span>
-              <span>{{ formatDateTime(order.orderedAt) }}</span>
-              <span>{{ formatDate(order.expectedDueDate) }}</span>
-              <span>
-                <span :class="['page-status-chip', orderStatusTone(order.status)]">
-                  {{
-                    order.kind === 'PO'
-                      ? poStatusText(order.status as PoStatus)
-                      : subPoStatusText(order.status as SubPoStatus)
-                  }}
+                <span>{{ order.itemLabel }}</span>
+                <span>{{ order.qtyLabel }}</span>
+                <span>{{ formatThousandAmount(order.totalAmount) }}</span>
+                <span>{{ formatDateTime(order.orderedAt) }}</span>
+                <span>{{ formatDate(order.expectedDueDate) }}</span>
+                <span>
+                  <span :class="['page-status-chip', orderStatusTone(order.status)]">
+                    {{
+                      order.kind === 'PO'
+                        ? poStatusText(order.status as PoStatus)
+                        : subPoStatusText(order.status as SubPoStatus)
+                    }}
+                  </span>
                 </span>
-              </span>
-              <span class="action-cell">
-                <button
-                  class="page-button page-button--secondary"
-                  type="button"
-                  @click="
-                    order.kind === 'PO'
-                      ? openOrderDetailPage(order.id)
-                      : openSubOrderDetail(order.id, 'ISSUED')
-                  "
-                >
-                  {{ copy.detail }}
-                </button>
-              </span>
-            </div>
+                <span class="action-cell">
+                  <button
+                    class="page-button page-button--secondary"
+                    type="button"
+                    @click="
+                      order.kind === 'PO'
+                        ? openOrderDetailPage(order.id)
+                        : openSubOrderDetail(order.id, 'ISSUED')
+                    "
+                  >
+                    {{ copy.detail }}
+                  </button>
+                </span>
+              </div>
+            </template>
           </div>
         </article>
       </div>
@@ -2579,12 +2610,20 @@ onBeforeUnmount(() => header.clearActions())
           </label>
 
           <label class="orders-page__form-field orders-page__form-field--wide">
-            <span>{{ copy.itemSearch }}</span>
+              <span class="orders-page__field-label">{{ copy.item }}</span>
             <div class="orders-page__field-with-button">
+              <span
+                v-if="!createForm.itemKeyword"
+                class="material-symbols-outlined orders-page__search-icon"
+                aria-hidden="true"
+              >
+                search
+              </span>
               <input
                 v-model="createForm.itemKeyword"
                 type="text"
-                :placeholder="copy.itemSearchPlaceholder"
+                placeholder=""
+                :aria-label="copy.itemSearchPlaceholder"
                 :disabled="createForm.searchLoading"
                 @input="handleCreateKeywordInput"
                 @keyup.enter="searchItemsForCreateOrder"
@@ -2594,8 +2633,11 @@ onBeforeUnmount(() => header.clearActions())
                 type="button"
                 :disabled="createForm.searchLoading"
                 @click="searchItemsForCreateOrder"
+                :aria-label="copy.search"
               >
-                {{ createForm.searchLoading ? copy.searching : copy.search }}
+                <span class="material-symbols-outlined" aria-hidden="true">
+                  {{ createForm.searchLoading ? 'hourglass_top' : 'search' }}
+                </span>
               </button>
             </div>
           </label>

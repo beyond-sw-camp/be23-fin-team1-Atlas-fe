@@ -550,21 +550,21 @@ onBeforeUnmount(() => header.clearActions())
             <span class="page-panel__chip">{{ filteredNodes.length }}</span>
           </div>
 
-          <div v-if="isLoading" class="page-empty-state">
-            {{ content.loading }}
-          </div>
-
-          <div v-else-if="errorMessage" class="page-empty-state page-empty-state--error">
-            {{ errorMessage }}
-          </div>
-
-          <div v-else-if="filteredNodes.length === 0" class="page-empty-state">
-            {{ content.empty }}
-          </div>
-
-          <div v-else class="page-table terminal-page__table logistics-data-table">
+          <div class="page-table terminal-page__table logistics-data-table">
             <div class="page-table__row page-table__row--head logistics-table logistics-table--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
+            </div>
+
+            <div v-if="isLoading" class="terminal-page__table-message">
+              {{ content.loading }}
+            </div>
+
+            <div v-else-if="errorMessage" class="terminal-page__table-message is-error">
+              {{ errorMessage }}
+            </div>
+
+            <div v-else-if="filteredNodes.length === 0" class="terminal-page__table-message">
+              {{ content.empty }}
             </div>
 
             <div

@@ -121,6 +121,8 @@ type DateRangeValue = string[] | null
 // 빠른 기간 버튼 타입입니다.
 type QuickRange = '7d' | '1m' | '6m' | 'all' | ''
 
+const LOGIN_HISTORY_MODAL_PAGE_SIZE = 15
+
 // 로그인 이력 날짜 범위 선택 값입니다.
 const loginHistoryRange = ref<DateRangeValue>(null)
 
@@ -132,6 +134,11 @@ const loginHistoryQuickRange = ref<QuickRange>('all')
 
 // 보안 이력 빠른 기간 버튼 선택 상태입니다.
 const securityHistoryQuickRange = ref<QuickRange>('all')
+
+// 로그인 이력 모달은 15개씩 이어 붙입니다.
+const loginHistoryModalPage = ref(0)
+const hasMoreLoginHistoryModalItems = ref(true)
+const isLoadingMoreLoginHistoryModal = ref(false)
 
 // 사용자 수정과 비밀번호 변경에 필요한 내부 userId입니다.
 const currentUserId = ref<number | null>(null)
@@ -809,13 +816,13 @@ const isAdmin = computed(() => myInfo.value?.role === 'ADMIN')
 const isOrgAdmin = computed(() => myInfo.value?.role === 'ORG_ADMIN')
 const isUser = computed(() => myInfo.value?.role === 'USER')
 
-// 로그인 이력 카드는 최근 4개만 미리 보여줍니다.
+// 로그인 이력 카드는 최근 5개만 미리 보여줍니다.
 const visibleLoginHistories = computed(() => {
-  return loginHistories.value.slice(0, 4)
+  return loginHistories.value.slice(0, 5)
 })
 
-// 로그인 이력이 5개 이상이면 더보기 버튼을 보여줍니다.
-const canShowMoreLoginHistories = computed(() => loginHistories.value.length > 4)
+// 로그인 이력이 6개 이상이면 더보기 버튼을 보여줍니다.
+const canShowMoreLoginHistories = computed(() => loginHistories.value.length > 5)
 
 // 보안 이력 카드도 최근 4개만 미리 보여줍니다.
 const visibleSecurityHistories = computed(() => {
@@ -1092,23 +1099,65 @@ function getQuickRangeButtonStyle(isActive: boolean) {
   return {}
 }
 
+function resetLoginHistoryModalPagination() {
+  loginHistoryModalPage.value = 0
+  hasMoreLoginHistoryModalItems.value = true
+}
+
 // 로그인 이력 모달 목록을 기간 조건으로 다시 읽습니다.
-async function loadLoginHistoryModalItems() {
+async function loadLoginHistoryModalItems(options: { append?: boolean } = {}) {
+  const append = options.append === true
+
+  if (append && (!hasMoreLoginHistoryModalItems.value || isLoadingMoreLoginHistoryModal.value || isLoadingLoginHistoryModal.value)) {
+    return
+  }
+
   try {
-    isLoadingLoginHistoryModal.value = true
+    const page = append ? loginHistoryModalPage.value + 1 : 0
+
+    if (append) {
+      isLoadingMoreLoginHistoryModal.value = true
+    } else {
+      resetLoginHistoryModalPagination()
+      isLoadingLoginHistoryModal.value = true
+    }
 
     const response = await getMyLoginHistories({
-      page: 0,
-      size: 100,
+      page,
+      size: LOGIN_HISTORY_MODAL_PAGE_SIZE,
       from: loginHistoryFilter.from || undefined,
       to: loginHistoryFilter.to || undefined,
     })
 
-    loginHistoryModalItems.value = response.content
+    loginHistoryModalItems.value = append
+      ? [...loginHistoryModalItems.value, ...response.content]
+      : response.content
+
+    const currentPage = response.number ?? response.page ?? page
+    loginHistoryModalPage.value = currentPage
+    hasMoreLoginHistoryModalItems.value = response.last === false
   } catch {
-    loginHistoryModalItems.value = []
+    if (!append) {
+      loginHistoryModalItems.value = []
+    }
+    hasMoreLoginHistoryModalItems.value = false
   } finally {
     isLoadingLoginHistoryModal.value = false
+    isLoadingMoreLoginHistoryModal.value = false
+  }
+}
+
+function handleLoginHistoryModalScroll(event: Event) {
+  const target = event.currentTarget as HTMLElement | null
+
+  if (!target || isLoadingLoginHistoryModal.value || isLoadingMoreLoginHistoryModal.value || !hasMoreLoginHistoryModalItems.value) {
+    return
+  }
+
+  const remainingScroll = target.scrollHeight - target.scrollTop - target.clientHeight
+
+  if (remainingScroll < 120) {
+    void loadLoginHistoryModalItems({ append: true })
   }
 }
 
@@ -1750,15 +1799,15 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <button
-            v-if="canShowMoreLoginHistories"
-            class="page-button page-button--secondary"
-            type="button"
-            style="margin-top: 16px;"
-            @click="openLoginHistoryModal"
-          >
-            {{ preferences.language === 'ko' ? '더보기' : 'Show More' }}
-          </button>
+          <div v-if="canShowMoreLoginHistories" class="profile-history-actions">
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              @click="openLoginHistoryModal"
+            >
+              {{ preferences.language === 'ko' ? '더보기' : 'Show More' }}
+            </button>
+          </div>
         </article>
 
         <article class="page-panel">
@@ -1785,12 +1834,8 @@ onBeforeUnmount(() => {
                 {{ history.summary }}
               </strong>
 
-              <span class="page-feed__label">
-                IP: {{ history.ipAddress || '-' }}
-              </span>
-
-              <span class="page-feed__label page-feed__label--plain">
-                {{ formatClientInfo(history.userAgent) }}
+              <span class="page-feed__label page-feed__label--plain profile-history-meta">
+                IP: {{ history.ipAddress || '-' }} · {{ formatClientInfo(history.userAgent) }}
               </span>
             </div>
 
@@ -1862,12 +1907,11 @@ onBeforeUnmount(() => {
       <BaseModal
         v-model="loginHistoryModalOpen"
         :title="preferences.language === 'ko' ? '로그인 이력' : 'Login History'"
-        :description="preferences.language === 'ko'
-          ? '기간을 선택해 로그인 이력을 조회합니다.'
-          : 'Select a period to view login history.'"
+        hide-eyebrow
         size="lg"
       >
         <div
+          class="profile-history-modal__filters"
           style="
             display: flex;
             gap: 12px;
@@ -1886,10 +1930,9 @@ onBeforeUnmount(() => {
               max-width: 100%;
             "
           >
-            <span>{{ preferences.language === 'ko' ? '기간' : 'Period' }}</span>
-
             <VueDatePicker
               v-model="loginHistoryRange"
+              class="profile-history-modal__datepicker"
               range
               model-type="yyyy-MM-dd"
               :locale="datePickerLocale"
@@ -1899,6 +1942,7 @@ onBeforeUnmount(() => {
               :clearable="true"
               auto-apply
               :placeholder="preferences.language === 'ko' ? '기간 선택' : 'Select period'"
+              :aria-label="preferences.language === 'ko' ? '기간 선택' : 'Select period'"
               @update:model-value="handleLoginHistoryRangeChange"
             />
           </label>
@@ -1951,8 +1995,12 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- 목록은 그대로 두고, 로딩 때는 위에만 덮어서 모달 높이가 안 출렁이게 합니다. -->
-        <div style="position: relative; min-height: 320px;">
-          <div class="page-feed" :style="{ opacity: isLoadingLoginHistoryModal ? 0.45 : 1 }">
+        <div class="profile-history-modal__list-shell">
+          <div
+            class="page-feed profile-history-modal__list"
+            :style="{ opacity: isLoadingLoginHistoryModal && loginHistoryModalItems.length === 0 ? 0.45 : 1 }"
+            @scroll="handleLoginHistoryModalScroll"
+          >
             <div
               v-for="history in loginHistoryModalItems"
               :key="history.loginHistoryId"
@@ -1986,10 +2034,14 @@ onBeforeUnmount(() => {
                 {{ preferences.language === 'ko' ? '조건에 맞는 로그인 이력이 없습니다.' : 'No login history matches the selected period.' }}
               </strong>
             </div>
+
+            <div v-if="isLoadingMoreLoginHistoryModal" class="login-hint profile-history-modal__loading-more">
+              {{ preferences.language === 'ko' ? '더 불러오는 중입니다...' : 'Loading more...' }}
+            </div>
           </div>
 
           <div
-            v-if="isLoadingLoginHistoryModal"
+            v-if="isLoadingLoginHistoryModal && loginHistoryModalItems.length === 0"
             class="login-hint"
             style="
               position: absolute;
@@ -2113,12 +2165,8 @@ onBeforeUnmount(() => {
                 {{ history.summary }}
               </strong>
 
-              <span class="page-feed__label">
-                IP: {{ history.ipAddress || '-' }}
-              </span>
-
-              <span class="page-feed__label page-feed__label--plain">
-                {{ formatClientInfo(history.userAgent) }}
+              <span class="page-feed__label page-feed__label--plain profile-history-meta">
+                IP: {{ history.ipAddress || '-' }} · {{ formatClientInfo(history.userAgent) }}
               </span>
             </div>
 
