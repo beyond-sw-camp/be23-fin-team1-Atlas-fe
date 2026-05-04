@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import ShipmentKoreaMap from '../components/ShipmentKoreaMap.vue'
@@ -39,6 +40,8 @@ import {
 } from '../../../services/shipment'
 
 const preferences = useAtlasPreferencesStore()
+const route = useRoute()
+const router = useRouter()
 
 const CONTENT = {
   ko: {
@@ -284,6 +287,7 @@ const etaProjections = ref<EtaProjectionResponseDto[]>([])
 const deliveryExceptions = ref<DeliveryExceptionResponseDto[]>([])
 
 const isCreateModalOpen = ref(false)
+const isCreatePage = computed(() => route.name === 'shipmentCreate')
 const isTrackPanelOpen = ref(false)
 const isExceptionPanelOpen = ref(false)
 
@@ -649,7 +653,9 @@ async function refreshShipments() {
 async function openCreateModal() {
   resetCreateForm()
   createErrorMessage.value = ''
-  isCreateModalOpen.value = true
+  if (!isCreatePage.value) {
+    router.push({ name: 'shipmentCreate' })
+  }
 
   await Promise.all([fetchAcceptedPurchaseOrders(), fetchLogisticsNodes()])
 }
@@ -658,6 +664,10 @@ function closeCreateModal() {
   isCreateModalOpen.value = false
   createErrorMessage.value = ''
   resetCreateForm()
+
+  if (isCreatePage.value) {
+    router.push({ name: 'shipments' })
+  }
 }
 
 function handleCreateModalOpenChange(isOpen: boolean) {
@@ -724,6 +734,13 @@ async function handleShipmentSelect(shipment: ShipmentListResponseDto) {
   } finally {
     isShipmentDetailLoading.value = false
   }
+}
+
+function openShipmentDetailPage(shipment: ShipmentListResponseDto) {
+  router.push({
+    name: 'operationDetail',
+    params: { kind: 'shipments', publicId: shipment.publicId },
+  })
 }
 
 async function handleMapShipmentSelect(shipment: ShipmentMapResponseDto) {
@@ -823,7 +840,7 @@ async function handleCreateShipmentSubmit() {
     currentPage.value = 0
     await refreshShipments()
     resetCreateForm()
-    isCreateModalOpen.value = false
+    closeCreateModal()
   } catch (error: any) {
     console.error('Failed to create shipment:', error)
     createErrorMessage.value = error?.message ?? content.value.createFail
@@ -983,12 +1000,16 @@ async function handleCreateDeliveryExceptionSubmit() {
 
 onMounted(() => {
   refreshShipments()
+
+  if (isCreatePage.value) {
+    void openCreateModal()
+  }
 })
 </script>
 
 <template>
   <section class="app-screen terminal-page shipments-page">
-    <header class="terminal-page__header">
+    <header v-if="!isCreatePage" class="terminal-page__header">
       <div>
         <div class="terminal-page__eyebrow">{{ content.eyebrow }}</div>
         <h2 class="terminal-page__title">{{ content.title }}</h2>
@@ -1003,7 +1024,7 @@ onMounted(() => {
       </div>
     </header>
 
-    <section class="shipment-kpi-row" aria-label="shipment summary">
+    <section v-if="!isCreatePage" class="shipment-kpi-row" aria-label="shipment summary">
       <article class="shipment-kpi-card">
         <div class="shipment-kpi-card__icon shipment-kpi-card__icon--blue">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1063,7 +1084,7 @@ onMounted(() => {
       </article>
     </section>
 
-    <article class="stl-card shipment-map-card">
+    <article v-if="!isCreatePage" class="stl-card shipment-map-card">
       <div class="stl-card__head">
         <div>
           <div class="page-panel__eyebrow">{{ content.mapEyebrow }}</div>
@@ -1115,9 +1136,10 @@ onMounted(() => {
     </article>
 
     <BaseModal
-      :model-value="isCreateModalOpen"
+      :model-value="isCreatePage || isCreateModalOpen"
       :title="content.createTitle"
       :description="content.autoTransportNotice"
+      :presentation="isCreatePage ? 'page' : 'modal'"
       size="lg"
       hide-eyebrow
       @update:model-value="handleCreateModalOpenChange"
@@ -1210,7 +1232,7 @@ onMounted(() => {
       </template>
     </BaseModal>
 
-    <article class="stl-card shipment-board-card">
+    <article v-if="!isCreatePage" class="stl-card shipment-board-card">
       <div class="stl-card__head">
         <div>
           <div class="page-panel__eyebrow">{{ content.boardEyebrow }}</div>
@@ -1231,7 +1253,7 @@ onMounted(() => {
             :key="shipment.publicId"
             class="shipment-work-card"
             type="button"
-            @click="handleShipmentSelect(shipment)"
+            @click="openShipmentDetailPage(shipment)"
           >
             <span>{{ formatShortShipmentNumber(shipment.shipmentNumber) }}</span>
             <strong>{{ formatNodeDisplay(shipment.originNodeName, shipment.originNodeCode, shipment.originNodePublicId) }}</strong>
@@ -1250,7 +1272,7 @@ onMounted(() => {
             :key="shipment.publicId"
             class="shipment-work-card"
             type="button"
-            @click="handleShipmentSelect(shipment)"
+            @click="openShipmentDetailPage(shipment)"
           >
             <span>{{ formatShortShipmentNumber(shipment.shipmentNumber) }}</span>
             <strong>{{ formatNodeDisplay(shipment.destinationNodeName, shipment.destinationNodeCode, shipment.destinationNodePublicId) }}</strong>
@@ -1269,7 +1291,7 @@ onMounted(() => {
             :key="shipment.publicId"
             class="shipment-work-card shipment-work-card--danger"
             type="button"
-            @click="handleShipmentSelect(shipment)"
+            @click="openShipmentDetailPage(shipment)"
           >
             <span>{{ formatShortShipmentNumber(shipment.shipmentNumber) }}</span>
             <strong>{{ formatNodeDisplay(shipment.currentNodeName, shipment.currentNodeCode, shipment.currentNodePublicId) }}</strong>
@@ -1627,22 +1649,17 @@ onMounted(() => {
 
 <style scoped>
 .shipments-page {
-  --ship-bg: #f4f6f9;
-  --ship-card: #ffffff;
-  --ship-border: #e5e9f0;
-  --ship-text: #111827;
-  --ship-muted: #667085;
-  --ship-faint: #98a2b3;
-  --ship-blue: #2563eb;
-  --ship-blue-soft: #eff6ff;
-  --ship-green: #10b981;
-  --ship-green-soft: #ecfdf5;
-  --ship-amber: #f59e0b;
-  --ship-amber-soft: #fffbeb;
-  --ship-red: #ef4444;
-  --ship-red-soft: #fff1f2;
-  --ship-radius: 12px;
-  --ship-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --ship-bg: var(--background, #fff);
+  --ship-card: rgb(var(--surface-container-low-rgb, 245 245 245) / 0.86);
+  --ship-border: rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
+  --ship-text: var(--on-surface, #121212);
+  --ship-muted: var(--on-surface-variant, #474747);
+  --ship-faint: var(--on-surface-variant, #596061);
+  --ship-green: #1c7c45;
+  --ship-amber: #b7791f;
+  --ship-red: var(--color-critical, #9f403d);
+  --ship-radius: 0;
+  --ship-shadow: none;
 
   display: flex;
   flex-direction: column;
@@ -1650,9 +1667,7 @@ onMounted(() => {
   min-height: 100vh;
   padding: 28px 32px;
   color: var(--ship-text);
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.06), transparent 28rem),
-    var(--ship-bg);
+  background: var(--ship-bg);
   font-family: Pretendard, "Segoe UI", sans-serif;
 }
 
@@ -1666,10 +1681,10 @@ onMounted(() => {
 }
 
 .shipments-page .terminal-page__title {
-  margin: 0 0 4px;
+  margin: 8px 0 0;
   color: var(--ship-text);
-  font-size: 1.75rem;
-  line-height: 1.15;
+  font-size: clamp(1.9rem, 3vw, 2.7rem);
+  line-height: 0.98;
 }
 
 .shipments-page .terminal-page__eyebrow,
@@ -1691,7 +1706,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 9px 14px;
   font-size: 0.8rem;
   font-weight: 900;
@@ -1706,20 +1721,20 @@ onMounted(() => {
 }
 
 .shipments-page .page-button--primary {
-  border-color: #111827;
-  background: #111827;
+  border-color: var(--primary, #5e5e5e);
+  background: var(--primary, #5e5e5e);
   color: #fff;
 }
 
 .shipments-page .page-button--secondary {
   border-color: var(--ship-border);
-  background: var(--ship-card);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.74);
   color: var(--ship-muted);
 }
 
 .shipments-page .stl-card {
   border: 1px solid var(--ship-border);
-  border-radius: var(--ship-radius);
+  border-radius: 0;
   padding: 20px;
   background: var(--ship-card);
   box-shadow: var(--ship-shadow);
@@ -1743,7 +1758,7 @@ onMounted(() => {
   justify-content: center;
   min-width: 28px;
   min-height: 24px;
-  border-radius: 999px;
+  border-radius: 0;
   padding: 2px 9px;
   background: #f1f5f9;
   color: var(--ship-text);
@@ -1753,8 +1768,8 @@ onMounted(() => {
 
 .shipments-page .page-input {
   border: 1px solid var(--ship-border);
-  border-radius: 8px;
-  background: #fff;
+  border-radius: 0;
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.88);
   color: var(--ship-text);
   font-family: inherit;
 }
@@ -1762,7 +1777,7 @@ onMounted(() => {
 .shipments-page .page-table {
   overflow: hidden;
   border: 1px solid var(--ship-border);
-  border-radius: var(--ship-radius);
+  border-radius: 0;
   background: #fff;
 }
 
@@ -1785,7 +1800,7 @@ onMounted(() => {
 
 .shipments-page .page-table__empty {
   border: 1px dashed var(--ship-border);
-  border-radius: var(--ship-radius);
+  border-radius: 0;
   padding: 36px 20px;
   background: #fff;
   color: var(--ship-faint);
@@ -1805,7 +1820,8 @@ onMounted(() => {
   align-items: flex-start;
   min-height: 92px;
   border: 1px solid var(--ship-border);
-  border-radius: var(--ship-radius);
+  border-left: 4px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
+  border-radius: 0;
   padding: 18px;
   background: var(--ship-card);
   box-shadow: var(--ship-shadow);
@@ -1817,7 +1833,10 @@ onMounted(() => {
   width: 40px;
   height: 40px;
   flex: 0 0 auto;
-  border-radius: 10px;
+  border: 1px solid var(--ship-border);
+  border-radius: 0;
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.84);
+  color: var(--ship-muted);
 }
 
 .shipment-kpi-card__icon svg {
@@ -1830,24 +1849,16 @@ onMounted(() => {
   stroke-linejoin: round;
 }
 
-.shipment-kpi-card__icon--blue {
-  background: var(--ship-blue-soft);
-  color: var(--ship-blue);
+.shipment-kpi-card:has(.shipment-kpi-card__icon--amber) {
+  border-left-color: rgb(183 121 31 / 0.78);
 }
 
-.shipment-kpi-card__icon--amber {
-  background: var(--ship-amber-soft);
-  color: var(--ship-amber);
+.shipment-kpi-card:has(.shipment-kpi-card__icon--green) {
+  border-left-color: rgb(28 124 69 / 0.78);
 }
 
-.shipment-kpi-card__icon--green {
-  background: var(--ship-green-soft);
-  color: var(--ship-green);
-}
-
-.shipment-kpi-card__icon--red {
-  background: var(--ship-red-soft);
-  color: var(--ship-red);
+.shipment-kpi-card:has(.shipment-kpi-card__icon--red) {
+  border-left-color: rgb(var(--error-rgb, 159 64 61) / 0.8);
 }
 
 .shipment-kpi-card__body {
@@ -1905,7 +1916,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   border: 1px solid var(--ship-border);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 12px 14px;
   background: #f8fafc;
   color: var(--ship-faint);
@@ -1922,25 +1933,23 @@ onMounted(() => {
 .shipment-map-list__item {
   width: 100%;
   border: 1px solid var(--ship-border);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 16px;
   background: #fff;
   color: inherit;
   text-align: left;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  box-shadow: none;
+  transition: background 50ms ease;
 }
 
 .shipment-map-list__item:hover,
 .shipment-map-list__item.is-selected {
-  border-color: rgba(37, 99, 235, 0.42);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.52);
 }
 
 .shipment-map-list__item.is-selected {
-  background: #eff6ff;
+  border-left: 4px solid var(--primary, #5e5e5e);
 }
 
 .shipment-map-list__item > div {
@@ -1964,7 +1973,7 @@ onMounted(() => {
 .shipment-map-list__item em {
   display: inline-flex;
   margin-top: 10px;
-  color: var(--ship-blue);
+  color: var(--ship-muted);
   font-size: 0.76rem;
   font-style: normal;
   font-weight: 900;
@@ -1975,25 +1984,25 @@ onMounted(() => {
   align-items: center;
   border: 1px solid var(--ship-border);
   padding: 4px 8px;
-  background: #f5f1e7;
-  color: #6d5524;
+  background: rgb(183 121 31 / 0.1);
+  color: var(--ship-amber);
   font-size: 0.75rem;
   font-weight: 800;
 }
 
 .shipment-status-pill.is-in_transit {
-  background: #e7f1ec;
-  color: #1f6f4a;
+  background: rgb(28 124 69 / 0.08);
+  color: var(--ship-green);
 }
 
 .shipment-status-pill.is-arrived {
-  background: #e8eef7;
-  color: #274b7a;
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.7);
+  color: var(--ship-muted);
 }
 
 .shipment-status-pill.is-delayed {
-  background: #f7e9e5;
-  color: #9b3f2c;
+  background: rgb(var(--error-rgb, 159 64 61) / 0.1);
+  color: var(--ship-red);
 }
 
 .shipment-status-pill.is-cancelled {
@@ -2034,7 +2043,7 @@ onMounted(() => {
 .shipment-field strong {
   min-height: 42px;
   border: 1px solid var(--ship-border);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 10px 12px;
   background: #f8fafc;
 }
@@ -2052,7 +2061,7 @@ onMounted(() => {
 .shipment-option-row label,
 .shipment-option-row--readonly span {
   border: 1px solid var(--ship-border);
-  border-radius: 999px;
+  border-radius: 0;
   padding: 9px 12px;
   background: #f8fafc;
   color: var(--ship-muted);
@@ -2092,7 +2101,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   border: 1px solid var(--ship-border);
-  border-radius: 999px;
+  border-radius: 0;
   padding: 9px 12px;
   background: #fff;
   color: var(--ship-muted);
@@ -2119,7 +2128,7 @@ onMounted(() => {
 .shipment-notice {
   border: 1px solid #e5e9f0;
   border-left: 3px solid #94a3b8;
-  border-radius: 10px;
+  border-radius: 0;
   margin: 0 0 16px;
   padding: 10px 12px;
   background: #f8fafc;
@@ -2166,7 +2175,7 @@ onMounted(() => {
 .shipment-work-column {
   min-height: 260px;
   border: 1px solid var(--ship-border);
-  border-radius: var(--ship-radius);
+  border-radius: 0;
   padding: 14px;
   background: #f8fafc;
 }
@@ -2193,18 +2202,19 @@ onMounted(() => {
   flex-direction: column;
   gap: 5px;
   border: 1px solid var(--ship-border);
-  border-radius: 10px;
+  border-left: 4px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.42);
+  border-radius: 0;
   margin-bottom: 10px;
   padding: 12px;
   background: #fff;
   color: inherit;
   text-align: left;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  box-shadow: none;
 }
 
 .shipment-work-card:hover {
-  border-color: rgba(37, 99, 235, 0.42);
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.48);
 }
 
 .shipment-work-card--danger:hover {
@@ -2212,7 +2222,7 @@ onMounted(() => {
 }
 
 .shipment-work-card span {
-  color: var(--ship-blue);
+  color: var(--ship-muted);
   font-size: 0.74rem;
   font-weight: 900;
 }
@@ -2231,7 +2241,7 @@ onMounted(() => {
 
 .shipment-work-empty {
   border: 1px dashed var(--ship-border);
-  border-radius: 10px;
+  border-radius: 0;
   padding: 18px 12px;
   background: #fff;
   text-align: center;
@@ -2259,7 +2269,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 9px 14px;
   font-size: 0.8rem;
   font-weight: 900;
@@ -2293,7 +2303,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 9px 14px;
   font-size: 0.8rem;
   font-weight: 900;
@@ -2323,14 +2333,14 @@ onMounted(() => {
 
 .shipment-create-modal .shipment-field {
   border: 1px solid var(--ship-border);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 12px;
   background: #f8fafc;
 }
 
 .shipment-create-modal .shipment-field .page-input {
   min-height: 40px;
-  border-radius: 9px;
+  border-radius: 0;
   background: #fff;
 }
 
@@ -2350,14 +2360,13 @@ onMounted(() => {
   --ship-text: #111827;
   --ship-muted: #667085;
   --ship-faint: #98a2b3;
-  --ship-blue: #2563eb;
-  --ship-radius: 12px;
-  --ship-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --ship-radius: 0;
+  --ship-shadow: none;
 }
 
 .shipment-detail-modal .stl-card {
   border: 1px solid var(--ship-border);
-  border-radius: var(--ship-radius);
+  border-radius: 0;
   padding: 20px;
   background: var(--ship-card);
   box-shadow: var(--ship-shadow);
@@ -2391,7 +2400,7 @@ onMounted(() => {
 
 .shipment-detail-modal .page-table__empty {
   border: 1px dashed var(--ship-border);
-  border-radius: var(--ship-radius);
+  border-radius: 0;
   padding: 28px 18px;
   background: #fff;
   color: var(--ship-faint);
@@ -2404,7 +2413,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 9px 14px;
   font-size: 0.8rem;
   font-weight: 900;
@@ -2435,7 +2444,7 @@ onMounted(() => {
 .shipment-detail-modal .shipment-info-grid > div {
   min-height: auto;
   border: 1px solid var(--ship-border);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 12px 14px;
   background: #f8fafc;
 }
@@ -2469,11 +2478,9 @@ onMounted(() => {
   align-items: center;
   margin-top: 16px;
   border: 1px solid var(--ship-border);
-  border-radius: 14px;
+  border-radius: 0;
   padding: 14px;
-  background:
-    linear-gradient(135deg, rgba(37, 99, 235, 0.08), transparent 46%),
-    #f8fafc;
+  background: #f8fafc;
 }
 
 .shipment-detail-modal .shipment-route-summary strong {
@@ -2492,7 +2499,7 @@ onMounted(() => {
   width: 28px;
   height: 28px;
   border: 1px solid var(--ship-border);
-  border-radius: 999px;
+  border-radius: 0;
   background: #fff;
   color: var(--ship-muted);
   font-weight: 900;
@@ -2522,14 +2529,14 @@ onMounted(() => {
 
 .shipment-detail-modal .shipment-field {
   border: 1px solid var(--ship-border);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 12px;
   background: #f8fafc;
 }
 
 .shipment-detail-modal .shipment-field .page-input {
   min-height: 40px;
-  border-radius: 9px;
+  border-radius: 0;
   background: #fff;
 }
 
@@ -2544,7 +2551,7 @@ onMounted(() => {
   justify-content: space-between;
   gap: 12px;
   border: 1px solid var(--ship-border);
-  border-radius: 10px;
+  border-radius: 0;
   padding: 10px 12px;
   background: #f8fafc;
 }

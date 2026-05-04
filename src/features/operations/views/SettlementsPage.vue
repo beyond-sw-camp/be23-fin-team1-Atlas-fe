@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
@@ -28,6 +29,8 @@ import {
 } from '../../../services/shipment'
 
 const preferences = useAtlasPreferencesStore()
+const route = useRoute()
+const router = useRouter()
 
 const CONTENT = {
   ko: {
@@ -67,6 +70,61 @@ const CONTENT = {
       RETURN: '반품',
       DELIVERY_EXCEPTION: '배송 예외',
     },
+    actions: {
+      refresh: '새로고침',
+      registerBudget: '예산 등록',
+      cancel: '취소',
+      saveBudget: '예산 저장',
+      saving: '저장 중...',
+    },
+    stats: {
+      currentBudget: '이번 달 예산',
+      monthlyBudgetBase: '월 예산 기준',
+      payableThisMonth: '이번 달 지급 정산액',
+      budgetUsageBase: '예산 사용액 기준',
+      budgetUsageRate: '예산 사용률',
+      receivableThisMonth: '이번 달 수금 예정',
+      receivableBase: '받을 정산액 기준',
+      monthlyBudgetChart: '월별 예산 대비 지급 정산액',
+      annualPayable: '연간 지급 정산액',
+      settlementAmountAnalysis: '정산 금액 분석',
+      targetTypeAmount: '정산 유형별 금액',
+      flowCompare: '지급/수금 비교',
+      settlementFlow: '이번 달 정산 흐름',
+      payableExpected: '지급 예정',
+      receivableExpected: '수금 예정',
+      remainingBudget: '예산 잔액',
+      netFlow: '순흐름',
+      all: '전체',
+      q1: '1분기',
+      q2: '2분기',
+      q3: '3분기',
+      q4: '4분기',
+      recent6: '최근 6개월',
+      loadingStats: '통계 데이터를 불러오는 중입니다.',
+      noBudgetData: '예산 또는 정산 데이터가 없습니다.',
+      noTargetTypeAmount: '정산 유형 금액이 없습니다.',
+      total: '합계',
+      amount: '금액',
+    },
+    budgetModal: {
+      title: '월별 예산 등록',
+      description: '월별 예산을 등록하면 정산액과 예산 사용률을 차트에서 비교할 수 있습니다.',
+      year: '예산 연도',
+      month: '예산 월',
+      amount: '예산 금액',
+      currency: '통화',
+      warningThreshold: '경고 기준 (%)',
+      hint: '예산 사용률이 경고 기준 이상이면 WARNING, 예산을 초과하면 EXCEEDED 상태로 표시됩니다.',
+    },
+    validation: {
+      invalidYear: '예산 연도를 확인해주세요.',
+      invalidMonth: '예산 월은 1월부터 12월까지만 입력할 수 있습니다.',
+      invalidAmount: '예산 금액은 0 이상이어야 합니다.',
+      invalidThreshold: '경고 기준은 0부터 100 사이로 입력해주세요.',
+      saveFailed: '예산 저장에 실패했습니다.',
+      statsFailed: '정산 통계 데이터를 불러오지 못했습니다.',
+    },
   },
   en: {
     eyebrow: 'SUPPLY CHAIN OPS / SETTLEMENTS',
@@ -105,10 +163,72 @@ const CONTENT = {
       RETURN: 'Return',
       DELIVERY_EXCEPTION: 'Delivery Exception',
     },
+    actions: {
+      refresh: 'Refresh',
+      registerBudget: 'Register Budget',
+      cancel: 'Cancel',
+      saveBudget: 'Save Budget',
+      saving: 'Saving...',
+    },
+    stats: {
+      currentBudget: 'Current Month Budget',
+      monthlyBudgetBase: 'Monthly budget base',
+      payableThisMonth: 'Payable This Month',
+      budgetUsageBase: 'Budget usage base',
+      budgetUsageRate: 'Budget Usage Rate',
+      receivableThisMonth: 'Receivable This Month',
+      receivableBase: 'Receivable settlement base',
+      monthlyBudgetChart: 'Monthly Budget vs Payable Settlement',
+      annualPayable: 'Annual Payable Settlement',
+      settlementAmountAnalysis: 'Settlement Amount Analysis',
+      targetTypeAmount: 'Amount by Settlement Type',
+      flowCompare: 'Payable / Receivable Comparison',
+      settlementFlow: 'Current Month Settlement Flow',
+      payableExpected: 'Expected Payable',
+      receivableExpected: 'Expected Receivable',
+      remainingBudget: 'Remaining Budget',
+      netFlow: 'Net Flow',
+      all: 'All',
+      q1: 'Q1',
+      q2: 'Q2',
+      q3: 'Q3',
+      q4: 'Q4',
+      recent6: 'Recent 6 Months',
+      loadingStats: 'Loading statistics...',
+      noBudgetData: 'No budget or settlement data.',
+      noTargetTypeAmount: 'No settlement type amount.',
+      total: 'Total',
+      amount: 'Amount',
+    },
+    budgetModal: {
+      title: 'Register Monthly Budget',
+      description: 'Compare settlements and budget usage on charts by registering monthly budgets.',
+      year: 'Budget Year',
+      month: 'Budget Month',
+      amount: 'Budget Amount',
+      currency: 'Currency',
+      warningThreshold: 'Warning Threshold (%)',
+      hint: 'Usage at or above the threshold is shown as WARNING, and over-budget usage is shown as EXCEEDED.',
+    },
+    validation: {
+      invalidYear: 'Check the budget year.',
+      invalidMonth: 'Budget month must be between 1 and 12.',
+      invalidAmount: 'Budget amount must be 0 or greater.',
+      invalidThreshold: 'Warning threshold must be between 0 and 100.',
+      saveFailed: 'Failed to save budget.',
+      statsFailed: 'Failed to load settlement statistics.',
+    },
   },
 } as const
 
 const content = computed(() => CONTENT[preferences.language])
+
+function openSettlementDetailPage(publicId: string) {
+  router.push({
+    name: 'operationDetail',
+    params: { kind: 'settlements', publicId },
+  })
+}
 
 type SettlementBudgetForm = {
   year: number
@@ -146,6 +266,7 @@ const listErrorMessage = ref('')
 const detailErrorMessage = ref('')
 
 const isBudgetModalOpen = ref(false)
+const isBudgetCreatePage = computed(() => route.name === 'settlementBudgetCreate')
 const isBudgetSubmitting = ref(false)
 const budgetErrorMessage = ref('')
 
@@ -158,19 +279,10 @@ const budgetForm = ref<SettlementBudgetForm>({
 })
 
 const CHART_MONTH_LABELS = [
-  '1월',
-  '2월',
-  '3월',
-  '4월',
-  '5월',
-  '6월',
-  '7월',
-  '8월',
-  '9월',
-  '10월',
-  '11월',
-  '12월',
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
 ]
+
+const monthLabel = (month: number) => preferences.language === 'ko' ? `${month}월` : `M${month}`
 
 // 월별 예산 대비 지급 정산액 차트 데이터입니다.
 const monthlyBudgetChartPoints = computed(() => {
@@ -181,13 +293,12 @@ const monthlyBudgetChartPoints = computed(() => {
     ]),
   )
 
-  return CHART_MONTH_LABELS.map((label, index) => {
-    const monthNumber = index + 1
+  return CHART_MONTH_LABELS.map((monthNumber) => {
     const point = source.get(monthNumber)
 
     return {
       month: monthNumber,
-      label,
+      label: monthLabel(monthNumber),
       budgetAmount: Number(point?.budgetAmount ?? 0),
       payableAmount: Number(point?.payableAmount ?? 0),
       remainingAmount: Number(point?.remainingAmount ?? 0),
@@ -231,11 +342,11 @@ const monthlyPayableTotalAmount = computed(() => {
 const monthlyBudgetChartSeries = computed(() => {
   return [
     {
-      name: '예산',
+      name: content.value.budgetModal.amount,
       data: visibleMonthlyBudgetChartPoints.value.map((point) => point.budgetAmount),
     },
     {
-      name: '지급 정산액',
+      name: content.value.stats.payableThisMonth,
       data: visibleMonthlyBudgetChartPoints.value.map((point) => point.payableAmount),
     },
   ]
@@ -253,7 +364,7 @@ const monthlyBudgetChartOptions = computed(() => {
       bar: {
         horizontal: false,
         columnWidth: '52%',
-        borderRadius: 6,
+        borderRadius: 0,
       },
     },
     colors: ['#cbd5e1', '#334155'],
@@ -276,7 +387,7 @@ const monthlyBudgetChartOptions = computed(() => {
     },
     yaxis: {
       labels: {
-        formatter: (value: number) => Number(value).toLocaleString(),
+        formatter: (value: number) => Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US'),
         style: {
           colors: '#98a2b3',
           fontSize: '11px',
@@ -287,7 +398,7 @@ const monthlyBudgetChartOptions = computed(() => {
       shared: true,
       intersect: false,
       y: {
-        formatter: (value: number) => `${Number(value).toLocaleString()} KRW`,
+        formatter: (value: number) => `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
       },
     },
     legend: {
@@ -348,8 +459,8 @@ const targetTypeDonutChartOptions = computed(() => {
             show: true,
             total: {
               show: true,
-              label: '합계',
-              formatter: () => `${targetTypeAmountTotal.value.toLocaleString()} KRW`,
+              label: content.value.stats.total,
+              formatter: () => `${targetTypeAmountTotal.value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
             },
           },
         },
@@ -357,7 +468,7 @@ const targetTypeDonutChartOptions = computed(() => {
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${Number(value).toLocaleString()} KRW`,
+        formatter: (value: number) => `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
       },
     },
   }
@@ -373,7 +484,7 @@ const currentMonthNetFlow = computed(() => {
 const settlementFlowAmountChartSeries = computed(() => {
   return [
     {
-      name: '금액',
+      name: content.value.stats.amount,
       data: [
         Number(settlementStatistics.value?.payableAmountThisMonth ?? 0),
         Number(settlementStatistics.value?.receivableAmountThisMonth ?? 0),
@@ -398,7 +509,7 @@ const settlementFlowAmountChartOptions = computed(() => {
     plotOptions: {
       bar: {
         horizontal: true,
-        borderRadius: 6,
+        borderRadius: 0,
         barHeight: '48%',
       },
     },
@@ -413,9 +524,9 @@ const settlementFlowAmountChartOptions = computed(() => {
     xaxis: {
       min: 0,
       max: settlementFlowAmountMax.value,
-      categories: ['지급 예정', '수금 예정', '순흐름'],
+      categories: [content.value.stats.payableExpected, content.value.stats.receivableExpected, content.value.stats.netFlow],
       labels: {
-        formatter: (value: number) => Number(value).toLocaleString(),
+        formatter: (value: number) => Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US'),
       },
     },
     grid: {
@@ -425,7 +536,7 @@ const settlementFlowAmountChartOptions = computed(() => {
     legend: { show: false },
     tooltip: {
       y: {
-        formatter: (value: number) => `${Number(value).toLocaleString()} KRW`,
+        formatter: (value: number) => `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
       },
     },
   }
@@ -444,25 +555,31 @@ function resetBudgetForm() {
 
 function openBudgetModal() {
   resetBudgetForm()
-  isBudgetModalOpen.value = true
+  if (!isBudgetCreatePage.value) {
+    router.push({ name: 'settlementBudgetCreate' })
+  }
 }
 
 function closeBudgetModal() {
   isBudgetModalOpen.value = false
   resetBudgetForm()
+
+  if (isBudgetCreatePage.value) {
+    router.push({ name: 'settlements' })
+  }
 }
 
 function validateBudgetForm() {
   if (!Number.isInteger(budgetForm.value.year) || budgetForm.value.year < 2000) {
-    return '예산 연도를 확인해주세요.'
+    return content.value.validation.invalidYear
   }
 
   if (!Number.isInteger(budgetForm.value.month) || budgetForm.value.month < 1 || budgetForm.value.month > 12) {
-    return '예산 월은 1월부터 12월까지만 입력할 수 있습니다.'
+    return content.value.validation.invalidMonth
   }
 
   if (!Number.isFinite(budgetForm.value.budgetAmount) || budgetForm.value.budgetAmount < 0) {
-    return '예산 금액은 0 이상이어야 합니다.'
+    return content.value.validation.invalidAmount
   }
 
   if (
@@ -470,7 +587,7 @@ function validateBudgetForm() {
     budgetForm.value.warningThresholdRate < 0 ||
     budgetForm.value.warningThresholdRate > 100
   ) {
-    return '경고 기준은 0부터 100 사이로 입력해주세요.'
+    return content.value.validation.invalidThreshold
   }
 
   return ''
@@ -504,7 +621,7 @@ async function handleSaveBudget() {
       err?.payload?.message ||
       err?.response?.data?.message ||
       err?.message ||
-      '예산 저장에 실패했습니다.'
+      content.value.validation.saveFailed
   } finally {
     isBudgetSubmitting.value = false
   }
@@ -522,17 +639,17 @@ function formatDateRange(startDate?: string | null, endDate?: string | null) {
 
 function formatAmount(value?: number | null, currency?: string | null) {
   if (value == null) return '-'
-  return `${Number(value).toLocaleString()}${currency ? ` ${currency}` : ''}`
+  return `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')}${currency ? ` ${currency}` : ''}`
 }
 
 function formatStatisticsAmount(value?: number | null) {
   if (value == null) return '-'
-  return `${Number(value).toLocaleString()} KRW`
+  return `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`
 }
 
 function formatRate(value?: number | null) {
   if (value == null) return '-'
-  return `${Number(value).toLocaleString()}%`
+  return `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')}%`
 }
 
 function formatTargetType(value: SettlementTargetType) {
@@ -644,7 +761,7 @@ async function fetchSettlementStatistics() {
       err?.payload?.message ||
       err?.response?.data?.message ||
       err?.message ||
-      '정산 통계 데이터를 불러오지 못했습니다.'
+      content.value.validation.statsFailed
   } finally {
     isStatisticsLoading.value = false
   }
@@ -677,11 +794,15 @@ onMounted(() => {
   loadSupplierOptions()
   loadShipmentOptions()
   loadReturnOptions()
+
+  if (isBudgetCreatePage.value) {
+    resetBudgetForm()
+  }
 })
 </script>
 
 <template>
-  <section class="stl-page">
+  <section v-if="!isBudgetCreatePage" class="app-screen terminal-page stl-page settlements-page">
     <header class="stl-page__header">
       <div>
         <div class="stl-breadcrumb">
@@ -693,11 +814,11 @@ onMounted(() => {
 
       <div class="stl-page__actions">
         <button class="stl-btn stl-btn--ghost" type="button" @click="refreshSettlementPage">
-          새로고침
+          {{ content.actions.refresh }}
         </button>
 
         <button class="stl-btn stl-btn--primary" type="button" @click="openBudgetModal">
-          예산 등록
+          {{ content.actions.registerBudget }}
         </button>
       </div>
     </header>
@@ -717,11 +838,11 @@ onMounted(() => {
         </div>
 
         <div class="stl-kpi-card__body">
-          <span class="stl-kpi-card__label">이번 달 예산</span>
+          <span class="stl-kpi-card__label">{{ content.stats.currentBudget }}</span>
           <strong class="stl-kpi-card__value">
             {{ isStatisticsLoading ? '-' : formatStatisticsAmount(settlementStatistics?.currentMonthBudgetAmount) }}
           </strong>
-          <span class="stl-kpi-card__sub">월 예산 기준</span>
+          <span class="stl-kpi-card__sub">{{ content.stats.monthlyBudgetBase }}</span>
         </div>
       </article>
 
@@ -734,11 +855,11 @@ onMounted(() => {
         </div>
 
         <div class="stl-kpi-card__body">
-          <span class="stl-kpi-card__label">이번 달 지급 정산액</span>
+          <span class="stl-kpi-card__label">{{ content.stats.payableThisMonth }}</span>
           <strong class="stl-kpi-card__value">
             {{ isStatisticsLoading ? '-' : formatStatisticsAmount(settlementStatistics?.payableAmountThisMonth) }}
           </strong>
-          <span class="stl-kpi-card__sub">예산 사용액 기준</span>
+          <span class="stl-kpi-card__sub">{{ content.stats.budgetUsageBase }}</span>
         </div>
       </article>
 
@@ -750,7 +871,7 @@ onMounted(() => {
         </div>
 
         <div class="stl-kpi-card__body">
-          <span class="stl-kpi-card__label">예산 사용률</span>
+          <span class="stl-kpi-card__label">{{ content.stats.budgetUsageRate }}</span>
           <strong class="stl-kpi-card__value">
             {{ isStatisticsLoading ? '-' : formatRate(settlementStatistics?.currentMonthBudgetUsageRate) }}
           </strong>
@@ -769,11 +890,11 @@ onMounted(() => {
         </div>
 
         <div class="stl-kpi-card__body">
-          <span class="stl-kpi-card__label">이번 달 수금 예정</span>
+          <span class="stl-kpi-card__label">{{ content.stats.receivableThisMonth }}</span>
           <strong class="stl-kpi-card__value">
             {{ isStatisticsLoading ? '-' : formatStatisticsAmount(settlementStatistics?.receivableAmountThisMonth) }}
           </strong>
-          <span class="stl-kpi-card__sub">받을 정산액 기준</span>
+          <span class="stl-kpi-card__sub">{{ content.stats.receivableBase }}</span>
         </div>
       </article>
     </section>
@@ -783,11 +904,11 @@ onMounted(() => {
         <div class="stl-card__head stl-card__head--chart">
           <div>
             <span class="stl-card__eyebrow">BUDGET VS SETTLEMENT</span>
-            <h3 class="stl-card__title">월별 예산 대비 지급 정산액</h3>
+            <h3 class="stl-card__title">{{ content.stats.monthlyBudgetChart }}</h3>
           </div>
 
           <div class="stl-chart-total">
-            <span>연간 지급 정산액</span>
+            <span>{{ content.stats.annualPayable }}</span>
             <strong>{{ formatStatisticsAmount(monthlyPayableTotalAmount) }}</strong>
           </div>
         </div>
@@ -799,7 +920,7 @@ onMounted(() => {
             type="button"
             @click="monthlyBudgetRange = 'ALL'"
           >
-            전체
+            {{ content.stats.all }}
           </button>
 
           <button
@@ -808,7 +929,7 @@ onMounted(() => {
             type="button"
             @click="monthlyBudgetRange = 'Q1'"
           >
-            1분기
+            {{ content.stats.q1 }}
           </button>
 
           <button
@@ -817,7 +938,7 @@ onMounted(() => {
             type="button"
             @click="monthlyBudgetRange = 'Q2'"
           >
-            2분기
+            {{ content.stats.q2 }}
           </button>
 
           <button
@@ -826,7 +947,7 @@ onMounted(() => {
             type="button"
             @click="monthlyBudgetRange = 'Q3'"
           >
-            3분기
+            {{ content.stats.q3 }}
           </button>
 
           <button
@@ -835,7 +956,7 @@ onMounted(() => {
             type="button"
             @click="monthlyBudgetRange = 'Q4'"
           >
-            4분기
+            {{ content.stats.q4 }}
           </button>
 
           <button
@@ -844,17 +965,17 @@ onMounted(() => {
             type="button"
             @click="monthlyBudgetRange = 'RECENT_6'"
           >
-            최근 6개월
+            {{ content.stats.recent6 }}
           </button>
         </div>
 
         <div v-if="isStatisticsLoading" class="stl-empty">
           <div class="stl-spinner"></div>
-          통계 데이터를 불러오는 중입니다.
+          {{ content.stats.loadingStats }}
         </div>
 
         <div v-else-if="!hasMonthlyBudgetChartData" class="stl-empty">
-          예산 또는 정산 데이터가 없습니다.
+          {{ content.stats.noBudgetData }}
         </div>
 
         <apexchart
@@ -872,7 +993,7 @@ onMounted(() => {
         <div class="stl-card__head">
           <div>
             <span class="stl-card__eyebrow">SETTLEMENT AMOUNT</span>
-            <h3 class="stl-card__title">정산 금액 분석</h3>
+            <h3 class="stl-card__title">{{ content.stats.settlementAmountAnalysis }}</h3>
           </div>
         </div>
 
@@ -883,7 +1004,7 @@ onMounted(() => {
             type="button"
             @click="activeInsightChartView = 'targetTypeAmount'"
           >
-            정산 유형별 금액
+            {{ content.stats.targetTypeAmount }}
           </button>
 
           <button
@@ -892,19 +1013,19 @@ onMounted(() => {
             type="button"
             @click="activeInsightChartView = 'flowAmount'"
           >
-            지급/수금 비교
+            {{ content.stats.flowCompare }}
           </button>
         </div>
 
         <div v-if="isStatisticsLoading" class="stl-empty stl-empty--sm">
-          통계 데이터를 불러오는 중입니다.
+          {{ content.stats.loadingStats }}
         </div>
 
         <div
           v-else-if="activeInsightChartView === 'targetTypeAmount' && !hasTargetTypeChartData"
           class="stl-empty stl-empty--sm"
         >
-          정산 유형 금액이 없습니다.
+          {{ content.stats.noTargetTypeAmount }}
         </div>
 
         <apexchart
@@ -928,32 +1049,32 @@ onMounted(() => {
         <div class="stl-card__head">
           <div>
             <span class="stl-card__eyebrow">SETTLEMENT FLOW</span>
-            <h3 class="stl-card__title">이번 달 정산 흐름</h3>
+            <h3 class="stl-card__title">{{ content.stats.settlementFlow }}</h3>
           </div>
         </div>
 
         <div v-if="isStatisticsLoading" class="stl-empty stl-empty--sm">
-          통계 데이터를 불러오는 중입니다.
+          {{ content.stats.loadingStats }}
         </div>
 
         <div v-else class="stl-flow-summary">
           <div class="stl-flow-summary__row">
-            <span>지급 예정</span>
+            <span>{{ content.stats.payableExpected }}</span>
             <strong>{{ formatStatisticsAmount(settlementStatistics?.payableAmountThisMonth) }}</strong>
           </div>
 
           <div class="stl-flow-summary__row">
-            <span>수금 예정</span>
+            <span>{{ content.stats.receivableExpected }}</span>
             <strong>{{ formatStatisticsAmount(settlementStatistics?.receivableAmountThisMonth) }}</strong>
           </div>
 
           <div class="stl-flow-summary__row">
-            <span>예산 잔액</span>
+            <span>{{ content.stats.remainingBudget }}</span>
             <strong>{{ formatStatisticsAmount(settlementStatistics?.currentMonthRemainingBudgetAmount) }}</strong>
           </div>
 
           <div class="stl-flow-summary__row stl-flow-summary__row--strong">
-            <span>순흐름</span>
+            <span>{{ content.stats.netFlow }}</span>
             <strong>{{ formatStatisticsAmount(currentMonthNetFlow) }}</strong>
           </div>
         </div>
@@ -1019,7 +1140,7 @@ onMounted(() => {
                   <button
                     class="stl-btn stl-btn--row"
                     type="button"
-                    @click.stop="handleSettlementSelect(settlement.publicId)"
+                    @click.stop="openSettlementDetailPage(settlement.publicId)"
                   >
                     {{ content.selectLabel }}
                   </button>
@@ -1147,30 +1268,31 @@ onMounted(() => {
   </section>
 
   <BaseModal
-    v-model="isBudgetModalOpen"
-    title="월별 예산 등록"
-    description="월별 예산을 등록하면 정산액과 예산 사용률을 차트에서 비교할 수 있습니다."
+    :model-value="isBudgetCreatePage || isBudgetModalOpen"
+    :title="content.budgetModal.title"
+    :description="content.budgetModal.description"
+    :presentation="isBudgetCreatePage ? 'page' : 'modal'"
     size="md"
-    @close="closeBudgetModal"
+    @update:model-value="(value) => { if (!value) closeBudgetModal() }"
   >
     <div class="stl-form-grid">
       <div class="stl-field">
-        <label class="stl-field__label">예산 연도</label>
+        <label class="stl-field__label">{{ content.budgetModal.year }}</label>
         <input v-model.number="budgetForm.year" type="number" min="2000" class="stl-input" />
       </div>
 
       <div class="stl-field">
-        <label class="stl-field__label">예산 월</label>
+        <label class="stl-field__label">{{ content.budgetModal.month }}</label>
         <input v-model.number="budgetForm.month" type="number" min="1" max="12" class="stl-input" />
       </div>
 
       <div class="stl-field">
-        <label class="stl-field__label">예산 금액</label>
+        <label class="stl-field__label">{{ content.budgetModal.amount }}</label>
         <input v-model.number="budgetForm.budgetAmount" type="number" min="0" step="1000" class="stl-input" />
       </div>
 
       <div class="stl-field">
-        <label class="stl-field__label">통화</label>
+        <label class="stl-field__label">{{ content.budgetModal.currency }}</label>
         <select v-model="budgetForm.currencyCode" class="stl-select">
           <option value="KRW">KRW</option>
           <option value="DOLLAR">DOLLAR</option>
@@ -1178,12 +1300,12 @@ onMounted(() => {
       </div>
 
       <div class="stl-field">
-        <label class="stl-field__label">경고 기준 (%)</label>
+        <label class="stl-field__label">{{ content.budgetModal.warningThreshold }}</label>
         <input v-model.number="budgetForm.warningThresholdRate" type="number" min="0" max="100" step="1" class="stl-input" />
       </div>
 
       <div class="stl-form-hint">
-        예산 사용률이 경고 기준 이상이면 WARNING, 예산을 초과하면 EXCEEDED 상태로 표시됩니다.
+        {{ content.budgetModal.hint }}
       </div>
     </div>
 
@@ -1193,11 +1315,11 @@ onMounted(() => {
 
     <template #footer>
       <button class="stl-btn stl-btn--ghost" type="button" @click="closeBudgetModal">
-        취소
+        {{ content.actions.cancel }}
       </button>
 
       <button class="stl-btn stl-btn--primary" type="button" :disabled="isBudgetSubmitting" @click="handleSaveBudget">
-        {{ isBudgetSubmitting ? '저장 중...' : '예산 저장' }}
+        {{ isBudgetSubmitting ? content.actions.saving : content.actions.saveBudget }}
       </button>
     </template>
   </BaseModal>
@@ -1205,21 +1327,17 @@ onMounted(() => {
 
 <style scoped>
 .stl-page {
-  --stl-bg: #f4f6f9;
-  --stl-card: #ffffff;
-  --stl-border: #e5e9f0;
-  --stl-text-primary: #111827;
-  --stl-text-secondary: #667085;
-  --stl-text-muted: #98a2b3;
-  --stl-blue: #2563eb;
-  --stl-blue-soft: #eff6ff;
-  --stl-green: #10b981;
-  --stl-green-soft: #ecfdf5;
-  --stl-amber: #f59e0b;
-  --stl-amber-soft: #fffbeb;
-  --stl-radius: 12px;
-  --stl-radius-sm: 8px;
-  --stl-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --stl-bg: var(--background, #fff);
+  --stl-card: rgb(var(--surface-container-low-rgb, 245 245 245) / 0.86);
+  --stl-border: rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
+  --stl-text-primary: var(--on-surface, #121212);
+  --stl-text-secondary: var(--on-surface-variant, #474747);
+  --stl-text-muted: var(--on-surface-variant, #596061);
+  --stl-green: #1c7c45;
+  --stl-amber: #b7791f;
+  --stl-radius: 0;
+  --stl-radius-sm: 0;
+  --stl-shadow: none;
 
   display: flex;
   flex-direction: column;
@@ -1227,9 +1345,7 @@ onMounted(() => {
   min-height: 100vh;
   padding: 28px 32px;
   color: var(--stl-text-primary);
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.06), transparent 28rem),
-    var(--stl-bg);
+  background: var(--stl-bg);
   font-family: Pretendard, "Segoe UI", sans-serif;
 }
 
@@ -1245,16 +1361,16 @@ onMounted(() => {
 .stl-breadcrumb {
   display: flex;
   gap: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 0;
   color: var(--stl-text-muted);
   font-size: 0.75rem;
   font-weight: 700;
 }
 
 .stl-page__title {
-  margin: 0 0 4px;
-  font-size: 1.7rem;
-  line-height: 1.15;
+  margin: 8px 0 0;
+  font-size: clamp(1.9rem, 3vw, 2.7rem);
+  line-height: 0.98;
 }
 
 .stl-page__desc {
@@ -1275,7 +1391,7 @@ onMounted(() => {
   justify-content: center;
   gap: 6px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 8px 14px;
   font-family: inherit;
   font-size: 0.8125rem;
@@ -1292,8 +1408,8 @@ onMounted(() => {
 
 .stl-btn--primary {
   color: #ffffff;
-  background: #111827;
-  border-color: #111827;
+  background: var(--primary, #5e5e5e);
+  border-color: var(--primary, #5e5e5e);
 }
 
 .stl-btn--ghost {
@@ -1303,13 +1419,13 @@ onMounted(() => {
 }
 
 .stl-btn--row {
-  color: var(--stl-blue);
+  color: var(--stl-text-secondary);
   background: transparent;
   padding: 5px 8px;
 }
 
 .stl-alert {
-  border-radius: var(--stl-radius-sm);
+  border-radius: 0;
   padding: 10px 12px;
   font-size: 0.8125rem;
   font-weight: 700;
@@ -1339,7 +1455,8 @@ onMounted(() => {
   padding: 18px;
   background: var(--stl-card);
   border: 1px solid var(--stl-border);
-  border-radius: var(--stl-radius);
+  border-left: 4px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
+  border-radius: 0;
   box-shadow: var(--stl-shadow);
 }
 
@@ -1348,24 +1465,20 @@ onMounted(() => {
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border: 1px solid var(--stl-border);
+  border-radius: 0;
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.84);
+  color: var(--stl-text-secondary);
   flex: 0 0 auto;
 }
 
-.stl-kpi-card__icon--blue {
-  color: var(--stl-blue);
-  background: var(--stl-blue-soft);
+.stl-kpi-card:has(.stl-kpi-card__icon--green),
+.stl-kpi-card:has(.stl-kpi-card__icon--emerald) {
+  border-left-color: rgb(28 124 69 / 0.78);
 }
 
-.stl-kpi-card__icon--green,
-.stl-kpi-card__icon--emerald {
-  color: var(--stl-green);
-  background: var(--stl-green-soft);
-}
-
-.stl-kpi-card__icon--amber {
-  color: var(--stl-amber);
-  background: var(--stl-amber-soft);
+.stl-kpi-card:has(.stl-kpi-card__icon--amber) {
+  border-left-color: rgb(183 121 31 / 0.78);
 }
 
 .stl-kpi-card__body {
@@ -1399,7 +1512,7 @@ onMounted(() => {
 .stl-card {
   background: var(--stl-card);
   border: 1px solid var(--stl-border);
-  border-radius: var(--stl-radius);
+  border-radius: 0;
   padding: 20px;
   box-shadow: var(--stl-shadow);
 }
@@ -1468,15 +1581,16 @@ onMounted(() => {
   max-width: 100%;
   flex-wrap: wrap;
   margin-bottom: 12px;
-  padding: 4px;
+  gap: 8px;
+  padding: 0;
   border: 1px solid var(--stl-border);
-  border-radius: 999px;
-  background: #f8fafc;
+  border-radius: 0;
+  background: transparent;
 }
 
 .stl-chart-tab {
-  border: 0;
-  border-radius: 999px;
+  border: 1px solid transparent;
+  border-radius: 0;
   padding: 7px 12px;
   color: var(--stl-text-muted);
   background: transparent;
@@ -1487,9 +1601,9 @@ onMounted(() => {
 }
 
 .stl-chart-tab--active {
-  color: var(--stl-text-primary);
-  background: #ffffff;
-  box-shadow: var(--stl-shadow);
+  color: var(--on-primary, #fff);
+  background: var(--primary, #5e5e5e);
+  box-shadow: none;
 }
 
 .stl-flow-summary {
@@ -1536,7 +1650,7 @@ onMounted(() => {
   min-width: 24px;
   height: 24px;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: 0;
   color: var(--stl-text-secondary);
   background: #f3f4f6;
   font-size: 0.72rem;
@@ -1582,11 +1696,11 @@ onMounted(() => {
 }
 
 .stl-table__row:hover td {
-  background: #f9fafb;
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.46);
 }
 
 .stl-table__row--active td {
-  background: #eff6ff;
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.72);
 }
 
 .stl-table__id {
@@ -1607,7 +1721,7 @@ onMounted(() => {
 .stl-type-badge {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: 0;
   padding: 3px 9px;
   color: var(--stl-text-secondary);
   background: #f3f4f6;
@@ -1646,8 +1760,8 @@ onMounted(() => {
   width: 18px;
   height: 18px;
   border: 2px solid var(--stl-border);
-  border-top-color: var(--stl-blue);
-  border-radius: 50%;
+  border-top-color: var(--primary, #5e5e5e);
+  border-radius: 0;
   animation: spin 0.7s linear infinite;
 }
 
@@ -1657,7 +1771,7 @@ onMounted(() => {
   overflow: hidden;
   margin-bottom: 16px;
   border: 1px solid var(--stl-border);
-  border-radius: var(--stl-radius-sm);
+  border-radius: 0;
   background: var(--stl-border);
   gap: 1px;
 }
@@ -1697,7 +1811,7 @@ onMounted(() => {
 .stl-subcard {
   overflow: hidden;
   border: 1px solid var(--stl-border);
-  border-radius: var(--stl-radius-sm);
+  border-radius: 0;
 }
 
 .stl-subcard__head {
@@ -1733,7 +1847,7 @@ onMounted(() => {
   width: 100%;
   box-sizing: border-box;
   border: 1.5px solid var(--stl-border);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 9px 12px;
   color: var(--stl-text-primary);
   background: #fafafa;
@@ -1744,16 +1858,16 @@ onMounted(() => {
 
 .stl-input:focus,
 .stl-select:focus {
-  border-color: var(--stl-blue);
+  border-color: var(--primary, #5e5e5e);
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: none;
 }
 
 .stl-form-hint {
   grid-column: 1 / -1;
   padding: 10px 12px;
   border: 1px solid #fde68a;
-  border-radius: 8px;
+  border-radius: 0;
   color: #92400e;
   background: #fffbeb;
   font-size: 0.8rem;

@@ -13,6 +13,7 @@ import { useAtlasSessionStore } from '../stores/session'
 import { useAtlasUiStore } from '../stores/ui'
 import { useAtlasChatStore } from '../stores/chat'
 import { useAtlasNotificationStore } from '../stores/notification'
+import { useAtlasSidebarBadgesStore } from '../stores/sidebarBadges'
 import BaseModal from '../features/shared/components/BaseModal.vue'
 
 // 현재 라우트 정보입니다.
@@ -43,6 +44,9 @@ const chatStore = useAtlasChatStore()
 // 알림 배지와 목록 상태입니다.
 const notificationStore = useAtlasNotificationStore()
 
+// 운영 메뉴별 확인 필요 건수입니다.
+const sidebarBadgesStore = useAtlasSidebarBadgesStore()
+
 // 로그인 상태와 강제 비밀번호 변경 상태를 함께 감시합니다.
 // 강제 비밀번호 변경 중에는 일반 앱 화면을 쓰지 않으므로 채팅 연결도 열지 않습니다.
 watch(
@@ -51,14 +55,25 @@ watch(
     // 로그인되어 있고, 강제 비밀번호 변경 상태가 아닐 때만 연결합니다.
     if (isAuth && !mustChangePassword) {
       notificationStore.fetchUnreadCount()
+      sidebarBadgesStore.fetchBadges()
       chatStore.connectStomp()
       chatStore.fetchRooms()
     } else {
       // 로그아웃 상태이거나 비밀번호 변경 전용 화면이면 연결을 끊습니다.
       chatStore.disconnectStomp()
+      sidebarBadgesStore.clearBadges()
     }
   },
   { immediate: true },
+)
+
+watch(
+  () => route.path,
+  () => {
+    if (session.isAuthenticated && !session.passwordChangeRequired) {
+      sidebarBadgesStore.fetchBadges()
+    }
+  },
 )
 
 // 창 크기가 바뀌면 모바일 레이아웃 상태를 다시 맞춥니다.

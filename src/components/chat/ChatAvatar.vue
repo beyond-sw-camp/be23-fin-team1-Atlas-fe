@@ -19,7 +19,7 @@ defineProps<{
     <img
       v-if="imageUrl"
       :src="imageUrl"
-      :alt="name || '프로필'"
+      :alt="name || 'Profile'"
       class="chat-avatar__image"
     />
     <span

@@ -8,6 +8,7 @@ import { useAtlasChatStore } from '../../stores/chat'
 import { useAtlasNotificationStore } from '../../stores/notification'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { useAtlasSessionStore } from '../../stores/session'
+import { useAtlasSidebarBadgesStore } from '../../stores/sidebarBadges'
 import { useAtlasUiStore } from '../../stores/ui'
 import { PROFILE_IMAGE_UPDATED_EVENT } from '../../utils/profileImageEvents'
 
@@ -16,6 +17,7 @@ const chatStore = useAtlasChatStore()
 const notificationStore = useAtlasNotificationStore()
 const preferences = useAtlasPreferencesStore()
 const session = useAtlasSessionStore()
+const sidebarBadges = useAtlasSidebarBadgesStore()
 const ui = useAtlasUiStore()
 const sidebarProfileThumbPath = ref('')
 const sidebarUserFirstName = ref('')
@@ -59,12 +61,20 @@ function getSidebarBadge(item: SidebarBadgeItem) {
     return formatNotificationBadge(notificationStore.unreadCount)
   }
 
+  if (sidebarBadges.isDynamicBadgeKey(item.key)) {
+    return sidebarBadges.getBadge(item.key)
+  }
+
   return item.badge
 }
 
 function getSidebarBadgeTone(item: SidebarBadgeItem) {
   if (item.key === 'notificationsCenter') {
     return 'crit'
+  }
+
+  if (sidebarBadges.isDynamicBadgeKey(item.key)) {
+    return sidebarBadges.getBadgeTone(item.key)
   }
 
   return item.badgeTone

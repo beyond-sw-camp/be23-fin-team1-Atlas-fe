@@ -28,7 +28,34 @@ function getStoredLanguage(): AppLanguage {
   return value === 'en' ? 'en' : 'ko'
 }
 
-function getRouteNamePageKey(value: unknown): PageKey {
+const OPERATION_DETAIL_PAGE_KEYS: Record<string, PageKey> = {
+  orders: 'ordersDesk',
+  shipments: 'shipments',
+  returns: 'returns',
+  inventory: 'inventory',
+  items: 'items',
+  suppliers: 'supplierControl',
+  'logistics-nodes': 'logisticsNodes',
+  settlements: 'settlements',
+  certificates: 'certificateWatch',
+}
+
+const ROUTE_PAGE_KEY_OVERRIDES: Record<string, PageKey> = {
+  orderCreate: 'ordersDesk',
+  shipmentCreate: 'shipments',
+  settlementBudgetCreate: 'settlements',
+  returnCreate: 'returns',
+}
+
+function getRouteNamePageKey(value: unknown, kind: unknown): PageKey {
+  if (value === 'operationDetail' && typeof kind === 'string') {
+    return OPERATION_DETAIL_PAGE_KEYS[kind] ?? DEFAULT_PAGE
+  }
+
+  if (typeof value === 'string' && ROUTE_PAGE_KEY_OVERRIDES[value]) {
+    return ROUTE_PAGE_KEY_OVERRIDES[value]
+  }
+
   return typeof value === 'string' && isPageKey(value) ? value : DEFAULT_PAGE
 }
 
@@ -51,7 +78,7 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
   const route = useRoute()
   const router = useRouter()
 
-  const pageKey = computed<PageKey>(() => getRouteNamePageKey(route.name))
+  const pageKey = computed<PageKey>(() => getRouteNamePageKey(route.name, route.params.kind))
   const theme = ref<ScreenTheme>(getStoredTheme())
   const language = ref<AppLanguage>(getStoredLanguage())
   const organization = ref<OrganizationType>(getStoredOrganization())

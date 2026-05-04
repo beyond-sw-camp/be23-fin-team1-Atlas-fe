@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { useRouter } from 'vue-router'
 import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
@@ -40,6 +41,7 @@ declare global {
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
+const router = useRouter()
 
 const CONTENT = {
   ko: {
@@ -65,6 +67,19 @@ const CONTENT = {
     createLabel: '창고 등록',
     addressSearchLabel: '주소 검색',
     addressSearchLoadingLabel: '검색창 여는 중...',
+    addressPlaceholder: '주소 검색으로 선택해 주세요',
+    addressScriptLoadFailed: '주소 검색 스크립트를 불러오지 못했습니다.',
+    addressUnavailable: '주소 검색을 사용할 수 없습니다.',
+    addressOpenFailed: '주소 검색을 열지 못했습니다.',
+    addressRequired: '창고명과 주소는 필수입니다. 주소 검색으로 주소를 선택해 주세요.',
+    statusUpdateFailed: '상태 변경에 실패했습니다.',
+    previous: '이전',
+    next: '다음',
+    detail: '상세',
+    edit: '수정',
+    activate: '활성화',
+    deactivate: '비활성화',
+    saving: '저장 중...',
     active: '활성',
     inactive: '비활성',
     totalLabel: '전체 창고',
@@ -104,6 +119,19 @@ const CONTENT = {
     createLabel: 'ADD WAREHOUSE',
     addressSearchLabel: 'SEARCH ADDRESS',
     addressSearchLoadingLabel: 'OPENING...',
+    addressPlaceholder: 'Select an address using search',
+    addressScriptLoadFailed: 'Failed to load the address search script.',
+    addressUnavailable: 'Address search is unavailable.',
+    addressOpenFailed: 'Failed to open address search.',
+    addressRequired: 'Warehouse name and address are required. Select an address using search.',
+    statusUpdateFailed: 'Failed to update status.',
+    previous: 'Previous',
+    next: 'Next',
+    detail: 'Detail',
+    edit: 'Edit',
+    activate: 'Activate',
+    deactivate: 'Deactivate',
+    saving: 'Saving...',
     active: 'Active',
     inactive: 'Inactive',
     totalLabel: 'Total Warehouses',
@@ -124,6 +152,13 @@ const CONTENT = {
 
 
 const content = computed(() => CONTENT[preferences.language])
+
+function openLogisticsNodeDetailPage(node: LogisticsNodeResponseDto) {
+  router.push({
+    name: 'operationDetail',
+    params: { kind: 'logistics-nodes', publicId: node.publicId },
+  })
+}
 
 const search = ref('')
 const isLoading = ref(false)
@@ -204,7 +239,7 @@ function loadDaumPostcodeScript() {
       existingScript.addEventListener('load', () => resolve(), { once: true })
       existingScript.addEventListener(
         'error',
-        () => reject(new Error('주소 검색 스크립트를 불러오지 못했습니다.')),
+        () => reject(new Error(content.value.addressScriptLoadFailed)),
         { once: true },
       )
     })
@@ -221,7 +256,7 @@ function loadDaumPostcodeScript() {
     script.addEventListener('load', () => resolve(), { once: true })
     script.addEventListener(
       'error',
-      () => reject(new Error('주소 검색 스크립트를 불러오지 못했습니다.')),
+      () => reject(new Error(content.value.addressScriptLoadFailed)),
       { once: true },
     )
   })
@@ -234,7 +269,7 @@ async function openAddressSearch() {
     await loadDaumPostcodeScript()
 
     if (!window.daum?.Postcode) {
-      throw new Error('주소 검색을 사용할 수 없습니다.')
+      throw new Error(content.value.addressUnavailable)
     }
 
     new window.daum.Postcode({
@@ -243,7 +278,7 @@ async function openAddressSearch() {
       },
     }).open()
   } catch (error) {
-    const message = error instanceof Error ? error.message : '주소 검색을 열지 못했습니다.'
+    const message = error instanceof Error ? error.message : content.value.addressOpenFailed
 
     alert(message)
   } finally {
@@ -256,7 +291,7 @@ async function handleCreateSubmit() {
   const address = createForm.value.address.trim()
 
   if (!nodeName || !address) {
-    alert('창고명과 주소는 필수입니다. 주소 검색으로 주소를 선택해 주세요.')
+    alert(content.value.addressRequired)
     return
   }
 
@@ -366,7 +401,7 @@ async function handleToggleActive(node: LogisticsNodeResponseDto) {
     await fetchLogisticsNodes()
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : '상태 변경에 실패했습니다.'
+      error instanceof Error ? error.message : content.value.statusUpdateFailed
 
     alert(message)
   }
@@ -486,7 +521,7 @@ onBeforeUnmount(() => header.clearActions())
               :disabled="currentPage === 0 || isLoading"
               @click="goToPreviousPage"
             >
-              이전
+              {{ content.previous }}
             </button>
 
             <span>
@@ -499,7 +534,7 @@ onBeforeUnmount(() => header.clearActions())
               :disabled="totalPages === 0 || currentPage >= totalPages - 1 || isLoading"
               @click="goToNextPage"
             >
-              다음
+              {{ content.next }}
             </button>
           </div>
         </section>
@@ -557,16 +592,23 @@ onBeforeUnmount(() => header.clearActions())
                 <button
                   class="page-button page-button--secondary"
                   type="button"
+                  @click="openLogisticsNodeDetailPage(node)"
+                >
+                  {{ content.detail }}
+                </button>
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
                   @click="handleOpenEditModal(node)"
                 >
-                  수정
+                  {{ content.edit }}
                 </button>
                 <button
                   class="page-button page-button--secondary"
                   type="button"
                   @click="handleToggleActive(node)"
                 >
-                  {{ node.active ? '비활성화' : '활성화' }}
+                  {{ node.active ? content.deactivate : content.activate }}
                 </button>
               </span>
             </div>
@@ -621,7 +663,7 @@ onBeforeUnmount(() => header.clearActions())
             v-model="createForm.address"
             type="text"
             readonly
-            placeholder="주소 검색으로 선택해 주세요"
+            :placeholder="content.addressPlaceholder"
           />
           <button
             class="page-button page-button--secondary"
@@ -653,7 +695,7 @@ onBeforeUnmount(() => header.clearActions())
         :disabled="isCreateSubmitting"
         @click="handleCreateSubmit"
       >
-        {{ isCreateSubmitting ? '저장 중...' : content.createSubmitLabel }}
+        {{ isCreateSubmitting ? content.saving : content.createSubmitLabel }}
       </button>
     </template>
   </BaseModal>
@@ -661,22 +703,17 @@ onBeforeUnmount(() => header.clearActions())
 
 <style scoped>
 .logistics-page {
-  --log-bg: #f4f6f9;
-  --log-card: #ffffff;
-  --log-border: #e5e9f0;
-  --log-text: #111827;
-  --log-muted: #667085;
-  --log-faint: #98a2b3;
-  --log-blue: #2563eb;
-  --log-blue-soft: #eff6ff;
-  --log-green: #10b981;
-  --log-green-soft: #ecfdf5;
-  --log-amber: #f59e0b;
-  --log-amber-soft: #fffbeb;
-  --log-red: #ef4444;
-  --log-red-soft: #fff1f2;
-  --log-radius: 12px;
-  --log-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --log-bg: var(--background, #fff);
+  --log-card: rgb(var(--surface-container-low-rgb, 245 245 245) / 0.86);
+  --log-border: rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
+  --log-text: var(--on-surface, #121212);
+  --log-muted: var(--on-surface-variant, #474747);
+  --log-faint: var(--on-surface-variant, #596061);
+  --log-green: #1c7c45;
+  --log-amber: #b7791f;
+  --log-red: var(--color-critical, #9f403d);
+  --log-radius: 0;
+  --log-shadow: none;
 
   display: flex;
   flex-direction: column;
@@ -684,9 +721,7 @@ onBeforeUnmount(() => header.clearActions())
   min-height: 100vh;
   padding: 28px 32px;
   color: var(--log-text);
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.06), transparent 28rem),
-    var(--log-bg);
+  background: var(--log-bg);
   font-family: Pretendard, "Segoe UI", sans-serif;
 }
 
@@ -699,10 +734,10 @@ onBeforeUnmount(() => header.clearActions())
 }
 
 .logistics-page .terminal-page__title {
-  margin: 0 0 4px;
+  margin: 8px 0 0;
   color: var(--log-text);
-  font-size: 1.75rem;
-  line-height: 1.15;
+  font-size: clamp(1.9rem, 3vw, 2.7rem);
+  line-height: 0.98;
 }
 
 .logistics-page .terminal-page__eyebrow,
@@ -736,7 +771,7 @@ onBeforeUnmount(() => header.clearActions())
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 9px 14px;
   font-size: 0.8rem;
   font-weight: 900;
@@ -744,14 +779,14 @@ onBeforeUnmount(() => header.clearActions())
 }
 
 .logistics-page .page-button--primary {
-  border-color: #111827;
-  background: #111827;
+  border-color: var(--primary, #5e5e5e);
+  background: var(--primary, #5e5e5e);
   color: #fff;
 }
 
 .logistics-page .page-button--secondary {
   border-color: var(--log-border);
-  background: var(--log-card);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.74);
   color: var(--log-muted);
 }
 
@@ -767,7 +802,8 @@ onBeforeUnmount(() => header.clearActions())
   align-items: flex-start;
   min-height: 92px;
   border: 1px solid var(--log-border);
-  border-radius: var(--log-radius);
+  border-left: 4px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
+  border-radius: 0;
   padding: 18px;
   background: var(--log-card);
   box-shadow: var(--log-shadow);
@@ -779,7 +815,10 @@ onBeforeUnmount(() => header.clearActions())
   width: 40px;
   height: 40px;
   flex: 0 0 auto;
-  border-radius: 10px;
+  border: 1px solid var(--log-border);
+  border-radius: 0;
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.84);
+  color: var(--log-muted);
 }
 
 .logistics-kpi-card__icon svg {
@@ -792,24 +831,16 @@ onBeforeUnmount(() => header.clearActions())
   stroke-linejoin: round;
 }
 
-.logistics-kpi-card__icon--blue {
-  background: var(--log-blue-soft);
-  color: var(--log-blue);
+.logistics-kpi-card:has(.logistics-kpi-card__icon--green) {
+  border-left-color: rgb(28 124 69 / 0.78);
 }
 
-.logistics-kpi-card__icon--green {
-  background: var(--log-green-soft);
-  color: var(--log-green);
+.logistics-kpi-card:has(.logistics-kpi-card__icon--amber) {
+  border-left-color: rgb(183 121 31 / 0.78);
 }
 
-.logistics-kpi-card__icon--amber {
-  background: var(--log-amber-soft);
-  color: var(--log-amber);
-}
-
-.logistics-kpi-card__icon--red {
-  background: var(--log-red-soft);
-  color: var(--log-red);
+.logistics-kpi-card:has(.logistics-kpi-card__icon--red) {
+  border-left-color: rgb(var(--error-rgb, 159 64 61) / 0.8);
 }
 
 .logistics-kpi-card__body {
@@ -843,7 +874,7 @@ onBeforeUnmount(() => header.clearActions())
 .logistics-filter-card,
 .logistics-card {
   border: 1px solid var(--log-border);
-  border-radius: var(--log-radius);
+  border-radius: 0;
   padding: 20px;
   background: var(--log-card);
   box-shadow: var(--log-shadow);
@@ -874,7 +905,7 @@ onBeforeUnmount(() => header.clearActions())
 .logistics-search input {
   width: 100%;
   border: 1px solid var(--log-border);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 10px 12px;
   background: #fff;
   color: var(--log-text);
@@ -908,7 +939,7 @@ onBeforeUnmount(() => header.clearActions())
   justify-content: center;
   min-width: 28px;
   min-height: 24px;
-  border-radius: 999px;
+  border-radius: 0;
   padding: 2px 9px;
   background: #f1f5f9;
   color: var(--log-text);
@@ -919,22 +950,23 @@ onBeforeUnmount(() => header.clearActions())
 .logistics-page .page-table {
   overflow: hidden;
   border: 1px solid var(--log-border);
-  border-radius: var(--log-radius);
-  background: #f8fafc;
+  border-radius: 0;
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.8);
 }
 
 .logistics-data-table {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   border: 0 !important;
   background: transparent !important;
 }
 
 .logistics-page .page-table__row {
   border: 1px solid var(--log-border);
-  border-radius: 12px;
-  background: #fff;
+  border-radius: 0;
+  border-top: 0;
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.92);
   color: var(--log-muted);
 }
 
@@ -944,8 +976,8 @@ onBeforeUnmount(() => header.clearActions())
 
 .logistics-page .page-table__row--head {
   border: 0;
-  border-radius: 10px;
-  background: #f8fafc;
+  border-radius: 0;
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.66);
   color: var(--log-faint);
   font-size: 0.72rem;
   font-weight: 900;
@@ -968,14 +1000,12 @@ onBeforeUnmount(() => header.clearActions())
 
 .logistics-table--body {
   min-height: 76px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  box-shadow: none;
+  transition: background 50ms ease;
 }
 
 .logistics-table--body:hover {
-  border-color: rgba(37, 99, 235, 0.32);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.42);
 }
 
 .logistics-code-cell,
@@ -1018,22 +1048,22 @@ onBeforeUnmount(() => header.clearActions())
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--log-border);
-  border-radius: 999px;
+  border-radius: 0;
   padding: 4px 8px;
-  background: var(--log-green-soft);
-  color: #047857;
+  background: rgb(28 124 69 / 0.08);
+  color: var(--log-green);
   font-size: 0.75rem;
   font-weight: 900;
 }
 
 .logistics-status-pill.is-empty {
-  background: var(--log-blue-soft);
-  color: var(--log-blue);
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.7);
+  color: var(--log-muted);
 }
 
 .logistics-status-pill.is-full,
 .logistics-active-pill.is-inactive {
-  background: var(--log-red-soft);
+  background: rgb(var(--error-rgb, 159 64 61) / 0.1);
   color: var(--log-red);
 }
 
@@ -1060,7 +1090,7 @@ onBeforeUnmount(() => header.clearActions())
 .logistics-modal-field select {
   width: 100%;
   border: 1px solid var(--log-border, #e5e9f0);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 10px 12px;
   background: #fff;
   color: var(--log-text, #111827);

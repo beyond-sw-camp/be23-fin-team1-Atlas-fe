@@ -39,6 +39,13 @@ export async function getInventories() {
   return response.data
 }
 
+export async function getInventory(inventoryPublicId: string) {
+  const response = await apiClient.get<ItemInventoryResponseDto>(
+    `/api/supply/inventories/${inventoryPublicId}`,
+  )
+  return response.data
+}
+
 export async function createInventory(data: CreateItemInventoryRequestDto) {
   const response = await apiClient.post<ItemInventoryResponseDto>('/api/supply/inventories', data)
   return response.data

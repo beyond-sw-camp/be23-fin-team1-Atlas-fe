@@ -2,12 +2,14 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { Client } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 import { useAtlasNotificationStore } from '../stores/notification'
+import { useAtlasSidebarBadgesStore } from '../stores/sidebarBadges'
 import { NotificationDto } from '../services/notification'
 
 const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8083/ws-control'
 
 export function useNotificationStomp(userPublicId: string = 'user-001') {
   const notificationStore = useAtlasNotificationStore()
+  const sidebarBadgesStore = useAtlasSidebarBadgesStore()
   const isConnected = ref(false)
   let stompClient: Client | null = null
 
@@ -35,6 +37,7 @@ export function useNotificationStomp(userPublicId: string = 'user-001') {
         try {
           const notification: NotificationDto = JSON.parse(message.body)
           notificationStore.handleIncomingNotification(notification)
+          sidebarBadgesStore.fetchBadges()
         } catch (e) {
           console.error('[STOMP] Failed to parse notification message', e)
         }

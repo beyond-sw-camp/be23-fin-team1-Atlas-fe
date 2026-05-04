@@ -261,10 +261,10 @@ onBeforeUnmount(() => {
   position: relative;
   min-height: 560px;
   overflow: hidden;
-  border: 1px solid #d8e1ea;
-  border-radius: 18px;
-  background: #edf4f8;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
+  border-radius: 0;
+  background: rgb(var(--surface-container-low-rgb, 245 245 245) / 0.9);
+  box-shadow: none;
 }
 
 .shipment-korea-map__canvas {
@@ -280,14 +280,14 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 999px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
+  border-radius: 0;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #475569;
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.92);
+  color: var(--on-surface-variant, #474747);
   font-size: 0.75rem;
   font-weight: 800;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  box-shadow: none;
 }
 
 .shipment-korea-map__legend span {
@@ -299,7 +299,7 @@ onBeforeUnmount(() => {
 .shipment-korea-map__legend i {
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: 0;
 }
 
 .shipment-korea-map__legend .is-ready {
@@ -325,8 +325,8 @@ onBeforeUnmount(() => {
 }
 
 :global(.shipment-korea-map__marker) {
-  border: 2px solid #fff;
-  border-radius: 999px;
+  border: 1px solid rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.92);
+  border-radius: 0;
   padding: 6px 9px;
   background: var(--marker-color, #334155);
   color: #fff;
@@ -336,13 +336,13 @@ onBeforeUnmount(() => {
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: none;
+  transition: background 50ms ease;
 }
 
 :global(.shipment-korea-map__marker:hover),
 :global(.shipment-korea-map__marker.is-selected) {
-  transform: translateY(-2px) scale(1.08);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.28), 0 0 0 4px rgba(37, 99, 235, 0.18);
+  outline: 2px solid var(--on-surface, #121212);
+  outline-offset: 2px;
 }
 </style>

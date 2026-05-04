@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { useRouter } from 'vue-router'
 import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
@@ -19,6 +20,7 @@ import { getAttachment } from '../../../services/file'
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
 const session = useAtlasSessionStore()
+const router = useRouter()
 
 const CONTENT = {
   ko: {
@@ -127,6 +129,13 @@ const metricDisplay = computed(() => {
   return base
 })
 
+function certStatusTone(status: string | null | undefined) {
+  if (status === 'APPROVED') return 'is-success'
+  if (status === 'REVIEW_REQUESTED') return 'is-warning'
+  if (status === 'EXPIRED' || status === 'REVOKED' || status === 'REJECTED') return 'is-critical'
+  return 'is-muted'
+}
+
 const filteredRows = computed(() => {
   const query = search.value.trim().toLowerCase()
   const statusTab = activeTab.value
@@ -163,13 +172,13 @@ const traceTitle = computed(() => {
 })
 
 async function handleCertSelect(cert: SupplierCertificateResponseDto) {
-  openTrace(cert)
-  try {
-    certHistories.value = await getCertificateHistories(cert.publicId)
-  } catch (err) {
-    console.error('Failed to load certificate histories', err)
-    certHistories.value = []
-  }
+  router.push({
+    name: 'operationDetail',
+    params: {
+      kind: 'certificates',
+      publicId: cert.publicId,
+    },
+  })
 }
 
 async function handleApprove() {
@@ -319,8 +328,10 @@ onBeforeUnmount(() => header.clearActions())
           <span :class="{'text-critical': Number(getDaysLeft(cert.expiredAt).replace(/\D/g, '')) < 30}">
             {{ getDaysLeft(cert.expiredAt) }}
           </span>
-          <span :class="{'text-warning': cert.certificateStatus === 'REVIEW_REQUESTED', 'text-nominal': cert.certificateStatus === 'APPROVED'}">
-            {{ cert.certificateStatus }}
+          <span>
+            <span :class="['page-status-chip', certStatusTone(cert.certificateStatus)]">
+              {{ cert.certificateStatus }}
+            </span>
           </span>
           <span style="display: flex; justify-content: flex-end;">
             <button class="page-button page-button--secondary" type="button" @click="handleCertSelect(cert)">

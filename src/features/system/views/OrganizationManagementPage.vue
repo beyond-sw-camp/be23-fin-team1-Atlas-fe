@@ -278,6 +278,12 @@ const copy = computed(() =>
         createSupplierWarning: '조직은 생성되었지만 협력사 정보 자동 생성에 실패했습니다.',
         createFailed: '조직 생성에 실패했습니다.',
         memberUploadFailed: '사원 엑셀 업로드에 실패했습니다.',
+        previousButton: '이전',
+        nextButton: '다음',
+        memberCount: '사원 수',
+        warehouseCount: '창고 수',
+        esgFileCount: 'ESG 파일 수',
+        paginationTotal: (count: number) => `총 ${count}개`,
       }
     : {
         eyebrow: 'ORGANIZATION',
@@ -365,6 +371,12 @@ const copy = computed(() =>
         createSupplierWarning: 'Organization was created, but supplier information could not be created automatically.',
         createFailed: 'Failed to create organization.',
         memberUploadFailed: 'Failed to upload member excel file.',
+        previousButton: 'Previous',
+        nextButton: 'Next',
+        memberCount: 'Members',
+        warehouseCount: 'Warehouses',
+        esgFileCount: 'ESG Files',
+        paginationTotal: (count: number) => `Total ${count}`,
       },
 )
 
@@ -1237,12 +1249,12 @@ watch(
                 :disabled="!canMoveOrganizationListPrev || isLoadingOrganizations"
                 @click="moveOrganizationListPage(organizationListPage - 1)"
               >
-                이전
+                {{ copy.previousButton }}
               </button>
 
               <span class="organization-pagination__info">
                 {{ organizationListCurrentPageNumber }} / {{ organizationListTotalPages }}
-                · 총 {{ organizationListTotalElements }}개
+                · {{ copy.paginationTotal(organizationListTotalElements) }}
               </span>
 
               <button
@@ -1251,7 +1263,7 @@ watch(
                 :disabled="!canMoveOrganizationListNext || isLoadingOrganizations"
                 @click="moveOrganizationListPage(organizationListPage + 1)"
               >
-                다음
+                {{ copy.nextButton }}
               </button>
             </div>
           </div>
@@ -1423,7 +1435,7 @@ watch(
                 :disabled="!canEditOrganization"
                 @click="openOrganizationMembers"
               >
-                <span>{{ preferences.language === 'ko' ? '사원 수' : 'Members' }}</span>
+                <span>{{ copy.memberCount }}</span>
                 <strong>{{ formatCount(selectedOrganizationDetail.memberCount) }}</strong>
               </button>
 
@@ -1432,7 +1444,7 @@ watch(
                 type="button"
                 @click="openOrganizationWarehouses"
               >
-                <span>{{ preferences.language === 'ko' ? '창고 수' : 'Warehouses' }}</span>
+                <span>{{ copy.warehouseCount }}</span>
                 <strong>
                   {{ isLoadingOrganizationSupplySummary ? '-' : formatCount(organizationSupplySummary.warehouseCount) }}
                 </strong>
@@ -1443,7 +1455,7 @@ watch(
                 type="button"
                 @click="openOrganizationEsgFiles"
               >
-                <span>{{ preferences.language === 'ko' ? 'ESG 파일 수' : 'ESG Files' }}</span>
+                <span>{{ copy.esgFileCount }}</span>
                 <strong>
                   {{ isLoadingOrganizationSupplySummary ? '-' : formatCount(organizationSupplySummary.esgFileCount) }}
                 </strong>
