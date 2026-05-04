@@ -15,6 +15,7 @@ import { useAtlasSessionStore } from './session'
 import { useAtlasNotificationStore } from './notification'
 
 const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8080/ws-control'
+const ROOM_LIST_SIZE = 100
 
 // --- Backend to Frontend Mapper (Anti-Corruption Layer) ---
 export function mapToParticipant(p: any): ChatParticipant {
@@ -67,6 +68,25 @@ export function mapToChatRoom(r: any): ChatRoom {
   }
 }
 // -----------------------------------------------------------
+
+function isChatNotification(notification: any) {
+  const eventType = String(notification?.eventType || '').toLowerCase()
+  const domainType = String(notification?.domainType || '').toLowerCase()
+  const notificationType = String(notification?.notificationType || '').toLowerCase()
+  const deepLinkUrl = String(notification?.deepLinkUrl || '').toLowerCase()
+
+  return (
+    eventType.startsWith('chat.') ||
+    eventType.includes('chat-room') ||
+    eventType.includes('chat_message') ||
+    eventType.includes('chat-message') ||
+    domainType === 'chat' ||
+    domainType === 'chat_room' ||
+    domainType === 'chat-room' ||
+    notificationType.includes('chat') ||
+    deepLinkUrl.includes('/chat')
+  )
+}
 
 export const useAtlasChatStore = defineStore('atlasChat', () => {
   const sessionStore = useAtlasSessionStore()
@@ -134,6 +154,9 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
           try {
             const notification = JSON.parse(message.body)
             notificationStore.handleIncomingNotification(notification)
+            if (isChatNotification(notification)) {
+              void fetchRooms()
+            }
             console.log('[STOMP] 알림 수신:', notification)
           } catch (e) {
             console.error('[STOMP] 알림 파싱 실패', e)
@@ -211,6 +234,8 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
           // 새 안읽음 메시지 발생 → 읽음 추적에서 제거
           recentlyReadRoomIds.value.delete(roomPublicId)
         }
+      } else {
+        void fetchRooms()
       }
     } catch (e) {
       console.error('[STOMP] Failed to parse chat message', e)
@@ -289,7 +314,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
   async function fetchRooms() {
     if (!currentUserPublicId.value) return
     try {
-      const result = await chatService.getRooms(currentUserPublicId.value)
+      const result = await chatService.getRooms(currentUserPublicId.value, '', ROOM_LIST_SIZE)
       // 데이터 정규화 매퍼 적용
       const rawFetched = (result as any).content || result || []
       const fetched: ChatRoom[] = Array.isArray(rawFetched) ? rawFetched.map(mapToChatRoom) : []
@@ -495,9 +520,15 @@ async function fetchAvailableUsers() {
       // 낙관적 업데이트: 현재 목록에서 방 제거
       rooms.value = rooms.value.filter(r => r.publicId !== currentRoomPublicId.value)
       // 목록으로 돌아가기
-      backToList()
-      // 최신 갱신을 위해 방 목록 비동기 호출
-      fetchRooms()
+      currentView.value = 'list'
+      currentRoomPublicId.value = null
+      messages.value = []
+      replyTarget.value = null
+      if (typingSubscription.value) {
+        typingSubscription.value.unsubscribe()
+        typingSubscription.value = null
+      }
+      await fetchRooms()
     } catch (e) {
       console.error('Failed to leave room', e)
     }
@@ -592,7 +623,7 @@ async function fetchAvailableUsers() {
       typingSubscription.value.unsubscribe()
       typingSubscription.value = null
     }
-    fetchRooms()
+    await fetchRooms()
   }
 
   function togglePanel() {
