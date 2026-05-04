@@ -412,7 +412,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="terminal-page inventory-page">
+  <section class="app-screen terminal-page inventory-page">
     <header class="terminal-page__hero">
       <div>
         <p class="terminal-page__eyebrow">{{ copy.eyebrow }}</p>
@@ -464,13 +464,15 @@ onMounted(() => {
         <span class="page-panel__chip">{{ filteredRows.length }}</span>
       </div>
 
-      <p v-if="errorMessage" class="inventory-page__error">{{ errorMessage }}</p>
-
       <div class="inventory-page__table-wrap">
         <div class="page-table terminal-page__table inventory-page__table">
           <div class="page-table__row page-table__row--head">
             <span v-for="column in copy.columns" :key="column">{{ column }}</span>
           </div>
+
+          <p v-if="errorMessage" class="terminal-page__table-message is-error">
+            {{ errorMessage }}
+          </p>
 
           <div v-for="row in filteredRows" :key="row.inventoryPublicId" class="page-table__row">
             <span>{{ row.itemCode }}</span>
@@ -596,6 +598,7 @@ onMounted(() => {
 
 <style scoped>
 .inventory-page__table-wrap {
+  max-width: 100%;
   overflow-x: auto;
 }
 
@@ -605,11 +608,6 @@ onMounted(() => {
 
 .inventory-page__table .page-table__row {
   grid-template-columns: 1.1fr 1.4fr 0.6fr 1fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 0.7fr 0.8fr;
-}
-
-.inventory-page__error {
-  margin: 0 0 12px;
-  color: var(--color-error);
 }
 
 .inventory-page__form {

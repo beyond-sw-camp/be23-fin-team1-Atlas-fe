@@ -1004,7 +1004,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 </script>
 
 <template>
-  <section class="app-screen terminal-page">
+  <section class="app-screen terminal-page items-page">
     <header class="terminal-page__header">
       <div>
         <div class="terminal-page__eyebrow">{{ copy.eyebrow }}</div>
@@ -1066,13 +1066,15 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         <span class="page-panel__chip">{{ filteredRows.length }}</span>
       </div>
 
-      <p v-if="errorMessage" class="items-page__error">{{ errorMessage }}</p>
-
       <div class="items-page__table-wrap">
         <div class="page-table terminal-page__table items-page__table">
           <div class="page-table__row page-table__row--head">
             <span v-for="column in copy.columns" :key="column">{{ column }}</span>
           </div>
+
+          <p v-if="errorMessage" class="terminal-page__table-message is-error">
+            {{ errorMessage }}
+          </p>
 
           <div v-for="row in filteredRows" :key="row.publicId" class="page-table__row">
             <span v-for="(cell, index) in row.cells" :key="`${row.publicId}-${index}`">

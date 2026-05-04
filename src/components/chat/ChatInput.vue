@@ -194,11 +194,6 @@ async function onFileChange(event: Event, isImage: boolean = false) {
   }
 }
 
-function handleRefSelect(ref: { type: string; code: string; title: Record<'ko' | 'en', string> }) {
-  emit('sendReference', ref.type, ref.code, ref.title[preferences.language])
-  closeMenu()
-}
-
 function toggleEmojiPicker() {
   isEmojiPickerOpen.value = !isEmojiPickerOpen.value
   isMenuOpen.value = false
