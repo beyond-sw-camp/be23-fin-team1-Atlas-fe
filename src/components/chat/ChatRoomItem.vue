@@ -43,6 +43,14 @@ function isDirectChat(room: ChatRoom, currentUserId: string): boolean {
   return others.length <= 1
 }
 
+function getRoomTime(room: ChatRoom) {
+  return room.lastMessage?.sentAt || room.lastMessageAt || room.createdAt
+}
+
+function getRoomPreview(room: ChatRoom) {
+  return room.lastMessage?.messageBody || room.lastMessageText || ''
+}
+
 function formatTime(isoString?: string): string {
   if (!isoString) return ''
   const d = new Date(isoString)
@@ -87,10 +95,10 @@ function formatTime(isoString?: string): string {
         <strong class="chat-room-item__name">
           {{ room.roomName || (preferences.language === 'ko' ? '이름 없음' : 'Untitled') }}
         </strong>
-        <span class="chat-room-item__time">{{ formatTime(room.lastMessage?.sentAt) }}</span>
+        <span class="chat-room-item__time">{{ formatTime(getRoomTime(room)) }}</span>
       </div>
       <div class="chat-room-item__foot">
-        <span class="chat-room-item__preview">{{ room.lastMessage?.messageBody ?? '' }}</span>
+        <span class="chat-room-item__preview">{{ getRoomPreview(room) }}</span>
         <!-- 안읽음 파란 도트 -->
         <span v-if="room.unreadCount > 0" class="chat-room-item__dot" />
       </div>

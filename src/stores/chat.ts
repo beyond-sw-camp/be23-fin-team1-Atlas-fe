@@ -57,11 +57,28 @@ export function mapToChatMessage(m: any): ChatMessageDto {
 
 export function mapToChatRoom(r: any): ChatRoom {
   if (!r) return r as any
+  const lastMessageValue = r.lastMessage || r.last_message
+  const lastMessageAt = r.lastMessageAt || r.last_message_at
+  const createdAt = r.createdAt || r.created_at
+  const lastMessage = lastMessageValue && typeof lastMessageValue === 'object'
+    ? mapToChatMessage(lastMessageValue)
+    : lastMessageValue
+      ? mapToChatMessage({
+          publicId: '',
+          roomPublicId: r.publicId || r.public_id || r.id || '',
+          messageBody: lastMessageValue,
+          sentAt: lastMessageAt,
+        })
+      : undefined
+
   return {
     publicId: String(r.publicId || r.public_id || r.id || ''),
     roomName: String(r.roomName || r.room_name || r.name || ''),
     roomStatus: r.roomStatus || r.room_status,
-    lastMessage: r.lastMessage || r.last_message ? mapToChatMessage(r.lastMessage || r.last_message) : undefined,
+    createdAt,
+    lastMessageAt,
+    lastMessageText: typeof lastMessageValue === 'string' ? lastMessageValue : undefined,
+    lastMessage,
     unreadCount: Number(r.unreadCount ?? r.unread_count ?? 0),
     participants: Array.isArray(r.participants) ? r.participants.map(mapToParticipant) : [],
     pinnedAt: r.pinnedAt || r.pinned_at || null

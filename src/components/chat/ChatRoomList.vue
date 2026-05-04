@@ -70,15 +70,16 @@ const pinnedRooms = computed(() =>
     .sort((a, b) => new Date(b.pinnedAt!).getTime() - new Date(a.pinnedAt!).getTime())
 )
 
+function getRoomActivityTime(room: ChatRoom) {
+  const timestamp = room.lastMessage?.sentAt || room.lastMessageAt || room.createdAt
+  return timestamp ? new Date(timestamp).getTime() : 0
+}
+
 // 비고정방: 최신 메시지 순
 const unpinnedRooms = computed(() =>
   filteredRooms.value
     .filter(r => !r.pinnedAt)
-    .sort((a, b) => {
-      const timeA = a.lastMessage?.sentAt ? new Date(a.lastMessage.sentAt).getTime() : 0
-      const timeB = b.lastMessage?.sentAt ? new Date(b.lastMessage.sentAt).getTime() : 0
-      return timeB - timeA
-    })
+    .sort((a, b) => getRoomActivityTime(b) - getRoomActivityTime(a))
 )
 
 function handlePin(roomPublicId: string) {

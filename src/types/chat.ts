@@ -73,6 +73,9 @@ export interface ChatRoom {
   publicId: string
   roomName: string
   roomStatus?: string
+  createdAt?: string
+  lastMessageAt?: string
+  lastMessageText?: string
   lastMessage?: ChatMessageDto
   unreadCount: number
   participants?: ChatParticipant[]
