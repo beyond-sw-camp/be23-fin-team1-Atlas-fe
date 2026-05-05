@@ -4,17 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import ShipmentKoreaMap from '../components/ShipmentKoreaMap.vue'
-import { getLogisticsNodes, type LogisticsNodeResponseDto } from '../../../services/logistics'
-import {
-  getPurchaseOrder,
-  getPurchaseOrders,
-  type PurchaseOrderDetailResponseDto,
-  type PurchaseOrderSummaryResponseDto,
-} from '../../../services/purchaseOrder'
 import {
   arriveShipment,
   createDeliveryException,
   createShipment,
+  getCreatableShipmentOrders,
   getDeliveryExceptions,
   getEtaProjections,
   getShipment,
@@ -29,6 +23,7 @@ import {
   type CreateShipmentRequestDto,
   type DeliveryExceptionResponseDto,
   type EtaProjectionResponseDto,
+  type ShipmentCreatableOrderDto,
   type ShipmentEtaResponseDto,
   type ShipmentListResponseDto,
   type ShipmentMapResponseDto,
@@ -119,7 +114,7 @@ const CONTENT = {
     emptyOrders: '출하 생성 가능한 승인 발주가 없습니다.',
     destinationFromOrder: '도착 창고는 발주 품목에 지정된 창고가 자동 적용됩니다.',
     destinationNotReady: '선택한 발주에 도착 창고가 없습니다. 발주 품목의 도착 창고를 먼저 지정해야 합니다.',
-    requiredCreate: '승인 발주, 출발 창고, 출발 예정 시각은 필수입니다.',
+    requiredCreate: '승인 발주, 출하 품목 수량, 출발 예정 시각은 필수입니다.',
     loadFail: '출하 정보를 불러오지 못했습니다.',
     loadMapFail: '지도 데이터를 불러오지 못했습니다.',
     loadNodesFail: '창고 목록을 불러오지 못했습니다.',
@@ -207,7 +202,7 @@ const CONTENT = {
     emptyOrders: 'No accepted orders available.',
     destinationFromOrder: 'Destination warehouse is automatically taken from the order item.',
     destinationNotReady: 'The selected order has no destination warehouse. Set it on order items first.',
-    requiredCreate: 'Accepted order, origin warehouse, and departure ETA are required.',
+    requiredCreate: 'Accepted order, shipment item quantity, and departure ETA are required.',
     loadFail: 'Failed to load shipments.',
     loadMapFail: 'Failed to load map data.',
     loadNodesFail: 'Failed to load warehouses.',
@@ -249,9 +244,9 @@ const shipmentKpiContent = computed(() =>
 
 const shipments = ref<ShipmentListResponseDto[]>([])
 const mapShipments = ref<ShipmentMapResponseDto[]>([])
-const logisticsNodes = ref<LogisticsNodeResponseDto[]>([])
-const acceptedPurchaseOrders = ref<PurchaseOrderSummaryResponseDto[]>([])
-const selectedPurchaseOrderDetail = ref<PurchaseOrderDetailResponseDto | null>(null)
+const acceptedPurchaseOrders = ref<ShipmentCreatableOrderDto[]>([])
+const selectedPurchaseOrderDetail = ref<ShipmentCreatableOrderDto | null>(null)
+const createLineQuantities = ref<Record<string, number>>({})
 
 const currentPage = ref(0)
 const pageSize = ref(10)
@@ -270,7 +265,6 @@ const isExceptionSubmitting = ref(false)
 
 const shipmentErrorMessage = ref('')
 const mapErrorMessage = ref('')
-const nodeErrorMessage = ref('')
 const orderErrorMessage = ref('')
 const shipmentDetailErrorMessage = ref('')
 const createErrorMessage = ref('')
@@ -296,7 +290,8 @@ const createForm = ref<CreateShipmentRequestDto>({
   purchaseOrderPublicId: '',
   subPoId: null,
   subPurchaseOrderPublicId: '',
-  originNodePublicId: '',
+  originNodePublicId: null,
+  shipmentLines: [],
   departureEta: '',
   temperatureRequired: false,
   sealedPackagingRequired: false,
@@ -339,7 +334,6 @@ const checkpointStatusOptions = ['PASSED']
 const deliveryExceptionTypeOptions = ['DELAY', 'DAMAGE', 'TEMPERATURE_DEVIATION', 'WRONG_DELIVERY']
 const deliveryExceptionSeverityOptions = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 
-const activeLogisticsNodes = computed(() => logisticsNodes.value.filter((node) => node.active))
 const displayShipments = computed(() => dedupeShipments(shipments.value))
 const displayMapShipments = computed(() =>
   dedupeShipments(mapShipments.value).filter((shipment) =>
@@ -373,29 +367,43 @@ const exceptionDetectedAt = computed(() => {
   return `${exceptionDetectedDate.value}T${exceptionDetectedTime.value}`
 })
 
+const selectedOrderItems = computed(() => selectedPurchaseOrderDetail.value?.items ?? [])
 const selectedArrivalLogisticsNodeText = computed(() => {
-  const nodes = selectedPurchaseOrderDetail.value?.items
-    .filter((item) => item.arrivalLogisticsNodePublicId)
-    .map((item) => `${item.arrivalLogisticsNodeName ?? '-'} / ${item.arrivalLogisticsNodeAddress ?? '-'}`) ?? []
+  const nodes = selectedOrderItems.value
+    .filter((item) => item.destinationNodePublicId)
+    .map((item) => formatNodeDisplay(item.destinationNodeName, item.destinationNodeCode, item.destinationNodePublicId))
 
   if (nodes.length === 0) return '-'
 
   return Array.from(new Set(nodes)).join(', ')
 })
 const selectedOriginLogisticsNodeText = computed(() => {
-  const node = activeLogisticsNodes.value.find((item) => item.publicId === createForm.value.originNodePublicId)
-  return node ? formatNodeDisplay(node.nodeName, node.nodeCode, node.publicId) : '-'
+  const nodes = selectedOrderItems.value
+    .flatMap((item) => item.originNodeOptions ?? [])
+    .map((node) => formatNodeDisplay(node.nodeName, node.nodeCode, node.nodePublicId))
+
+  if (nodes.length === 0) return '-'
+
+  return Array.from(new Set(nodes)).join(', ')
 })
 
 const selectedOrderHasDestinationNode = computed(() =>
-  Boolean(selectedPurchaseOrderDetail.value?.items.some((item) => item.arrivalLogisticsNodePublicId)),
+  Boolean(selectedOrderItems.value.some((item) => item.destinationNodePublicId)),
 )
 const selectedCreateOrder = computed(() =>
-  acceptedPurchaseOrders.value.find((order) => order.poPublicId === createForm.value.purchaseOrderPublicId) ?? null,
+  acceptedPurchaseOrders.value.find((order) => order.sourcePublicId === createForm.value.purchaseOrderPublicId) ?? null,
 )
-const selectedOrderItemCount = computed(() => selectedPurchaseOrderDetail.value?.items.length ?? 0)
+const selectedOrderItemCount = computed(() => selectedOrderItems.value.length)
 const selectedOrderTotalQuantity = computed(() =>
-  selectedPurchaseOrderDetail.value?.items.reduce((sum, item) => sum + Number(item.confirmedQty ?? item.orderedQty ?? 0), 0) ?? 0,
+  selectedOrderItems.value.reduce((sum, item) => sum + Number(item.shippableQty ?? 0), 0),
+)
+const selectedShipmentLinesForCreate = computed(() =>
+  selectedOrderItems.value
+    .map((item) => ({
+      sourceItemPublicId: item.sourceItemPublicId,
+      quantity: Number(createLineQuantities.value[item.sourceItemPublicId] ?? 0),
+    }))
+    .filter((line) => line.quantity > 0),
 )
 
 const trackNodeOptions = computed(() => {
@@ -572,42 +580,12 @@ function toShipmentListItem(shipment: ShipmentMapResponseDto): ShipmentListRespo
   }
 }
 
-async function fetchLogisticsNodes() {
-  try {
-    const response = await getLogisticsNodes({ page: 0, size: 100 })
-    logisticsNodes.value = response.content ?? []
-    nodeErrorMessage.value = ''
-  } catch (error) {
-    console.error('Failed to fetch logistics nodes:', error)
-    logisticsNodes.value = []
-    nodeErrorMessage.value = content.value.loadNodesFail
-  }
-}
-
 async function fetchAcceptedPurchaseOrders() {
   isOrderOptionsLoading.value = true
   orderErrorMessage.value = ''
 
   try {
-    const [confirmed, partiallyConfirmed] = await Promise.all([
-      getPurchaseOrders({
-        viewType: 'SUPPLIER',
-        poStatus: 'CONFIRMED',
-        page: 0,
-        size: 100,
-      }),
-      getPurchaseOrders({
-        viewType: 'SUPPLIER',
-        poStatus: 'PARTIALLY_CONFIRMED',
-        page: 0,
-        size: 100,
-      }),
-    ])
-
-    const orders = [...(confirmed.content ?? []), ...(partiallyConfirmed.content ?? [])]
-    acceptedPurchaseOrders.value = Array.from(
-      new Map(orders.map((order) => [order.poPublicId, order])).values(),
-    )
+    acceptedPurchaseOrders.value = await getCreatableShipmentOrders()
   } catch (error) {
     console.error('Failed to fetch accepted purchase orders:', error)
     acceptedPurchaseOrders.value = []
@@ -658,7 +636,7 @@ async function fetchShipments() {
 }
 
 async function refreshShipments() {
-  await Promise.all([fetchShipments(), fetchShipmentMapData(), fetchLogisticsNodes()])
+  await Promise.all([fetchShipments(), fetchShipmentMapData()])
 }
 
 async function openCreateModal() {
@@ -668,7 +646,7 @@ async function openCreateModal() {
     router.push({ name: 'shipmentCreate' })
   }
 
-  await Promise.all([fetchAcceptedPurchaseOrders(), fetchLogisticsNodes()])
+  await fetchAcceptedPurchaseOrders()
 }
 
 function closeCreateModal() {
@@ -791,15 +769,18 @@ async function reloadSelectedShipment() {
 async function handlePurchaseOrderSelect(poPublicId: string) {
   createForm.value.purchaseOrderPublicId = poPublicId
   selectedPurchaseOrderDetail.value = null
+  createLineQuantities.value = {}
   createErrorMessage.value = ''
 
   if (!poPublicId) return
 
-  try {
-    selectedPurchaseOrderDetail.value = await getPurchaseOrder(poPublicId)
-  } catch (error) {
-    console.error('Failed to load purchase order detail:', error)
-    createErrorMessage.value = content.value.loadFail
+  const order = acceptedPurchaseOrders.value.find((item) => item.sourcePublicId === poPublicId) ?? null
+  selectedPurchaseOrderDetail.value = order
+
+  if (order) {
+    createLineQuantities.value = Object.fromEntries(
+      order.items.map((item) => [item.sourceItemPublicId, item.shippableQty]),
+    )
   }
 }
 
@@ -809,7 +790,8 @@ function resetCreateForm() {
     purchaseOrderPublicId: '',
     subPoId: null,
     subPurchaseOrderPublicId: '',
-    originNodePublicId: '',
+    originNodePublicId: null,
+    shipmentLines: [],
     departureEta: '',
     temperatureRequired: false,
     sealedPackagingRequired: false,
@@ -818,12 +800,13 @@ function resetCreateForm() {
   createDepartureDate.value = ''
   createDepartureTime.value = ''
   selectedPurchaseOrderDetail.value = null
+  createLineQuantities.value = {}
 }
 
 async function handleCreateShipmentSubmit() {
   createErrorMessage.value = ''
 
-  if (!createForm.value.purchaseOrderPublicId || !createForm.value.originNodePublicId || !createDepartureEta.value) {
+  if (!createForm.value.purchaseOrderPublicId || !createDepartureEta.value || selectedShipmentLinesForCreate.value.length === 0) {
     createErrorMessage.value = content.value.requiredCreate
     return
   }
@@ -841,7 +824,8 @@ async function handleCreateShipmentSubmit() {
       purchaseOrderPublicId: nullableText(createForm.value.purchaseOrderPublicId),
       subPoId: createForm.value.subPoId || null,
       subPurchaseOrderPublicId: nullableText(createForm.value.subPurchaseOrderPublicId),
-      originNodePublicId: createForm.value.originNodePublicId,
+      originNodePublicId: null,
+      shipmentLines: selectedShipmentLinesForCreate.value,
       departureEta: createDepartureEta.value,
       temperatureRequired: createForm.value.temperatureRequired,
       sealedPackagingRequired: createForm.value.sealedPackagingRequired,
@@ -1156,8 +1140,6 @@ onMounted(() => {
       @update:model-value="handleCreateModalOpenChange"
     >
       <div class="shipment-create-modal">
-        <div v-if="nodeErrorMessage" class="page-table__empty">{{ nodeErrorMessage }}</div>
-
         <div class="shipment-create-shell">
           <section class="shipment-create-primary">
             <div class="shipment-create-section-head">
@@ -1178,18 +1160,8 @@ onMounted(() => {
                   @change="handlePurchaseOrderSelect(($event.target as HTMLSelectElement).value)"
                 >
                   <option value="">{{ isOrderOptionsLoading ? content.loading : content.select }}</option>
-                  <option v-for="order in acceptedPurchaseOrders" :key="order.poPublicId" :value="order.poPublicId">
-                    {{ order.poNumber }} / {{ order.supplierName }} / {{ order.poStatus }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="shipment-field">
-                <span>{{ content.originNode }} <strong>*</strong></span>
-                <select v-model="createForm.originNodePublicId" class="page-input">
-                  <option value="">{{ content.select }}</option>
-                  <option v-for="node in activeLogisticsNodes" :key="node.publicId" :value="node.publicId">
-                    {{ formatNodeDisplay(node.nodeName, node.nodeCode, node.publicId) }}
+                  <option v-for="order in acceptedPurchaseOrders" :key="order.sourcePublicId" :value="order.sourcePublicId">
+                    {{ order.orderNumber }} / {{ order.supplierName }} / {{ order.status }}
                   </option>
                 </select>
               </label>
@@ -1219,12 +1191,40 @@ onMounted(() => {
                 <strong>{{ selectedArrivalLogisticsNodeText }}</strong>
               </div>
             </div>
+
+            <section v-if="selectedOrderItems.length > 0" class="shipment-create-options">
+              <span>출하 품목 / 수량</span>
+              <div class="shipment-line-list">
+                <label
+                  v-for="item in selectedOrderItems"
+                  :key="item.sourceItemPublicId"
+                  class="shipment-line-row"
+                >
+                  <div>
+                    <strong>{{ item.itemName }} ({{ item.itemCode }})</strong>
+                    <small>
+                      출하 가능 {{ item.shippableQty }} / 도착 {{ formatNodeDisplay(item.destinationNodeName, item.destinationNodeCode, item.destinationNodePublicId) }}
+                    </small>
+                    <small>
+                      출발 후보 {{ item.originNodeOptions.map((node) => `${node.nodeName} (${node.nodeCode}) ${node.availableQty}`).join(', ') }}
+                    </small>
+                  </div>
+                  <input
+                    v-model.number="createLineQuantities[item.sourceItemPublicId]"
+                    type="number"
+                    min="0"
+                    :max="item.shippableQty"
+                    class="page-input"
+                  />
+                </label>
+              </div>
+            </section>
           </section>
 
           <aside class="shipment-create-aside">
             <section class="shipment-create-spec">
               <span>{{ content.order }}</span>
-              <strong>{{ selectedCreateOrder?.poNumber ?? '-' }}</strong>
+              <strong>{{ selectedCreateOrder?.orderNumber ?? '-' }}</strong>
               <p>{{ selectedCreateOrder?.supplierName ?? content.destinationFromOrder }}</p>
             </section>
 
@@ -1239,7 +1239,7 @@ onMounted(() => {
               </div>
               <div>
                 <span>{{ content.status }}</span>
-                <strong>{{ selectedCreateOrder?.poStatus ?? '-' }}</strong>
+                <strong>{{ selectedCreateOrder?.status ?? '-' }}</strong>
               </div>
               <div>
                 <span>{{ content.destinationNode }}</span>
@@ -2113,6 +2113,36 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.shipment-line-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.shipment-line-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--ship-border);
+  background: #fff;
+  padding: 12px;
+}
+
+.shipment-line-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.shipment-line-row strong {
+  color: var(--ship-text);
+}
+
+.shipment-line-row small {
+  color: var(--ship-muted);
+  line-height: 1.4;
 }
 
 .shipment-option-row label,
