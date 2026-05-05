@@ -42,6 +42,10 @@ export interface IntegratedSearchItem {
   title: string
   subtitle: string | null
   status: string | null
+  address?: string | null
+  addressDetail?: string | null
+  zipCode?: string | null
+
 
   // 백엔드가 공통 썸네일 이름으로 내려줄 때 사용합니다.
   thumbnailUrl?: string | null

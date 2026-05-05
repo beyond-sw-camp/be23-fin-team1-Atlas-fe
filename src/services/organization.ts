@@ -26,7 +26,9 @@ export interface OrganizationListItem {
   status: string
   createdAt?: string
   organizationImageThumbPath?: string | null
-
+  address?: string | null
+  addressDetail?: string | null
+  zipCode?: string | null
 }
 
 export interface GetOrganizationsParams {
@@ -62,13 +64,15 @@ export interface CreateOrganizationPayload {
   contactLastName: string
   contactEmail: string
   contactPhone: string
+  address?: string | null
+  addressDetail?: string | null
+  zipCode?: string | null
 }
 
 export interface CreateOrganizationResponse {
   organizationPublicId: string
   organizationImageAttachmentPublicId?: string | null
   organizationImageThumbPath?: string | null
-
 }
 
 // 조직을 생성합니다.
@@ -103,8 +107,10 @@ export interface OrganizationDetailResponse {
   status: string
   organizationImageAttachmentPublicId?: string | null
   organizationImageThumbPath?: string | null
+  address?: string | null
+  addressDetail?: string | null
+  zipCode?: string | null
   memberCount: number
-
 }
 
 export interface UpdateOrganizationPayload {
@@ -119,7 +125,9 @@ export interface UpdateOrganizationPayload {
   contactPhone: string
   organizationImageAttachmentPublicId?: string | null
   organizationImageThumbPath?: string | null
-
+  address?: string | null
+  addressDetail?: string | null
+  zipCode?: string | null
 }
 
 // 조직 상세를 내부 ID 기준으로 읽습니다.
