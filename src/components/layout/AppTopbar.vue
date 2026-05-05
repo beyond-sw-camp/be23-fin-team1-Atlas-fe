@@ -259,6 +259,10 @@ function openOrganizationResult(item: IntegratedSearchItem) {
       contactEmail: item.contactEmail ?? '',
       contactPhone: item.contactPhone ?? '',
       contactName: item.contactName ?? '',
+      address: item.address ?? '',
+      addressDetail: item.addressDetail ?? '',
+      zipCode: item.zipCode ?? '',
+
     },
   })
 

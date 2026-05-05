@@ -34,6 +34,17 @@ type OrganizationManagementTabKey = 'organization' | 'members'
 // 오른쪽 패널이 상세보기인지 신규 생성인지 구분합니다.
 type OrganizationPanelMode = 'detail' | 'create'
 
+// 생성 화면에서는 주소 입력값을 항상 문자열로 들고 있어야 합니다.
+type OrganizationCreateForm = Omit<
+  CreateOrganizationPayload,
+  'contactMiddleName' | 'address' | 'addressDetail' | 'zipCode'
+> & {
+  contactMiddleName: string
+  address: string
+  addressDetail: string
+  zipCode: string
+}
+
 // 현재 언어 설정을 읽습니다.
 const preferences = useAtlasPreferencesStore()
 const dialog = useAtlasDialogStore()
@@ -171,10 +182,14 @@ const organizationForm = reactive({
   contactPhone: '',
   organizationImageAttachmentPublicId: '',
   organizationImageThumbPath: '',
+  address: '',
+  addressDetail: '',
+  zipCode: '',
+
 })
 
 // 신규 조직 생성 폼입니다. 설정 페이지에 있던 생성 흐름을 조직관리 안으로 옮겼습니다.
-const organizationCreateForm = reactive<CreateOrganizationPayload>({
+const organizationCreateForm = reactive<OrganizationCreateForm>({
   organizationType: 'SUPPLIER',
   organizationName: '',
   organizationEnglishName: '',
@@ -185,6 +200,10 @@ const organizationCreateForm = reactive<CreateOrganizationPayload>({
   contactLastName: '',
   contactEmail: '',
   contactPhone: '',
+  address: '',
+  addressDetail: '',
+  zipCode: '',
+
 })
 
 // 신규 조직 생성 버튼을 중복 클릭하지 못하게 막기 위한 로딩 상태입니다.
@@ -285,6 +304,10 @@ const copy = computed(() =>
         memberCount: '사원 수',
         warehouseCount: '창고 수',
         esgFileCount: 'ESG 파일 수',
+        address: '주소',
+        addressDetail: '상세주소',
+        zipCode: '우편번호',
+
         paginationTotal: (count: number) => `총 ${count}개`,
       }
     : {
@@ -378,6 +401,10 @@ const copy = computed(() =>
         memberCount: 'Members',
         warehouseCount: 'Warehouses',
         esgFileCount: 'ESG Files',
+        address: 'Address',
+        addressDetail: 'Address Detail',
+        zipCode: 'Zip Code',
+
         paginationTotal: (count: number) => `Total ${count}`,
       },
 )
@@ -588,6 +615,10 @@ async function handleOrganizationImageSelected(event: Event) {
       contactPhone: organizationForm.contactPhone,
       organizationImageAttachmentPublicId: attachmentPublicId,
       organizationImageThumbPath: thumbPath,
+      address: organizationForm.address.trim() || null,
+      addressDetail: organizationForm.addressDetail.trim() || null,
+      zipCode: organizationForm.zipCode.trim() || null,
+
     })
 
     selectedOrganizationDetail.value = saved
@@ -635,6 +666,10 @@ function syncOrganizationForm(detail: OrganizationDetailResponse) {
   organizationForm.contactPhone = detail.contactPhone ?? ''
   organizationForm.organizationImageAttachmentPublicId = detail.organizationImageAttachmentPublicId ?? ''
   organizationForm.organizationImageThumbPath = detail.organizationImageThumbPath ?? ''
+  organizationForm.address = detail.address ?? ''
+  organizationForm.addressDetail = detail.addressDetail ?? ''
+  organizationForm.zipCode = detail.zipCode ?? ''
+
 
   // 기존 연락처가 있으면 처음에는 유효한 값으로 둡니다.
   organizationPhoneValid.value = Boolean(detail.contactPhone)
@@ -670,6 +705,10 @@ function resetCreateOrganizationForm() {
   organizationCreateForm.contactPhone = ''
   organizationCreatePhoneValid.value = false
   organizationCreateError.value = ''
+  organizationCreateForm.address = ''
+  organizationCreateForm.addressDetail = ''
+  organizationCreateForm.zipCode = ''
+
 }
 
 // 생성 버튼을 누르면 오른쪽 상세 패널 자리에 생성 폼을 엽니다.
@@ -717,7 +756,9 @@ async function submitOrganizationCreate() {
     !organizationCreateForm.contactFirstName.trim() ||
     !organizationCreateForm.contactLastName.trim() ||
     !organizationCreateForm.contactEmail.trim() ||
-    !organizationCreateForm.contactPhone.trim()
+    !organizationCreateForm.contactPhone.trim() ||
+    !organizationCreateForm.address.trim()
+
   ) {
     organizationCreateError.value = copy.value.validationRequired
     return
@@ -749,6 +790,10 @@ async function submitOrganizationCreate() {
       contactLastName: organizationCreateForm.contactLastName.trim(),
       contactEmail: organizationCreateForm.contactEmail.trim(),
       contactPhone: organizationCreateForm.contactPhone.trim(),
+      address: organizationCreateForm.address.trim(),
+      addressDetail: organizationCreateForm.addressDetail.trim() || null,
+      zipCode: organizationCreateForm.zipCode.trim() || null,
+
     })
 
     let supplierCreateFailed = false
@@ -988,6 +1033,9 @@ async function submitOrganizationUpdate() {
         organizationEnglishName: organizationForm.organizationEnglishName.trim(),
         organizationAlias: organizationForm.organizationAlias.trim(),
         businessNo: organizationForm.businessNo.trim() || null,
+        address: organizationForm.address.trim() || null,
+        addressDetail: organizationForm.addressDetail.trim() || null,
+        zipCode: organizationForm.zipCode.trim() || null,
         contactFirstName: organizationForm.contactFirstName.trim(),
         contactMiddleName: organizationForm.contactMiddleName.trim() || null,
         contactLastName: organizationForm.contactLastName.trim(),
@@ -1010,6 +1058,9 @@ async function submitOrganizationUpdate() {
             organizationName: saved.organizationName,
             organizationType: saved.organizationType,
             businessNo: saved.businessNo ?? '',
+            address: saved.address ?? '',
+            addressDetail: saved.addressDetail ?? '',
+            zipCode: saved.zipCode ?? '',
             contactEmail: saved.contactEmail ?? '',
             contactPhone: saved.contactPhone,
             status: saved.status,
@@ -1080,6 +1131,9 @@ async function submitOrganizationStatusUpdate(nextStatus: OrganizationStatus) {
             organizationName: saved.organizationName,
             organizationType: saved.organizationType,
             businessNo: saved.businessNo ?? '',
+            address: saved.address ?? '',
+            addressDetail: saved.addressDetail ?? '',
+            zipCode: saved.zipCode ?? '',
             contactEmail: saved.contactEmail ?? '',
             contactPhone: saved.contactPhone,
             status: saved.status,
@@ -1359,6 +1413,21 @@ watch(
               </label>
 
               <label>
+                <span>{{ copy.address }}</span>
+                <input v-model="organizationCreateForm.address" type="text" />
+              </label>
+
+              <label>
+                <span>{{ copy.addressDetail }}</span>
+                <input v-model="organizationCreateForm.addressDetail" type="text" />
+              </label>
+
+              <label>
+                <span>{{ copy.zipCode }}</span>
+                <input v-model="organizationCreateForm.zipCode" type="text" />
+              </label>
+
+              <label>
                 <span>{{ copy.contactFirstName }}</span>
                 <input v-model="organizationCreateForm.contactFirstName" type="text" />
               </label>
@@ -1560,6 +1629,42 @@ watch(
     <input
       v-else
       v-model="organizationForm.businessNo"
+      type="text"
+    />
+  </div>
+
+  <div class="profile-kv__row">
+    <span>{{ copy.address }}</span>
+    <strong v-if="!isEditingOrganization">
+      {{ selectedOrganizationDetail.address || '-' }}
+    </strong>
+    <input
+      v-else
+      v-model="organizationForm.address"
+      type="text"
+    />
+  </div>
+
+  <div class="profile-kv__row">
+    <span>{{ copy.addressDetail }}</span>
+    <strong v-if="!isEditingOrganization">
+      {{ selectedOrganizationDetail.addressDetail || '-' }}
+    </strong>
+    <input
+      v-else
+      v-model="organizationForm.addressDetail"
+      type="text"
+    />
+  </div>
+
+  <div class="profile-kv__row">
+    <span>{{ copy.zipCode }}</span>
+    <strong v-if="!isEditingOrganization">
+      {{ selectedOrganizationDetail.zipCode || '-' }}
+    </strong>
+    <input
+      v-else
+      v-model="organizationForm.zipCode"
       type="text"
     />
   </div>
