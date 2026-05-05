@@ -70,6 +70,18 @@ export interface ShipmentResponseDto {
   temperatureRequired: boolean
   sealedPackagingRequired: boolean
   fragile: boolean
+  shipmentLines?: ShipmentLineResponseDto[]
+}
+
+export interface ShipmentLineResponseDto {
+  publicId: string
+  sourceType: ShipmentSourceType
+  sourcePublicId: string
+  sourceItemPublicId: string
+  itemPublicId: string
+  itemCode: string
+  itemName: string
+  quantity: number
 }
 
 export interface CreateShipmentRequestDto {
@@ -77,11 +89,49 @@ export interface CreateShipmentRequestDto {
   purchaseOrderPublicId?: string | null
   subPoId?: number | null
   subPurchaseOrderPublicId?: string | null
-  originNodePublicId: string
+  originNodePublicId?: string | null
+  shipmentLines?: CreateShipmentLineRequestDto[]
   departureEta: string
   temperatureRequired: boolean
   sealedPackagingRequired: boolean
   fragile: boolean
+}
+
+export interface CreateShipmentLineRequestDto {
+  sourceItemPublicId: string
+  quantity: number
+}
+
+export interface ShipmentOriginNodeOptionDto {
+  nodePublicId: string
+  nodeCode: string
+  nodeName: string
+  availableQty: number
+}
+
+export interface ShipmentCreatableOrderItemDto {
+  sourceItemPublicId: string
+  itemPublicId: string
+  itemCode: string
+  itemName: string
+  confirmedQty: number
+  alreadyShipmentQty: number
+  shippableQty: number
+  destinationNodePublicId: string
+  destinationNodeCode: string
+  destinationNodeName: string
+  originNodeOptions: ShipmentOriginNodeOptionDto[]
+}
+
+export interface ShipmentCreatableOrderDto {
+  sourceType: ShipmentSourceType
+  sourcePublicId: string
+  orderNumber: string
+  buyerOrganizationPublicId: string
+  supplierPublicId: string
+  supplierName: string
+  status: string
+  items: ShipmentCreatableOrderItemDto[]
 }
 
 export interface UpdateShipmentRequestDto {
@@ -216,6 +266,13 @@ export async function createShipment(
   const response = await apiClient.post<ShipmentResponseDto>(
     '/api/supply/shipments',
     data,
+  )
+  return response.data
+}
+
+export async function getCreatableShipmentOrders(): Promise<ShipmentCreatableOrderDto[]> {
+  const response = await apiClient.get<ShipmentCreatableOrderDto[]>(
+    '/api/supply/shipments/creatable-orders',
   )
   return response.data
 }
