@@ -61,15 +61,6 @@ const availableUsersToInvite = computed(() => {
   )
 })
 
-/** 대표 아바타 정보 (헤더 우측) */
-const headerAvatar = computed(() => {
-  const other = props.participants.find(p => p.userPublicId !== props.currentUserPublicId)
-  if (other) {
-    return { imageUrl: other.profileImageThumbPath, name: other.displayName }
-  }
-  return { name: props.roomName, imageUrl: undefined }
-})
-
 /** 메시지 목록 변경 시 스크롤을 최하단으로 이동 */
 watch(
   () => props.messages.length,
@@ -292,13 +283,8 @@ function formatDateDivider(isoString?: string): string {
         </button>
       </div>
 
-      <!-- 우측: 대표 아바타 + 더보기 -->
+      <!-- 우측: 더보기 -->
       <div class="chat-room__header-right">
-        <ChatAvatar
-          :image-url="headerAvatar.imageUrl"
-          :name="headerAvatar.name"
-          size="sm"
-        />
         <button ref="moreButtonRef" class="chat-room__more-btn" type="button" @click="toggleMoreMenu">
           <span class="material-symbols-outlined">more_vert</span>
         </button>
