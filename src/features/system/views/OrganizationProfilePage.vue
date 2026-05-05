@@ -111,6 +111,10 @@ const copy = computed(() =>
         status: '상태',
         createdAt: '등록일',
         updatedAt: '수정일',
+        unitPrice: '단가',
+        availableQty: '가용수량',
+        moq: 'MOQ',
+        leadTimeDays: '리드타임',
       }
     : {
         eyebrow: 'ORGANIZATION PROFILE',
@@ -138,6 +142,11 @@ const copy = computed(() =>
         status: 'Status',
         createdAt: 'Created At',
         updatedAt: 'Updated At',
+        unitPrice: 'Unit Price',
+        availableQty: 'Available Qty',
+        moq: 'MOQ',
+        leadTimeDays: 'Lead Time',
+
       },
 )
 
@@ -222,6 +231,16 @@ async function loadOrganizationDetail() {
     isLoadingOrganizationDetail.value = false
   }
 }
+function formatNumber(value?: number | null) {
+  if (value == null) return '-'
+  return value.toLocaleString()
+}
+
+function formatLeadTimeDays(value?: number | null) {
+  if (value == null) return '-'
+  return preferences.language === 'ko' ? `${value.toLocaleString()}일` : `${value.toLocaleString()} days`
+}
+
 
 // 물품 목록에서 클릭하면 상세를 조회하고 모달을 엽니다.
 async function openItemDetail(item: ItemResponseDto) {
@@ -296,11 +315,10 @@ watch(organizationPublicId, () => {
         <table class="organization-profile-table">
           <thead>
             <tr>
-              <th>{{ copy.itemCode }}</th>
               <th>{{ copy.itemName }}</th>
               <th>{{ copy.category }}</th>
               <th>{{ copy.unit }}</th>
-              <th>{{ copy.status }}</th>
+              <th>{{ copy.unitPrice }}</th>
             </tr>
           </thead>
 
@@ -310,13 +328,13 @@ watch(organizationPublicId, () => {
               :key="item.publicId"
               @click="openItemDetail(item)"
             >
-              <td>{{ item.itemCode }}</td>
               <td class="organization-profile-table__strong">{{ item.itemName }}</td>
               <td>{{ item.categoryName }}</td>
               <td>{{ item.unit }}</td>
-              <td>{{ item.status }}</td>
+              <td>{{ formatNumber(item.unitPrice) }}</td>
             </tr>
           </tbody>
+
         </table>
       </div>
     </article>
