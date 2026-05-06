@@ -186,7 +186,12 @@ const certificateTypeSubmitting = ref(false)
 const certificateTypeError = ref('')
 const certificateTypeSuccess = ref('')
 const selectedCertificateTypePublicId = ref('')
+const editingCertificateTypePublicId = ref('')
+const isCertificateTypeEditorOpen = ref(false)
 const certificateTypeStatusUpdating = ref(false)
+const selectedCertificatePresetCode = ref('')
+const CERTIFICATE_TYPE_PAGE_SIZE = 7
+const certificateTypePage = ref(0)
 
 const certificateTypeForm = reactive<CreateCertificateTypeRequestDto>({
   certificateCode: '',
@@ -247,11 +252,17 @@ const recommendedCertificateTypes = [
   { code: 'ISO-9001', nameKo: '품질경영시스템', nameEn: 'Quality Management System', scope: 'SUPPLIER_COMMON', categoryKo: '품질', categoryEn: 'Quality' },
   { code: 'ISO-14001', nameKo: '환경경영시스템', nameEn: 'Environmental Management System', scope: 'SUPPLIER_COMMON', categoryKo: 'ESG 환경', categoryEn: 'ESG Environment' },
   { code: 'ISO-45001', nameKo: '안전보건경영시스템', nameEn: 'Occupational Health and Safety', scope: 'SUPPLIER_COMMON', categoryKo: 'ESG 사회/안전', categoryEn: 'ESG Social / Safety' },
-  { code: 'ORIGIN-CERT', nameKo: '원산지 증명', nameEn: 'Certificate of Origin', scope: 'ITEM_SPECIFIC', categoryKo: '컴플라이언스', categoryEn: 'Compliance' },
-  { code: 'ECO-FRIENDLY', nameKo: '친환경 인증', nameEn: 'Eco-Friendly Certificate', scope: 'ITEM_SPECIFIC', categoryKo: 'ESG 환경', categoryEn: 'ESG Environment' },
-  { code: 'ORGANIC', nameKo: '유기농 인증', nameEn: 'Organic Certificate', scope: 'ITEM_SPECIFIC', categoryKo: '식품/환경', categoryEn: 'Food / Environment' },
-  { code: 'ESG-RATING', nameKo: 'ESG 평가서', nameEn: 'ESG Rating Report', scope: 'SUPPLIER_COMMON', categoryKo: 'ESG 종합', categoryEn: 'ESG General' },
+  { code: 'ISCC', nameKo: 'ISCC 지속가능원료 인증', nameEn: 'ISCC Sustainability Certification', scope: 'ITEM_SPECIFIC', categoryKo: 'ESG 지속가능성', categoryEn: 'ESG Sustainability' },
+  { code: 'CERT-ORIGIN', nameKo: '원산지 증명서', nameEn: 'Certificate of Origin', scope: 'ITEM_SPECIFIC', categoryKo: '컴플라이언스', categoryEn: 'Compliance' },
+  { code: 'ECO-LABEL', nameKo: '환경표지 인증', nameEn: 'Korea Eco-Label', scope: 'ITEM_SPECIFIC', categoryKo: 'ESG 환경', categoryEn: 'ESG Environment' },
+  { code: 'ORGANIC-CERT', nameKo: '유기농 인증', nameEn: 'Organic Certification', scope: 'ITEM_SPECIFIC', categoryKo: '식품/환경', categoryEn: 'Food / Environment' },
+  { code: 'GAP', nameKo: '농산물우수관리 인증', nameEn: 'Good Agricultural Practices Certification', scope: 'ITEM_SPECIFIC', categoryKo: '식품 안전', categoryEn: 'Food Safety' },
+  { code: 'HALAL', nameKo: '할랄 인증', nameEn: 'Halal Certification', scope: 'ITEM_SPECIFIC', categoryKo: '식품 인증', categoryEn: 'Food Certification' },
+  { code: 'SELF-QUALITY-INSPECTION', nameKo: '자가품질검사 성적서', nameEn: 'Self-Quality Inspection Report', scope: 'ITEM_SPECIFIC', categoryKo: '식품 안전', categoryEn: 'Food Safety' },
+  { code: 'PESTICIDE-RESIDUE-TEST', nameKo: '잔류농약 검사성적서', nameEn: 'Pesticide Residue Test Report', scope: 'ITEM_SPECIFIC', categoryKo: '식품 안전', categoryEn: 'Food Safety' },
 ] as const
+
+type RecommendedCertificateType = (typeof recommendedCertificateTypes)[number]
 
 const categoryCopy = computed(() =>
   preferences.language === 'ko'
@@ -306,7 +317,8 @@ const certificateTypeCopy = computed(() =>
         listTitle: '인증 분류 목록',
         listDescription: '각 조직이 인증문서를 등록할 때 선택하는 플랫폼 공통 인증 분류입니다.',
         formEyebrow: 'TYPE EDITOR',
-        formTitle: '인증 분류 생성',
+        formCreateTitle: '인증 분류 생성',
+        formUpdateTitle: '인증 분류 수정',
         formDescription: '플랫폼 관리자가 인증서 분류와 기본 발급 기관을 등록합니다.',
         detailEyebrow: 'TYPE DETAIL',
         detailTitle: '인증 분류 상세',
@@ -321,11 +333,16 @@ const certificateTypeCopy = computed(() =>
         categoryLabel: '분류',
         requiredLabel: '필수 인증',
         activeLabel: '활성 상태',
+        createLabel: '인증 분류 생성',
+        editLabel: '수정',
+        cancelLabel: '취소',
         deactivateLabel: '비활성화',
         activateLabel: '활성화',
         statusUpdateLabel: '처리 중...',
         submitLabel: '인증 분류 등록',
+        updateLabel: '인증 분류 수정',
         submittingLabel: '등록 중...',
+        updatingLabel: '수정 중...',
         empty: '등록된 인증 분류가 없습니다.',
         yes: '예',
         no: '아니오',
@@ -334,13 +351,16 @@ const certificateTypeCopy = computed(() =>
         statusUpdateFailed: '인증 분류 상태 변경에 실패했습니다.',
         activateSuccess: '인증 분류가 활성화되었습니다.',
         deactivateSuccess: '인증 분류가 비활성화되었습니다.',
+        updateSuccess: '인증 분류가 수정되었습니다.',
+        updateFailed: '인증 분류 수정에 실패했습니다.',
       }
     : {
         listEyebrow: 'CERTIFICATE MASTER',
         listTitle: 'Certificate Type List',
         listDescription: 'Platform-wide certificate types used when organizations upload certificate documents.',
         formEyebrow: 'TYPE EDITOR',
-        formTitle: 'Create Certificate Type',
+        formCreateTitle: 'Create Certificate Type',
+        formUpdateTitle: 'Update Certificate Type',
         formDescription: 'Platform admins manage certificate classification and default issuer metadata.',
         detailEyebrow: 'TYPE DETAIL',
         detailTitle: 'Certificate Type Detail',
@@ -355,11 +375,16 @@ const certificateTypeCopy = computed(() =>
         categoryLabel: 'Category',
         requiredLabel: 'Required',
         activeLabel: 'Active',
+        createLabel: 'Create Type',
+        editLabel: 'Edit',
+        cancelLabel: 'Cancel',
         deactivateLabel: 'Deactivate',
         activateLabel: 'Activate',
         statusUpdateLabel: 'Updating...',
         submitLabel: 'Register Type',
+        updateLabel: 'Update Type',
         submittingLabel: 'Registering...',
+        updatingLabel: 'Updating...',
         empty: 'No certificate types registered.',
         yes: 'Yes',
         no: 'No',
@@ -368,6 +393,8 @@ const certificateTypeCopy = computed(() =>
         statusUpdateFailed: 'Failed to update certificate type status.',
         activateSuccess: 'Certificate type activated.',
         deactivateSuccess: 'Certificate type deactivated.',
+        updateSuccess: 'Certificate type updated.',
+        updateFailed: 'Failed to update certificate type.',
       },
 )
 
@@ -472,9 +499,42 @@ const selectedCertificateType = computed(
   () => certificateTypes.value.find((type) => type.publicId === selectedCertificateTypePublicId.value) ?? null,
 )
 
+const editingCertificateType = computed(
+  () => certificateTypes.value.find((type) => type.publicId === editingCertificateTypePublicId.value) ?? null,
+)
+
 const activeCertificateTypeCount = computed(
   () => certificateTypes.value.filter((type) => type.activeYn !== false).length,
 )
+
+const certificateTypeEditorTitle = computed(() =>
+  editingCertificateType.value
+    ? certificateTypeCopy.value.formUpdateTitle
+    : certificateTypeCopy.value.formCreateTitle,
+)
+
+const certificateTypeTotalPages = computed(() =>
+  Math.ceil(certificateTypes.value.length / CERTIFICATE_TYPE_PAGE_SIZE),
+)
+
+const certificateTypeCurrentPageNumber = computed(() => {
+  return certificateTypeTotalPages.value === 0 ? 0 : certificateTypePage.value + 1
+})
+
+const visibleCertificateTypes = computed(() => {
+  const startIndex = certificateTypePage.value * CERTIFICATE_TYPE_PAGE_SIZE
+  return certificateTypes.value.slice(startIndex, startIndex + CERTIFICATE_TYPE_PAGE_SIZE)
+})
+
+const canMoveCertificateTypePrev = computed(() => certificateTypePage.value > 0)
+const canMoveCertificateTypeNext = computed(() => {
+  return certificateTypePage.value + 1 < certificateTypeTotalPages.value
+})
+
+function moveCertificateTypePage(nextPage: number) {
+  if (nextPage < 0 || nextPage >= certificateTypeTotalPages.value) return
+  certificateTypePage.value = nextPage
+}
 
 function formatCertificateTypeName(type: CertificateTypeResponseDto) {
   return type.certificateName || type.name || '-'
@@ -520,13 +580,25 @@ function getRecommendedCertificateCategory(type: (typeof recommendedCertificateT
   return preferences.language === 'ko' ? type.categoryKo : type.categoryEn
 }
 
+function getRecommendedCertificateOptionLabel(type: RecommendedCertificateType) {
+  return `${type.code} · ${getRecommendedCertificateCategory(type)} · ${getRecommendedCertificateName(type)}`
+}
+
 function selectRecommendedCertificateType(type: (typeof recommendedCertificateTypes)[number]) {
+  selectedCertificatePresetCode.value = type.code
   certificateTypeForm.certificateCode = type.code
   certificateTypeForm.certificateName = getRecommendedCertificateName(type)
   certificateTypeForm.scopeType = type.scope
   certificateTypeForm.issuerName = type.code.startsWith('ISO') ? 'ISO' : ''
   certificateTypeForm.requiredYn = ['HACCP', 'ISO-9001'].includes(type.code)
   certificateTypeForm.activeYn = true
+}
+
+function applySelectedCertificatePreset() {
+  const preset = recommendedCertificateTypes.find((type) => type.code === selectedCertificatePresetCode.value)
+  if (preset) {
+    selectRecommendedCertificateType(preset)
+  }
 }
 
 function collectDescendantCategoryIds(categoryPublicId: string) {
@@ -851,12 +923,60 @@ async function loadCertificateTypes() {
 }
 
 function resetCertificateTypeForm() {
+  selectedCertificatePresetCode.value = ''
   certificateTypeForm.certificateCode = ''
   certificateTypeForm.certificateName = ''
   certificateTypeForm.issuerName = ''
   certificateTypeForm.scopeType = 'SUPPLIER_COMMON'
   certificateTypeForm.requiredYn = false
   certificateTypeForm.activeYn = true
+}
+
+function fillCertificateTypeForm(type: CertificateTypeResponseDto) {
+  selectedCertificatePresetCode.value = ''
+  certificateTypeForm.certificateCode = type.certificateCode || ''
+  certificateTypeForm.certificateName = formatCertificateTypeName(type) === '-' ? '' : formatCertificateTypeName(type)
+  certificateTypeForm.issuerName = type.issuerName || ''
+  certificateTypeForm.scopeType = getCertificateScopeOption(type.scopeType) ? type.scopeType || 'SUPPLIER_COMMON' : 'SUPPLIER_COMMON'
+  certificateTypeForm.requiredYn = !!type.requiredYn
+  certificateTypeForm.activeYn = type.activeYn !== false
+}
+
+function openCreateCertificateTypeEditor() {
+  certificateTypeError.value = ''
+  certificateTypeSuccess.value = ''
+  editingCertificateTypePublicId.value = ''
+  resetCertificateTypeForm()
+  isCertificateTypeEditorOpen.value = true
+}
+
+function selectCertificateTypeForDetail(publicId: string) {
+  selectedCertificateTypePublicId.value = publicId
+
+  if (isCertificateTypeEditorOpen.value) {
+    editingCertificateTypePublicId.value = ''
+    isCertificateTypeEditorOpen.value = false
+    resetCertificateTypeForm()
+  }
+}
+
+function openEditCertificateTypeEditor() {
+  const targetType = selectedCertificateType.value
+  if (!targetType) return
+
+  certificateTypeError.value = ''
+  certificateTypeSuccess.value = ''
+  editingCertificateTypePublicId.value = targetType.publicId
+  fillCertificateTypeForm(targetType)
+  isCertificateTypeEditorOpen.value = true
+}
+
+function closeCertificateTypeEditor() {
+  certificateTypeError.value = ''
+  certificateTypeSuccess.value = ''
+  editingCertificateTypePublicId.value = ''
+  isCertificateTypeEditorOpen.value = false
+  resetCertificateTypeForm()
 }
 
 async function submitCertificateType() {
@@ -873,6 +993,28 @@ async function submitCertificateType() {
 
   try {
     certificateTypeSubmitting.value = true
+
+    const targetType = editingCertificateType.value
+
+    if (targetType) {
+      const updated = await updateCertificateType(targetType.publicId, {
+        certificateName: certificateTypeForm.certificateName.trim(),
+        issuerName: certificateTypeForm.issuerName?.trim() || undefined,
+        scopeType: certificateTypeForm.scopeType,
+        requiredYn: certificateTypeForm.requiredYn,
+        activeYn: certificateTypeForm.activeYn,
+      })
+
+      certificateTypes.value = certificateTypes.value.map((type) =>
+        type.publicId === updated.publicId ? updated : type,
+      )
+
+      certificateTypeSuccess.value = certificateTypeCopy.value.updateSuccess
+      selectedCertificateTypePublicId.value = updated.publicId
+      editingCertificateTypePublicId.value = updated.publicId
+      fillCertificateTypeForm(updated)
+      return
+    }
 
     const savedType = await createCertificateType({
       certificateCode: certificateTypeForm.certificateCode.trim(),
@@ -891,13 +1033,16 @@ async function submitCertificateType() {
     resetCertificateTypeForm()
     await loadCertificateTypes()
     selectedCertificateTypePublicId.value = savedType.publicId
+    isCertificateTypeEditorOpen.value = false
   } catch (error: any) {
     certificateTypeError.value =
       error?.payload?.message ||
       error?.message ||
-      (preferences.language === 'ko'
-        ? '인증 분류 등록에 실패했습니다.'
-        : 'Failed to create certificate type.')
+      (editingCertificateType.value
+        ? certificateTypeCopy.value.updateFailed
+        : preferences.language === 'ko'
+          ? '인증 분류 등록에 실패했습니다.'
+          : 'Failed to create certificate type.')
   } finally {
     certificateTypeSubmitting.value = false
   }
@@ -990,11 +1135,24 @@ watch(selectedCategoryPublicId, (categoryPublicId) => {
 })
 
 watch(certificateTypes, (types) => {
+  if (certificateTypePage.value >= certificateTypeTotalPages.value) {
+    certificateTypePage.value = Math.max(certificateTypeTotalPages.value - 1, 0)
+  }
+
   if (
     selectedCertificateTypePublicId.value &&
     !types.some((type) => type.publicId === selectedCertificateTypePublicId.value)
   ) {
     selectedCertificateTypePublicId.value = ''
+  }
+
+  if (
+    editingCertificateTypePublicId.value &&
+    !types.some((type) => type.publicId === editingCertificateTypePublicId.value)
+  ) {
+    editingCertificateTypePublicId.value = ''
+    isCertificateTypeEditorOpen.value = false
+    resetCertificateTypeForm()
   }
 })
 async function submitOrganization() {
@@ -1601,7 +1759,13 @@ if (!selectedOrganizationPublicId.value) {
               <h3>{{ certificateTypeCopy.listTitle }}</h3>
               <p class="settings-page__copy">{{ certificateTypeCopy.listDescription }}</p>
             </div>
-            <span class="page-panel__chip">{{ activeCertificateTypeCount }} / {{ certificateTypes.length }}</span>
+            <button
+              class="page-button page-button--primary"
+              type="button"
+              @click="openCreateCertificateTypeEditor"
+            >
+              {{ certificateTypeCopy.createLabel }}
+            </button>
           </div>
 
           <div v-if="certificateTypesLoading && !certificateTypes.length" class="page-table__empty">
@@ -1612,53 +1776,55 @@ if (!selectedOrganizationPublicId.value) {
             {{ certificateTypeCopy.empty }}
           </div>
 
-          <div v-else class="settings-certificate-types__list">
+          <div v-else class="settings-certificate-types__list page-feed">
             <button
-              v-for="certificateType in certificateTypes"
+              v-for="certificateType in visibleCertificateTypes"
               :key="certificateType.publicId"
               :class="[
                 'settings-certificate-types__item',
+                'page-feed__item',
                 { 'is-active': selectedCertificateTypePublicId === certificateType.publicId },
               ]"
               type="button"
-              @click="selectedCertificateTypePublicId = certificateType.publicId"
+              @click="selectCertificateTypeForDetail(certificateType.publicId)"
             >
               <span class="settings-certificate-types__item-meta">
                 {{ formatCertificateScope(certificateType.scopeType) }} ·
                 {{ certificateType.activeYn === false ? certificateTypeCopy.inactive : certificateTypeCopy.active }}
               </span>
-              <strong>{{ formatCertificateTypeName(certificateType) }}</strong>
-              <span class="settings-certificate-types__item-code">{{ certificateType.certificateCode || '-' }}</span>
+              <span class="settings-certificate-types__item-title">
+                <span class="settings-certificate-types__item-code">{{ certificateType.certificateCode || '-' }}</span>
+                <strong>{{ formatCertificateTypeName(certificateType) }}</strong>
+              </span>
             </button>
           </div>
 
-          <div class="settings-certificate-types__recommendations">
-            <div class="page-panel__head">
-              <div>
-                <div class="page-panel__eyebrow">ESG PRESET</div>
-                <h3>{{ certificateTypeCopy.recommendationTitle }}</h3>
-                <p class="settings-page__copy">{{ certificateTypeCopy.recommendationDescription }}</p>
-              </div>
-            </div>
-
+          <div v-if="certificateTypeTotalPages > 1" class="settings-certificate-types__pagination">
             <button
-              v-for="type in recommendedCertificateTypes"
-              :key="type.code"
-              class="settings-certificate-types__preset"
+              class="page-button page-button--secondary"
               type="button"
-              @click="selectRecommendedCertificateType(type)"
+              :disabled="!canMoveCertificateTypePrev"
+              @click="moveCertificateTypePage(certificateTypePage - 1)"
             >
-              <span>
-                <strong>{{ type.code }}</strong>
-                <em>{{ getRecommendedCertificateCategory(type) }}</em>
-              </span>
-              <span>{{ getRecommendedCertificateName(type) }}</span>
+              {{ preferences.language === 'ko' ? '이전' : 'Previous' }}
+            </button>
+            <strong>
+              {{ certificateTypeCurrentPageNumber }} / {{ certificateTypeTotalPages }} ·
+              {{ preferences.language === 'ko' ? `총 ${certificateTypes.length}개` : `Total ${certificateTypes.length}` }}
+            </strong>
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :disabled="!canMoveCertificateTypeNext"
+              @click="moveCertificateTypePage(certificateTypePage + 1)"
+            >
+              {{ preferences.language === 'ko' ? '다음' : 'Next' }}
             </button>
           </div>
         </article>
 
         <article class="page-panel">
-          <div class="page-panel__head">
+          <div v-if="!isCertificateTypeEditorOpen" class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">{{ certificateTypeCopy.detailEyebrow }}</div>
               <h3>{{ certificateTypeCopy.detailTitle }}</h3>
@@ -1674,7 +1840,110 @@ if (!selectedOrganizationPublicId.value) {
             {{ certificateTypeSuccess }}
           </div>
 
-          <div v-if="!selectedCertificateType" class="page-feed">
+          <div v-if="isCertificateTypeEditorOpen" class="settings-certificate-types__create">
+            <div class="page-panel__head">
+              <div>
+                <div class="page-panel__eyebrow">{{ certificateTypeCopy.formEyebrow }}</div>
+                <h3>{{ certificateTypeEditorTitle }}</h3>
+                <p class="settings-page__copy">{{ certificateTypeCopy.formDescription }}</p>
+              </div>
+            </div>
+
+          <div class="settings-form">
+            <label>
+              <span>{{ certificateTypeCopy.recommendationTitle }}</span>
+              <select
+                v-model="selectedCertificatePresetCode"
+                @change="applySelectedCertificatePreset"
+              >
+                <option value="">
+                  {{
+                    preferences.language === 'ko'
+                      ? '추천 인증을 선택하세요.'
+                      : 'Select a recommended certificate.'
+                  }}
+                </option>
+                <option
+                  v-for="type in recommendedCertificateTypes"
+                  :key="type.code"
+                  :value="type.code"
+                >
+                  {{ getRecommendedCertificateOptionLabel(type) }}
+                </option>
+              </select>
+            </label>
+
+            <label>
+              <span>{{ certificateTypeCopy.codeLabel }}</span>
+              <input
+                v-model="certificateTypeForm.certificateCode"
+                type="text"
+                placeholder="ISO-9001"
+                maxlength="50"
+                :readonly="!!editingCertificateType"
+              />
+            </label>
+
+            <label>
+              <span>{{ certificateTypeCopy.nameLabel }}</span>
+              <input v-model="certificateTypeForm.certificateName" type="text" placeholder="품질경영시스템" maxlength="100" />
+            </label>
+
+            <label>
+              <span>{{ certificateTypeCopy.issuerLabel }}</span>
+              <input v-model="certificateTypeForm.issuerName" type="text" placeholder="ISO" maxlength="100" />
+            </label>
+
+            <label>
+              <span>{{ certificateTypeCopy.scopeLabel }}</span>
+              <select v-model="certificateTypeForm.scopeType">
+                <option
+                  v-for="scope in certificateScopeOptions"
+                  :key="scope.value"
+                  :value="scope.value"
+                >
+                  {{ preferences.language === 'ko' ? scope.ko : scope.en }}
+                </option>
+              </select>
+            </label>
+
+            <div class="settings-certificate-types__toggles">
+              <label>
+                <input v-model="certificateTypeForm.requiredYn" type="checkbox" />
+                <span>{{ certificateTypeCopy.requiredLabel }}</span>
+              </label>
+
+              <label>
+                <input v-model="certificateTypeForm.activeYn" type="checkbox" />
+                <span>{{ certificateTypeCopy.activeLabel }}</span>
+              </label>
+            </div>
+
+            <div class="settings-certificate-types__form-actions">
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                @click="closeCertificateTypeEditor"
+              >
+                {{ certificateTypeCopy.cancelLabel }}
+              </button>
+              <button
+                class="page-button page-button--primary"
+                type="button"
+                :disabled="certificateTypeSubmitting"
+                @click="submitCertificateType"
+              >
+                {{
+                  certificateTypeSubmitting
+                    ? (editingCertificateType ? certificateTypeCopy.updatingLabel : certificateTypeCopy.submittingLabel)
+                    : (editingCertificateType ? certificateTypeCopy.updateLabel : certificateTypeCopy.submitLabel)
+                }}
+              </button>
+            </div>
+          </div>
+          </div>
+
+          <div v-else-if="!selectedCertificateType" class="page-feed">
             <div class="page-feed__item">
               <span class="page-feed__label">{{ certificateTypeCopy.detailTitle }}</span>
               <strong class="page-feed__text">{{ certificateTypeCopy.chooseType }}</strong>
@@ -1722,6 +1991,13 @@ if (!selectedOrganizationPublicId.value) {
 
             <div class="settings-certificate-types__detail-actions">
               <button
+                class="page-button page-button--secondary"
+                type="button"
+                @click="openEditCertificateTypeEditor"
+              >
+                {{ certificateTypeCopy.editLabel }}
+              </button>
+              <button
                 v-if="selectedCertificateType.activeYn === false"
                 class="page-button page-button--primary"
                 type="button"
@@ -1749,71 +2025,6 @@ if (!selectedOrganizationPublicId.value) {
               </button>
             </div>
           </template>
-
-          <div class="settings-certificate-types__create">
-            <div class="page-panel__head">
-              <div>
-                <div class="page-panel__eyebrow">{{ certificateTypeCopy.formEyebrow }}</div>
-                <h3>{{ certificateTypeCopy.formTitle }}</h3>
-                <p class="settings-page__copy">{{ certificateTypeCopy.formDescription }}</p>
-              </div>
-            </div>
-
-          <div class="settings-form">
-            <label>
-              <span>{{ certificateTypeCopy.codeLabel }}</span>
-              <input v-model="certificateTypeForm.certificateCode" type="text" placeholder="ISO-9001" maxlength="50" />
-            </label>
-
-            <label>
-              <span>{{ certificateTypeCopy.nameLabel }}</span>
-              <input v-model="certificateTypeForm.certificateName" type="text" placeholder="품질경영시스템" maxlength="100" />
-            </label>
-
-            <label>
-              <span>{{ certificateTypeCopy.issuerLabel }}</span>
-              <input v-model="certificateTypeForm.issuerName" type="text" placeholder="ISO" maxlength="100" />
-            </label>
-
-            <label>
-              <span>{{ certificateTypeCopy.scopeLabel }}</span>
-              <select v-model="certificateTypeForm.scopeType">
-                <option
-                  v-for="scope in certificateScopeOptions"
-                  :key="scope.value"
-                  :value="scope.value"
-                >
-                  {{ preferences.language === 'ko' ? scope.ko : scope.en }}
-                </option>
-              </select>
-            </label>
-
-            <div class="settings-certificate-types__toggles">
-              <label>
-                <input v-model="certificateTypeForm.requiredYn" type="checkbox" />
-                <span>{{ certificateTypeCopy.requiredLabel }}</span>
-              </label>
-
-              <label>
-                <input v-model="certificateTypeForm.activeYn" type="checkbox" />
-                <span>{{ certificateTypeCopy.activeLabel }}</span>
-              </label>
-            </div>
-
-            <button
-              class="page-button page-button--primary"
-              type="button"
-              :disabled="certificateTypeSubmitting"
-              @click="submitCertificateType"
-            >
-              {{
-                certificateTypeSubmitting
-                  ? certificateTypeCopy.submittingLabel
-                  : certificateTypeCopy.submitLabel
-              }}
-            </button>
-          </div>
-          </div>
         </article>
       </div>
     </section>
@@ -1851,72 +2062,81 @@ if (!selectedOrganizationPublicId.value) {
   font-weight: 700;
 }
 
-.settings-certificate-types__list,
-.settings-certificate-types__recommendations {
-  display: grid;
+.settings-certificate-types__list {
   gap: 12px;
 }
 
-.settings-certificate-types__item,
-.settings-certificate-types__preset {
+.settings-certificate-types__item {
   width: 100%;
-  border: 1px solid transparent;
-  background: var(--color-surface-container-lowest);
+  border: 0;
+  background: var(--surface-container-lowest, #fff);
   color: var(--color-on-surface);
   cursor: pointer;
   text-align: left;
+  transition: background-color 0.15s ease, outline-color 0.15s ease;
 }
 
 .settings-certificate-types__item {
   display: grid;
-  gap: 8px;
-  min-height: 92px;
-  padding: 18px 20px;
+  gap: 7px;
+  align-items: center;
+  min-height: 96px;
+  padding: 18px 22px;
 }
 
 .settings-certificate-types__item.is-active {
-  border-color: var(--color-outline);
-  background: var(--color-surface-container-high);
+  background: var(--surface-container-lowest, #fff);
+  outline: 0;
 }
 
 .settings-certificate-types__item-meta,
-.settings-certificate-types__item-code,
-.settings-certificate-types__preset em {
+.settings-certificate-types__item-code {
   color: var(--color-on-surface-variant);
   font-size: 0.75rem;
   font-style: normal;
   font-weight: 800;
 }
 
-.settings-certificate-types__item strong {
+.settings-certificate-types__item-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.settings-certificate-types__item-title strong {
   font-size: 1.25rem;
   line-height: 1.2;
 }
 
-.settings-certificate-types__recommendations,
+.settings-certificate-types__item-title .settings-certificate-types__item-code {
+  color: var(--color-on-surface);
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
 .settings-certificate-types__create {
-  margin-top: 24px;
-  border-top: 1px solid var(--color-surface-container-high);
-  padding-top: 24px;
+  margin-top: 0;
 }
 
-.settings-certificate-types__preset {
+.settings-certificate-types__form-actions {
   display: grid;
-  grid-template-columns: minmax(120px, 0.55fr) minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  min-height: 56px;
-  padding: 12px 14px;
+  grid-template-columns: minmax(120px, 0.28fr) minmax(0, 1fr);
+  gap: 10px;
 }
 
-.settings-certificate-types__preset:hover,
 .settings-certificate-types__item:hover {
-  border-color: var(--color-outline);
+  background: var(--surface-container-lowest, #fff);
+  outline: 1px solid var(--color-outline);
 }
 
-.settings-certificate-types__preset span {
-  display: grid;
-  gap: 3px;
+.settings-certificate-types__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 20px;
 }
 
 .settings-certificate-types__detail-hero {
@@ -1982,8 +2202,22 @@ if (!selectedOrganizationPublicId.value) {
 
 .settings-certificate-types__detail-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 10px;
   margin-top: 28px;
+}
+
+.settings-certificate-types__detail-actions .page-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  margin-top: 0;
+  padding: 0 16px;
 }
 
 @media (max-width: 720px) {
@@ -1991,10 +2225,17 @@ if (!selectedOrganizationPublicId.value) {
     grid-template-columns: 1fr;
   }
 
-  .settings-certificate-types__preset,
   .settings-certificate-types__detail-hero,
   .settings-certificate-types__detail-list > div {
     grid-template-columns: 1fr;
+  }
+
+  .settings-certificate-types__item {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-certificate-types__pagination {
+    flex-wrap: wrap;
   }
 
   .settings-certificate-types__detail-list strong {
