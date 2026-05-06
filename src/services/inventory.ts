@@ -90,3 +90,10 @@ export async function getItemInventories(itemPublicId: string) {
   return response.data
 }
 
+export async function getRecentNodeInventories(nodePublicId: string) {
+  const response = await apiClient.get<ItemInventoryResponseDto[]>(
+    `/api/supply/inventories/nodes/${nodePublicId}/recent`,
+  )
+  return response.data
+}
+

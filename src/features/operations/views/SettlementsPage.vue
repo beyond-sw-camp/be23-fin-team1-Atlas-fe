@@ -67,6 +67,7 @@ const CONTENT = {
       detailAmount: '금액',
     },
     targetTypes: {
+      ORDER: '발주',
       SHIPMENT: '출하',
       RETURN: '반품',
       DELIVERY_EXCEPTION: '배송 예외',
@@ -168,6 +169,7 @@ const CONTENT = {
       detailAmount: 'Amount',
     },
     targetTypes: {
+      ORDER: 'Order',
       SHIPMENT: 'Shipment',
       RETURN: 'Return',
       DELIVERY_EXCEPTION: 'Delivery Exception',
@@ -703,6 +705,10 @@ function getTargetLabel(targetType: SettlementTargetType, targetPublicId: string
   if (targetType === 'RETURN') {
     const target = returnOptions.value.find((item) => item.publicId === targetPublicId)
     return target ? `${target.returnNumber} / ${target.returnType}` : targetPublicId
+  }
+
+  if (targetType === 'ORDER') {
+    return targetPublicId
   }
 
   if (targetType === 'SHIPMENT') {

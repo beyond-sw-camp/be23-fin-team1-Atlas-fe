@@ -18,7 +18,7 @@ import {
 import { useRoute, useRouter } from 'vue-router'
 import { getCertificate, getCertificateHistories } from '../../../services/certificate'
 import { getAttachment, uploadAttachment, type AttachmentFileDto } from '../../../services/file'
-import { getInventory, getInventories } from '../../../services/inventory'
+import { getInventories, getRecentNodeInventories } from '../../../services/inventory'
 import { getLogisticsNode } from '../../../services/logistics'
 import { getReturnHistories, getReturnRequest, updateReturnStatus, type ReturnStatus } from '../../../services/return'
 import { getSettlement } from '../../../services/settlement'
@@ -892,6 +892,7 @@ const lineItems = computed(() => {
   if (Array.isArray(related.value.histories)) return related.value.histories
   if (Array.isArray(related.value.linkedOrders)) return related.value.linkedOrders
   if (Array.isArray(related.value.capabilities)) return related.value.capabilities
+  if (Array.isArray(related.value.recentInventories)) return related.value.recentInventories
   return []
 })
 
@@ -902,6 +903,7 @@ const lineColumns = computed(() => {
   if (kind.value === 'settlements') return ['품목 ID', '수량', '단가', '금액', '상태']
   if (kind.value === 'items') return ['발주번호', '거래처', '수량', '상태', '납기']
   if (kind.value === 'suppliers') return ['품목', '등급', '리드타임', '가용 수량', '상태']
+  if (kind.value === 'logistics-nodes') return ['품목', '남은 수량', '예약 수량', '상태', '유통기한']
   if (kind.value === 'certificates') {
     return preferences.language === 'ko'
       ? ['일시', '이전 상태', '변경 상태', '사유']
@@ -1092,6 +1094,15 @@ function lineCell(row: any, index: number) {
   }
   if (kind.value === 'suppliers') {
     return [row.itemName, row.qualityGrade, row.leadTimeDays, formatNumber(row.availableQty), row.status][index]
+  }
+  if (kind.value === 'logistics-nodes') {
+    return [
+      row.itemName ?? row.itemCode,
+      formatNumber(row.remainingQty),
+      formatNumber(row.reservedQty),
+      row.status,
+      row.expirationDate,
+    ][index]
   }
   if (kind.value === 'certificates') {
     return [
@@ -1366,7 +1377,12 @@ async function fetchDetail() {
       data.value = detail as Record<string, any>
       related.value = { capabilities }
     } else if (kind.value === 'logistics-nodes') {
-      data.value = await getLogisticsNode(publicId.value)
+      const [detail, recentInventories] = await Promise.all([
+        getLogisticsNode(publicId.value),
+        getRecentNodeInventories(publicId.value).catch(() => []),
+      ])
+      data.value = detail as Record<string, any>
+      related.value = { recentInventories }
     } else if (kind.value === 'settlements') {
       data.value = await getSettlement(publicId.value)
     } else if (kind.value === 'certificates') {

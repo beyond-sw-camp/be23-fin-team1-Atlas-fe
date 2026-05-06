@@ -228,8 +228,8 @@ function handleOpenEditModal(node: LogisticsNodeResponseDto) {
   createForm.value = {
     nodeName: node.nodeName,
     nodeType: 'WAREHOUSE',
-    address: node.address ?? '',
-    addressDetail: '',
+    address: node.baseAddress ?? node.address ?? '',
+    addressDetail: node.detailAddress ?? '',
     capacityStatus: node.capacityStatus,
   }
   openCreateModal()
@@ -301,7 +301,6 @@ async function handleCreateSubmit() {
   const nodeName = createForm.value.nodeName.trim()
   const address = createForm.value.address.trim()
   const addressDetail = createForm.value.addressDetail.trim()
-  const fullAddress = [address, addressDetail].filter(Boolean).join(' ')
 
   if (!nodeName || !address) {
     await dialog.alert(content.value.addressRequired)
@@ -315,7 +314,8 @@ async function handleCreateSubmit() {
     const payload = {
       nodeName,
       nodeType: 'WAREHOUSE' as LogisticsNodeType,
-      address: fullAddress,
+      baseAddress: address,
+      detailAddress: addressDetail || null,
       capacityStatus: createForm.value.capacityStatus,
     }
 
@@ -354,7 +354,9 @@ const filteredNodes = computed(() => {
     return (
       node.nodeCode.toLowerCase().includes(query) ||
       node.nodeName.toLowerCase().includes(query) ||
-      (node.address ?? '').toLowerCase().includes(query)
+      [node.address, node.baseAddress, node.detailAddress].some((value) =>
+        (value ?? '').toLowerCase().includes(query),
+      )
     )
   })
 })

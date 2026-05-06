@@ -33,6 +33,12 @@ export interface ShipmentListResponseDto {
   temperatureRequired?: boolean
   sealedPackagingRequired?: boolean
   fragile?: boolean
+  canUpdate?: boolean
+  canStart?: boolean
+  canArrive?: boolean
+  canCancel?: boolean
+  canTrack?: boolean
+  canRegisterException?: boolean
 }
 
 export interface ShipmentResponseDto {
@@ -70,6 +76,12 @@ export interface ShipmentResponseDto {
   temperatureRequired: boolean
   sealedPackagingRequired: boolean
   fragile: boolean
+  canUpdate?: boolean
+  canStart?: boolean
+  canArrive?: boolean
+  canCancel?: boolean
+  canTrack?: boolean
+  canRegisterException?: boolean
   shipmentLines?: ShipmentLineResponseDto[]
 }
 
@@ -302,6 +314,15 @@ export async function arriveShipment(
 ): Promise<ShipmentResponseDto> {
   const response = await apiClient.patch<ShipmentResponseDto>(
     `/api/supply/shipments/${publicId}/arrive`,
+  )
+  return response.data
+}
+
+export async function cancelShipment(
+  publicId: string,
+): Promise<ShipmentResponseDto> {
+  const response = await apiClient.patch<ShipmentResponseDto>(
+    `/api/supply/shipments/${publicId}/cancel`,
   )
   return response.data
 }

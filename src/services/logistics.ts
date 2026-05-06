@@ -8,14 +8,16 @@ export type LogisticsNodeCapacityStatus = 'EMPTY' | 'AVAILABLE' | 'FULL'
 export interface CreateLogisticsNodeRequestDto {
   nodeName: string
   nodeType: LogisticsNodeType
-  address?: string
+  baseAddress: string
+  detailAddress?: string | null
   capacityStatus?: LogisticsNodeCapacityStatus
 }
 
 export interface UpdateLogisticsNodeRequestDto {
   nodeName: string
   nodeType: LogisticsNodeType
-  address?: string
+  baseAddress: string
+  detailAddress?: string | null
   capacityStatus: LogisticsNodeCapacityStatus
 }
 
@@ -25,6 +27,8 @@ export interface LogisticsNodeResponseDto {
   nodeCode: string
   nodeName: string
   nodeType: LogisticsNodeType
+  baseAddress?: string | null
+  detailAddress?: string | null
   address?: string | null
   latitude?: number | null
   longitude?: number | null
