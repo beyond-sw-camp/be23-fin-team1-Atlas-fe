@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useActorScope } from '../../../composables/useActorScope'
-import { getItem, getManagedItems, getManagedItemLinkedOrders } from '../../../services/item'
+import {
+  changeItemStatus,
+  getItem,
+  getManagedItems,
+  getManagedItemLinkedOrders,
+  updateItem,
+  type ManageableItemStatus,
+  type SupplierItemQualityGrade,
+} from '../../../services/item'
 import {
   confirmPurchaseOrderItem,
   getPurchaseOrder,
@@ -15,7 +23,12 @@ import { getLogisticsNode } from '../../../services/logistics'
 import { getReturnHistories, getReturnRequest, updateReturnStatus, type ReturnStatus } from '../../../services/return'
 import { getSettlement } from '../../../services/settlement'
 import { getShipment, getShipmentEta, getShipmentStatusHistories } from '../../../services/shipment'
-import { getSupplier, getSupplierItemCapabilities } from '../../../services/supplier'
+import {
+  getSupplier,
+  getSupplierItemCapabilities,
+  getSupplierItemCapability,
+  updateSupplierItemCapability,
+} from '../../../services/supplier'
 import { getUserDetailByPublicId } from '../../../services/user'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSidebarBadgesStore } from '../../../stores/sidebarBadges'
@@ -357,6 +370,34 @@ const data = ref<Record<string, any> | null>(null)
 const related = ref<Record<string, any>>({})
 const itemMediaViewerOpen = ref(false)
 const itemMediaViewerIndex = ref(0)
+const itemEditModalOpen = ref(false)
+const itemEditLoading = ref(false)
+const itemEditErrorMessage = ref('')
+const itemEditForm = ref({
+  itemName: '',
+  unitPrice: null as number | null,
+  spec: '',
+  shelfLifeDays: 0,
+  status: 'ACTIVE' as ManageableItemStatus,
+  leadTimeDays: 0,
+  monthlyCapacity: null as number | null,
+  availableQty: null as number | null,
+  moq: null as number | null,
+  qualityGrade: '' as SupplierItemQualityGrade | '',
+  unitPriceHint: null as number | null,
+  validFrom: '',
+  partialConfirmationAllowed: true,
+})
+
+const QUALITY_GRADE_OPTIONS: SupplierItemQualityGrade[] = [
+  'AAA',
+  'AA_PLUS',
+  'AA',
+  'A_PLUS',
+  'A',
+  'B',
+  'C',
+]
 
 const kind = computed(() => route.params.kind as DetailKind)
 const publicId = computed(() => route.params.publicId as string)
@@ -1007,6 +1048,19 @@ function formatDate(value: unknown) {
   return String(value).replace('T', ' ').slice(0, 16)
 }
 
+function qualityGradeText(value: SupplierItemQualityGrade | null | undefined) {
+  if (!value) return '-'
+
+  switch (value) {
+    case 'AA_PLUS':
+      return 'AA+'
+    case 'A_PLUS':
+      return 'A+'
+    default:
+      return value
+  }
+}
+
 function formatMinutes(value: unknown) {
   if (typeof value !== 'number') return '-'
   return detailCopy.value.minutes(value)
@@ -1106,13 +1160,86 @@ function handleEditOrder() {
   })
 }
 
-function handleEditItem() {
-  router.push({
-    name: 'items',
-    query: {
-      edit: publicId.value,
-    },
-  })
+async function handleEditItem() {
+  if (!data.value) return
+
+  itemEditErrorMessage.value = ''
+  const capability = await getSupplierItemCapability(data.value.supplierPublicId, publicId.value).catch(() => null)
+
+  itemEditForm.value = {
+    itemName: display(data.value.itemName) === '-' ? '' : String(data.value.itemName),
+    unitPrice: typeof data.value.unitPrice === 'number' ? data.value.unitPrice : null,
+    spec: display(data.value.spec) === '-' ? '' : String(data.value.spec),
+    shelfLifeDays: Number(data.value.shelfLifeDays ?? 0),
+    status: data.value.status === 'DEACTIVE' ? 'DEACTIVE' : 'ACTIVE',
+    leadTimeDays: Number(capability?.leadTimeDays ?? data.value.leadTimeDays ?? 0),
+    monthlyCapacity: capability?.monthlyCapacity ?? data.value.monthlyCapacity ?? null,
+    availableQty: capability?.availableQty ?? data.value.availableQty ?? null,
+    moq: capability?.moq ?? data.value.moq ?? null,
+    qualityGrade: capability?.qualityGrade ?? '',
+    unitPriceHint: capability?.unitPriceHint ?? data.value.unitPrice ?? null,
+    validFrom: capability?.validFrom ?? '',
+    partialConfirmationAllowed: capability?.partialConfirmationAllowed ?? data.value.partialConfirmationAllowed ?? true,
+  }
+
+  itemEditModalOpen.value = true
+}
+
+function closeItemEditModal() {
+  itemEditModalOpen.value = false
+  itemEditLoading.value = false
+  itemEditErrorMessage.value = ''
+}
+
+async function submitItemEdit() {
+  if (!data.value) return
+
+  const nextName = itemEditForm.value.itemName.trim()
+  const nextSpec = itemEditForm.value.spec.trim()
+  if (!nextName || !nextSpec) {
+    itemEditErrorMessage.value = t('품목명과 규격을 입력해 주세요.', 'Enter item name and spec.')
+    return
+  }
+
+  try {
+    itemEditLoading.value = true
+    itemEditErrorMessage.value = ''
+
+    await updateItem(publicId.value, {
+      itemCategoryPublicId: data.value.itemCategoryPublicId,
+      supplyType: data.value.supplyType,
+      itemName: nextName,
+      unitPrice: Number(itemEditForm.value.unitPrice ?? data.value.unitPrice ?? 0),
+      unit: data.value.unit,
+      spec: nextSpec,
+      shelfLifeDays: Number(itemEditForm.value.shelfLifeDays),
+      originLogisticsNodePublicId: data.value.originLogisticsNodePublicId,
+    })
+
+    await updateSupplierItemCapability(data.value.supplierPublicId, publicId.value, {
+      leadTimeDays: Number(itemEditForm.value.leadTimeDays),
+      monthlyCapacity: itemEditForm.value.monthlyCapacity,
+      availableQty: itemEditForm.value.availableQty,
+      moq: itemEditForm.value.moq,
+      qualityGrade: itemEditForm.value.qualityGrade || null,
+      unitPriceHint: itemEditForm.value.unitPriceHint,
+      validFrom: itemEditForm.value.validFrom || null,
+      partialConfirmationAllowed: itemEditForm.value.partialConfirmationAllowed,
+    })
+
+    if (data.value.status !== itemEditForm.value.status) {
+      await changeItemStatus(publicId.value, {
+        status: itemEditForm.value.status,
+      })
+    }
+
+    await fetchDetail()
+    closeItemEditModal()
+  } catch (error: any) {
+    itemEditErrorMessage.value = error?.message ?? t('품목 수정에 실패했습니다.', 'Failed to edit item.')
+  } finally {
+    itemEditLoading.value = false
+  }
 }
 
 function handleEditInventory() {
@@ -1605,8 +1732,17 @@ watch(
             </article>
             <article class="operation-detail-page__domain-card"><h3>{{ kind === 'items' ? 'ITEM DETAIL' : 'INVENTORY STATUS' }}</h3><table class="operation-detail-page__domain-table"><thead><tr><th>ITEM CODE</th><th>ITEM NAME</th><th>UOM</th><th>CURRENT STOCK</th><th>SAFETY STOCK</th><th>SHORTAGE QTY</th><th>STATUS</th><th>AFFECTED POs</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="row[0]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table></article>
             <article class="operation-detail-page__domain-card"><h3>DEMAND vs SAFETY STOCK</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>Forecast demand</strong></div></article>
+            <div v-if="kind === 'items'" class="operation-detail-page__item-edit-actions">
+              <button
+                class="page-button page-button--primary"
+                type="button"
+                @click="handleEditItem"
+              >
+                수정
+              </button>
+            </div>
           </section>
-          <div v-if="kind === 'items' || kind === 'inventory'" class="operation-detail-page__bottom-actions">
+          <div v-if="kind === 'inventory'" class="operation-detail-page__bottom-actions">
             <button class="page-button page-button--secondary" type="button" @click="goBack">
               {{ detailCopy.backToList }}
             </button>
@@ -1614,16 +1750,6 @@ watch(
             <span></span>
 
             <button
-              v-if="kind === 'items'"
-              class="page-button page-button--primary"
-              type="button"
-              @click="handleEditItem"
-            >
-              수정
-            </button>
-
-            <button
-              v-else-if="kind === 'inventory'"
               class="page-button page-button--primary"
               type="button"
               @click="handleEditInventory"
@@ -1881,6 +2007,114 @@ watch(
           <span></span>
           <button class="page-button page-button--primary" type="button" :disabled="loading" @click="handleAcceptOrder">
             수락 완료
+          </button>
+        </div>
+      </div>
+    </BaseModal>
+
+    <BaseModal
+      v-model="itemEditModalOpen"
+      :title="t('품목 수정', 'Edit Item')"
+      :description="t('현재 품목의 기본 정보와 공급 역량을 수정합니다.', 'Edit item details and supplier capability.')"
+      size="lg"
+      @close="closeItemEditModal"
+    >
+      <div class="operation-detail-page__edit-form">
+        <section class="operation-detail-page__edit-section">
+          <h3>{{ t('품목 기본 정보', 'Item Basic Info') }}</h3>
+
+          <label class="operation-detail-page__edit-field">
+            <span>ITEM NAME</span>
+            <input v-model="itemEditForm.itemName" type="text" />
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>UNIT PRICE</span>
+            <input v-model.number="itemEditForm.unitPrice" type="number" min="0" step="0.01" />
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>SHELF LIFE DAYS</span>
+            <input v-model.number="itemEditForm.shelfLifeDays" type="number" min="0" />
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>{{ t('상태', 'Status') }}</span>
+            <select v-model="itemEditForm.status">
+              <option value="ACTIVE">{{ t('활성', 'ACTIVE') }}</option>
+              <option value="DEACTIVE">{{ t('비활성', 'DEACTIVE') }}</option>
+            </select>
+          </label>
+
+          <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
+            <span>SPEC</span>
+            <textarea v-model="itemEditForm.spec" />
+          </label>
+        </section>
+
+        <section class="operation-detail-page__edit-section">
+          <h3>{{ t('협력사 품목 공급 역량', 'Supplier Item Capability') }}</h3>
+
+          <label class="operation-detail-page__edit-field">
+            <span>{{ t('리드타임', 'Lead Time') }}</span>
+            <input v-model.number="itemEditForm.leadTimeDays" type="number" min="0" />
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>{{ t('월간 생산량', 'Monthly Capacity') }}</span>
+            <input v-model.number="itemEditForm.monthlyCapacity" type="number" min="1" step="1" />
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>{{ t('주문 가능 수량', 'Available Qty') }}</span>
+            <input v-model.number="itemEditForm.availableQty" type="number" min="1" step="1" />
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>{{ t('최소 주문 수량', 'MOQ') }}</span>
+            <input v-model.number="itemEditForm.moq" type="number" min="1" step="1" />
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>{{ t('품질 등급', 'Quality Grade') }}</span>
+            <select v-model="itemEditForm.qualityGrade">
+              <option value="">{{ t('선택 안 함', 'None') }}</option>
+              <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
+                {{ qualityGradeText(grade) }}
+              </option>
+            </select>
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>{{ t('품질 단가', 'Quality Price') }}</span>
+            <input v-model.number="itemEditForm.unitPriceHint" type="number" min="0" step="0.01" />
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>{{ t('적용 시작일', 'Valid From') }}</span>
+            <input v-model="itemEditForm.validFrom" type="date" />
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>{{ t('부분 확정', 'Partial Confirmation') }}</span>
+            <select v-model="itemEditForm.partialConfirmationAllowed">
+              <option :value="true">{{ t('허용', 'Allowed') }}</option>
+              <option :value="false">{{ t('비허용', 'Disallowed') }}</option>
+            </select>
+          </label>
+        </section>
+
+        <p v-if="itemEditErrorMessage" class="operation-detail-page__error">
+          {{ itemEditErrorMessage }}
+        </p>
+
+        <div class="operation-detail-page__bottom-actions">
+          <button class="page-button page-button--secondary" type="button" @click="closeItemEditModal">
+            {{ t('취소', 'Cancel') }}
+          </button>
+          <span></span>
+          <button class="page-button page-button--primary" type="button" :disabled="itemEditLoading" @click="submitItemEdit">
+            {{ t('품목 수정', 'Save Item') }}
           </button>
         </div>
       </div>
@@ -2730,6 +2964,11 @@ watch(
   align-items: center;
 }
 
+.operation-detail-page__item-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .operation-detail-page__recommendation {
   grid-template-columns: 56px minmax(0, 1fr) max-content;
   align-items: center;
@@ -2742,6 +2981,53 @@ watch(
 
 .operation-detail-page__recommendation .page-button {
   min-height: 34px;
+}
+
+.operation-detail-page__edit-form {
+  display: grid;
+  gap: 22px;
+}
+
+.operation-detail-page__edit-section {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.operation-detail-page__edit-section h3 {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.operation-detail-page__edit-field {
+  display: grid;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 850;
+  color: var(--text-muted);
+}
+
+.operation-detail-page__edit-field--full {
+  grid-column: 1 / -1;
+}
+
+.operation-detail-page__edit-field input,
+.operation-detail-page__edit-field select,
+.operation-detail-page__edit-field textarea {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 10px 12px;
+  color: var(--text);
+  font: inherit;
+}
+
+.operation-detail-page__edit-field textarea {
+  min-height: 92px;
+  resize: vertical;
 }
 
 .operation-detail-page__supplier-head {
