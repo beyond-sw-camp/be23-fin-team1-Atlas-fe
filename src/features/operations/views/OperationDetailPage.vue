@@ -800,8 +800,8 @@ const heroMetrics = computed<DetailMetric[]>(() => {
     return [
       { label: '거점 코드', value: display(item.nodeCode) },
       { label: '유형', value: display(item.nodeType) },
-      { label: '가용 상태', value: display(item.capacityStatus), tone: statusTone.value },
-      { label: '운영 여부', value: item.active ? 'ACTIVE' : 'INACTIVE', tone: item.active ? 'success' : 'critical' },
+      { label: '가용 상태', value: displayLogisticsCapacityStatus(item.capacityStatus), tone: statusTone.value },
+      { label: '운영 여부', value: displayLogisticsActiveStatus(item.active), tone: item.active ? 'success' : 'critical' },
     ]
   }
 
@@ -993,9 +993,9 @@ const sections = computed<DetailSection[]>(() => {
         ['거점 코드', item.nodeCode],
         ['거점명', item.nodeName],
         ['유형', item.nodeType],
-        ['가용 상태', item.capacityStatus],
+        ['가용 상태', displayLogisticsCapacityStatus(item.capacityStatus)],
         ['주소', item.address],
-        ['운영 여부', item.active ? 'ACTIVE' : 'INACTIVE'],
+        ['운영 여부', displayLogisticsActiveStatus(item.active)],
       ]),
     ]
   }
@@ -1129,6 +1129,20 @@ function displayItemStatus(value: unknown) {
   if (statusValue === 'DEACTIVE') return '비활성'
   if (statusValue === 'DELETE') return '삭제'
   return display(value)
+}
+
+function displayLogisticsCapacityStatus(value: unknown) {
+  const statusValue = String(value || '').toUpperCase()
+  if (preferences.language !== 'ko') return display(value)
+  if (statusValue === 'AVAILABLE') return '사용 가능'
+  if (statusValue === 'EMPTY') return '여유'
+  if (statusValue === 'FULL') return '가득 참'
+  return display(value)
+}
+
+function displayLogisticsActiveStatus(value: unknown) {
+  if (preferences.language !== 'ko') return value ? 'ACTIVE' : 'INACTIVE'
+  return value ? '활성' : '비활성'
 }
 
 function formatNumber(value: unknown) {
@@ -2072,7 +2086,7 @@ watch(
 
       <div class="operation-detail-page__layout">
         <main class="operation-detail-page__main">
-          <article class="operation-detail-page__block operation-detail-page__process">
+          <article v-if="kind !== 'logistics-nodes'" class="operation-detail-page__block operation-detail-page__process">
             <h2>{{ detailCopy.common.process }}</h2>
             <div class="operation-detail-page__timeline">
               <div
@@ -2171,17 +2185,14 @@ watch(
             </table>
           </article>
 
-          <article v-if="kind === 'logistics-nodes' && data" class="operation-detail-page__block operation-detail-page__node-actions">
-            <h2>{{ t('관리 작업', 'Management Actions') }}</h2>
-            <div class="operation-detail-page__action-list">
-              <button class="page-button page-button--primary" type="button" @click="handleEditLogisticsNode">
-                {{ t('수정', 'Edit') }}
-              </button>
-              <button class="page-button page-button--secondary" type="button" :disabled="loading" @click="toggleLogisticsNodeActive">
-                {{ data.active ? t('비활성화', 'Deactivate') : t('활성화', 'Activate') }}
-              </button>
-            </div>
-          </article>
+          <div v-if="kind === 'logistics-nodes' && data" class="operation-detail-page__node-actions">
+            <button class="page-button page-button--secondary" type="button" @click="handleEditLogisticsNode">
+              {{ t('수정', 'Edit') }}
+            </button>
+            <button class="page-button page-button--secondary" type="button" :disabled="loading" @click="toggleLogisticsNodeActive">
+              {{ data.active ? t('비활성화', 'Deactivate') : t('활성화', 'Activate') }}
+            </button>
+          </div>
 
           <article v-if="isReturnDetail" class="operation-detail-page__block">
             <h2>{{ t('반품 증빙 사진', 'Return Proof Photos') }}</h2>
@@ -3034,6 +3045,20 @@ watch(
 
 .operation-detail-page__action-list .page-button:first-child {
   grid-column: 1 / -1;
+}
+
+.operation-detail-page__node-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: -4px;
+}
+
+.operation-detail-page__node-actions .page-button {
+  min-height: 32px;
+  min-width: 76px;
+  padding: 0 12px;
+  font-size: 0.68rem;
 }
 
 .operation-detail-page .page-button,
