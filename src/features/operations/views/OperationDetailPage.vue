@@ -22,6 +22,13 @@ import { useAtlasSidebarBadgesStore } from '../../../stores/sidebarBadges'
 import type { PageKey } from '../../../types'
 import { BaseModal } from '../../shared'
 import { getSubPurchaseOrder } from '../../../services/subPurchaseOrder'
+import {
+  getItemMedia,
+  itemMediaFilesFromItem,
+  resolveItemMediaUrl,
+  resolveItemOriginalMediaUrl,
+  type ItemMediaFile,
+} from '../../../services/itemMedia'
 
 
 
@@ -348,6 +355,8 @@ const loading = ref(false)
 const errorMessage = ref('')
 const data = ref<Record<string, any> | null>(null)
 const related = ref<Record<string, any>>({})
+const itemMediaViewerOpen = ref(false)
+const itemMediaViewerIndex = ref(0)
 
 const kind = computed(() => route.params.kind as DetailKind)
 const publicId = computed(() => route.params.publicId as string)
@@ -1214,8 +1223,14 @@ async function fetchDetail() {
         throw new Error('조회 가능한 품목이 아닙니다.')
       }
 
+      const media = itemMediaFilesFromItem(detail).length
+        ? itemMediaFilesFromItem(detail)
+        : detail.primaryMediaFilePublicId
+          ? await getItemMedia(publicId.value)
+          : []
+
       data.value = detail as Record<string, any>
-      related.value = { linkedOrders }
+      related.value = { linkedOrders, itemMedia: media }
     } else if (kind.value === 'suppliers') {
       const [detail, capabilities] = await Promise.all([
         getSupplier(publicId.value),
@@ -1258,6 +1273,32 @@ const returnProofFiles = computed<AttachmentFileDto[]>(() => {
   if (!related.value.returnAttachments) return []
   return related.value.returnAttachments.flatMap((att: any) => att.files || [])
 })
+
+const itemMediaFiles = computed<ItemMediaFile[]>(() => {
+  const files = related.value.itemMedia
+  return Array.isArray(files) ? files : []
+})
+
+function openItemMediaViewer(index: number) {
+  itemMediaViewerIndex.value = index
+  itemMediaViewerOpen.value = true
+}
+
+function closeItemMediaViewer() {
+  itemMediaViewerOpen.value = false
+}
+
+function nextItemMedia() {
+  if (itemMediaViewerIndex.value < itemMediaFiles.value.length - 1) {
+    itemMediaViewerIndex.value += 1
+  }
+}
+
+function prevItemMedia() {
+  if (itemMediaViewerIndex.value > 0) {
+    itemMediaViewerIndex.value -= 1
+  }
+}
 
 function fileLink(file: AttachmentFileDto) {
   return file.fileUrl ?? file.filePath ?? ''
@@ -1534,6 +1575,34 @@ watch(
         <main v-else class="operation-detail-page__document-grid">
           <section class="operation-detail-page__document-main">
             <section class="operation-detail-page__metric-row"><div><span>TOTAL ITEMS</span><strong>1,248 EA</strong></div><div><span>TOTAL INVENTORY VALUE</span><strong>₩ 2,451,830,000</strong></div><div><span>NORMAL</span><strong>1,012</strong></div><div><span>LOW STOCK</span><strong>156</strong></div><div><span>SHORTAGE DETECTED</span><strong class="is-alert">80</strong></div></section>
+            <article v-if="kind === 'items'" class="operation-detail-page__domain-card">
+              <h3>{{ t('품목 미디어', 'Item Media') }}</h3>
+              <div v-if="itemMediaFiles.length === 0" class="page-table__empty">
+                {{ t('등록된 미디어가 없습니다.', 'No media registered.') }}
+              </div>
+              <div v-else class="operation-detail-page__item-media-grid">
+                <button
+                  v-for="(file, index) in itemMediaFiles"
+                  :key="file.publicId"
+                  class="operation-detail-page__item-media"
+                  type="button"
+                  @click="openItemMediaViewer(index)"
+                >
+                  <img
+                    v-if="file.kind === 'image'"
+                    :src="resolveItemMediaUrl(file)"
+                    :alt="file.originalFileName"
+                  />
+                  <video
+                    v-else
+                    :src="resolveItemMediaUrl(file)"
+                    preload="metadata"
+                  />
+                  <span v-if="file.kind === 'video'" class="material-symbols-outlined">play_circle</span>
+                  <small>{{ file.originalFileName }}</small>
+                </button>
+              </div>
+            </article>
             <article class="operation-detail-page__domain-card"><h3>{{ kind === 'items' ? 'ITEM DETAIL' : 'INVENTORY STATUS' }}</h3><table class="operation-detail-page__domain-table"><thead><tr><th>ITEM CODE</th><th>ITEM NAME</th><th>UOM</th><th>CURRENT STOCK</th><th>SAFETY STOCK</th><th>SHORTAGE QTY</th><th>STATUS</th><th>AFFECTED POs</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="row[0]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table></article>
             <article class="operation-detail-page__domain-card"><h3>DEMAND vs SAFETY STOCK</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>Forecast demand</strong></div></article>
           </section>
@@ -1817,6 +1886,48 @@ watch(
       </div>
     </BaseModal>
 
+    <Teleport to="body">
+      <div
+        v-if="itemMediaViewerOpen && itemMediaFiles[itemMediaViewerIndex]"
+        class="operation-detail-page__media-viewer"
+        @click.self="closeItemMediaViewer"
+      >
+        <button class="operation-detail-page__media-viewer-close" type="button" @click="closeItemMediaViewer">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+        <button
+          v-if="itemMediaViewerIndex > 0"
+          class="operation-detail-page__media-viewer-nav operation-detail-page__media-viewer-nav--prev"
+          type="button"
+          @click.stop="prevItemMedia"
+        >
+          <span class="material-symbols-outlined">chevron_left</span>
+        </button>
+        <div class="operation-detail-page__media-viewer-content">
+          <img
+            v-if="itemMediaFiles[itemMediaViewerIndex].kind === 'image'"
+            :src="resolveItemOriginalMediaUrl(itemMediaFiles[itemMediaViewerIndex])"
+            :alt="itemMediaFiles[itemMediaViewerIndex].originalFileName"
+          />
+          <video
+            v-else
+            :src="resolveItemOriginalMediaUrl(itemMediaFiles[itemMediaViewerIndex])"
+            controls
+            autoplay
+          />
+          <span>{{ itemMediaViewerIndex + 1 }} / {{ itemMediaFiles.length }}</span>
+        </div>
+        <button
+          v-if="itemMediaViewerIndex < itemMediaFiles.length - 1"
+          class="operation-detail-page__media-viewer-nav operation-detail-page__media-viewer-nav--next"
+          type="button"
+          @click.stop="nextItemMedia"
+        >
+          <span class="material-symbols-outlined">chevron_right</span>
+        </button>
+      </div>
+    </Teleport>
+
   </section>
 </template>
 
@@ -1951,6 +2062,108 @@ watch(
   font-size: 1.02rem;
   font-weight: 900;
   line-height: 1.2;
+}
+
+.operation-detail-page__item-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.operation-detail-page__item-media {
+  position: relative;
+  display: grid;
+  grid-template-rows: 128px auto;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  color: inherit;
+  text-align: left;
+  background: var(--detail-surface-plain);
+  border: 1px solid var(--detail-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.operation-detail-page__item-media img,
+.operation-detail-page__item-media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.operation-detail-page__item-media > span {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  color: white;
+  font-size: 34px;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.45);
+  transform: translateX(-50%);
+}
+
+.operation-detail-page__item-media small {
+  padding: 0 8px 8px;
+  overflow: hidden;
+  color: var(--detail-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operation-detail-page__media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgb(0 0 0 / 0.82);
+}
+
+.operation-detail-page__media-viewer-content {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  max-width: min(1040px, 92vw);
+  max-height: 88vh;
+  color: white;
+}
+
+.operation-detail-page__media-viewer-content img,
+.operation-detail-page__media-viewer-content video {
+  max-width: 100%;
+  max-height: 78vh;
+  object-fit: contain;
+}
+
+.operation-detail-page__media-viewer-close,
+.operation-detail-page__media-viewer-nav {
+  position: fixed;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: white;
+  background: rgb(255 255 255 / 0.12);
+  border: 1px solid rgb(255 255 255 / 0.26);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.operation-detail-page__media-viewer-close {
+  top: 20px;
+  right: 20px;
+}
+
+.operation-detail-page__media-viewer-nav--prev {
+  left: 20px;
+}
+
+.operation-detail-page__media-viewer-nav--next {
+  right: 20px;
 }
 
 .operation-detail-page__block-head,

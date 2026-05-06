@@ -10,6 +10,7 @@ import {
   createItem,
   deleteItem,
   changeItemStatus,
+  changeItemPrimaryMedia,
   getItem,
   getItems,
   getItemCategories,
@@ -31,6 +32,16 @@ import {
   getLogisticsNodes,
   type LogisticsNodeResponseDto,
 } from '../../../services/logistics'
+import {
+  getItemMedia,
+  itemMediaPublicId,
+  itemMediaFilesFromItem,
+  resolveItemMediaUrl,
+  resolveItemOriginalMediaUrl,
+  resolveItemThumbnailUrl,
+  uploadItemMedia,
+  type ItemMediaFile,
+} from '../../../services/itemMedia'
 import {
   createSupplierItemCapability,
   getSupplierItemCapabilities,
@@ -102,6 +113,13 @@ const copy = computed(() =>
         createLabel: '품목 등록',
         tableTitle: '품목 목록',
         searchPlaceholder: '품목명, 품목코드, 카테고리, 협력사 검색',
+        mediaColumn: '미디어',
+        mediaTitle: '품목 미디어',
+        mediaUploadTitle: '이미지/동영상',
+        mediaUploadHint: '이미지와 동영상을 여러 개 첨부할 수 있습니다.',
+        mediaAppendLabel: '미디어 추가',
+        mediaAppendHint: '이미지 또는 동영상을 추가하면 상세와 발주 화면 썸네일에 반영됩니다.',
+        emptyMedia: '등록된 미디어가 없습니다.',
         columns: [
           '품목코드',
           '품목명',
@@ -194,6 +212,13 @@ const copy = computed(() =>
         createLabel: 'ADD ITEM',
         tableTitle: 'Item Registry',
         searchPlaceholder: 'Search item, code, category, or supplier',
+        mediaColumn: 'Media',
+        mediaTitle: 'Item Media',
+        mediaUploadTitle: 'Images / Videos',
+        mediaUploadHint: 'Attach multiple image or video files.',
+        mediaAppendLabel: 'Add Media',
+        mediaAppendHint: 'Add images or videos for item detail and order thumbnails.',
+        emptyMedia: 'No media registered.',
         columns: [
           'ITEM CODE',
           'ITEM NAME',
@@ -293,6 +318,11 @@ const detailLoading = ref(false)
 const detailErrorMessage = ref('')
 const selectedItem = ref<ItemResponseDto | null>(null)
 const selectedCapability = ref<SupplierItemCapabilityResponseDto | null>(null)
+const selectedItemMedia = ref<ItemMediaFile[]>([])
+const itemMediaMap = ref<Record<string, ItemMediaFile[]>>({})
+const mediaViewerOpen = ref(false)
+const mediaViewerIndex = ref(0)
+const detailMediaUploading = ref(false)
 
 const capabilityEditModalOpen = ref(false)
 const capabilityEditLoading = ref(false)
@@ -401,6 +431,8 @@ const createModalOpen = ref(false)
 const createLoading = ref(false)
 const createErrorMessage = ref('')
 const createdItemForCapability = ref<ItemResponseDto | null>(null)
+const createMediaFiles = ref<File[]>([])
+const createMediaPreviews = ref<Array<{ url: string; name: string; kind: 'image' | 'video' }>>([])
 
 const dashboardSummary = ref<ItemDashboardSummaryResponseDto | null>(null)
 const linkedOrders = ref<ItemLinkedPurchaseOrderResponseDto[]>([])
@@ -433,6 +465,126 @@ function formatNumber(value: number | null | undefined) {
 function formatDate(value: string | null | undefined) {
   if (!value) return '-'
   return new Date(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')
+}
+
+function itemMediaOf(item: ItemResponseDto | null | undefined) {
+  if (!item) return []
+  return itemMediaMap.value[item.publicId] ?? itemMediaFilesFromItem(item)
+}
+
+function itemThumbnailOf(item: ItemResponseDto | null | undefined) {
+  return resolveItemThumbnailUrl(item, itemMediaOf(item))
+}
+
+function openMediaViewer(index: number) {
+  mediaViewerIndex.value = index
+  mediaViewerOpen.value = true
+}
+
+function closeMediaViewer() {
+  mediaViewerOpen.value = false
+}
+
+function nextMedia() {
+  if (mediaViewerIndex.value < selectedItemMedia.value.length - 1) {
+    mediaViewerIndex.value += 1
+  }
+}
+
+function prevMedia() {
+  if (mediaViewerIndex.value > 0) {
+    mediaViewerIndex.value -= 1
+  }
+}
+
+function revokeCreateMediaPreviews() {
+  createMediaPreviews.value.forEach((preview) => URL.revokeObjectURL(preview.url))
+  createMediaPreviews.value = []
+}
+
+function handleCreateMediaChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  revokeCreateMediaPreviews()
+
+  const files = Array.from(target.files ?? []).filter(
+    (file) => file.type.startsWith('image/') || file.type.startsWith('video/'),
+  )
+
+  createMediaFiles.value = files
+  createMediaPreviews.value = files.map((file) => ({
+    url: URL.createObjectURL(file),
+    name: file.name,
+    kind: file.type.startsWith('video/') ? 'video' : 'image',
+  }))
+}
+
+async function setFirstImageAsPrimary(itemPublicId: string, files: ItemMediaFile[]) {
+  const primaryImage = files.find((file) => file.kind === 'image')
+  const filePublicId = itemMediaPublicId(primaryImage)
+
+  if (!filePublicId) return null
+  return changeItemPrimaryMedia(itemPublicId, filePublicId)
+}
+
+async function uploadAndRefreshItemMedia(itemPublicId: string, files: File[]) {
+  const uploadResponse = await uploadItemMedia(itemPublicId, files)
+  const uploadedFiles = uploadResponse ? itemMediaFilesFromItem({ files: uploadResponse.files } as ItemResponseDto) : []
+  const updatedItem = uploadedFiles.length
+    ? await setFirstImageAsPrimary(itemPublicId, uploadedFiles).catch(() => null)
+    : null
+  const refreshedMedia = await getItemMedia(itemPublicId)
+
+  itemMediaMap.value = {
+    ...itemMediaMap.value,
+    [itemPublicId]: refreshedMedia,
+  }
+
+  if (selectedItem.value?.publicId === itemPublicId) {
+    selectedItem.value = updatedItem ?? selectedItem.value
+    selectedItemMedia.value = refreshedMedia
+  }
+
+  return { updatedItem, media: refreshedMedia }
+}
+
+async function handleDetailMediaChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files ?? []).filter(
+    (file) => file.type.startsWith('image/') || file.type.startsWith('video/'),
+  )
+  target.value = ''
+
+  if (!selectedItem.value || !files.length) return
+
+  try {
+    detailMediaUploading.value = true
+    detailErrorMessage.value = ''
+    await uploadAndRefreshItemMedia(selectedItem.value.publicId, files)
+    await fetchItems()
+  } catch (error: any) {
+    detailErrorMessage.value =
+      error.message ??
+      (preferences.language === 'ko'
+        ? '품목 미디어 추가에 실패했습니다.'
+        : 'Failed to add item media.')
+  } finally {
+    detailMediaUploading.value = false
+  }
+}
+
+async function loadItemMediaMap(items: ItemResponseDto[]) {
+  const entries = await Promise.all(
+    items.map(async (item) => [
+      item.publicId,
+      itemMediaFilesFromItem(item).length
+        ? itemMediaFilesFromItem(item)
+        : item.primaryMediaFilePublicId
+          ? await getItemMedia(item.publicId)
+          : [],
+    ] as const),
+  )
+
+  itemMediaMap.value = Object.fromEntries(entries)
 }
 
 async function loadLogisticsNodeOptions() {
@@ -561,6 +713,8 @@ async function fetchItems() {
       capabilities.map((capability) => [capability.itemPublicId, capability]),
     )
 
+    await loadItemMediaMap(response.content)
+
     rows.value = response.content.map((item) =>
       toItemRow(item, capabilityMap.get(item.publicId) ?? null),
     )
@@ -595,6 +749,8 @@ async function loadItemCategories() {
 function resetCreateForm() {
   createErrorMessage.value = ''
   createdItemForCapability.value = null
+  createMediaFiles.value = []
+  revokeCreateMediaPreviews()
   createForm.value = {
     itemCategoryPublicId: '',
     supplyType: 'STOCK_BASED',
@@ -714,6 +870,12 @@ async function submitCreateItem() {
       buildCapabilityPayload(createdItem.publicId),
     )
 
+    if (createMediaFiles.value.length) {
+      await uploadAndRefreshItemMedia(createdItem.publicId, createMediaFiles.value).catch((error) => {
+        console.warn('Failed to upload item media', error)
+      })
+    }
+
     activeTabKey.value = 'ALL'
     await fetchItems()
     closeCreateModal()
@@ -796,16 +958,20 @@ async function openItemDetail(row: ItemTableRow) {
   detailLoading.value = true
   selectedItem.value = row.raw
   selectedCapability.value = null
+  selectedItemMedia.value = itemMediaOf(row.raw)
   linkedOrders.value = []
 
   try {
-    const [capability, orders] = await Promise.all([
+    const shouldLoadMedia = Boolean(row.raw.primaryMediaFilePublicId || selectedItemMedia.value.length)
+    const [capability, orders, media] = await Promise.all([
       getSupplierItemCapability(row.raw.supplierPublicId, row.publicId).catch(() => null),
       getManagedItemLinkedOrders(row.publicId),
+      shouldLoadMedia ? getItemMedia(row.publicId) : Promise.resolve([]),
     ])
 
     selectedCapability.value = capability
     linkedOrders.value = orders
+    selectedItemMedia.value = media.length ? media : selectedItemMedia.value
   } finally {
     detailLoading.value = false
   }
@@ -824,6 +990,8 @@ function closeItemDetail() {
   detailErrorMessage.value = ''
   selectedItem.value = null
   selectedCapability.value = null
+  selectedItemMedia.value = []
+  closeMediaViewer()
 }
 
 onMounted(() => {
@@ -852,6 +1020,7 @@ watchEffect(() => {
 
 onBeforeUnmount(() => {
   header.clearActions()
+  revokeCreateMediaPreviews()
 })
 
 type CategoryOption = {
@@ -1020,6 +1189,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       <div class="items-page__table-wrap">
         <div class="page-table terminal-page__table items-page__table">
           <div class="page-table__row page-table__row--head">
+            <span>{{ copy.mediaColumn }}</span>
             <span v-for="column in copy.columns" :key="column">{{ column }}</span>
           </div>
 
@@ -1028,6 +1198,16 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
           </p>
 
           <div v-for="row in filteredRows" :key="row.publicId" class="page-table__row">
+            <span>
+              <span class="items-page__thumb" aria-hidden="true">
+                <img
+                  v-if="itemThumbnailOf(row.raw)"
+                  :src="itemThumbnailOf(row.raw)"
+                  :alt="row.itemName"
+                />
+                <span v-else class="material-symbols-outlined">inventory_2</span>
+              </span>
+            </span>
             <span v-for="(cell, index) in row.cells" :key="`${row.publicId}-${index}`">
               <button
                 v-if="index === 1"
@@ -1184,6 +1364,60 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         <article class="page-panel items-page__detail-panel--full">
           <div class="page-panel__head">
             <div>
+              <div class="page-panel__eyebrow">MEDIA</div>
+              <h3>{{ copy.mediaTitle }}</h3>
+            </div>
+            <span class="page-panel__chip">{{ selectedItemMedia.length }}</span>
+          </div>
+
+          <label
+            v-if="actor.canManageItems.value"
+            class="items-page__media-upload"
+          >
+            <span>{{ detailMediaUploading ? copy.loading : copy.mediaAppendLabel }}</span>
+            <input
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              :disabled="detailMediaUploading"
+              @change="handleDetailMediaChange"
+            />
+            <small>{{ copy.mediaAppendHint }}</small>
+          </label>
+
+          <div v-if="selectedItemMedia.length" class="items-page__media-grid">
+            <button
+              v-for="(media, index) in selectedItemMedia"
+              :key="media.publicId"
+              class="items-page__media-tile"
+              type="button"
+              @click="openMediaViewer(index)"
+            >
+              <img
+                v-if="media.kind === 'image'"
+                :src="resolveItemMediaUrl(media)"
+                :alt="media.originalFileName"
+              />
+              <video
+                v-else
+                :src="resolveItemMediaUrl(media)"
+                preload="metadata"
+              />
+              <span v-if="media.kind === 'video'" class="items-page__media-play material-symbols-outlined">play_circle</span>
+              <small>{{ media.originalFileName }}</small>
+            </button>
+          </div>
+
+          <div v-else class="page-feed">
+            <div class="page-feed__item">
+              <strong class="page-feed__text">{{ copy.emptyMedia }}</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="page-panel items-page__detail-panel--full">
+          <div class="page-panel__head">
+            <div>
               <div class="page-panel__eyebrow">PURCHASE ORDERS</div>
               <h3>{{ copy.linkedOrdersTitle }}</h3>
             </div>
@@ -1326,6 +1560,30 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
             </option>
           </select>
         </label>
+
+        <label class="items-page__field items-page__field--full">
+          <span>{{ copy.mediaUploadTitle }}</span>
+          <input
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            :disabled="!!createdItemForCapability"
+            @change="handleCreateMediaChange"
+          />
+          <small class="items-page__hint">{{ copy.mediaUploadHint }}</small>
+        </label>
+
+        <div v-if="createMediaPreviews.length" class="items-page__preview-grid">
+          <div
+            v-for="preview in createMediaPreviews"
+            :key="preview.url"
+            class="items-page__preview-tile"
+          >
+            <img v-if="preview.kind === 'image'" :src="preview.url" :alt="preview.name" />
+            <video v-else :src="preview.url" preload="metadata" />
+            <small>{{ preview.name }}</small>
+          </div>
+        </div>
 
       </section>
 
@@ -1476,6 +1734,47 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   </div>
 </BaseModal>
 
+  <Teleport to="body">
+    <div v-if="mediaViewerOpen && selectedItemMedia[mediaViewerIndex]" class="items-page__media-viewer" @click.self="closeMediaViewer">
+      <button class="items-page__media-viewer-close" type="button" @click="closeMediaViewer">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+
+      <button
+        v-if="mediaViewerIndex > 0"
+        class="items-page__media-viewer-nav items-page__media-viewer-nav--prev"
+        type="button"
+        @click.stop="prevMedia"
+      >
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+
+      <div class="items-page__media-viewer-content">
+        <img
+          v-if="selectedItemMedia[mediaViewerIndex].kind === 'image'"
+          :src="resolveItemOriginalMediaUrl(selectedItemMedia[mediaViewerIndex])"
+          :alt="selectedItemMedia[mediaViewerIndex].originalFileName"
+        />
+        <video
+          v-else
+          :src="resolveItemOriginalMediaUrl(selectedItemMedia[mediaViewerIndex])"
+          controls
+          autoplay
+        />
+        <span>{{ mediaViewerIndex + 1 }} / {{ selectedItemMedia.length }}</span>
+      </div>
+
+      <button
+        v-if="mediaViewerIndex < selectedItemMedia.length - 1"
+        class="items-page__media-viewer-nav items-page__media-viewer-nav--next"
+        type="button"
+        @click.stop="nextMedia"
+      >
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
+    </div>
+  </Teleport>
+
 
 </template>
 
@@ -1509,6 +1808,151 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+.items-page__detail-panel--full,
+.items-page__preview-grid {
+  grid-column: 1 / -1;
+}
+
+.items-page__thumb {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: 6px;
+}
+
+.items-page__thumb img,
+.items-page__media-tile img,
+.items-page__media-tile video,
+.items-page__preview-tile img,
+.items-page__preview-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.items-page__media-grid,
+.items-page__preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 10px;
+}
+
+.items-page__media-upload {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px dashed var(--color-outline);
+  border-radius: 6px;
+}
+
+.items-page__media-upload span {
+  font-weight: 800;
+}
+
+.items-page__media-upload small {
+  color: var(--color-on-surface-variant);
+}
+
+.items-page__media-tile,
+.items-page__preview-tile {
+  position: relative;
+  display: grid;
+  grid-template-rows: 120px auto;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  color: inherit;
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: 6px;
+}
+
+.items-page__media-tile {
+  cursor: pointer;
+}
+
+.items-page__media-tile small,
+.items-page__preview-tile small {
+  padding: 0 8px 8px;
+  overflow: hidden;
+  color: var(--color-on-surface);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.items-page__media-play {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  color: white;
+  font-size: 34px;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.45);
+  transform: translateX(-50%);
+}
+
+.items-page__media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgb(0 0 0 / 0.82);
+}
+
+.items-page__media-viewer-content {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  max-width: min(1040px, 92vw);
+  max-height: 88vh;
+  color: white;
+}
+
+.items-page__media-viewer-content img,
+.items-page__media-viewer-content video {
+  max-width: 100%;
+  max-height: 78vh;
+  object-fit: contain;
+}
+
+.items-page__media-viewer-close,
+.items-page__media-viewer-nav {
+  position: fixed;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: white;
+  background: rgb(255 255 255 / 0.12);
+  border: 1px solid rgb(255 255 255 / 0.26);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.items-page__media-viewer-close {
+  top: 20px;
+  right: 20px;
+}
+
+.items-page__media-viewer-nav--prev {
+  left: 20px;
+}
+
+.items-page__media-viewer-nav--next {
+  right: 20px;
 }
 
 .items-page__form {

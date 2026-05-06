@@ -40,6 +40,16 @@ export async function changeItemStatus(
   return response.data
 }
 
+export async function changeItemPrimaryMedia(
+  itemPublicId: string,
+  filePublicId: string,
+) {
+  const response = await apiClient.patch<ItemResponseDto>(
+    `/api/supply/items/${itemPublicId}/media/${filePublicId}/primary`,
+  )
+  return response.data
+}
+
 // 품목/카테고리 상태값
 export type ItemStatus = 'ACTIVE' | 'DEACTIVE' | 'DELETE'
 // 품목 단위
@@ -121,7 +131,19 @@ export interface ItemResponseDto {
   partialConfirmationAllowed: boolean | null
   unitPrice: number | null
   originLogisticsNodePublicId: string | null
-  originLogisticsNodeName: string | null  
+  originLogisticsNodeName: string | null
+  primaryMediaFilePublicId?: string | null
+  mediaAttachmentPublicId?: string | null
+  mediaAttachmentPublicIds?: string[] | null
+  thumbnailUrl?: string | null
+  itemThumbnailUrl?: string | null
+  representativeImageUrl?: string | null
+  representativeImageThumbPath?: string | null
+  mediaThumbPath?: string | null
+  mediaFiles?: import('./file').AttachmentFileDto[] | null
+  itemMediaFiles?: import('./file').AttachmentFileDto[] | null
+  files?: import('./file').AttachmentFileDto[] | null
+  attachments?: import('./file').AttachmentFileDto[] | null
 }
 
 export interface CreateItemRequestDto {

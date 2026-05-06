@@ -50,6 +50,12 @@ import {
   type LogisticsNodeResponseDto,
 } from '../../../services/logistics'
 import {
+  getItemMedia,
+  itemMediaFilesFromItem,
+  resolveItemThumbnailUrl,
+  type ItemMediaFile,
+} from '../../../services/itemMedia'
+import {
   getOrganizations,
   type OrganizationListItem,
 } from '../../../services/organization'
@@ -567,6 +573,7 @@ const parentSubOrders = ref<SubPurchaseOrderResponseDto[]>([])
 const supplierOptions = ref<SupplierListResponseDto[]>([])
 const categoryOptions = ref<ItemCategoryResponseDto[]>([])
 const itemMap = ref<Record<string, ItemResponseDto>>({})
+const itemMediaMap = ref<Record<string, ItemMediaFile[]>>({})
 const organizationMap = ref<Record<string, OrganizationListItem>>({})
 const logisticsNodeOptions = ref<LogisticsNodeResponseDto[]>([])
 
@@ -656,6 +663,41 @@ function createEmptyEditNewLine(): EditNewOrderLine {
     key: editLineSeed++,
     itemPublicId: '',
     orderedQty: null,
+  }
+}
+
+function itemMediaOf(item: ItemResponseDto | null | undefined) {
+  if (!item) return []
+  return itemMediaMap.value[item.publicId] ?? itemMediaFilesFromItem(item)
+}
+
+function itemThumbnailOf(item: ItemResponseDto | null | undefined) {
+  return resolveItemThumbnailUrl(item, itemMediaOf(item))
+}
+
+function orderLineThumbnail(itemPublicId: string | null | undefined) {
+  if (!itemPublicId) return ''
+  return itemThumbnailOf(itemMap.value[itemPublicId])
+}
+
+async function loadItemMediaForItems(items: ItemResponseDto[]) {
+  const unloadedItems = items.filter((item) => !itemMediaMap.value[item.publicId])
+  if (!unloadedItems.length) return
+
+  const entries = await Promise.all(
+    unloadedItems.map(async (item) => [
+      item.publicId,
+      itemMediaFilesFromItem(item).length
+        ? itemMediaFilesFromItem(item)
+        : item.primaryMediaFilePublicId
+          ? await getItemMedia(item.publicId)
+          : [],
+    ] as const),
+  )
+
+  itemMediaMap.value = {
+    ...itemMediaMap.value,
+    ...Object.fromEntries(entries),
   }
 }
 
@@ -1243,6 +1285,7 @@ async function loadItemLookupByItemIds(itemPublicIds: string[]) {
     if (item) nextMap[item.publicId] = item
   })
   itemMap.value = nextMap
+  await loadItemMediaForItems(loadedItems.filter((item): item is ItemResponseDto => !!item))
 }
 
 
@@ -1654,6 +1697,7 @@ async function searchItemsForCreateOrder() {
 
     createForm.value.itemOptions = Array.from(nextOptions.values())
     createForm.value.searchResultPublicIds = detailedItems.map((item) => item.publicId)
+    await loadItemMediaForItems(detailedItems)
   } catch (error) {
     createForm.value.searchResultPublicIds = []
     createErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.itemSearchFail)
@@ -2058,6 +2102,7 @@ async function loadEditableSupplierItems(supplierPublicId: string) {
   editAvailableItems.value = response.content
     .slice()
     .sort((a, b) => a.itemName.localeCompare(b.itemName, 'ko-KR'))
+  await loadItemMediaForItems(editAvailableItems.value)
 }
 
 function resetEditOrderForm(order: PurchaseOrderDetailResponseDto) {
@@ -2868,6 +2913,10 @@ onBeforeUnmount(() => header.clearActions())
             class="orders-page__item-picker-row-wrap"
           >
             <div class="orders-page__item-picker-row">
+              <span class="orders-page__item-thumb" aria-hidden="true">
+                <img v-if="itemThumbnailOf(item)" :src="itemThumbnailOf(item)" :alt="item.itemName" />
+                <span v-else class="material-symbols-outlined">inventory_2</span>
+              </span>
               <span>{{ item.itemCode }}</span>
               <span>{{ item.itemName }}</span>
               <span>{{ item.categoryName || copy.uncategorized }}</span>
@@ -2955,7 +3004,17 @@ onBeforeUnmount(() => header.clearActions())
             class="orders-page__line-card"
           >
             <div class="orders-page__line-head">
-              <strong>{{ line.selectedItemName || copy.itemLine }}</strong>
+              <span class="orders-page__line-title">
+                <span class="orders-page__item-thumb" aria-hidden="true">
+                  <img
+                    v-if="itemThumbnailOf(selectedCreateLineItem(line))"
+                    :src="itemThumbnailOf(selectedCreateLineItem(line))"
+                    :alt="line.selectedItemName || copy.itemLine"
+                  />
+                  <span v-else class="material-symbols-outlined">inventory_2</span>
+                </span>
+                <strong>{{ line.selectedItemName || copy.itemLine }}</strong>
+              </span>
               <button
                 class="page-button page-button--secondary"
                 type="button"
@@ -3200,8 +3259,16 @@ onBeforeUnmount(() => header.clearActions())
             class="orders-page__detail-row"
           >
             <span>
-              <strong>{{ item.itemName }}</strong><br />
-              <small>{{ item.itemCode }}</small>
+              <span class="orders-page__detail-item-title">
+                <span class="orders-page__item-thumb" aria-hidden="true">
+                  <img v-if="orderLineThumbnail(item.itemPublicId)" :src="orderLineThumbnail(item.itemPublicId)" :alt="item.itemName" />
+                  <span v-else class="material-symbols-outlined">inventory_2</span>
+                </span>
+                <span>
+                  <strong>{{ item.itemName }}</strong><br />
+                  <small>{{ item.itemCode }}</small>
+                </span>
+              </span>
             </span>
             <span>{{ formatNumber(item.orderedQty) }}</span>
             <span>{{ formatNumber(item.confirmedQty) }}</span>
@@ -3665,8 +3732,16 @@ onBeforeUnmount(() => header.clearActions())
             class="orders-page__detail-row"
           >
             <span>
-              <strong>{{ item.itemName }}</strong><br />
-              <small>{{ item.itemCode }}</small>
+              <span class="orders-page__detail-item-title">
+                <span class="orders-page__item-thumb" aria-hidden="true">
+                  <img v-if="orderLineThumbnail(item.itemPublicId)" :src="orderLineThumbnail(item.itemPublicId)" :alt="item.itemName" />
+                  <span v-else class="material-symbols-outlined">inventory_2</span>
+                </span>
+                <span>
+                  <strong>{{ item.itemName }}</strong><br />
+                  <small>{{ item.itemCode }}</small>
+                </span>
+              </span>
             </span>
             <span>{{ formatNumber(item.orderedQty) }}</span>
             <span>{{ formatNumber(item.confirmedQty) }}</span>
