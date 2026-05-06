@@ -14,6 +14,7 @@ export const PAGE_PATHS: Record<PageKey, string> = {
   logisticsNodes: '/logistics-nodes',
   returns: '/returns',
   certificateWatch: '/certificates',
+  certificateReview: '/certificate-review',
   shipmentOps: '/risks',
   recoveryTracking: '/recovery-tracking',
   documents: '/documents',
@@ -309,6 +310,15 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '알림 채널, 미확인 경보, topic 상태 관리',
     section: 'system',
     organizations: ['mainBuyer', 'supplier', 'admin'],
+  },
+  {
+    key: 'certificateReview',
+    label: 'Certificate Review',
+    icon: 'fact_check',
+    description: '인증서 신청 승인과 반려 처리',
+    pageSubtitle: '심사 요청 인증서를 검토하고 승인 또는 반려합니다.',
+    section: 'system',
+    organizations: ['admin'],
   },
   {
     key: 'riskRules',

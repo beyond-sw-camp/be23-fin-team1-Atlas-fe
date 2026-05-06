@@ -64,8 +64,8 @@ export interface CertificateHistoryResponseDto {
 }
 
 /* ── 전체 인증서 페이징 조회 (신규 추가된 API) ── */
-export async function getAllCertificates(): Promise<PageResponse<SupplierCertificateResponseDto>> {
-  const response = await apiClient.get<PageResponse<SupplierCertificateResponseDto>>('/api/supply/certificates')
+export async function getAllCertificates(params: { page?: number; size?: number } = {}): Promise<PageResponse<SupplierCertificateResponseDto>> {
+  const response = await apiClient.get<PageResponse<SupplierCertificateResponseDto>>('/api/supply/certificates', { params })
   return response.data
 }
 

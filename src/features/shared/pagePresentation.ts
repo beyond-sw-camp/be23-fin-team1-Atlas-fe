@@ -14,6 +14,7 @@ export const PAGE_SHELL_CLASSES: Record<PageKey, string[]> = {
   logisticsNodes: ['bg-background', 'text-on-surface', 'antialiased'],
   returns: ['bg-background', 'text-on-surface', 'antialiased'],
   certificateWatch: ['bg-background', 'text-on-surface', 'antialiased'],
+  certificateReview: ['bg-background', 'text-on-surface', 'antialiased'],
   shipmentOps: ['bg-background', 'text-on-surface', 'antialiased'],
   recoveryTracking: ['bg-background', 'text-on-surface', 'antialiased'],
   documents: ['bg-background', 'text-on-surface', 'antialiased'],
