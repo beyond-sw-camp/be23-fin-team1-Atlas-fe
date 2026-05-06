@@ -65,7 +65,7 @@ const CONTENT = {
   },
 }
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 
 const lightTokens = [
   ['Core Background', '#FFFFFF'],
@@ -124,7 +124,7 @@ const typography = [
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">TONAL SYSTEM</div>
+            <div class="page-panel__eyebrow">톤 시스템</div>
             <h3>{{ content.colorsTitle }}</h3>
           </div>
           <span class="page-panel__chip">{{ content.colorsChip }}</span>
@@ -132,8 +132,8 @@ const typography = [
         <div class="design-token-columns">
           <section class="design-token-stack design-token-stack--dark">
             <header>
-              <span class="page-panel__eyebrow">TECHNICAL PRECISION</span>
-              <strong>Dark Specification</strong>
+              <span class="page-panel__eyebrow">기술 정밀</span>
+              <strong>어두운 표면 명세</strong>
             </header>
             <div v-for="[label, value] in darkTokens" :key="label" class="design-token-row">
               <span>{{ label }}</span>
@@ -142,8 +142,8 @@ const typography = [
           </section>
           <section class="design-token-stack design-token-stack--light">
             <header>
-              <span class="page-panel__eyebrow">KINETIC BLUEPRINT</span>
-              <strong>Light Specification</strong>
+              <span class="page-panel__eyebrow">도면형 설계</span>
+              <strong>밝은 표면 명세</strong>
             </header>
             <div v-for="[label, value] in lightTokens" :key="label" class="design-token-row">
               <span>{{ label }}</span>
@@ -156,7 +156,7 @@ const typography = [
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">TYPE SCALE</div>
+            <div class="page-panel__eyebrow">글꼴 크기</div>
             <h3>{{ content.typeTitle }}</h3>
           </div>
           <span class="page-panel__chip">{{ content.typeChip }}</span>
@@ -173,19 +173,19 @@ const typography = [
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">TRIGGER PATTERN</div>
+            <div class="page-panel__eyebrow">실행 패턴</div>
             <h3>{{ content.triggerTitle }}</h3>
           </div>
           <span class="page-panel__chip">{{ content.triggerChip }}</span>
         </div>
         <div class="spec-trigger-layout">
           <div class="design-trigger-row">
-            <button class="page-button page-button--primary" type="button">PRIMARY TRIGGER</button>
-            <button class="page-button page-button--secondary" type="button">SECONDARY PROTOCOL</button>
+            <button class="page-button page-button--primary" type="button">주요 실행</button>
+            <button class="page-button page-button--secondary" type="button">보조 절차</button>
           </div>
           <label class="design-command-field">
-            <span class="page-panel__eyebrow">TERMINAL PROMPT</span>
-            <input type="text" placeholder="ENTER SYSTEM COMMAND..." readonly />
+            <span class="page-panel__eyebrow">터미널 입력</span>
+            <input type="text" placeholder="시스템 명령 입력..." readonly />
           </label>
         </div>
       </article>
@@ -193,7 +193,7 @@ const typography = [
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">IMPLEMENTATION RULES</div>
+            <div class="page-panel__eyebrow">구현 규칙</div>
             <h3>{{ content.symbolTitle }}</h3>
           </div>
           <span class="page-panel__chip">{{ content.symbolChip }}</span>

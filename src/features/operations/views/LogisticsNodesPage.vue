@@ -157,7 +157,7 @@ const CONTENT = {
 } as const
 
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 
 function openLogisticsNodeDetailPage(node: LogisticsNodeResponseDto) {
   router.push({
@@ -374,7 +374,7 @@ function formatDate(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
 
-  return new Intl.DateTimeFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+  return new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -525,7 +525,7 @@ onBeforeUnmount(() => header.clearActions())
       <div class="terminal-page__main">
         <section class="logistics-filter-card">
           <label class="logistics-search">
-            <span>SEARCH</span>
+            <span>검색</span>
             <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
           </label>
 
@@ -557,7 +557,7 @@ onBeforeUnmount(() => header.clearActions())
         <article class="logistics-card">
           <div class="page-panel__head">
             <div>
-              <div class="page-panel__eyebrow">LOGISTICS</div>
+              <div class="page-panel__eyebrow">창고</div>
               <h3>{{ content.tableTitle }}</h3>
             </div>
             <span class="page-panel__chip">{{ filteredNodes.length }}</span>
@@ -610,20 +610,6 @@ onBeforeUnmount(() => header.clearActions())
                   @click="openLogisticsNodeDetailPage(node)"
                 >
                   {{ content.detail }}
-                </button>
-                <button
-                  class="page-button page-button--secondary"
-                  type="button"
-                  @click="handleOpenEditModal(node)"
-                >
-                  {{ content.edit }}
-                </button>
-                <button
-                  class="page-button page-button--secondary"
-                  type="button"
-                  @click="handleToggleActive(node)"
-                >
-                  {{ node.active ? content.deactivate : content.activate }}
                 </button>
               </span>
             </div>
@@ -758,6 +744,10 @@ onBeforeUnmount(() => header.clearActions())
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+.logistics-page .terminal-page__content {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .logistics-page .terminal-page__title {
@@ -1019,7 +1009,7 @@ onBeforeUnmount(() => header.clearActions())
     minmax(280px, 1.8fr)
     minmax(100px, 0.7fr)
     minmax(90px, 0.6fr)
-    minmax(170px, 1fr);
+    minmax(64px, 0.22fr);
   gap: 14px;
   align-items: center;
   padding: 14px 16px;
@@ -1138,9 +1128,36 @@ onBeforeUnmount(() => header.clearActions())
   font-weight: 800;
 }
 
+@container atlas-page-table (max-width: 1240px) {
+  .logistics-table {
+    grid-template-columns:
+      minmax(132px, 0.74fr)
+      minmax(112px, 0.62fr)
+      minmax(180px, 1fr)
+      minmax(84px, 0.42fr)
+      minmax(74px, 0.36fr)
+      64px !important;
+  }
+}
+
+@container atlas-page-table (max-width: 1040px) {
+  .logistics-table {
+    grid-template-columns:
+      minmax(132px, 0.82fr)
+      minmax(96px, 0.58fr)
+      minmax(150px, 1fr)
+      minmax(76px, 0.36fr)
+      64px !important;
+  }
+
+  .logistics-table > span:nth-child(5):not(:last-child) {
+    display: none !important;
+  }
+}
+
 @media (max-width: 960px) {
   .logistics-kpi-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .logistics-filter-card {

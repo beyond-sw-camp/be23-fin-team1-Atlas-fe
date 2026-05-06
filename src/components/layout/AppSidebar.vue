@@ -95,12 +95,10 @@ function buildSidebarUserName() {
   const middleName = sidebarUserMiddleName.value.trim()
   const lastName = sidebarUserLastName.value.trim()
 
-  const parts = preferences.language === 'en'
-    ? [firstName, middleName, lastName]
-    : [lastName, middleName, firstName]
+  const parts = [lastName, middleName, firstName]
 
   const name = parts.filter(Boolean).join(' ')
-  return name || navigation.sidebarOperator.name[preferences.language]
+  return name || navigation.sidebarOperator.name.ko
 }
 
 function clearSidebarUserProfile() {
@@ -153,7 +151,7 @@ onBeforeUnmount(() => {
     v-if="ui.mobileSidebarOpen"
     class="app-sidebar-backdrop"
     type="button"
-    aria-label="Close navigation"
+    aria-label="내비게이션 닫기"
     @click="ui.closeMobileSidebar"
   />
 
@@ -172,7 +170,7 @@ onBeforeUnmount(() => {
         <span class="app-sidebar__user-copy">
           <span class="app-sidebar__user-name">{{ buildSidebarUserName() }}</span>
           <span class="app-sidebar__user-role">
-            {{ sidebarUserRole || navigation.sidebarOperator.role[preferences.language] }}
+            {{ sidebarUserRole || navigation.sidebarOperator.role.ko }}
           </span>
         </span>
       </button>

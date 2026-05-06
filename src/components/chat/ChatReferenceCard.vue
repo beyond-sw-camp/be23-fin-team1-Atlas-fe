@@ -4,7 +4,6 @@
  * reference_type에 따라 좌측 리본 색상이 변경됨:
  *   ORDER → primary, RETURN_REQUEST → error
  */
-import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { useRouter } from 'vue-router'
 import { useAtlasChatStore } from '../../stores/chat'
 
@@ -14,7 +13,6 @@ const props = defineProps<{
   referenceTitle?: string
 }>()
 
-const preferences = useAtlasPreferencesStore()
 const router = useRouter()
 const chatStore = useAtlasChatStore()
 
@@ -32,26 +30,13 @@ function getRibbonClass(type: string): string {
 }
 
 function getTypeLabel(type: string): string {
-  const labels: Record<string, Record<'ko' | 'en', string>> = {
-    ORDER: { ko: '발주서', en: 'PURCHASE ORDER' },
-    RETURN_REQUEST: { ko: '반품 요청', en: 'RETURN REQUEST' },
-    LOT: { ko: 'LOT 추적', en: 'LOT TRACKING' },
+  const labels: Record<string, string> = {
+    ORDER: '발주서',
+    RETURN_REQUEST: '반품 요청',
+    LOT: 'LOT 추적',
   }
 
-  if (labels[type]) {
-    return labels[type][preferences.language]
-  }
-
-  switch (type) {
-    case 'ORDER':
-      return 'PURCHASE ORDER'
-    case 'RETURN_REQUEST':
-      return 'RETURN REQUEST'
-    case 'LOT':
-      return 'LOT TRACKING'
-    default:
-      return type
-  }
+  return labels[type] || '업무 참조'
 }
 
 function handleCardClick() {

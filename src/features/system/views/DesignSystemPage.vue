@@ -8,32 +8,32 @@ const CONTENT = {
   ko: {
     intro: 'SCM Webpage Design 프로젝트의 Stitch 스타일 가이드와 DESIGN.md 기준을 정리한 운영용 디자인 시스템 보드.',
     metrics: [
-      { label: 'MODE', value: '3', meta: 'Technical Precision / Blueprint / High Contrast' },
-      { label: 'TOKENS', value: '24', meta: 'Light · Dark surface / outline / status set' },
-      { label: 'COMPONENTS', value: '12', meta: 'Trigger · Prompt · Panel · Ribbon patterns' },
+      { label: '모드', value: '3', meta: '기술 정밀 / 도면형 / 고대비' },
+      { label: '토큰', value: '24', meta: '밝은 표면 · 어두운 표면 / 외곽선 / 상태 색상' },
+      { label: '컴포넌트', value: '12', meta: '트리거 · 프롬프트 · 패널 · 리본 패턴' },
     ],
-    modesTitle: 'Visual Modes',
-    modesChip: 'STITCH',
+    modesTitle: '시각 모드',
+    modesChip: '스타일',
     modes: [
-      { eyebrow: 'Dark Mode', title: 'Technical Precision', text: '순수 흑백, 배경 tonal stacking, 고밀도 운영 레이아웃.' },
-      { eyebrow: 'Light Mode', title: 'Kinetic Blueprint', text: '도면 같은 라인, 얇은 보더, 밝은 시트 기반 정보 패널.' },
-      { eyebrow: 'Variant', title: 'High Contrast', text: '핵심 수치와 상태 리본의 가독성을 극단적으로 올린 감사/관리 모드.' },
+      { eyebrow: '어두운 모드', title: '기술 정밀', text: '순수 흑백, 배경 tonal stacking, 고밀도 운영 레이아웃.' },
+      { eyebrow: '밝은 모드', title: '도면형 설계', text: '도면 같은 라인, 얇은 보더, 밝은 시트 기반 정보 패널.' },
+      { eyebrow: '변형', title: '고대비', text: '핵심 수치와 상태 리본의 가독성을 극단적으로 올린 감사/관리 모드.' },
     ],
-    colorTitle: 'Color Architecture',
-    colorChip: 'TOKENS',
-    lightTitle: 'Monolith Light',
-    darkTitle: 'Technical Precision',
-    typeTitle: 'Editorial Grid Hierarchy',
-    typeChip: 'TYPE',
-    triggersTitle: 'Kinetic Trigger Library',
-    triggersChip: 'COMPONENT',
-    symbolsTitle: 'Technical Symbol Array',
-    symbolsChip: 'GUIDE',
+    colorTitle: '색상 구조',
+    colorChip: '토큰',
+    lightTitle: '밝은 표면',
+    darkTitle: '기술 정밀',
+    typeTitle: '타이포그래피 계층',
+    typeChip: '글꼴',
+    triggersTitle: '트리거 라이브러리',
+    triggersChip: '컴포넌트',
+    symbolsTitle: '기술 기호 규칙',
+    symbolsChip: '가이드',
     symbolItems: [
-      ['No Radius', '모든 컨테이너와 버튼은 90도 각진 모서리 유지'],
-      ['Upper Labels', '네비게이션과 메타 라벨은 대문자/강한 자간 적용'],
-      ['Status Ribbon', '상태는 아이콘보다 좌측 리본과 수치 강조로 표현'],
-      ['No Shadow', '일반 카드 그림자 금지, tonal layering으로만 깊이 표현'],
+      ['반경 없음', '모든 컨테이너와 버튼은 90도 각진 모서리 유지'],
+      ['강한 라벨', '네비게이션과 메타 라벨은 강한 자간 적용'],
+      ['상태 리본', '상태는 아이콘보다 좌측 리본과 수치 강조로 표현'],
+      ['그림자 없음', '일반 카드 그림자 금지, tonal layering으로만 깊이 표현'],
     ],
   },
   en: {
@@ -69,7 +69,7 @@ const CONTENT = {
   },
 }
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 
 const lightTokens = [
   ['Background', '#FFFFFF'],
@@ -101,10 +101,10 @@ const typography = [
     <article class="page-panel design-system-page__intro">
       <div class="page-panel__head">
         <div>
-          <div class="page-panel__eyebrow">STITCH // DESIGN SYSTEM</div>
-          <h3>SCM Webpage Design</h3>
+          <div class="page-panel__eyebrow">스타일 // 디자인 시스템</div>
+          <h3>공급망 화면 디자인</h3>
         </div>
-        <span class="page-panel__chip">ADMIN</span>
+        <span class="page-panel__chip">관리자</span>
       </div>
       <p class="design-system-page__lede">{{ content.intro }}</p>
     </article>
@@ -121,7 +121,7 @@ const typography = [
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">OPERATING MODES</div>
+            <div class="page-panel__eyebrow">운영 모드</div>
             <h3>{{ content.modesTitle }}</h3>
           </div>
           <span class="page-panel__chip">{{ content.modesChip }}</span>
@@ -138,7 +138,7 @@ const typography = [
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">TOKEN BOARD</div>
+            <div class="page-panel__eyebrow">토큰 보드</div>
             <h3>{{ content.colorTitle }}</h3>
           </div>
           <span class="page-panel__chip">{{ content.colorChip }}</span>
@@ -146,7 +146,7 @@ const typography = [
         <div class="design-token-columns">
           <section class="design-token-stack design-token-stack--light">
             <header>
-              <span class="page-panel__eyebrow">LIGHT</span>
+              <span class="page-panel__eyebrow">밝은 표면</span>
               <strong>{{ content.lightTitle }}</strong>
             </header>
             <div v-for="[label, value] in lightTokens" :key="label" class="design-token-row">
@@ -156,7 +156,7 @@ const typography = [
           </section>
           <section class="design-token-stack design-token-stack--dark">
             <header>
-              <span class="page-panel__eyebrow">DARK</span>
+              <span class="page-panel__eyebrow">어두운 표면</span>
               <strong>{{ content.darkTitle }}</strong>
             </header>
             <div v-for="[label, value] in darkTokens" :key="label" class="design-token-row">
@@ -170,7 +170,7 @@ const typography = [
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">TYPOGRAPHY</div>
+            <div class="page-panel__eyebrow">타이포그래피</div>
             <h3>{{ content.typeTitle }}</h3>
           </div>
           <span class="page-panel__chip">{{ content.typeChip }}</span>
@@ -187,19 +187,19 @@ const typography = [
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">COMPONENT LIBRARY</div>
+            <div class="page-panel__eyebrow">컴포넌트 라이브러리</div>
             <h3>{{ content.triggersTitle }}</h3>
           </div>
           <span class="page-panel__chip">{{ content.triggersChip }}</span>
         </div>
         <div class="design-trigger-column">
           <div class="design-trigger-row">
-            <button class="page-button page-button--primary" type="button">PRIMARY TRIGGER</button>
-            <button class="page-button page-button--secondary" type="button">SECONDARY PROTOCOL</button>
+            <button class="page-button page-button--primary" type="button">주요 실행</button>
+            <button class="page-button page-button--secondary" type="button">보조 절차</button>
           </div>
           <label class="design-command-field">
-            <span class="page-panel__eyebrow">TERMINAL PROMPT</span>
-            <input type="text" placeholder="ENTER SYSTEM COMMAND..." readonly />
+            <span class="page-panel__eyebrow">터미널 입력</span>
+            <input type="text" placeholder="시스템 명령 입력..." readonly />
           </label>
         </div>
       </article>
@@ -207,7 +207,7 @@ const typography = [
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">SCHEMATIC RULES</div>
+            <div class="page-panel__eyebrow">도식 규칙</div>
             <h3>{{ content.symbolsTitle }}</h3>
           </div>
           <span class="page-panel__chip">{{ content.symbolsChip }}</span>

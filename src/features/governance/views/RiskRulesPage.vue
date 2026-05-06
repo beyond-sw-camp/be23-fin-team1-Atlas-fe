@@ -86,7 +86,7 @@ const CONTENT = {
   },
 }
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 const search = ref('')
 const selectedTab = ref<string>(content.value.tabs[0])
 const rules = ref<KafkaEventSummaryResponse[]>([])
@@ -495,7 +495,7 @@ async function handleToggleRule(ruleId: string, nextEnabled: boolean) {
 watchEffect(() => {
   selectedTab.value = content.value.tabs[0]
   header.setActions([
-    { key: 'risk-rules-add', label: preferences.language === 'ko' ? '규칙 추가' : 'ADD RULE', tone: 'primary' },
+    { key: 'risk-rules-add', label: '규칙 추가', tone: 'primary' },
   ])
 })
 

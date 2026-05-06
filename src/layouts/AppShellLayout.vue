@@ -162,7 +162,7 @@ onBeforeUnmount(() => {
       type="button"
       @click="session.closeSessionNoticeModal"
     >
-      {{ preferences.language === 'ko' ? '확인' : 'OK' }}
+      {{ '확인' }}
     </button>
   </template>
 </BaseModal>

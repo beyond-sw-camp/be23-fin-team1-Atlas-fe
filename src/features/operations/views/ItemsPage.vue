@@ -68,13 +68,11 @@ type ItemTableRow = {
 }
 
 const itemCategoryPlaceholder = computed(() =>
-  preferences.language === 'ko' ? '카테고리 선택' : 'Select category',
+  '카테고리 선택',
 )
 
 const itemCategoryHint = computed(() =>
-  preferences.language === 'ko'
-    ? '품목 등록은 최하위 카테고리만 선택할 수 있습니다. 예: 식품 > 냉동 식품'
-    : 'Only leaf categories can be selected for item creation.',
+  '품목 등록은 최하위 카테고리만 선택할 수 있습니다. 예: 식품 > 냉동 식품',
 )
 
 const ITEM_UNIT_OPTIONS: ItemUnit[] = [
@@ -104,9 +102,7 @@ const preferences = useAtlasPreferencesStore()
 const actor = useActorScope()
 const router = useRouter()
 
-const copy = computed(() =>
-  preferences.language === 'ko'
-    ? {
+const copy = computed(() => ({
         eyebrow: '공급망 운영 / 품목 관리',
         title: '품목 관리',
         subtitle: '품목 마스터와 협력사 품목 공급 역량을 함께 조회하고 관리합니다.',
@@ -199,101 +195,7 @@ const copy = computed(() =>
         saveLabel: '저장',
         loading: '불러오는 중...',
       }
-    : {
-        eyebrow: 'Supply Chain Ops / Items',
-        title: 'Items',
-        subtitle: 'Browse and create item master data with supplier capability.',
-        exportLabel: 'EXPORT',
-        createLabel: 'ADD ITEM',
-        tableTitle: 'Item Registry',
-        searchPlaceholder: 'Search item, code, or category',
-        mediaColumn: 'Media',
-        mediaTitle: 'Item Media',
-        mediaUploadTitle: 'Images / Videos',
-        mediaUploadHint: 'Attach multiple image or video files.',
-        mediaAppendLabel: 'Add Media',
-        mediaAppendHint: 'Add images or videos for item detail and order thumbnails.',
-        emptyMedia: 'No media registered.',
-        columns: [
-          'ITEM CODE',
-          'ITEM NAME',
-          'CATEGORY',
-          'UNIT',
-          'STATUS',
-          'DETAIL',
-        ],
-        tabs: {
-          all: 'ALL',
-          active: 'ACTIVE',
-          deactive: 'DEACTIVE',
-        },
-        metrics: {
-          total: 'TOTAL ITEMS',
-          active: 'ACTIVE ITEMS',
-          deactive: 'INACTIVE ITEMS',
-          orderedToday: 'ITEMS ORDERED TODAY',
-        },
-        detailTitle: 'Item Detail',
-        createTitle: 'Create Item',
-        createDescription: 'Save item master first and then connect supplier capability.',
-        retryNotice:
-          'Item master already exists. Review capability values and submit again to retry capability only.',
-        createMasterSection: 'Item Master',
-        createCapabilitySection: 'Supplier Item Capability',
-        cancelLabel: 'Cancel',
-        submitLabel: 'Create',
-        retrySubmitLabel: 'Retry',
-        emptyCapability: 'No linked capability data.',
-        masterEyebrow: 'Item',
-        capabilityEyebrow: 'Item Capability',
-        linkedOrdersTitle: 'Linked Purchase Orders',
-        noLinkedOrders: 'No linked purchase orders.',
-        labels: {
-          category: 'Category',
-          itemCode: 'Item Code',
-          itemName: 'Item Name',
-          unit: 'Unit',
-          supplierName: 'Supplier',
-          itemStatus: 'Item Status',
-          spec: 'Spec',
-          shelfLife: 'Shelf Life',
-          createdAt: 'Item Created At',
-          updatedAt: 'Item Updated At',
-          availableQty: 'Available Qty',
-          moq: 'MOQ',
-          qualityGrade: 'Quality Grade',
-          leadTime: 'Lead Time',
-          monthlyCapacity: 'Monthly Capacity',
-          unitPriceHint: 'Base Unit Price',
-          validFrom: 'Valid From',
-          capabilityCreatedAt: 'Capability Created At',
-          qty: 'Qty',
-          confirmed: 'Confirmed',
-          dueDate: 'Due',
-          status: 'Status',
-          partialConfirmation: 'Partial Confirmation',
-          qualityPrice: 'Quality Price',
-          capabilityValidFrom: 'Capability Valid From',
-        },
-        options: {
-          none: 'None',
-          active: 'Active',
-          deactive: 'Inactive',
-          allowed: 'Allowed',
-          disallowed: 'Disallowed',
-        },
-        editTitle: 'Edit Item',
-        editDescription: 'Only capability and active status can be changed.',
-        editAction: 'Edit Item',
-        deleteAction: 'Delete Item',
-        deleteConfirm: 'Delete this item?',
-        deleteFailed: 'Failed to delete item.',
-        editFailed: 'Failed to edit item.',
-        createComplete: 'Complete',
-        saveLabel: 'Save',
-        loading: 'Loading...',
-      },
-)
+))
 
 const rows = ref<ItemTableRow[]>([])
 const categories = ref<ItemCategoryResponseDto[]>([])
@@ -449,12 +351,17 @@ const createForm = ref({
 
 function formatNumber(value: number | null | undefined) {
   if (value == null) return '-'
-  return value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')
+  return value.toLocaleString('ko-KR')
+}
+
+function formatWon(value: number | null | undefined) {
+  if (value == null) return '-'
+  return `${formatNumber(value)}원`
 }
 
 function formatDate(value: string | null | undefined) {
   if (!value) return '-'
-  return new Date(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')
+  return new Date(value).toLocaleString('ko-KR')
 }
 
 function itemMediaOf(item: ItemResponseDto | null | undefined) {
@@ -554,9 +461,7 @@ async function handleDetailMediaChange(event: Event) {
   } catch (error: any) {
     detailErrorMessage.value =
       error.message ??
-      (preferences.language === 'ko'
-        ? '품목 미디어 추가에 실패했습니다.'
-        : 'Failed to add item media.')
+      '품목 미디어 추가에 실패했습니다.'
   } finally {
     detailMediaUploading.value = false
   }
@@ -594,7 +499,7 @@ onMounted(() => {
 
 function formatLeadTime(value: number | null | undefined) {
   if (value == null) return '-'
-  return preferences.language === 'ko' ? `${value}일` : `${value}d`
+  return `${value}일`
 }
 
 // 품목 등록에서는 최하위 카테고리만 선택하게 합니다.
@@ -617,8 +522,6 @@ function qualityGradeText(value: SupplierItemQualityGrade | null | undefined) {
 }
 
 function itemStatusText(status: ItemStatus) {
-  if (preferences.language !== 'ko') return status
-
   switch (status) {
     case 'ACTIVE':
       return '활성'
@@ -631,9 +534,18 @@ function itemStatusText(status: ItemStatus) {
   }
 }
 
-function poStatusText(value: string) {
-  if (preferences.language !== 'ko') return value
+function itemStatusTone(status: ItemStatus) {
+  switch (status) {
+    case 'ACTIVE':
+      return 'is-success'
+    case 'DELETE':
+      return 'is-critical'
+    default:
+      return 'is-muted'
+  }
+}
 
+function poStatusText(value: string) {
   switch (value) {
     case 'CREATED':
       return '확인 대기'
@@ -782,22 +694,20 @@ function isPositiveNumber(value: unknown) {
 }
 
 function validateCreateForm() {
-  const isKo = preferences.language === 'ko'
+    if (!createForm.value.itemCategoryPublicId) return '카테고리를 선택해 주세요.'
+  if (!createForm.value.itemName.trim()) return '품목명을 입력해 주세요.'
+  if (!createForm.value.spec.trim()) return '규격을 입력해 주세요.'
+  if (!isPositiveNumber(createForm.value.unitPrice)) return '단가는 0보다 커야 합니다.'
+  if (!isNonNegativeNumber(createForm.value.shelfLifeDays)) return '유통기한을 입력해 주세요.'
+  if (!createForm.value.originLogisticsNodePublicId) return '출발 물류거점을 선택해 주세요.'
 
-  if (!createForm.value.itemCategoryPublicId) return isKo ? '카테고리를 선택해 주세요.' : 'Select a category.'
-  if (!createForm.value.itemName.trim()) return isKo ? '품목명을 입력해 주세요.' : 'Enter item name.'
-  if (!createForm.value.spec.trim()) return isKo ? '규격을 입력해 주세요.' : 'Enter spec.'
-  if (!isPositiveNumber(createForm.value.unitPrice)) return isKo ? '단가는 0보다 커야 합니다.' : 'Unit price must be greater than 0.'
-  if (!isNonNegativeNumber(createForm.value.shelfLifeDays)) return isKo ? '유통기한을 입력해 주세요.' : 'Enter shelf life days.'
-  if (!createForm.value.originLogisticsNodePublicId) return isKo ? '출발 물류거점을 선택해 주세요.' : 'Select origin logistics node.'
-
-  if (!isNonNegativeNumber(createForm.value.leadTimeDays)) return isKo ? '리드타임을 입력해 주세요.' : 'Enter lead time.'
-  if (!isPositiveNumber(createForm.value.monthlyCapacity)) return isKo ? '월간 생산 가능량을 입력해 주세요.' : 'Enter monthly capacity.'
-  if (!isPositiveNumber(createForm.value.availableQty)) return isKo ? '주문 가능 수량을 입력해 주세요.' : 'Enter available quantity.'
-  if (!isPositiveNumber(createForm.value.moq)) return isKo ? '최소 주문 수량을 입력해 주세요.' : 'Enter minimum order quantity.'
-  if (!createForm.value.qualityGrade) return isKo ? '품질 등급을 선택해 주세요.' : 'Select quality grade.'
+  if (!isNonNegativeNumber(createForm.value.leadTimeDays)) return '리드타임을 입력해 주세요.'
+  if (!isPositiveNumber(createForm.value.monthlyCapacity)) return '월간 생산 가능량을 입력해 주세요.'
+  if (!isPositiveNumber(createForm.value.availableQty)) return '주문 가능 수량을 입력해 주세요.'
+  if (!isPositiveNumber(createForm.value.moq)) return '최소 주문 수량을 입력해 주세요.'
+  if (!createForm.value.qualityGrade) return '품질 등급을 선택해 주세요.'
   if (typeof createForm.value.partialConfirmationAllowed !== 'boolean') {
-    return isKo ? '부분 확정 허용 여부를 선택해 주세요.' : 'Select partial confirmation option.'
+    return '부분 확정 허용 여부를 선택해 주세요.'
   }
 
   return ''
@@ -876,9 +786,7 @@ async function submitCreateItem() {
 
     createErrorMessage.value =
       error.message ??
-      (preferences.language === 'ko'
-        ? '품목 기본 정보와 공급 역량을 모두 입력해야 등록할 수 있습니다.'
-        : 'Item master and capability are both required.')
+      '품목 기본 정보와 공급 역량을 모두 입력해야 등록할 수 있습니다.'
   } finally {
     createLoading.value = false
   }
@@ -1144,7 +1052,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 
     <section class="terminal-page__filter">
       <label class="terminal-page__search">
-        <span>SEARCH</span>
+        <span>검색</span>
         <input v-model="search" :placeholder="copy.searchPlaceholder" type="text" />
       </label>
 
@@ -1164,7 +1072,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
     <article class="page-panel">
       <div class="page-panel__head">
         <div>
-          <div class="page-panel__eyebrow">ITEM</div>
+          <div class="page-panel__eyebrow">품목</div>
           <h3>{{ copy.tableTitle }}</h3>
         </div>
         <span class="page-panel__chip">{{ filteredRows.length }}</span>
@@ -1201,6 +1109,12 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
               >
                 {{ cell }}
               </button>
+              <span
+                v-else-if="index === 4"
+                :class="['page-status-chip', itemStatusTone(row.status)]"
+              >
+                {{ cell }}
+              </span>
               <template v-else>
                 {{ cell }}
               </template>
@@ -1323,7 +1237,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
             </div>
             <div class="page-feed__item">
               <span class="page-feed__label">{{ copy.labels.unitPriceHint }}</span>
-              <strong class="page-feed__text">{{ formatNumber(selectedCapability.unitPriceHint) }}</strong>
+              <strong class="page-feed__text">{{ formatWon(selectedCapability.unitPriceHint) }}</strong>
             </div>
             <div class="page-feed__item">
               <span class="page-feed__label">{{ copy.labels.validFrom }}</span>
@@ -1495,12 +1409,12 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>ITEM NAME</span>
+          <span>품목명</span>
           <input v-model="createForm.itemName" type="text" :disabled="!!createdItemForCapability" />
         </label>
 
         <label class="items-page__field">
-          <span>ITEM TYPE</span>
+          <span>품목 유형</span>
           <select v-model="createForm.supplyType" :disabled="!!createdItemForCapability">
             <option value="STOCK_BASED">재고형</option>
             <option value="MAKE_TO_ORDER">주문생산형</option>
@@ -1808,7 +1722,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   color: var(--color-on-surface);
   background: var(--color-surface);
   border: 1px solid var(--color-outline);
-  border-radius: 6px;
+  border-radius: 0;
 }
 
 .items-page__thumb img,

@@ -70,7 +70,7 @@ const CONTENT = {
   },
 } as const
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 // 플랫폼 관리자는 설정에 들어오면 조직 관리 탭을 먼저 봅니다.
 const activeTab = ref<SettingsTabKey>('organization')
 const tabEntries = computed(() => [
@@ -194,21 +194,21 @@ const certificateScopeOptions = [
     ko: '협력사 전체 인증',
     en: 'Supplier Common',
     descriptionKo: '협력사 조직 전체에 적용',
-    descriptionEn: 'Applies to the supplier organization',
+    descriptionEn: '협력사 조직 전체에 적용',
   },
   {
     value: 'ITEM_SPECIFIC',
     ko: '품목별 인증',
     en: 'Item Specific',
     descriptionKo: '특정 품목에만 적용',
-    descriptionEn: 'Applies only to selected items',
+    descriptionEn: '특정 품목에만 적용',
   },
   {
     value: 'BOTH',
     ko: '공통/품목 모두',
     en: 'Both',
     descriptionKo: '협력사 전체 또는 품목별 인증으로 사용',
-    descriptionEn: 'Can be used for common or item-specific certificates',
+    descriptionEn: '협력사 전체 또는 품목별 인증으로 사용',
   },
 ] as const
 
@@ -217,35 +217,35 @@ const legacyCertificateScopeLabels: Record<string, { ko: string; en: string; des
     ko: '품질',
     en: 'Quality',
     descriptionKo: '기존 품질 인증 분류',
-    descriptionEn: 'Legacy quality certificate scope',
+    descriptionEn: '기존 품질 인증 분류',
   },
   SUSTAINABILITY: {
     ko: '지속가능성',
     en: 'Sustainability',
     descriptionKo: '기존 지속가능성 인증 분류',
-    descriptionEn: 'Legacy sustainability certificate scope',
+    descriptionEn: '기존 지속가능성 인증 분류',
   },
   LOGISTICS: {
     ko: '물류',
     en: 'Logistics',
     descriptionKo: '기존 물류 인증 분류',
-    descriptionEn: 'Legacy logistics certificate scope',
+    descriptionEn: '기존 물류 인증 분류',
   },
 }
 
 const recommendedCertificateTypes = [
-  { code: 'HACCP', nameKo: 'HACCP 인증', nameEn: 'HACCP Certificate', scope: 'SUPPLIER_COMMON', categoryKo: '식품 안전', categoryEn: 'Food Safety' },
-  { code: 'ISO-9001', nameKo: '품질경영시스템', nameEn: 'Quality Management System', scope: 'SUPPLIER_COMMON', categoryKo: '품질', categoryEn: 'Quality' },
-  { code: 'ISO-14001', nameKo: '환경경영시스템', nameEn: 'Environmental Management System', scope: 'SUPPLIER_COMMON', categoryKo: 'ESG 환경', categoryEn: 'ESG Environment' },
-  { code: 'ISO-45001', nameKo: '안전보건경영시스템', nameEn: 'Occupational Health and Safety', scope: 'SUPPLIER_COMMON', categoryKo: 'ESG 사회/안전', categoryEn: 'ESG Social / Safety' },
-  { code: 'ISCC', nameKo: 'ISCC 지속가능원료 인증', nameEn: 'ISCC Sustainability Certification', scope: 'ITEM_SPECIFIC', categoryKo: 'ESG 지속가능성', categoryEn: 'ESG Sustainability' },
-  { code: 'CERT-ORIGIN', nameKo: '원산지 증명서', nameEn: 'Certificate of Origin', scope: 'ITEM_SPECIFIC', categoryKo: '컴플라이언스', categoryEn: 'Compliance' },
-  { code: 'ECO-LABEL', nameKo: '환경표지 인증', nameEn: 'Korea Eco-Label', scope: 'ITEM_SPECIFIC', categoryKo: 'ESG 환경', categoryEn: 'ESG Environment' },
-  { code: 'ORGANIC-CERT', nameKo: '유기농 인증', nameEn: 'Organic Certification', scope: 'ITEM_SPECIFIC', categoryKo: '식품/환경', categoryEn: 'Food / Environment' },
-  { code: 'GAP', nameKo: '농산물우수관리 인증', nameEn: 'Good Agricultural Practices Certification', scope: 'ITEM_SPECIFIC', categoryKo: '식품 안전', categoryEn: 'Food Safety' },
-  { code: 'HALAL', nameKo: '할랄 인증', nameEn: 'Halal Certification', scope: 'ITEM_SPECIFIC', categoryKo: '식품 인증', categoryEn: 'Food Certification' },
-  { code: 'SELF-QUALITY-INSPECTION', nameKo: '자가품질검사 성적서', nameEn: 'Self-Quality Inspection Report', scope: 'ITEM_SPECIFIC', categoryKo: '식품 안전', categoryEn: 'Food Safety' },
-  { code: 'PESTICIDE-RESIDUE-TEST', nameKo: '잔류농약 검사성적서', nameEn: 'Pesticide Residue Test Report', scope: 'ITEM_SPECIFIC', categoryKo: '식품 안전', categoryEn: 'Food Safety' },
+  { code: 'HACCP', nameKo: 'HACCP 인증', nameEn: 'HACCP 인증', scope: 'SUPPLIER_COMMON', categoryKo: '식품 안전', categoryEn: '식품 안전' },
+  { code: 'ISO-9001', nameKo: '품질경영시스템', nameEn: '품질경영시스템', scope: 'SUPPLIER_COMMON', categoryKo: '품질', categoryEn: '품질' },
+  { code: 'ISO-14001', nameKo: '환경경영시스템', nameEn: '환경경영시스템', scope: 'SUPPLIER_COMMON', categoryKo: 'ESG 환경', categoryEn: 'ESG 환경' },
+  { code: 'ISO-45001', nameKo: '안전보건경영시스템', nameEn: '안전보건경영시스템', scope: 'SUPPLIER_COMMON', categoryKo: 'ESG 사회/안전', categoryEn: 'ESG 사회/안전' },
+  { code: 'ISCC', nameKo: 'ISCC 지속가능원료 인증', nameEn: 'ISCC 지속가능원료 인증', scope: 'ITEM_SPECIFIC', categoryKo: 'ESG 지속가능성', categoryEn: 'ESG 지속가능성' },
+  { code: 'CERT-ORIGIN', nameKo: '원산지 증명서', nameEn: '원산지 증명서', scope: 'ITEM_SPECIFIC', categoryKo: '컴플라이언스', categoryEn: '컴플라이언스' },
+  { code: 'ECO-LABEL', nameKo: '환경표지 인증', nameEn: '환경표지 인증', scope: 'ITEM_SPECIFIC', categoryKo: 'ESG 환경', categoryEn: 'ESG 환경' },
+  { code: 'ORGANIC-CERT', nameKo: '유기농 인증', nameEn: '유기농 인증', scope: 'ITEM_SPECIFIC', categoryKo: '식품/환경', categoryEn: '식품/환경' },
+  { code: 'GAP', nameKo: '농산물우수관리 인증', nameEn: '농산물우수관리 인증', scope: 'ITEM_SPECIFIC', categoryKo: '식품 안전', categoryEn: '식품 안전' },
+  { code: 'HALAL', nameKo: '할랄 인증', nameEn: '할랄 인증', scope: 'ITEM_SPECIFIC', categoryKo: '식품 인증', categoryEn: '식품 인증' },
+  { code: 'SELF-QUALITY-INSPECTION', nameKo: '자가품질검사 성적서', nameEn: '자가품질검사 성적서', scope: 'ITEM_SPECIFIC', categoryKo: '식품 안전', categoryEn: '식품 안전' },
+  { code: 'PESTICIDE-RESIDUE-TEST', nameKo: '잔류농약 검사성적서', nameEn: '잔류농약 검사성적서', scope: 'ITEM_SPECIFIC', categoryKo: '식품 안전', categoryEn: '식품 안전' },
 ] as const
 
 type RecommendedCertificateType = (typeof recommendedCertificateTypes)[number]
@@ -424,7 +424,7 @@ const categoryTreeNodes = computed<CategoryTreeNode[]>(() => {
     left.sortOrder - right.sortOrder ||
     left.categoryName.localeCompare(
       right.categoryName,
-      preferences.language === 'ko' ? 'ko-KR' : 'en-US',
+      'ko-KR',
     )
 
   const result: CategoryTreeNode[] = []
@@ -688,9 +688,7 @@ async function loadItemCategories() {
     itemCategoryError.value =
       error?.payload?.message ||
       error?.message ||
-      (preferences.language === 'ko'
-        ? '카테고리 목록을 불러오지 못했습니다.'
-        : 'Failed to load categories.')
+      ('카테고리 목록을 불러오지 못했습니다.')
   } finally {
     itemCategoriesLoading.value = false
   }
@@ -717,9 +715,7 @@ function startCategoryEdit() {
 
   if (targetCategory.hasChildren) {
     itemCategoryError.value =
-      preferences.language === 'ko'
-        ? '하위 카테고리가 있는 카테고리는 수정할 수 없습니다.'
-        : 'Categories with child categories cannot be edited.'
+      '하위 카테고리가 있는 카테고리는 수정할 수 없습니다.'
     return
   }
 
@@ -745,15 +741,13 @@ async function submitCategoryEdit() {
 
   if (!categoryName) {
     itemCategoryError.value =
-      preferences.language === 'ko' ? '카테고리명을 입력해 주세요.' : 'Enter category name.'
+      '카테고리명을 입력해 주세요.'
     return
   }
 
   if (!Number.isFinite(sortOrder) || sortOrder < 0) {
     itemCategoryError.value =
-      preferences.language === 'ko'
-        ? '정렬 순서는 0 이상이어야 합니다.'
-        : 'Sort order must be 0 or more.'
+      '정렬 순서는 0 이상이어야 합니다.'
     return
   }
 
@@ -767,7 +761,7 @@ async function submitCategoryEdit() {
     } satisfies UpdateItemCategoryRequestDto)
 
     itemCategorySuccess.value =
-      preferences.language === 'ko' ? '카테고리가 수정되었습니다.' : 'Category updated.'
+      '카테고리가 수정되었습니다.'
 
     await loadItemCategories()
     selectCategoryNode(targetCategory.publicId)
@@ -776,9 +770,7 @@ async function submitCategoryEdit() {
     itemCategoryError.value =
       error?.payload?.message ||
       error?.message ||
-      (preferences.language === 'ko'
-        ? '카테고리 수정에 실패했습니다.'
-        : 'Failed to update category.')
+      ('카테고리 수정에 실패했습니다.')
   } finally {
     itemCategoryUpdating.value = false
   }
@@ -793,9 +785,7 @@ async function deleteSelectedCategory() {
 
   if (targetCategory.hasChildren) {
     itemCategoryError.value =
-      preferences.language === 'ko'
-        ? '하위 카테고리가 있는 카테고리는 삭제할 수 없습니다.'
-        : 'Categories with child categories cannot be deleted.'
+      '하위 카테고리가 있는 카테고리는 삭제할 수 없습니다.'
     return
   }
 
@@ -814,7 +804,7 @@ async function deleteSelectedCategory() {
     await deleteItemCategory(targetCategory.publicId)
 
     itemCategorySuccess.value =
-      preferences.language === 'ko' ? '카테고리가 삭제되었습니다.' : 'Category deleted.'
+      '카테고리가 삭제되었습니다.'
 
     cancelCategoryEdit()
     await loadItemCategories()
@@ -823,9 +813,7 @@ async function deleteSelectedCategory() {
     itemCategoryError.value =
       error?.payload?.message ||
       error?.message ||
-      (preferences.language === 'ko'
-        ? '카테고리 삭제에 실패했습니다.'
-        : 'Failed to delete category.')
+      ('카테고리 삭제에 실패했습니다.')
   } finally {
     itemCategoryDeleting.value = false
   }
@@ -837,17 +825,13 @@ async function submitItemCategory() {
 
   if (!itemCategoryForm.categoryName.trim()) {
     itemCategoryError.value =
-      preferences.language === 'ko'
-        ? '카테고리명을 입력해 주세요.'
-        : 'Enter category name.'
+      '카테고리명을 입력해 주세요.'
     return
   }
 
   if (itemCategoryForm.sortOrder < 0) {
     itemCategoryError.value =
-      preferences.language === 'ko'
-        ? '정렬 순서는 0 이상이어야 합니다.'
-        : 'Sort order must be 0 or more.'
+      '정렬 순서는 0 이상이어야 합니다.'
     return
   }
 
@@ -861,9 +845,7 @@ async function submitItemCategory() {
     } satisfies CreateItemCategoryRequestDto)
 
     itemCategorySuccess.value =
-      preferences.language === 'ko'
-        ? '카테고리가 등록되었습니다.'
-        : 'Category created.'
+      '카테고리가 등록되었습니다.'
 
     resetCategoryForm()
     await loadItemCategories()
@@ -872,9 +854,7 @@ async function submitItemCategory() {
     itemCategoryError.value =
       error?.payload?.message ||
       error?.message ||
-      (preferences.language === 'ko'
-        ? '카테고리 등록에 실패했습니다.'
-        : 'Failed to create category.')
+      ('카테고리 등록에 실패했습니다.')
   } finally {
     itemCategorySubmitting.value = false
   }
@@ -892,7 +872,7 @@ async function loadCertificateTypes() {
       const rightName = right.certificateName ?? right.name ?? ''
       return leftName.localeCompare(
         rightName,
-        preferences.language === 'ko' ? 'ko-KR' : 'en-US',
+        'ko-KR',
       )
     })
     certificateTypesLoaded.value = true
@@ -900,9 +880,7 @@ async function loadCertificateTypes() {
     certificateTypeError.value =
       error?.payload?.message ||
       error?.message ||
-      (preferences.language === 'ko'
-        ? '인증 분류 목록을 불러오지 못했습니다.'
-        : 'Failed to load certificate types.')
+      ('인증 분류 목록을 불러오지 못했습니다.')
   } finally {
     certificateTypesLoading.value = false
   }
@@ -971,9 +949,7 @@ async function submitCertificateType() {
 
   if (!certificateTypeForm.certificateCode.trim() || !certificateTypeForm.certificateName.trim()) {
     certificateTypeError.value =
-      preferences.language === 'ko'
-        ? '인증 코드와 인증명을 입력해 주세요.'
-        : 'Enter certificate code and name.'
+      '인증 코드와 인증명을 입력해 주세요.'
     return
   }
 
@@ -1012,9 +988,7 @@ async function submitCertificateType() {
     })
 
     certificateTypeSuccess.value =
-      preferences.language === 'ko'
-        ? '인증 분류가 등록되었습니다.'
-        : 'Certificate type created.'
+      '인증 분류가 등록되었습니다.'
 
     resetCertificateTypeForm()
     await loadCertificateTypes()
@@ -1026,9 +1000,7 @@ async function submitCertificateType() {
       error?.message ||
       (editingCertificateType.value
         ? certificateTypeCopy.value.updateFailed
-        : preferences.language === 'ko'
-          ? '인증 분류 등록에 실패했습니다.'
-          : 'Failed to create certificate type.')
+        : '인증 분류 등록에 실패했습니다.')
   } finally {
     certificateTypeSubmitting.value = false
   }
@@ -1158,18 +1130,14 @@ async function submitOrganization() {
     !organizationForm.contactPhone
   ) {
     organizationCreateError.value =
-      preferences.language === 'ko'
-        ? '조직 생성에 필요한 항목을 모두 입력해 주세요.'
-        : 'Please fill in all required organization fields.'
+      '조직 생성에 필요한 항목을 모두 입력해 주세요.'
     return
   }
 
   // 담당자 연락처 형식도 같이 확인합니다.
   if (!organizationContactPhoneValid.value) {
     organizationCreateError.value =
-      preferences.language === 'ko'
-        ? '담당자 연락처 형식이 올바르지 않습니다.'
-        : 'The contact phone number format is invalid.'
+      '담당자 연락처 형식이 올바르지 않습니다.'
     return
   }
 
@@ -1237,9 +1205,7 @@ async function submitOrganization() {
         organizationCreateError.value =
           supplierError?.payload?.message ||
           supplierError?.message ||
-          (preferences.language === 'ko'
-            ? '조직은 생성됐지만 협력사 생성은 실패했습니다.'
-            : 'Organization was created, but supplier creation failed.')
+          ('조직은 생성됐지만 협력사 생성은 실패했습니다.')
 
         return
       }
@@ -1269,9 +1235,7 @@ async function submitOrganization() {
     organizationCreateError.value =
       error?.payload?.message ||
       error?.message ||
-      (preferences.language === 'ko'
-        ? '조직 생성에 실패했습니다.'
-        : 'Failed to create organization.')
+      ('조직 생성에 실패했습니다.')
   } finally {
     isCreatingOrganization.value = false
   }
@@ -1293,7 +1257,7 @@ async function loadOrganizationOptions() {
     organizationOptions.value = [...response.content].sort((a, b) =>
       a.organizationName.localeCompare(
         b.organizationName,
-        preferences.language === 'ko' ? 'ko-KR' : 'en-US',
+        'ko-KR',
       ),
     )
   } finally {
@@ -1311,9 +1275,7 @@ async function submitInitialOrgAdmin() {
 if (!selectedOrganizationPublicId.value) {
 
     orgAdminCreateError.value =
-      preferences.language === 'ko'
-        ? '조직을 선택해 주세요.'
-: 'Please select an organization.'
+      '조직을 선택해 주세요.'
     return
   }
 
@@ -1324,17 +1286,13 @@ if (!selectedOrganizationPublicId.value) {
     !initialOrgAdminForm.phone
   ) {
     orgAdminCreateError.value =
-      preferences.language === 'ko'
-        ? '최초 관리자 생성에 필요한 항목을 모두 입력해 주세요.'
-        : 'Please fill in all required admin fields.'
+      '최초 관리자 생성에 필요한 항목을 모두 입력해 주세요.'
     return
   }
 
   if (!initialOrgAdminPhoneValid.value) {
     orgAdminCreateError.value =
-      preferences.language === 'ko'
-        ? '연락처 형식이 올바르지 않습니다.'
-        : 'The phone number format is invalid.'
+      '연락처 형식이 올바르지 않습니다.'
     return
   }
 
@@ -1354,15 +1312,11 @@ if (!selectedOrganizationPublicId.value) {
     createdOrgAdminLoginId.value = response.loginId
     createdOrgAdminTempPassword.value = response.temporaryPassword
     orgAdminCreateSuccess.value =
-      preferences.language === 'ko'
-        ? '최초 조직 관리자 계정이 생성되었습니다.'
-        : 'Initial organization admin account has been created.'
+      '최초 조직 관리자 계정이 생성되었습니다.'
   } catch (error: any) {
     orgAdminCreateError.value =
       error?.payload?.message ||
-      (preferences.language === 'ko'
-        ? '최초 관리자 생성에 실패했습니다.'
-        : 'Failed to create the initial organization admin.')
+      ('최초 관리자 생성에 실패했습니다.')
   } finally {
     isCreatingOrgAdmin.value = false
   }
@@ -1400,20 +1354,20 @@ if (!selectedOrganizationPublicId.value) {
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">ORG ADMIN</div>
-              <h3>{{ preferences.language === 'ko' ? '최초 조직 관리자 생성' : 'Create Initial Org Admin' }}</h3>
+              <h3>{{ '최초 조직 관리자 생성' }}</h3>
             </div>
           </div>
 
           <div class="settings-form">
             <label>
-  <span>{{ preferences.language === 'ko' ? '대상 조직' : 'Target Organization' }}</span>
+  <span>{{ '대상 조직' }}</span>
 
   <select v-model="selectedOrganizationPublicId">
     <option value="">
       {{
         isLoadingOrganizationOptions
-          ? (preferences.language === 'ko' ? '조직 목록 불러오는 중...' : 'Loading organizations...')
-          : (preferences.language === 'ko' ? '조직을 선택하세요.' : 'Select an organization.')
+          ? ('조직 목록 불러오는 중...')
+          : ('조직을 선택하세요.')
       }}
     </option>
 
@@ -1429,27 +1383,27 @@ if (!selectedOrganizationPublicId.value) {
 
 
             <label>
-              <span>{{ preferences.language === 'ko' ? '이름' : 'First Name' }}</span>
+              <span>{{ '이름' }}</span>
               <input v-model="initialOrgAdminForm.firstName" type="text" />
             </label>
 
             <label>
-              <span>{{ preferences.language === 'ko' ? '중간이름 (선택)' : 'Middle Name (OPTIONAL)' }}</span>
+              <span>{{ '중간이름 (선택)' }}</span>
               <input v-model="initialOrgAdminForm.middleName" type="text" />
             </label>
 
             <label>
-              <span>{{ preferences.language === 'ko' ? '성' : 'Last Name' }}</span>
+              <span>{{ '성' }}</span>
               <input v-model="initialOrgAdminForm.lastName" type="text" />
             </label>
 
             <label>
-              <span>{{ preferences.language === 'ko' ? '이메일' : 'Email' }}</span>
+              <span>{{ '이메일' }}</span>
               <input v-model="initialOrgAdminForm.email" type="email" />
             </label>
 
             <label>
-              <span>{{ preferences.language === 'ko' ? '연락처' : 'Phone' }}</span>
+              <span>{{ '연락처' }}</span>
               <PhoneField
                 v-model="initialOrgAdminForm.phone"
                 v-model:valid="initialOrgAdminPhoneValid"
@@ -1458,7 +1412,7 @@ if (!selectedOrganizationPublicId.value) {
             </label>
 
             <label>
-              <span>{{ preferences.language === 'ko' ? '직책' : 'Job Title' }}</span>
+              <span>{{ '직책' }}</span>
               <input v-model="initialOrgAdminForm.jobTitle" type="text" />
             </label>
 
@@ -1473,14 +1427,14 @@ if (!selectedOrganizationPublicId.value) {
             <div v-if="createdOrgAdminLoginId || createdOrgAdminTempPassword" class="page-feed">
               <div v-if="createdOrgAdminLoginId" class="page-feed__item">
                 <span class="page-feed__label">
-                  {{ preferences.language === 'ko' ? '자동 생성 로그인 ID' : 'Generated Login ID' }}
+                  {{ '자동 생성 로그인 ID' }}
                 </span>
                 <strong class="page-feed__text">{{ createdOrgAdminLoginId }}</strong>
               </div>
 
               <div v-if="createdOrgAdminTempPassword" class="page-feed__item">
                 <span class="page-feed__label">
-                  {{ preferences.language === 'ko' ? '임시 비밀번호' : 'Temporary Password' }}
+                  {{ '임시 비밀번호' }}
                 </span>
                 <strong class="page-feed__text">{{ createdOrgAdminTempPassword }}</strong>
               </div>
@@ -1495,8 +1449,8 @@ if (!selectedOrganizationPublicId.value) {
             >
               {{
                 isCreatingOrgAdmin
-                  ? (preferences.language === 'ko' ? '생성 중...' : 'Creating...')
-                  : (preferences.language === 'ko' ? '조직 관리자 생성' : 'Create Org Admin')
+                  ? ('생성 중...')
+                  : ('조직 관리자 생성')
               }}
             </button>
           </div>
@@ -1535,7 +1489,7 @@ if (!selectedOrganizationPublicId.value) {
 
             <div v-if="itemCategoriesLoading && !categoryTreeNodes.length" class="page-feed">
               <div class="page-feed__item">
-                <span class="page-feed__label">{{ preferences.language === 'ko' ? '로딩 중' : 'Loading' }}</span>
+                <span class="page-feed__label">{{ '로딩 중' }}</span>
                 <strong class="page-feed__text">...</strong>
               </div>
             </div>
@@ -1613,7 +1567,7 @@ if (!selectedOrganizationPublicId.value) {
   >
     <div class="page-feed__item">
       <span class="page-feed__label">
-        {{ preferences.language === 'ko' ? '선택 카테고리' : 'Selected Category' }}
+        {{ '선택 카테고리' }}
       </span>
       <strong class="page-feed__text">{{ selectedCategoryNode.categoryName }}</strong>
     </div>
@@ -1625,7 +1579,7 @@ if (!selectedOrganizationPublicId.value) {
         :disabled="itemCategoryUpdating || itemCategoryDeleting"
         @click="startCategoryEdit"
       >
-        {{ preferences.language === 'ko' ? '수정' : 'Edit' }}
+        {{ '수정' }}
       </button>
 
       <button
@@ -1634,7 +1588,7 @@ if (!selectedOrganizationPublicId.value) {
         :disabled="itemCategoryUpdating || itemCategoryDeleting"
         @click="deleteSelectedCategory"
       >
-        {{ preferences.language === 'ko' ? '삭제' : 'Delete' }}
+        {{ '삭제' }}
       </button>
     </div>
   </div>
@@ -1650,12 +1604,10 @@ if (!selectedOrganizationPublicId.value) {
     <div class="page-panel__head">
       <div>
         <div class="page-panel__eyebrow">CATEGORY EDIT</div>
-        <h3>{{ preferences.language === 'ko' ? '카테고리 수정' : 'Edit Category' }}</h3>
+        <h3>{{ '카테고리 수정' }}</h3>
         <p class="settings-page__copy">
           {{
-            preferences.language === 'ko'
-              ? '현재 페이지에서 바로 이름과 정렬 순서를 수정합니다.'
-              : 'Update the category name and sort order inline.'
+            '현재 페이지에서 바로 이름과 정렬 순서를 수정합니다.'
           }}
         </p>
       </div>
@@ -1663,7 +1615,7 @@ if (!selectedOrganizationPublicId.value) {
 
     <div class="settings-form">
     <label>
-        <span>{{ preferences.language === 'ko' ? '부모 카테고리' : 'Parent Category' }}</span>
+        <span>{{ '부모 카테고리' }}</span>
         <select v-model="itemCategoryEditForm.parentCategoryPublicId">
           <option
             v-for="option in editableParentCategoryOptions"
@@ -1675,12 +1627,12 @@ if (!selectedOrganizationPublicId.value) {
         </select>
       </label>
       <label>
-        <span>{{ preferences.language === 'ko' ? '카테고리명' : 'Category Name' }}</span>
+        <span>{{ '카테고리명' }}</span>
         <input v-model="itemCategoryEditForm.categoryName" type="text" maxlength="100" />
       </label>
 
       <label>
-        <span>{{ preferences.language === 'ko' ? '정렬 순서' : 'Sort Order' }}</span>
+        <span>{{ '정렬 순서' }}</span>
         <input v-model.number="itemCategoryEditForm.sortOrder" type="number" min="0" />
       </label>
 
@@ -1691,7 +1643,7 @@ if (!selectedOrganizationPublicId.value) {
           :disabled="itemCategoryUpdating"
           @click="cancelCategoryEdit"
         >
-          {{ preferences.language === 'ko' ? '취소' : 'Cancel' }}
+          {{ '취소' }}
         </button>
 
         <button
@@ -1702,8 +1654,8 @@ if (!selectedOrganizationPublicId.value) {
         >
           {{
             itemCategoryUpdating
-              ? (preferences.language === 'ko' ? '수정 중...' : 'Updating...')
-              : (preferences.language === 'ko' ? '수정 저장' : 'Save Changes')
+              ? ('수정 중...')
+              : ('수정 저장')
           }}
         </button>
       </div>
@@ -1749,7 +1701,7 @@ if (!selectedOrganizationPublicId.value) {
           </div>
 
           <div v-if="certificateTypesLoading && !certificateTypes.length" class="page-table__empty">
-            {{ preferences.language === 'ko' ? '인증 분류를 불러오는 중입니다.' : 'Loading certificate types.' }}
+            {{ '인증 분류를 불러오는 중입니다.' }}
           </div>
 
           <div v-else-if="!certificateTypes.length" class="page-table__empty">
@@ -1786,7 +1738,7 @@ if (!selectedOrganizationPublicId.value) {
               :disabled="!canMoveCertificateTypePrev"
               @click="moveCertificateTypePage(certificateTypePage - 1)"
             >
-              {{ preferences.language === 'ko' ? '이전' : 'Previous' }}
+              {{ '이전' }}
             </button>
             <strong>
               {{ certificateTypeCurrentPageNumber }} / {{ certificateTypeTotalPages }} ·
@@ -1798,7 +1750,7 @@ if (!selectedOrganizationPublicId.value) {
               :disabled="!canMoveCertificateTypeNext"
               @click="moveCertificateTypePage(certificateTypePage + 1)"
             >
-              {{ preferences.language === 'ko' ? '다음' : 'Next' }}
+              {{ '다음' }}
             </button>
           </div>
         </article>
@@ -1838,9 +1790,7 @@ if (!selectedOrganizationPublicId.value) {
               >
                 <option value="">
                   {{
-                    preferences.language === 'ko'
-                      ? '추천 인증을 선택하세요.'
-                      : 'Select a recommended certificate.'
+                    '추천 인증을 선택하세요.'
                   }}
                 </option>
                 <option
@@ -1960,7 +1910,7 @@ if (!selectedOrganizationPublicId.value) {
                 <strong>{{ formatCertificateScope(selectedCertificateType.scopeType) }}</strong>
               </div>
               <div>
-                <span>{{ preferences.language === 'ko' ? '범위 설명' : 'Scope Description' }}</span>
+                <span>{{ '범위 설명' }}</span>
                 <strong>{{ formatCertificateScopeDescription(selectedCertificateType.scopeType) }}</strong>
               </div>
               <div>

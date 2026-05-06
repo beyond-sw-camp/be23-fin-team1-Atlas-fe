@@ -154,7 +154,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     if (fromRoom?.displayName) return fromRoom.displayName
     const fromUsers = availableUsers.value.find((user) => user.userPublicId === userPublicId)
     if (fromUsers?.displayName) return fromUsers.displayName
-    return userPublicId
+    return '알 수 없는 사용자'
   }
 
   function buildMessagePreview(message: ChatMessageDto) {

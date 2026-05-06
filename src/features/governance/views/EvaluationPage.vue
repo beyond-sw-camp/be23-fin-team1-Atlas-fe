@@ -93,7 +93,7 @@ const factorRows = computed(() =>
       ],
 )
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 
 watchEffect(() => {
   header.setActions([

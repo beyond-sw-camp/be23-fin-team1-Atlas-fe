@@ -142,7 +142,7 @@ const actor = useActorScope()
 const preferences = useAtlasPreferencesStore()
 
 const copy = computed(() =>
-  preferences.language === 'ko'
+  true
     ? {
         pageEyebrow: '공급망 운영 / 발주 관리',
         pageTitle: '발주 관리',
@@ -177,13 +177,15 @@ const copy = computed(() =>
         itemSearchPlaceholder: '품목명 또는 품목코드를 입력하세요.',
         uncategorized: '미분류',
         selectItem: '품목 선택',
-        emptyItems: '표시할 품목이 없습니다.',
+        emptyItems: '조건에 맞는 외부 등록 품목이 없습니다.',
         itemCapability: '품목 capability',
         itemCode: '품목 코드',
         itemName: '품목명',
         supplier: '협력사',
         unit: '유닛',
         unitPrice: '단가',
+        unitPricePerUnit: '단가',
+        remainingQty: '남은 수량',
         leadTime: '리드타임',
         partialConfirmation: '부분 확정',
         supplyType: '품목 타입',
@@ -266,7 +268,9 @@ const copy = computed(() =>
         orderCountSummary: (count: number, amount: string) => `${count}건 / ${amount}`,
         selectedOrderFallback: '선택한 발주의 상세 정보를 확인합니다.',
         selectedSubOrderFallback: '선택한 서브발주의 상세 정보를 확인합니다.',
-        columns: ['발주번호', '거래처', '협력사 상태', '품목', '수량', '총금액(단위 천)', '발주일', '예상 납기일', '상태', '작업'],
+        previousPage: '이전',
+        nextPage: '다음',
+        columns: ['발주번호', '거래처', '품목', '수량', '총금액(원)', '발주일', '예상 납기일', '상태', '작업'],
         directionOptions: [
           { key: 'ALL' as const, label: '전체' },
           { key: 'ISSUED' as const, label: '발주' },
@@ -288,11 +292,11 @@ const copy = computed(() =>
           pendingMeta: '확인 대기 중인 발주',
           completed: '납기 완료',
           completedMeta: '완료 처리된 발주',
-          totalAmount: '총금액(단위 천)',
-          amountMeta: '발주 기준 총금액(단위 천)',
+          totalAmount: '총금액(원)',
+          amountMeta: '발주 기준 총금액(원)',
           issuedCount: '발주 수',
           receivedCount: '수주 수',
-          totalAmountIssued: '총금액(단위 천)',
+          totalAmountIssued: '총금액(원)',
         },
         supplierStatuses: {
           ACTIVE: '활성',
@@ -386,13 +390,15 @@ const copy = computed(() =>
         itemSearchPlaceholder: 'Enter item name or item code.',
         uncategorized: 'Uncategorized',
         selectItem: 'Select Item',
-        emptyItems: 'No items to display.',
+        emptyItems: '조건에 맞는 외부 등록 품목이 없습니다.',
         itemCapability: 'Item Capability',
         itemCode: 'Item Code',
         itemName: 'Item Name',
         supplier: 'Supplier',
         unit: 'Unit',
         unitPrice: 'Unit Price',
+        unitPricePerUnit: '단가',
+        remainingQty: '남은 수량',
         leadTime: 'Lead Time',
         partialConfirmation: 'Partial Confirmation',
         supplyType: 'Supply Type',
@@ -475,7 +481,9 @@ const copy = computed(() =>
         orderCountSummary: (count: number, amount: string) => `${count} orders / ${amount}`,
         selectedOrderFallback: 'Review the selected order detail.',
         selectedSubOrderFallback: 'Review the selected sub order detail.',
-        columns: ['Document No.', 'Counterparty', 'Supplier Status', 'Item', 'Qty', 'Total Amount (K)', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
+        previousPage: 'Previous',
+        nextPage: 'Next',
+        columns: ['Document No.', 'Counterparty', 'Item', 'Qty', 'Total Amount', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
         directionOptions: [
           { key: 'ALL' as const, label: 'All' },
           { key: 'ISSUED' as const, label: 'Issued' },
@@ -497,11 +505,11 @@ const copy = computed(() =>
           pendingMeta: 'Orders waiting for confirmation',
           completed: 'Due Complete',
           completedMeta: 'Completed orders',
-          totalAmount: 'Total Amount (K)',
-          amountMeta: 'Total issued amount in thousands',
+          totalAmount: 'Total Amount',
+          amountMeta: 'Total issued amount',
           issuedCount: 'Issued',
           receivedCount: 'Received',
-          totalAmountIssued: 'Total Amount (K)',
+          totalAmountIssued: 'Total Amount',
         },
         supplierStatuses: {
           ACTIVE: 'Active',
@@ -536,7 +544,7 @@ const copy = computed(() =>
           acceptFail: 'Failed to accept order.',
           rejectOrderQuestion: 'Reject this order?',
           rejectOrderSuccess: 'Order rejected.',
-          rejectOrderFail: 'Failed to reject order.',
+          rejectOrderFail: '발주 반려에 실패했습니다.',
           cancelOrderQuestion: 'Cancel this order?',
           cancelOrderSuccess: 'Order cancelled.',
           cancelOrderFail: 'Failed to cancel order.',
@@ -559,7 +567,7 @@ const copy = computed(() =>
           subOrderAcceptFail: 'Failed to accept received order.',
           subOrderRejectQuestion: 'Reject this sub order?',
           subOrderRejectSuccess: 'Sub order rejected.',
-          subOrderRejectFail: 'Failed to reject sub order.',
+          subOrderRejectFail: '서브발주 반려에 실패했습니다.',
         },
       },
 )
@@ -587,6 +595,8 @@ const loading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 const activeTabKey = ref<OrderTabKey>('ALL')
+const ORDER_TABLE_PAGE_SIZE = 20
+const orderTablePage = ref(0)
 
 const orderDetailModalOpen = ref(false)
 const detailLoading = ref(false)
@@ -775,6 +785,7 @@ const filteredSelectableItems = computed(() => {
 
   return createForm.value.itemOptions
     .filter((item) => createForm.value.searchResultPublicIds.includes(item.publicId))
+    .filter((item) => !isOwnRegisteredItem(item))
     .filter((item) => {
       const matchesCategory =
         !selectedCategoryPublicId ||
@@ -818,11 +829,11 @@ const selectedCreateParentOrderItems = computed<PurchaseOrderItemResponseDto[]>(
 )
 
 function parentOrderLabel(order: PurchaseOrderDetailResponseDto) {
-  return `${order.poNumber} / ${organizationDisplayName(order.buyerOrganizationPublicId)} / ${formatDate(order.orderedAt)}`
+  return `${order.poNumber} / ${organizationDisplayName(order.buyerOrganizationPublicId, '거래처 미확인')} / ${formatDate(order.orderedAt)}`
 }
 
 function parentOrderItemLabel(item: PurchaseOrderItemResponseDto) {
-  return `${item.itemCode} / ${item.itemName} / ${formatNumber(item.confirmedQty ?? item.orderedQty)} ${item.unit}`
+  return `${item.itemCode} / ${itemDisplayName(item.itemName, item.itemCode)} / ${formatNumber(item.confirmedQty ?? item.orderedQty)} ${item.unit}`
 }
 
 function handleCreateParentOrderChange() {
@@ -915,8 +926,8 @@ const orderRows = computed<OrderDisplayRow[]>(() => {
     direction: actor.isSupplierOrganization.value ? ('RECEIVED' as const) : ('ISSUED' as const),
     number: order.poNumber,
     counterpartyName: actor.isSupplierOrganization.value
-      ? organizationDisplayName(order.buyerOrganizationPublicId)
-      : order.supplierName,
+      ? organizationDisplayName(order.buyerOrganizationPublicId, '거래처 미확인')
+      : supplierDisplayName(order.supplierName),
     supplierStatus: order.supplierStatus,
     itemLabel: getOrderItemLabel(order),
     qtyLabel: getOrderQtyLabel(order),
@@ -951,12 +962,12 @@ const orderRows = computed<OrderDisplayRow[]>(() => {
         kind: 'SUB_PO' as const,
         direction: 'ISSUED' as const,
         number: subOrder.subPoNumber,
-        counterpartyName: subOrder.supplierName,
+        counterpartyName: supplierDisplayName(subOrder.supplierName),
         supplierStatus: subOrder.supplierStatus,
         itemLabel:
           (subOrder.items?.length ?? 0) > 1
-            ? `${subOrder.items?.[0].itemName ?? '-'} ${copy.value.moreItems((subOrder.items?.length ?? 1) - 1)}`
-            : subOrder.items?.[0].itemName ?? '-',
+            ? `${itemDisplayName(subOrder.items?.[0].itemName, subOrder.items?.[0].itemCode)} ${copy.value.moreItems((subOrder.items?.length ?? 1) - 1)}`
+            : itemDisplayName(subOrder.items?.[0].itemName, subOrder.items?.[0].itemCode),
         qtyLabel: formatNumber(
           (subOrder.items ?? []).reduce((sum, item) => sum + toNumber(item.orderedQty), 0),
         ),
@@ -994,6 +1005,38 @@ const filteredOrders = computed(() => {
   })
 })
 
+const orderTableTotalPages = computed(() =>
+  Math.max(Math.ceil(filteredOrders.value.length / ORDER_TABLE_PAGE_SIZE), 1),
+)
+
+const pagedOrders = computed(() => {
+  const start = orderTablePage.value * ORDER_TABLE_PAGE_SIZE
+  return filteredOrders.value.slice(start, start + ORDER_TABLE_PAGE_SIZE)
+})
+
+const canMoveOrderTablePrevious = computed(() => orderTablePage.value > 0 && !loading.value)
+const canMoveOrderTableNext = computed(() =>
+  !loading.value && orderTablePage.value < orderTableTotalPages.value - 1,
+)
+
+watch([search, activeTabKey, directionFilter], () => {
+  orderTablePage.value = 0
+})
+
+watch(orderTableTotalPages, (totalPages) => {
+  if (orderTablePage.value >= totalPages) {
+    orderTablePage.value = totalPages - 1
+  }
+})
+
+function moveOrderTablePage(offset: number) {
+  const nextPage = Math.min(
+    Math.max(orderTablePage.value + offset, 0),
+    orderTableTotalPages.value - 1,
+  )
+  orderTablePage.value = nextPage
+}
+
 const queueEntries = computed<OrderQueueEntry[]>(() => {
   const pendingOrders = actor.isSupplierOrganization.value
     ? purchaseOrders.value
@@ -1002,7 +1045,7 @@ const queueEntries = computed<OrderQueueEntry[]>(() => {
           kind: 'PO' as const,
           publicId: order.poPublicId,
           number: order.poNumber,
-          counterpartyName: organizationDisplayName(order.buyerOrganizationPublicId),
+          counterpartyName: organizationDisplayName(order.buyerOrganizationPublicId, '거래처 미확인'),
           itemLabel: getOrderItemLabel(order),
           orderedAt: order.orderedAt,
           direction: 'RECEIVED' as const,
@@ -1067,17 +1110,19 @@ const topCounterpartyRows = computed(() => {
 
   if (actor.isSupplierOrganization.value) {
     sentSubOrders.value.forEach((subOrder) => {
-      const current = totals.get(subOrder.supplierName) ?? { orderCount: 0, totalAmount: 0 }
+      const supplierName = supplierDisplayName(subOrder.supplierName)
+      const current = totals.get(supplierName) ?? { orderCount: 0, totalAmount: 0 }
       current.orderCount += 1
       current.totalAmount += toNumber(subOrder.totalAmount)
-      totals.set(subOrder.supplierName, current)
+      totals.set(supplierName, current)
     })
   } else {
     purchaseOrders.value.forEach((order) => {
-      const current = totals.get(order.supplierName) ?? { orderCount: 0, totalAmount: 0 }
+      const supplierName = supplierDisplayName(order.supplierName)
+      const current = totals.get(supplierName) ?? { orderCount: 0, totalAmount: 0 }
       current.orderCount += 1
       current.totalAmount += toNumber(order.totalAmount)
-      totals.set(order.supplierName, current)
+      totals.set(supplierName, current)
     })
   }
 
@@ -1095,13 +1140,13 @@ const topCounterpartyRows = computed(() => {
 
 const selectedOrderDescription = computed(() =>
   hasSelectedOrder.value
-    ? `${selectedOrder.value.poNumber} / ${selectedOrder.value.supplierName}`
+    ? `${selectedOrder.value.poNumber} / ${supplierDisplayName(selectedOrder.value.supplierName)}`
     : copy.value.selectedOrderFallback,
 )
 
 const selectedSubOrderDescription = computed(() =>
   selectedSubOrder.value
-    ? `${selectedSubOrder.value.subPoNumber} / ${selectedSubOrder.value.supplierName}`
+    ? `${selectedSubOrder.value.subPoNumber} / ${supplierDisplayName(selectedSubOrder.value.supplierName)}`
     : copy.value.selectedSubOrderFallback,
 )
 
@@ -1174,35 +1219,51 @@ function formatNumber(value: number | null | undefined) {
 
 function formatPlainAmount(value: number | null | undefined) {
   if (value == null || Number.isNaN(Number(value))) return '-'
-  return `${formatNumber(value)}`
+  return `${formatNumber(value)} 원`
 }
 
 function formatAmount(
   value: number | null | undefined,
-  currency: CurrencyCode | null | undefined,
+  _currency: CurrencyCode | null | undefined,
 ) {
   if (value == null || Number.isNaN(Number(value))) return '-'
-  if (!currency) return formatPlainAmount(value)
-
-  try {
-    return new Intl.NumberFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: currency === 'KRW' || currency === 'JPY' ? 0 : 2,
-    }).format(Number(value))
-  } catch {
-    return `${formatNumber(value)} ${currency}`
-  }
+  return formatPlainAmount(value)
 }
 
 function formatThousandAmount(value: number | null | undefined) {
   if (value == null || Number.isNaN(Number(value))) return '-'
-  return formatNumber(Number(value) / 1000)
+  const amount = Number(value)
+  const units = [
+    { threshold: 1_000_000_000, divisor: 1_000_000_000, label: '십억' },
+    { threshold: 1_000_000, divisor: 1_000_000, label: '백만' },
+    { threshold: 1_000, divisor: 1_000, label: '천' },
+  ]
+  const unit = units.find((candidate) => Math.abs(amount) >= candidate.threshold)
+
+  if (!unit) return `${formatNumber(amount)} 원`
+
+  const scaled = amount / unit.divisor
+  const formatted = new Intl.NumberFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+    maximumFractionDigits: 1,
+  }).format(scaled)
+
+  return `${formatted} ${unit.label} 원`
 }
 
-function organizationDisplayName(organizationPublicId: string) {
+function isPublicIdLike(value: string | null | undefined) {
+  if (!value) return false
+  return /^[A-Z]+_[0-9A-Z]+$/.test(value) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value)
+}
+
+function displayNameOrFallback(value: string | null | undefined, fallback = '-') {
+  const trimmed = value?.trim()
+  if (!trimmed || isPublicIdLike(trimmed)) return fallback
+  return trimmed
+}
+
+function organizationDisplayName(organizationPublicId: string, fallback = '-') {
   const organization = organizationMap.value[organizationPublicId]
-  if (!organization) return organizationPublicId
+  if (!organization) return fallback
 
   const englishName = organization.organizationEnglishName?.trim()
   return englishName
@@ -1210,10 +1271,19 @@ function organizationDisplayName(organizationPublicId: string) {
     : organization.organizationName
 }
 
+function supplierDisplayName(supplierName: string | null | undefined) {
+  return displayNameOrFallback(supplierName, '거래처 미확인')
+}
+
+function itemDisplayName(itemName: string | null | undefined, itemCode?: string | null) {
+  return displayNameOrFallback(itemName, itemCode ? `품목 ${itemCode}` : '품목명 미확인')
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return '-'
 
-  const [year, month, day] = value.split('-')
+  const datePart = value.split('T')[0]
+  const [year, month, day] = datePart.split('-')
   if (!year || !month || !day) return value
 
   return `${year}.${month}.${day}`
@@ -1643,6 +1713,23 @@ function unitPriceOf(item: ItemResponseDto | null | undefined) {
   return itemWithPrice?.unitPrice ?? null
 }
 
+function isOwnRegisteredItem(item: ItemResponseDto | null | undefined) {
+  if (!item || !actor.organizationPublicId.value) return false
+  return item.supplierOrganizationPublicId === actor.organizationPublicId.value
+}
+
+function itemUnitPriceLabel(item: ItemResponseDto | null | undefined) {
+  const unitPrice = unitPriceOf(item)
+  if (unitPrice == null) return '-'
+  return `${formatPlainAmount(unitPrice)} / ${item?.unit ?? '-'}`
+}
+
+function itemRemainingQtyLabel(item: ItemResponseDto | null | undefined) {
+  const availableQty = availableQtyOf(item)
+  if (availableQty == null) return '-'
+  return `${formatNumber(availableQty)} ${item?.unit ?? ''}`.trim()
+}
+
 function leadTimeDaysOf(item: ItemResponseDto | null | undefined) {
   const itemWithCapability = item as (ItemResponseDto & { leadTimeDays?: number | null }) | null | undefined
   return itemWithCapability?.leadTimeDays ?? null
@@ -1658,6 +1745,7 @@ function partialConfirmationAllowedOf(item: ItemResponseDto | null | undefined) 
 }
 
 function availableQtyOf(item: any) {
+  if (!item) return null
   return item.capability?.availableQty ?? item.availableQty ?? null
 }
 
@@ -1720,6 +1808,7 @@ const createSearchItemResults = computed(() => {
 
   createForm.value.itemOptions
     .filter((item) => createForm.value.searchResultPublicIds.includes(item.publicId))
+    .filter((item) => !isOwnRegisteredItem(item))
     .forEach((item) => byPublicId.set(item.publicId, item))
 
   return Array.from(byPublicId.values()).sort((a, b) => {
@@ -2565,11 +2654,10 @@ function downloadOrdersCsv() {
     ...filteredOrders.value.map((order) => [
       order.number,
       order.counterpartyName,
-      supplierStatusText(order.supplierStatus),
       order.itemLabel,
       order.qtyLabel,
       formatThousandAmount(order.totalAmount),
-      formatDateTime(order.orderedAt),
+      formatDate(order.orderedAt),
       formatDate(order.expectedDueDate),
       order.kind === 'PO'
         ? poStatusText(order.status as PoStatus)
@@ -2660,7 +2748,7 @@ onBeforeUnmount(() => header.clearActions())
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">APPROVAL</div>
+            <div class="page-panel__eyebrow">확인 대기</div>
             <h3>{{ copy.queueTitle }}</h3>
           </div>
         </div>
@@ -2693,7 +2781,7 @@ onBeforeUnmount(() => header.clearActions())
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">VALUE</div>
+            <div class="page-panel__eyebrow">금액</div>
             <h3>{{ copy.valueTitle }}</h3>
           </div>
         </div>
@@ -2718,7 +2806,7 @@ onBeforeUnmount(() => header.clearActions())
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">COUNTERPARTY</div>
+            <div class="page-panel__eyebrow">거래처</div>
             <h3>{{ copy.counterpartyTitle }}</h3>
           </div>
         </div>
@@ -2794,13 +2882,13 @@ onBeforeUnmount(() => header.clearActions())
         <article class="page-panel">
           <div class="page-panel__head">
             <div>
-              <div class="page-panel__eyebrow">OPERATIONS</div>
+              <div class="page-panel__eyebrow">운영</div>
               <h3>{{ copy.tableTitle }}</h3>
             </div>
             <span class="page-panel__chip">{{ filteredOrders.length }}</span>
           </div>
 
-          <div class="page-table terminal-page__table orders-page__table is-ten-cols">
+          <div class="page-table terminal-page__table orders-page__table is-nine-cols">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in TABLE_COLUMNS" :key="column">{{ column }}</span>
             </div>
@@ -2813,24 +2901,19 @@ onBeforeUnmount(() => header.clearActions())
 
             <template v-else>
               <div
-                v-for="order in filteredOrders"
+                v-for="order in pagedOrders"
                 :key="`${order.kind}-${order.id}`"
                 class="page-table__row"
               >
                 <span>{{ order.number }}</span>
                 <span>{{ order.counterpartyName }}</span>
-                <span>
-                  <span :class="['page-status-chip', supplierStatusTone(order.supplierStatus)]">
-                    {{ supplierStatusText(order.supplierStatus) }}
-                  </span>
-                </span>
                 <span>{{ order.itemLabel }}</span>
                 <span>{{ order.qtyLabel }}</span>
                 <span>{{ formatThousandAmount(order.totalAmount) }}</span>
-                <span>{{ formatDateTime(order.orderedAt) }}</span>
+                <span>{{ formatDate(order.orderedAt) }}</span>
                 <span>{{ formatDate(order.expectedDueDate) }}</span>
                 <span>
-                  <span :class="['page-status-chip', orderStatusTone(order.status)]">
+                  <span :class="['page-status-chip', 'orders-page__order-status-chip', orderStatusTone(order.status)]">
                     {{
                       order.kind === 'PO'
                         ? poStatusText(order.status as PoStatus)
@@ -2854,6 +2937,28 @@ onBeforeUnmount(() => header.clearActions())
               </div>
             </template>
           </div>
+
+          <nav v-if="orderTableTotalPages > 1" class="risk-rules-pagination orders-page__pagination" aria-label="order table pagination">
+            <button
+              class="page-button page-button--secondary risk-rules-pagination__button"
+              type="button"
+              :disabled="!canMoveOrderTablePrevious"
+              @click="moveOrderTablePage(-1)"
+            >
+              {{ copy.previousPage }}
+            </button>
+            <span class="risk-rules-pagination__status">
+              {{ orderTablePage + 1 }} / {{ orderTableTotalPages }}
+            </span>
+            <button
+              class="page-button page-button--secondary risk-rules-pagination__button"
+              type="button"
+              :disabled="!canMoveOrderTableNext"
+              @click="moveOrderTablePage(1)"
+            >
+              {{ copy.nextPage }}
+            </button>
+          </nav>
         </article>
       </div>
 
@@ -3004,13 +3109,19 @@ onBeforeUnmount(() => header.clearActions())
           >
             <div class="orders-page__item-picker-row">
               <span class="orders-page__item-thumb" aria-hidden="true">
-                <img v-if="itemThumbnailOf(item)" :src="itemThumbnailOf(item)" :alt="item.itemName" />
+                <img v-if="itemThumbnailOf(item)" :src="itemThumbnailOf(item)" :alt="itemDisplayName(item.itemName, item.itemCode)" />
                 <span v-else class="material-symbols-outlined">inventory_2</span>
               </span>
               <span>{{ item.itemCode }}</span>
-              <span>{{ item.itemName }}</span>
+              <span class="orders-page__item-picker-main">
+                <strong>{{ itemDisplayName(item.itemName, item.itemCode) }}</strong>
+                <small>
+                  {{ copy.unitPricePerUnit }} {{ itemUnitPriceLabel(item) }} ·
+                  {{ copy.remainingQty }} {{ itemRemainingQtyLabel(item) }}
+                </small>
+              </span>
               <span>{{ item.categoryName || copy.uncategorized }}</span>
-              <span>{{ item.supplierName }}</span>
+              <span>{{ supplierDisplayName(item.supplierName) }}</span>
               <span>{{ item.unit }}</span>
 
               <button
@@ -3161,7 +3272,7 @@ onBeforeUnmount(() => header.clearActions())
                     :key="`${supplier.supplierPublicId}-${supplier.itemPublicId}`"
                     :value="supplier.supplierPublicId"
                   >
-                    {{ supplier.supplierName }} / {{ formatPlainAmount(supplier.unitPrice) }}
+                    {{ supplierDisplayName(supplier.supplierName) }} / {{ formatPlainAmount(supplier.unitPrice) }}
                   </option>
                 </select>
               </label>
@@ -3307,7 +3418,7 @@ onBeforeUnmount(() => header.clearActions())
           </div>
           <div class="orders-page__detail-item">
             <span>{{ copy.targetSupplier }}</span>
-            <strong>{{ selectedOrder.supplierName }}</strong>
+            <strong>{{ supplierDisplayName(selectedOrder.supplierName) }}</strong>
           </div>
           <div class="orders-page__detail-item">
             <span>{{ copy.supplierStatus }}</span>
@@ -3359,11 +3470,11 @@ onBeforeUnmount(() => header.clearActions())
             <span>
               <span class="orders-page__detail-item-title">
                 <span class="orders-page__item-thumb" aria-hidden="true">
-                  <img v-if="orderLineThumbnail(item.itemPublicId)" :src="orderLineThumbnail(item.itemPublicId)" :alt="item.itemName" />
+                  <img v-if="orderLineThumbnail(item.itemPublicId)" :src="orderLineThumbnail(item.itemPublicId)" :alt="itemDisplayName(item.itemName, item.itemCode)" />
                   <span v-else class="material-symbols-outlined">inventory_2</span>
                 </span>
                 <span>
-                  <strong>{{ item.itemName }}</strong><br />
+                  <strong>{{ itemDisplayName(item.itemName, item.itemCode) }}</strong><br />
                   <small>{{ item.itemCode }}</small>
                 </span>
               </span>
@@ -3393,7 +3504,7 @@ onBeforeUnmount(() => header.clearActions())
       class="orders-page__line-card"
     >
       <div class="orders-page__line-head">
-        <strong>{{ line.itemName }}</strong>
+        <strong>{{ itemDisplayName(line.itemName, line.itemCode) }}</strong>
         <span class="orders-page__sub-text">{{ line.itemCode }}</span>
       </div>
 
@@ -3447,7 +3558,7 @@ onBeforeUnmount(() => header.clearActions())
             <div>
               <strong>{{ subOrder.subPoNumber }}</strong>
               <p class="orders-page__sub-text">
-                {{ subOrder.supplierName }} / {{ subPoStatusText(subOrder.subPoStatus) }}
+                {{ supplierDisplayName(subOrder.supplierName) }} / {{ subPoStatusText(subOrder.subPoStatus) }}
               </p>
             </div>
 
@@ -3569,7 +3680,7 @@ onBeforeUnmount(() => header.clearActions())
           :class="['orders-page__line-card', { 'is-deleted': line.deleted }]"
         >
           <div class="orders-page__line-head">
-            <strong>{{ line.itemCode }} / {{ line.itemName }}</strong>
+            <strong>{{ line.itemCode }} / {{ itemDisplayName(line.itemName, line.itemCode) }}</strong>
             <button
               class="page-button page-button--secondary"
               type="button"
@@ -3633,7 +3744,7 @@ onBeforeUnmount(() => header.clearActions())
                   :key="item.publicId"
                   :value="item.publicId"
                 >
-                  {{ item.itemCode }} / {{ item.itemName }}
+                  {{ item.itemCode }} / {{ itemDisplayName(item.itemName, item.itemCode) }}
                 </option>
               </select>
             </label>
@@ -3693,7 +3804,7 @@ onBeforeUnmount(() => header.clearActions())
               :key="supplierPublicIdOf(supplier)"
               :value="supplierPublicIdOf(supplier)"
             >
-              {{ supplier.supplierName }}
+              {{ supplierDisplayName(supplier.supplierName) }}
             </option>
           </select>
         </label>
@@ -3711,7 +3822,7 @@ onBeforeUnmount(() => header.clearActions())
         >
           <label class="orders-page__checkbox">
             <input v-model="line.selected" type="checkbox" />
-            <span>{{ line.itemCode }} / {{ line.itemName }} ({{ line.unit }})</span>
+            <span>{{ line.itemCode }} / {{ itemDisplayName(line.itemName, line.itemCode) }} ({{ line.unit }})</span>
           </label>
 
           <div class="orders-page__line-grid">
@@ -3784,7 +3895,7 @@ onBeforeUnmount(() => header.clearActions())
           </div>
           <div class="orders-page__detail-item">
             <span>{{ copy.receiverSupplier }}</span>
-            <strong>{{ selectedSubOrder.supplierName }}</strong>
+            <strong>{{ supplierDisplayName(selectedSubOrder.supplierName) }}</strong>
           </div>
           <div class="orders-page__detail-item">
             <span>{{ copy.supplierStatus }}</span>
@@ -3832,11 +3943,11 @@ onBeforeUnmount(() => header.clearActions())
             <span>
               <span class="orders-page__detail-item-title">
                 <span class="orders-page__item-thumb" aria-hidden="true">
-                  <img v-if="orderLineThumbnail(item.itemPublicId)" :src="orderLineThumbnail(item.itemPublicId)" :alt="item.itemName" />
+                  <img v-if="orderLineThumbnail(item.itemPublicId)" :src="orderLineThumbnail(item.itemPublicId)" :alt="itemDisplayName(item.itemName, item.itemCode)" />
                   <span v-else class="material-symbols-outlined">inventory_2</span>
                 </span>
                 <span>
-                  <strong>{{ item.itemName }}</strong><br />
+                  <strong>{{ itemDisplayName(item.itemName, item.itemCode) }}</strong><br />
                   <small>{{ item.itemCode }}</small>
                 </span>
               </span>

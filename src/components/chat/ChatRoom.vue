@@ -9,7 +9,6 @@ import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 import ChatAvatar from './ChatAvatar.vue'
 import { useAtlasChatStore } from '../../stores/chat'
-import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 const props = defineProps<{
   roomName: string
@@ -28,7 +27,6 @@ const emit = defineEmits<{
 }>()
 
 const chatStore = useAtlasChatStore()
-const preferences = useAtlasPreferencesStore()
 const messagesContainer = ref<HTMLElement | null>(null)
 const moreButtonRef = ref<HTMLElement | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
@@ -37,20 +35,18 @@ const isInviting = ref(false)
 const isShowingParticipants = ref(false)
 
 const copy = computed(() => ({
-  deleteConfirm: preferences.language === 'ko' ? '메시지를 삭제하시겠습니까?' : 'Delete this message?',
-  leaveConfirm: preferences.language === 'ko'
-    ? '정말로 이 채팅방에서 나가시겠습니까?\n나가면 채팅 목록에서 삭제됩니다.'
-    : 'Leave this chat room?\nIt will be removed from your chat list.',
-  rename: preferences.language === 'ko' ? '이름 변경' : 'Rename',
-  invite: preferences.language === 'ko' ? '초대하기' : 'Invite',
-  participants: preferences.language === 'ko' ? '참여자' : 'Participants',
-  peopleCount: (count: number) => preferences.language === 'ko' ? `${count}명` : `${count}`,
-  leave: preferences.language === 'ko' ? '나가기' : 'Leave',
-  noParticipants: preferences.language === 'ko' ? '참여자 정보 없음' : 'No participant information.',
-  me: preferences.language === 'ko' ? '나' : 'Me',
-  availableUsers: preferences.language === 'ko' ? '초대 가능한 사용자' : 'Available Users',
-  allJoined: preferences.language === 'ko' ? '모두 참여 중입니다.' : 'Everyone is already in this room.',
-  loadingMessages: preferences.language === 'ko' ? '메시지 로딩 중...' : 'Loading messages...',
+  deleteConfirm: '메시지를 삭제하시겠습니까?',
+  leaveConfirm: '정말로 이 채팅방에서 나가시겠습니까?\n나가면 채팅 목록에서 삭제됩니다.',
+  rename: '이름 변경',
+  invite: '초대하기',
+  participants: '참여자',
+  peopleCount: (count: number) => `${count}명`,
+  leave: '나가기',
+  noParticipants: '참여자 정보 없음',
+  me: '나',
+  availableUsers: '초대 가능한 사용자',
+  allJoined: '모두 참여 중입니다.',
+  loadingMessages: '메시지 로딩 중...',
 }))
 
 const availableUsersToInvite = computed(() => {
@@ -91,7 +87,7 @@ function getSenderName(senderPublicId: string | null | undefined): string {
   const fromParticipants = props.participants.find((p) => p.userPublicId === senderPublicId)
   if (fromParticipants) return fromParticipants.displayName
   const fromStore = chatStore.availableUsers.find((u) => u.userPublicId === senderPublicId)
-  return fromStore?.displayName ?? senderPublicId.slice(0, 8) + '...'
+  return fromStore?.displayName ?? '알 수 없는 사용자'
 }
 
 /** senderUserPublicId → 아바타 URL 변환 */
@@ -211,21 +207,14 @@ function getInviteUserDisplayName(user: ChatParticipant) {
   const middleName = sanitizeNamePart(user.middleName)
   const lastName = sanitizeNamePart(user.lastName)
 
-  if (preferences.language === 'ko') {
-    const koreanName = `${lastName}${middleName}${firstName}`.trim()
-    if (koreanName) return koreanName
-  } else {
-    const englishName = [firstName, middleName, lastName].filter(Boolean).join(' ')
-    if (englishName) return englishName
-  }
+  const koreanName = `${lastName}${middleName}${firstName}`.trim()
+  if (koreanName) return koreanName
 
-  return user.displayName || (preferences.language === 'ko' ? '이름 없음' : 'Unknown')
+  return user.displayName || '이름 없음'
 }
 
 function getInviteUserMeta(user: ChatParticipant) {
-  const organizationName = preferences.language === 'ko'
-    ? sanitizeNamePart(user.organizationName) || sanitizeNamePart(user.organizationEnglishName)
-    : sanitizeNamePart(user.organizationEnglishName) || sanitizeNamePart(user.organizationName)
+  const organizationName = sanitizeNamePart(user.organizationName) || sanitizeNamePart(user.organizationEnglishName)
   const jobTitle = sanitizeNamePart(user.jobTitle)
   return [organizationName, jobTitle].filter(Boolean).join(' | ')
 }
@@ -246,7 +235,7 @@ function shouldShowDateDivider(index: number): boolean {
 function formatDateDivider(isoString?: string): string {
   if (!isoString) return ''
   const d = new Date(isoString)
-  return new Intl.DateTimeFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+  return new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',

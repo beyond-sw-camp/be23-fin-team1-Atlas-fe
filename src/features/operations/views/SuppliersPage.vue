@@ -209,21 +209,21 @@ const RISK_ROWS = {
 
 const REGION_ROWS = {
   ko: [
-    ['아시아 태평양', '₩14.2M', '100%'],
-    ['유럽', '₩8.8M', '62%'],
-    ['북미', '₩4.1M', '29%'],
+    ['아시아 태평양', '1,420만 원', '100%'],
+    ['유럽', '880만 원', '62%'],
+    ['북미', '410만 원', '29%'],
   ],
   en: [
-    ['Asia Pacific', '$14.2M', '100%'],
-    ['Europe', '$8.8M', '62%'],
-    ['North America', '$4.1M', '29%'],
+    ['아시아 태평양', '1,420만 원', '100%'],
+    ['유럽', '880만 원', '62%'],
+    ['북미', '410만 원', '29%'],
   ],
 }
 
-const content = computed(() => CONTENT[preferences.language])
-const topRows = computed(() => TOP_ROWS[preferences.language])
-const riskRows = computed(() => RISK_ROWS[preferences.language])
-const regionRows = computed(() => REGION_ROWS[preferences.language])
+const content = computed(() => CONTENT.ko)
+const topRows = computed(() => TOP_ROWS.ko)
+const riskRows = computed(() => RISK_ROWS.ko)
+const regionRows = computed(() => REGION_ROWS.ko)
 
 // 실제 협력사 목록 상태입니다.
 const rows = ref<SupplierTableRow[]>([])
@@ -268,9 +268,7 @@ function formatNumber(value: number | null | undefined) {
 
 function formatAmount(value: number | null | undefined) {
   if (value == null) return '-'
-  return preferences.language === 'ko'
-    ? `${value.toLocaleString('ko-KR')}원`
-    : `$${value.toLocaleString('en-US')}`
+  return `${value.toLocaleString('ko-KR')}원`
 }
 
 function formatDate(value: string | undefined) {
@@ -280,8 +278,6 @@ function formatDate(value: string | undefined) {
 
 
 function supplierStatusText(value: string) {
-  if (preferences.language !== 'ko') return value
-
   switch (value) {
     case 'ACTIVE':
       return '정상 거래'
@@ -308,7 +304,6 @@ function connectedOrderStatusText(order: { orderType: 'PURCHASE_ORDER' | 'SUB_PU
 }
 
 function relationStatusText(value: string) {
-  if (preferences.language !== 'ko') return value
   switch (value) {
     case 'REQUESTED': return '연결 요청'
     case 'ACTIVE': return '연결 유지'
@@ -319,13 +314,10 @@ function relationStatusText(value: string) {
 }
 
 function orderRoleText(value: 'ISSUED' | 'RECEIVED') {
-  if (preferences.language !== 'ko') return value
   return value === 'ISSUED' ? '발주' : '수주'
 }
 
 function subPoStatusText(value: string) {
-  if (preferences.language !== 'ko') return value
-
   switch (value) {
     case 'CREATED':
       return '생성'
@@ -347,8 +339,6 @@ function subPoStatusText(value: string) {
 }
 
 function poStatusText(value: string) {
-  if (preferences.language !== 'ko') return value
-
   switch (value) {
     case 'CREATED':
       return '확인 대기'
@@ -437,10 +427,7 @@ const metrics = computed(() => {
   base[2].value = formatPercent(connectedSummary.value?.averageOnTimeRate)
 
   const averageLeadTimeDays = connectedSummary.value?.averageLeadTimeDays ?? 0
-  base[3].value =
-    preferences.language === 'ko'
-      ? `${averageLeadTimeDays}일`
-      : `${averageLeadTimeDays}d`
+  base[3].value = `${averageLeadTimeDays}일`
 
   return base
 })
@@ -753,7 +740,7 @@ async function submitCreateSupplier() {
                   type="button"
                   @click="openSupplierDetailPage(row.publicId)"
                 >
-                  {{ preferences.language === 'ko' ? '상세' : 'DETAIL' }}
+                  {{ '상세' }}
                 </button>
                 <template v-else>-</template>
               </span>

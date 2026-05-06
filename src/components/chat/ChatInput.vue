@@ -6,12 +6,10 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import ChatEmojiPicker from './ChatEmojiPicker.vue'
 import { useAtlasChatStore } from '../../stores/chat'
-import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { uploadAttachment } from '../../services/file'
 import ChatReferenceSearchModal from './ChatReferenceSearchModal.vue'
 
 const chatStore = useAtlasChatStore()
-const preferences = useAtlasPreferencesStore()
 
 const emit = defineEmits<{
   send: [body: string]
@@ -32,52 +30,31 @@ const isUploading = ref(false)
 const isComposing = ref(false)
 
 const chatInputCopy = {
-  ko: {
-    file: '파일 첨부',
-    media: '미디어 (이미지/동영상)',
-    reference: '업무 참조 카드',
-    filePending: '파일 첨부 기능은 file-service 연동 후 활성화됩니다.',
-    mediaPending: '미디어 첨부 기능은 file-service 연동 후 활성화됩니다.',
-    replyTo: (name: string) => `${name}에게 답장`,
-    cancelReply: '답장 취소',
-    attach: '첨부',
-    messagePlaceholder: '메시지를 입력하세요...',
-    emoji: '이모지',
-    send: '전송',
-    refTypes: {
-      order: '발주서',
-      returnRequest: '반품 요청',
-      risk: '리스크 이벤트',
-      recommendation: '권고안',
-    },
-  },
-  en: {
-    file: 'Attach File',
-    media: 'Media (Image/Video)',
-    reference: 'Work Reference Card',
-    filePending: 'File attachments will be available after file-service integration.',
-    mediaPending: 'Media attachments will be available after file-service integration.',
-    replyTo: (name: string) => `Replying to ${name}`,
-    cancelReply: 'Cancel Reply',
-    attach: 'Attach',
-    messagePlaceholder: 'Type your message...',
-    emoji: 'Emoji',
-    send: 'Send',
-    refTypes: {
-      order: 'Purchase Order',
-      returnRequest: 'Return Request',
-      risk: 'Risk Event',
-      recommendation: 'Recommendation',
-    },
+  file: '파일 첨부',
+  media: '미디어 (이미지/동영상)',
+  reference: '업무 참조 카드',
+  filePending: '파일 첨부 기능은 file-service 연동 후 활성화됩니다.',
+  mediaPending: '미디어 첨부 기능은 file-service 연동 후 활성화됩니다.',
+  replyTo: (name: string) => `${name}에게 답장`,
+  cancelReply: '답장 취소',
+  attach: '첨부',
+  messagePlaceholder: '메시지를 입력하세요...',
+  emoji: '이모지',
+  send: '전송',
+  refTypes: {
+    order: '발주서',
+    returnRequest: '반품 요청',
+    risk: '리스크 이벤트',
+    recommendation: '권고안',
   },
 } as const
 
 function copy() {
-  return chatInputCopy[preferences.language]
+  return chatInputCopy
 }
 
 function getReferenceTypeLabel(labelKey: string) {
-  return copy().refTypes[labelKey as keyof typeof chatInputCopy.ko.refTypes] ?? labelKey
+  return copy().refTypes[labelKey as keyof typeof chatInputCopy.refTypes] ?? labelKey
 }
 
 /** + 버튼 팝업 메뉴 항목 */
@@ -92,8 +69,8 @@ function getMenuItems() {
 
 /** 업무 참조 카드 유형 목록 */
 const referenceTypes = ref([
-  { type: 'ORDER', icon: 'receipt_long', title: { ko: '발주서', en: 'Purchase Order' } },
-  { type: 'RETURN_REQUEST', icon: 'assignment_return', title: { ko: '반품 요청', en: 'Return Request' } },
+  { type: 'ORDER', icon: 'receipt_long', title: '발주서' },
+  { type: 'RETURN_REQUEST', icon: 'assignment_return', title: '반품 요청' },
 ])
 
 function openSearchModal(type: string) {
@@ -311,7 +288,7 @@ function handleCompositionEnd() {
               @click="openSearchModal(rt.type)"
             >
               <span class="material-symbols-outlined">{{ rt.icon }}</span>
-              <span>{{ rt.title[preferences.language] }} 검색</span>
+              <span>{{ rt.title }} 검색</span>
             </button>
           </div>
         </Transition>

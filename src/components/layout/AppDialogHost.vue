@@ -2,20 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import BaseModal from '../../features/shared/components/BaseModal.vue'
 import { useAtlasDialogStore } from '../../stores/dialog'
-import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 const dialog = useAtlasDialogStore()
-const preferences = useAtlasPreferencesStore()
 const promptValue = ref('')
 
 const current = computed(() => dialog.current)
 const title = computed(() => {
   if (current.value?.title) return current.value.title
-  return preferences.language === 'ko' ? '알림' : 'Notice'
+  return '알림'
 })
 
-const confirmLabel = computed(() => current.value?.confirmLabel ?? (preferences.language === 'ko' ? '확인' : 'OK'))
-const cancelLabel = computed(() => current.value?.cancelLabel ?? (preferences.language === 'ko' ? '취소' : 'Cancel'))
+const confirmLabel = computed(() => current.value?.confirmLabel ?? '확인')
+const cancelLabel = computed(() => current.value?.cancelLabel ?? '취소')
 
 watch(
   () => current.value?.id,

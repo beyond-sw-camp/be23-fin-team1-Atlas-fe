@@ -412,6 +412,6 @@ const KO_DEFAULT_COPY: Record<string, string> = {
 }
 
 export function resolveDefaultCopy(text: string, language: AppLanguage) {
-  if (language === 'en') return text
+  void language
   return KO_DEFAULT_COPY[text] ?? text
 }

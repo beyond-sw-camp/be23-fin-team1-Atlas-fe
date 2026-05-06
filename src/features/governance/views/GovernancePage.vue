@@ -63,12 +63,12 @@ const CONTENT = {
   },
 }
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 
 watchEffect(() => {
   header.setActions([
-    { key: 'governance-init-audit', label: preferences.language === 'ko' ? '감사 시작' : 'INITIALIZE AUDIT', tone: 'primary' },
-    { key: 'governance-export-registry', label: preferences.language === 'ko' ? '레지스트리 내보내기' : 'EXPORT_REGISTRY', tone: 'secondary' },
+    { key: 'governance-init-audit', label: '감사 시작', tone: 'primary' },
+    { key: 'governance-export-registry', label: '레지스트리 내보내기', tone: 'secondary' },
   ])
 })
 
@@ -84,8 +84,8 @@ onBeforeUnmount(() => {
         <h2 class="governance-page__title">{{ content.title }}</h2>
       </div>
       <div class="design-trigger-row">
-        <button class="page-button page-button--primary" type="button">{{ preferences.language === 'ko' ? '감사 시작' : 'INITIALIZE_AUDIT' }}</button>
-        <button class="page-button page-button--secondary" type="button">{{ preferences.language === 'ko' ? '레지스트리 내보내기' : 'EXPORT_REGISTRY' }}</button>
+        <button class="page-button page-button--primary" type="button">{{ '감사 시작' }}</button>
+        <button class="page-button page-button--secondary" type="button">{{ '레지스트리 내보내기' }}</button>
       </div>
     </header>
 
@@ -115,7 +115,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <button class="page-button page-button--secondary" type="button">
-          {{ preferences.language === 'ko' ? '전체 인증 보기' : 'VIEW_ALL_CERTIFICATES' }}
+          {{ '전체 인증 보기' }}
         </button>
       </article>
     </section>

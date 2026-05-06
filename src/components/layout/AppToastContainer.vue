@@ -7,13 +7,11 @@
  * - 4px Status Ribbon (좌측 컬러 바)
  * - Inter 기본 폰트 상속
  * - Tonal layering (box-shadow 금지)
- * - 한/영 대응 (dismiss 버튼)
+ * - 한국어 dismiss 버튼
  */
 import { useAtlasToastStore } from '../../stores/toast'
-import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 const toast = useAtlasToastStore()
-const preferences = useAtlasPreferencesStore()
 </script>
 
 <template>
@@ -47,7 +45,7 @@ const preferences = useAtlasPreferencesStore()
             <button
               class="atlas-toast__dismiss"
               type="button"
-              :aria-label="preferences.language === 'ko' ? '닫기' : 'Close'"
+              aria-label="닫기"
               @click="toast.dismiss(item.id)"
             >
               <span class="material-symbols-outlined">close</span>

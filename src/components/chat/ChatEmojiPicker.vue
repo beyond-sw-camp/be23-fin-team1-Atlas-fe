@@ -4,7 +4,6 @@
  * 순수 유니코드 기반 (외부 의존성 없음)
  */
 import { computed, ref } from 'vue'
-import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 const emit = defineEmits<{
   select: [emoji: string]
@@ -12,17 +11,16 @@ const emit = defineEmits<{
 }>()
 
 const activeCategory = ref(0)
-const preferences = useAtlasPreferencesStore()
 
 const emojiLabelMap = computed(() => ({
-  smileys: preferences.language === 'ko' ? '표정' : 'Smileys',
-  gestures: preferences.language === 'ko' ? '손동작' : 'Gestures',
-  hearts: preferences.language === 'ko' ? '하트' : 'Hearts',
-  animals: preferences.language === 'ko' ? '동물' : 'Animals',
-  food: preferences.language === 'ko' ? '음식' : 'Food',
-  activities: preferences.language === 'ko' ? '활동' : 'Activities',
-  travel: preferences.language === 'ko' ? '여행' : 'Travel',
-  objects: preferences.language === 'ko' ? '사물' : 'Objects',
+  smileys: '표정',
+  gestures: '손동작',
+  hearts: '하트',
+  animals: '동물',
+  food: '음식',
+  activities: '활동',
+  travel: '여행',
+  objects: '사물',
 }))
 
 const categories = computed(() => [

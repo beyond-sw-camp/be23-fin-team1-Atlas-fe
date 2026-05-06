@@ -67,8 +67,7 @@ const computedExpirationDate = computed(() => {
 })
 
 const copy = computed(() =>
-  preferences.language === 'ko'
-    ? {
+  ({
         eyebrow: '공급망 운영 / 재고 관리',
         title: '재고 관리',
         createLabel: '재고 생성',
@@ -145,85 +144,7 @@ const copy = computed(() =>
           deleteFail: '재고 삭제에 실패했습니다.',
           selectLogisticsNode: '창고를 선택해 주세요.',
         },
-      }
-    : {
-        eyebrow: 'Supply Operations / Inventory',
-        title: 'Inventory',
-        createLabel: 'Create Inventory',
-        exportLabel: 'Export',
-        searchPlaceholder: 'Search item name, item code, or status',
-        tableTitle: 'Inventory List',
-        detailButton: 'Detail',
-        detailTitle: 'Inventory Detail',
-        detailFallback: 'Inventory Detail',
-        detailEyebrow: 'Detail',
-        editInventory: 'Edit Inventory',
-        deleteInventory: 'Delete Inventory',
-        createModalTitle: 'Create Inventory',
-        createModalDescription: 'Select an item and create inventory by expiration date.',
-        editModalTitle: 'Edit Inventory',
-        editModalDescription: 'Only active inventory with no reservation can be edited.',
-        item: 'Item',
-        selectItem: 'Select item',
-        cancel: 'Cancel',
-        createDone: 'Create',
-        save: 'Save',
-        fields: {
-          itemCode: 'Item Code',
-          itemName: 'Item Name',
-          unit: 'Unit',
-          manufacturedDate: 'Manufactured Date',
-          expirationDate: 'Expiration Date',
-          initialQty: 'Initial Qty',
-          remainingQty: 'Remaining Qty',
-          reservedQty: 'Reserved Qty',
-          availableQty: 'Available Qty',
-          status: 'Status',
-          memo: 'Memo',
-          qty: 'Qty',
-          logisticsNode: 'Warehouse',
-        },
-        columns: [
-          'Item Code',
-          'Item Name',
-          'Unit',
-          'Manufactured Date',
-          'Expiration Date',
-          'Initial Qty',
-          'Remaining Qty',
-          'Reserved Qty',
-          'Available Qty',
-          'Status',
-          'Detail',
-        ],
-        tabs: {
-          ALL: 'All',
-          ACTIVE: 'Active',
-          RESERVED: 'Reserved',
-          EXHAUSTED: 'Exhausted',
-          EXPIRED: 'Expired',
-          DELETED: 'Deleted',
-        },
-        metrics: {
-          totalRemaining: 'Total Remaining',
-          totalReserved: 'Reserved',
-          totalAvailable: 'Available to Order',
-          expiredCount: 'Expired',
-        },
-        messages: {
-          listFail: 'Failed to load inventory.',
-          selectItem: 'Select an item.',
-          manufacturedDate: 'Enter the manufactured date.',
-          expirationDate: 'Enter the expiration date.',
-          invalidDate: 'Expiration date cannot be earlier than manufactured date.',
-          invalidQty: 'Quantity must be at least 1.',
-          createFail: 'Failed to create inventory.',
-          editFail: 'Failed to update inventory.',
-          deleteConfirm: 'Delete or dispose this inventory?',
-          deleteFail: 'Failed to delete inventory.',
-          selectLogisticsNode: 'Select a warehouse.',
-        },
-      },
+      }),
 )
 
 const tabs = computed(() => [
@@ -265,7 +186,7 @@ const filteredRows = computed(() => {
 
 function formatNumber(value: number | null | undefined) {
   if (value == null) return '-'
-  return value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')
+  return value.toLocaleString('ko-KR')
 }
 
 function statusText(status: InventoryStatus) {

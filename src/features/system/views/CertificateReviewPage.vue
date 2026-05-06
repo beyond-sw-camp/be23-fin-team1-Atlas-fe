@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasHeaderStore } from '../../../stores/header'
-import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
   approveCertificate,
   getAllCertificates,
@@ -13,8 +12,6 @@ import { getAttachment } from '../../../services/file'
 
 const header = useAtlasHeaderStore()
 const dialog = useAtlasDialogStore()
-const preferences = useAtlasPreferencesStore()
-
 const certificates = ref<SupplierCertificateResponseDto[]>([])
 const selectedCertificate = ref<SupplierCertificateResponseDto | null>(null)
 const search = ref('')
@@ -22,29 +19,6 @@ const isLoading = ref(false)
 const isSubmitting = ref(false)
 
 const content = computed(() => {
-  if (preferences.language === 'en') {
-    return {
-      eyebrow: 'System / Certificate Review',
-      title: 'Certificate Review',
-      subtitle: 'Review newly submitted supplier certificates and decide approval status.',
-      refresh: 'Refresh',
-      searchPlaceholder: 'Search supplier, certificate number, or type...',
-      tableTitle: 'Review List',
-      pendingMetric: 'Pending Review',
-      supplierMetric: 'Suppliers',
-      selectedMetric: 'Selected Certificate',
-      detailTitle: 'Review Detail',
-      emptyDetail: 'Select a certificate from the left.',
-      columns: ['CERT NO', 'SUPPLIER', 'TYPE', 'ISSUER', 'ISSUED', 'EXPIRES', 'ACTION'],
-      viewDetail: 'View Detail',
-      file: 'PDF',
-      approve: 'Approve',
-      reject: 'Reject',
-      noFile: 'No file',
-      noRows: 'No certificates waiting for review.',
-    }
-  }
-
   return {
     eyebrow: '시스템 / 인증서 심사',
     title: '인증서 심사',
@@ -114,7 +88,7 @@ async function loadCertificates() {
     }
   } catch (error) {
     console.error('Failed to load certificate review queue', error)
-    await dialog.alert(preferences.language === 'ko' ? '인증서 심사 목록을 불러오지 못했습니다.' : 'Failed to load certificate review queue.')
+    await dialog.alert('인증서 심사 목록을 불러오지 못했습니다.')
   } finally {
     isLoading.value = false
   }
@@ -134,7 +108,7 @@ async function openCertificateFile(certificate: SupplierCertificateResponseDto) 
     window.open(fileUrl, '_blank')
   } catch (error) {
     console.error('Failed to open certificate file', error)
-    await dialog.alert(preferences.language === 'ko' ? '인증서 파일을 열지 못했습니다.' : 'Failed to open certificate file.')
+    await dialog.alert('인증서 파일을 열지 못했습니다.')
   }
 }
 

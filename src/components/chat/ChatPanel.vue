@@ -5,12 +5,10 @@
  * 위치: 화면 우하단 고정 (position: fixed)
  */
 import { useAtlasChatStore } from '../../stores/chat'
-import { useAtlasPreferencesStore } from '../../stores/preferences'
 import ChatRoomList from './ChatRoomList.vue'
 import ChatRoom from './ChatRoom.vue'
 
 const chat = useAtlasChatStore()
-const preferences = useAtlasPreferencesStore()
 
 /** 업무 참조 카드 전송 핸들러 — ChatRoom에서 4개 인자를 받아 store 액션 호출 */
 function handleSendReference(refType: string, refPublicId: string, refCode: string, refTitle: string) {
@@ -25,7 +23,7 @@ function handleSendReference(refType: string, refPublicId: string, refCode: stri
       <div v-if="chat.currentView === 'list'" class="chat-panel__header">
         <div class="chat-panel__header-left">
           <span class="material-symbols-outlined">forum</span>
-          <span class="chat-panel__title">MESSAGES</span>
+          <span class="chat-panel__title">메시지</span>
         </div>
         <div class="chat-panel__header-actions">
           <button class="chat-panel__close" type="button" @click="chat.closePanel()">
@@ -44,7 +42,7 @@ function handleSendReference(refType: string, refPublicId: string, refCode: stri
       <!-- 채팅방 뷰 -->
       <ChatRoom
               v-else-if="chat.currentView === 'room'"
-              :room-name="chat.currentRoom?.roomName || (preferences.language === 'ko' ? '채팅방' : 'Chat Room')"
+              :room-name="chat.currentRoom?.roomName || '채팅방'"
               :messages="chat.messages"
               :current-user-public-id="chat.currentUserPublicId"
               :is-loading="chat.isLoadingMessages"

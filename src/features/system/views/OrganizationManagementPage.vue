@@ -581,9 +581,7 @@ async function handleOrganizationImageSelected(event: Event) {
   // 이미지만 업로드할 수 있게 막습니다.
   if (!file.type.startsWith('image/')) {
     pageError.value =
-      preferences.language === 'ko'
-        ? '이미지 파일만 업로드할 수 있습니다.'
-        : 'Only image files can be uploaded.'
+      '이미지 파일만 업로드할 수 있습니다.'
 
     if (input) input.value = ''
     return
@@ -640,15 +638,11 @@ async function handleOrganizationImageSelected(event: Event) {
     )
 
     pageSuccess.value =
-      preferences.language === 'ko'
-        ? '조직 이미지가 수정되었습니다.'
-        : 'Organization image has been updated.'
+      '조직 이미지가 수정되었습니다.'
   } catch (error: any) {
     pageError.value =
       error?.payload?.message ||
-      (preferences.language === 'ko'
-        ? '조직 이미지 업로드에 실패했습니다.'
-        : 'Failed to upload the organization image.')
+      ('조직 이미지 업로드에 실패했습니다.')
   } finally {
     isUploadingOrganizationImage.value = false
 
@@ -807,7 +801,7 @@ async function submitOrganizationCreate() {
       lastName: organizationCreateForm.contactLastName.trim(),
       email: organizationCreateForm.contactEmail.trim(),
       phone: organizationCreateForm.contactPhone.trim(),
-      jobTitle: preferences.language === 'ko' ? '조직 관리자' : 'Organization Admin',
+      jobTitle: '조직 관리자',
     })
 
 
@@ -1590,8 +1584,8 @@ watch(
                 >
                   {{
                     isUploadingOrganizationImage
-                      ? (preferences.language === 'ko' ? '업로드 중...' : 'Uploading...')
-                      : (preferences.language === 'ko' ? '이미지 변경' : 'Change Image')
+                      ? ('업로드 중...')
+                      : ('이미지 변경')
                   }}
                 </button>
               </div>

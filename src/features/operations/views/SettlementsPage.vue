@@ -5,13 +5,11 @@ import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
   downloadSettlementExcel,
-  getSettlement,
   getSettlements,
   getSettlementStatistics,
   saveSettlementBudget,
   type SettlementCurrency,
   type SettlementListResponseDto,
-  type SettlementResponseDto,
   type SettlementStatisticsResponseDto,
   type SettlementTargetType,
 } from '../../../services/settlement'
@@ -20,14 +18,6 @@ import {
   type SupplierListResponseDto,
   type SupplierResponseDto,
 } from '../../../services/supplier'
-import {
-  getReturnRequests,
-  type ReturnRequestResponseDto,
-} from '../../../services/return'
-import {
-  getShipments,
-  type ShipmentListResponseDto as ShipmentOptionDto,
-} from '../../../services/shipment'
 
 const preferences = useAtlasPreferencesStore()
 const route = useRoute()
@@ -38,11 +28,11 @@ const CONTENT = {
     eyebrow: '공급망 운영 / 정산',
     title: '정산 관리',
     subtitle: '배송과 반품 완료로 자동 생성된 정산 명세와 예산 사용 현황을 확인합니다.',
-    listEyebrow: 'SETTLEMENT LEDGER',
+    listEyebrow: '정산 명세',
     listTitle: '정산 명세 목록',
-    detailEyebrow: 'DETAIL',
+    detailEyebrow: '상세',
     detailTitle: '정산 명세 상세',
-    itemEyebrow: 'DETAIL ITEMS',
+    itemEyebrow: '상세 항목',
     itemTitle: '상세 항목',
     selectLabel: '상세',
     emptyList: '정산 명세가 없습니다.',
@@ -57,11 +47,11 @@ const CONTENT = {
       targetSelection: '정산 대상',
       period: '정산 기간',
       amount: '정산 금액',
-      currencyCode: '통화',
+      currencyCode: '기준 통화',
       createdAt: '생성 일시',
       updatedAt: '수정 일시',
-      poItemId: 'PO ITEM ID',
-      itemId: 'ITEM ID',
+      poItemId: '발주 품목 ID',
+      itemId: '품목 ID',
       qty: '수량',
       unitPrice: '단가',
       detailAmount: '금액',
@@ -125,7 +115,7 @@ const CONTENT = {
       amount: '예산 금액',
       currency: '통화',
       warningThreshold: '경고 기준 (%)',
-      hint: '예산 사용률이 경고 기준 이상이면 WARNING, 예산을 초과하면 EXCEEDED 상태로 표시됩니다.',
+      hint: '예산 사용률이 경고 기준 이상이면 주의, 예산을 초과하면 예산 초과 상태로 표시됩니다.',
     },
     validation: {
       invalidYear: '예산 연도를 확인해주세요.',
@@ -136,111 +126,9 @@ const CONTENT = {
       statsFailed: '정산 통계 데이터를 불러오지 못했습니다.',
     },
   },
-  en: {
-    eyebrow: 'SUPPLY CHAIN OPS / SETTLEMENTS',
-    title: 'Settlement Management',
-    subtitle: 'Review auto-generated settlement ledger and budget usage.',
-    listEyebrow: 'SETTLEMENT LEDGER',
-    listTitle: 'Settlement Ledger',
-    detailEyebrow: 'DETAIL',
-    detailTitle: 'Settlement Detail',
-    itemEyebrow: 'DETAIL ITEMS',
-    itemTitle: 'Detail Items',
-    selectLabel: 'Detail',
-    emptyList: 'No settlement ledger found.',
-    loadingList: 'Loading settlements...',
-    loadingDetail: 'Loading settlement detail...',
-    emptyDetail: 'Select a settlement from the list.',
-    emptyDetails: 'No detail items.',
-    fields: {
-      id: 'ID',
-      supplier: 'Supplier',
-      targetType: 'Type',
-      targetSelection: 'Target',
-      period: 'Period',
-      amount: 'Amount',
-      currencyCode: 'Currency',
-      createdAt: 'Created At',
-      updatedAt: 'Updated At',
-      poItemId: 'PO ITEM ID',
-      itemId: 'ITEM ID',
-      qty: 'Qty',
-      unitPrice: 'Unit Price',
-      detailAmount: 'Amount',
-    },
-    targetTypes: {
-      ORDER: 'Order',
-      SHIPMENT: 'Shipment',
-      RETURN: 'Return',
-      DELIVERY_EXCEPTION: 'Delivery Exception',
-    },
-    actions: {
-      refresh: 'Refresh',
-      registerBudget: 'Register Budget',
-      cancel: 'Cancel',
-      exportExcel: 'Export Excel',
-      exportingExcel: 'Exporting...',
-      saveBudget: 'Save Budget',
-      saving: 'Saving...',
-    },
-    stats: {
-      currentBudget: 'Current Month Budget',
-      monthlyBudgetBase: 'Monthly budget base',
-      payableThisMonth: 'Payable This Month',
-      budgetUsageBase: 'Budget usage base',
-      budgetUsageRate: 'Budget Usage Rate',
-      receivableThisMonth: 'Receivable This Month',
-      receivableBase: 'Receivable settlement base',
-      monthlyBudgetChart: 'Monthly Budget vs Payable Settlement',
-      annualPayable: 'Annual Payable Settlement',
-      settlementAmountAnalysis: 'Settlement Amount Analysis',
-      targetTypeAmount: 'Amount by Settlement Type',
-      flowCompare: 'Payable / Receivable Comparison',
-      settlementFlow: 'Current Month Settlement Flow',
-      payableExpected: 'Expected Payable',
-      receivableExpected: 'Expected Receivable',
-      remainingBudget: 'Remaining Budget',
-      netFlow: 'Net Flow',
-      all: 'All',
-      q1: 'Q1',
-      q2: 'Q2',
-      q3: 'Q3',
-      q4: 'Q4',
-      recent6: 'Recent 6 Months',
-      loadingStats: 'Loading statistics...',
-      noBudgetData: 'No budget or settlement data.',
-      noTargetTypeAmount: 'No settlement type amount.',
-      total: 'Total',
-      amount: 'Amount',
-      budgetStatuses: {
-        SAFE: 'Safe',
-        WARNING: 'Warning',
-        EXCEEDED: 'Over Budget',
-        NO_BUDGET: 'Budget not registered.',
-      },
-    },
-    budgetModal: {
-      title: 'Register Monthly Budget',
-      description: 'Compare settlements and budget usage on charts by registering monthly budgets.',
-      year: 'Budget Year',
-      month: 'Budget Month',
-      amount: 'Budget Amount',
-      currency: 'Currency',
-      warningThreshold: 'Warning Threshold (%)',
-      hint: 'Usage at or above the threshold is shown as WARNING, and over-budget usage is shown as EXCEEDED.',
-    },
-    validation: {
-      invalidYear: 'Check the budget year.',
-      invalidMonth: 'Budget month must be between 1 and 12.',
-      invalidAmount: 'Budget amount must be 0 or greater.',
-      invalidThreshold: 'Warning threshold must be between 0 and 100.',
-      saveFailed: 'Failed to save budget.',
-      statsFailed: 'Failed to load settlement statistics.',
-    },
-  },
 } as const
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 
 function openSettlementDetailPage(publicId: string) {
   router.push({
@@ -264,7 +152,6 @@ const activeInsightChartView = ref<SettlementInsightChartView>('targetTypeAmount
 const monthlyBudgetRange = ref<MonthlyBudgetRange>('ALL')
 
 const settlements = ref<SettlementListResponseDto[]>([])
-const selectedSettlement = ref<SettlementResponseDto | null>(null)
 
 const settlementStatistics = ref<SettlementStatisticsResponseDto | null>(null)
 const isStatisticsLoading = ref(false)
@@ -272,11 +159,8 @@ const statisticsErrorMessage = ref('')
 const statisticsYear = ref(new Date().getFullYear())
 
 const supplierOptions = ref<SupplierResponseDto[]>([])
-const shipmentOptions = ref<ShipmentOptionDto[]>([])
-const returnOptions = ref<ReturnRequestResponseDto[]>([])
 
 const isListLoading = ref(false)
-const isDetailLoading = ref(false)
 // 정산 엑셀 다운로드 중인지 표시합니다.
 const isExcelDownloading = ref(false)
 // 엑셀 내보내기에 사용할 시작일입니다.
@@ -286,11 +170,8 @@ const excelStartDate = ref('')
 const excelEndDate = ref('')
 
 const isSupplierOptionsLoading = ref(false)
-const isShipmentOptionsLoading = ref(false)
-const isReturnOptionsLoading = ref(false)
 
 const listErrorMessage = ref('')
-const detailErrorMessage = ref('')
 
 const isBudgetModalOpen = ref(false)
 const isBudgetCreatePage = computed(() => route.name === 'settlementBudgetCreate')
@@ -309,7 +190,8 @@ const CHART_MONTH_LABELS = [
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
 ]
 
-const monthLabel = (month: number) => preferences.language === 'ko' ? `${month}월` : `M${month}`
+const monthLabel = (month: number) => `${month}월`
+const formatWonAmount = (value: number) => `${Number(value).toLocaleString('ko-KR')}원`
 
 type BudgetUsageStatusLabel = keyof typeof CONTENT.ko.stats.budgetStatuses
 
@@ -432,7 +314,7 @@ const monthlyBudgetChartOptions = computed(() => {
       shared: true,
       intersect: false,
       y: {
-        formatter: (value: number) => `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
+        formatter: formatWonAmount,
       },
     },
     legend: {
@@ -458,7 +340,7 @@ const targetTypeDonutChartSeries = computed(() => {
 })
 
 const targetTypeDonutChartLabels = computed(() => {
-  return targetTypeChartPoints.value.map((point) => point.label)
+  return targetTypeChartPoints.value.map((point) => formatTargetType(point.value as SettlementTargetType))
 })
 
 const hasTargetTypeChartData = computed(() => {
@@ -482,10 +364,17 @@ const targetTypeDonutChartOptions = computed(() => {
       fontFamily: 'Pretendard, "Segoe UI", sans-serif',
       toolbar: { show: false },
     },
+    dataLabels: {
+      style: {
+        fontFamily: 'Pretendard, "Segoe UI", sans-serif',
+        fontWeight: 900,
+      },
+    },
     legend: {
       position: 'bottom',
       fontSize: '12px',
       fontWeight: 800,
+      fontFamily: 'Pretendard, "Segoe UI", sans-serif',
       labels: {
         colors: '#667085',
       },
@@ -496,10 +385,20 @@ const targetTypeDonutChartOptions = computed(() => {
           size: '68%',
           labels: {
             show: true,
+            name: {
+              fontFamily: 'Pretendard, "Segoe UI", sans-serif',
+              fontWeight: 800,
+            },
+            value: {
+              fontFamily: 'Pretendard, "Segoe UI", sans-serif',
+              fontWeight: 800,
+            },
             total: {
               show: true,
               label: content.value.stats.total,
-              formatter: () => `${targetTypeAmountTotal.value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
+              fontFamily: 'Pretendard, "Segoe UI", sans-serif',
+              fontWeight: 800,
+              formatter: () => formatWonAmount(targetTypeAmountTotal.value),
             },
           },
         },
@@ -507,7 +406,7 @@ const targetTypeDonutChartOptions = computed(() => {
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
+        formatter: formatWonAmount,
       },
     },
   }
@@ -554,7 +453,7 @@ const settlementFlowAmountChartOptions = computed(() => {
     },
     dataLabels: {
       enabled: true,
-      formatter: (value: number) => `${Number(value).toLocaleString()} KRW`,
+      formatter: formatWonAmount,
       style: {
         fontSize: '11px',
         fontWeight: 900,
@@ -575,7 +474,7 @@ const settlementFlowAmountChartOptions = computed(() => {
     legend: { show: false },
     tooltip: {
       y: {
-        formatter: (value: number) => `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
+        formatter: formatWonAmount,
       },
     },
   }
@@ -671,19 +570,14 @@ function formatDate(value?: string | null) {
   return value.length >= 16 ? value.substring(0, 16).replace('T', ' ') : value
 }
 
-function formatDateRange(startDate?: string | null, endDate?: string | null) {
-  if (!startDate && !endDate) return '-'
-  return `${startDate ?? '-'} ~ ${endDate ?? '-'}`
-}
-
-function formatAmount(value?: number | null, currency?: string | null) {
+function formatAmount(value?: number | null) {
   if (value == null) return '-'
-  return `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')}${currency ? ` ${currency}` : ''}`
+  return formatWonAmount(value)
 }
 
 function formatStatisticsAmount(value?: number | null) {
   if (value == null) return '-'
-  return `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`
+  return formatWonAmount(value)
 }
 
 function formatRate(value?: number | null) {
@@ -695,28 +589,16 @@ function formatTargetType(value: SettlementTargetType) {
   return content.value.targetTypes[value as keyof typeof content.value.targetTypes] ?? value
 }
 
-function getSupplierLabel(publicId: string) {
-  const supplier = supplierOptions.value.find((item) => item.publicId === publicId)
-  if (!supplier) return publicId
+function getSupplierLabel(publicId: string, organizationPublicId?: string | null) {
+  const supplier = supplierOptions.value.find((item) => {
+    return (
+      item.publicId === publicId ||
+      item.organizationPublicId === publicId ||
+      item.organizationPublicId === organizationPublicId
+    )
+  })
+  if (!supplier) return '공급업체 미확인'
   return `${supplier.supplierName} (${supplier.supplierCode})`
-}
-
-function getTargetLabel(targetType: SettlementTargetType, targetPublicId: string) {
-  if (targetType === 'RETURN') {
-    const target = returnOptions.value.find((item) => item.publicId === targetPublicId)
-    return target ? `${target.returnNumber} / ${target.returnType}` : targetPublicId
-  }
-
-  if (targetType === 'ORDER') {
-    return targetPublicId
-  }
-
-  if (targetType === 'SHIPMENT') {
-    const target = shipmentOptions.value.find((item) => item.publicId === targetPublicId)
-    return target ? `${target.shipmentNumber} / ${target.carrierName}` : targetPublicId
-  }
-
-  return targetPublicId
 }
 
 async function loadSupplierOptions() {
@@ -736,44 +618,6 @@ async function loadSupplierOptions() {
   }
 }
 
-async function loadShipmentOptions() {
-  isShipmentOptionsLoading.value = true
-
-  try {
-    const response = await getShipments({
-      page: 0,
-      size: 100,
-      sort: 'id,desc',
-    })
-
-    shipmentOptions.value = response.content ?? []
-  } catch (err) {
-    console.error('Failed to load shipments:', err)
-    shipmentOptions.value = []
-  } finally {
-    isShipmentOptionsLoading.value = false
-  }
-}
-
-async function loadReturnOptions() {
-  isReturnOptionsLoading.value = true
-
-  try {
-    const response = await getReturnRequests({
-      page: 0,
-      size: 100,
-      returnStatus: 'COMPLETED',
-    })
-
-    returnOptions.value = response.content ?? []
-  } catch (err) {
-    console.error('Failed to load returns:', err)
-    returnOptions.value = []
-  } finally {
-    isReturnOptionsLoading.value = false
-  }
-}
-
 async function fetchSettlements() {
   isListLoading.value = true
   listErrorMessage.value = ''
@@ -784,7 +628,7 @@ async function fetchSettlements() {
   } catch (err: any) {
     console.error('Failed to fetch settlements:', err)
     settlements.value = []
-    listErrorMessage.value = err?.message ?? 'Failed to load settlements.'
+    listErrorMessage.value = err?.message ?? '정산 명세를 불러오지 못했습니다.'
   } finally {
     isListLoading.value = false
   }
@@ -852,9 +696,7 @@ async function handleDownloadSettlementExcel() {
       err?.payload?.message ||
       err?.response?.data?.message ||
       err?.message ||
-      (preferences.language === 'ko'
-        ? '정산 엑셀 파일을 내려받지 못했습니다.'
-        : 'Failed to download settlement Excel file.')
+      '정산 엑셀 파일을 내려받지 못했습니다.'
   } finally {
     isExcelDownloading.value = false
   }
@@ -868,26 +710,9 @@ async function refreshSettlementPage() {
   ])
 }
 
-async function handleSettlementSelect(settlementPublicId: string) {
-  isDetailLoading.value = true
-  detailErrorMessage.value = ''
-
-  try {
-    selectedSettlement.value = await getSettlement(settlementPublicId)
-  } catch (err: any) {
-    console.error('Failed to fetch settlement detail:', err)
-    selectedSettlement.value = null
-    detailErrorMessage.value = err?.message ?? 'Failed to load settlement detail.'
-  } finally {
-    isDetailLoading.value = false
-  }
-}
-
 onMounted(() => {
   refreshSettlementPage()
   loadSupplierOptions()
-  loadShipmentOptions()
-  loadReturnOptions()
 
   if (isBudgetCreatePage.value) {
     resetBudgetForm()
@@ -1012,7 +837,7 @@ onMounted(() => {
       <article class="stl-card stl-chart-card stl-chart-card--monthly">
         <div class="stl-card__head stl-card__head--chart">
           <div>
-            <span class="stl-card__eyebrow">BUDGET VS SETTLEMENT</span>
+            <span class="stl-card__eyebrow">예산 대비 정산</span>
             <h3 class="stl-card__title">{{ content.stats.monthlyBudgetChart }}</h3>
           </div>
 
@@ -1101,7 +926,7 @@ onMounted(() => {
       <article class="stl-card stl-chart-card stl-chart-card--insight">
         <div class="stl-card__head">
           <div>
-            <span class="stl-card__eyebrow">SETTLEMENT AMOUNT</span>
+            <span class="stl-card__eyebrow">정산 금액</span>
             <h3 class="stl-card__title">{{ content.stats.settlementAmountAnalysis }}</h3>
           </div>
         </div>
@@ -1157,7 +982,7 @@ onMounted(() => {
       <article class="stl-card stl-chart-card stl-chart-card--flow">
         <div class="stl-card__head">
           <div>
-            <span class="stl-card__eyebrow">SETTLEMENT FLOW</span>
+            <span class="stl-card__eyebrow">정산 흐름</span>
             <h3 class="stl-card__title">{{ content.stats.settlementFlow }}</h3>
           </div>
         </div>
@@ -1231,18 +1056,16 @@ onMounted(() => {
                 v-for="settlement in settlements"
                 :key="settlement.publicId"
                 class="stl-table__row"
-                :class="{ 'stl-table__row--active': selectedSettlement?.publicId === settlement.publicId }"
-                @click="handleSettlementSelect(settlement.publicId)"
               >
                 <td class="stl-table__id">{{ settlement.id }}</td>
-                <td>{{ getSupplierLabel(settlement.supplierPublicId) }}</td>
+                <td>{{ getSupplierLabel(settlement.supplierPublicId, settlement.supplierOrganizationPublicId) }}</td>
                 <td>
                   <span class="stl-type-badge">
                     {{ formatTargetType(settlement.targetType) }}
                   </span>
                 </td>
                 <td class="stl-table__amount">
-                  {{ formatAmount(settlement.amount, settlement.currencyCode) }}
+                  {{ formatAmount(settlement.amount) }}
                 </td>
                 <td>{{ formatDate(settlement.createdAt) }}</td>
                 <td>
@@ -1258,120 +1081,6 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
-      </article>
-
-      <article class="stl-card stl-card--detail">
-        <div class="stl-card__head">
-          <div>
-            <span class="stl-card__eyebrow">{{ content.detailEyebrow }}</span>
-            <h3 class="stl-card__title">{{ content.detailTitle }}</h3>
-          </div>
-        </div>
-
-        <div v-if="isDetailLoading" class="stl-empty">
-          <div class="stl-spinner"></div>
-          {{ content.loadingDetail }}
-        </div>
-
-        <div v-else-if="detailErrorMessage" class="stl-empty stl-empty--error">
-          {{ detailErrorMessage }}
-        </div>
-
-        <div v-else-if="!selectedSettlement" class="stl-empty stl-empty--hint">
-          {{ content.emptyDetail }}
-        </div>
-
-        <template v-else>
-          <div class="stl-detail-grid">
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.id }}</span>
-              <span class="stl-detail-item__val">{{ selectedSettlement.id }}</span>
-            </div>
-
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.amount }}</span>
-              <span class="stl-detail-item__val stl-detail-item__val--amount">
-                {{ formatAmount(selectedSettlement.amount, selectedSettlement.currencyCode) }}
-              </span>
-            </div>
-
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.supplier }}</span>
-              <span class="stl-detail-item__val">
-                {{ getSupplierLabel(selectedSettlement.supplierPublicId) }}
-              </span>
-            </div>
-
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.targetType }}</span>
-              <span class="stl-detail-item__val">
-                {{ formatTargetType(selectedSettlement.targetType) }}
-              </span>
-            </div>
-
-            <div class="stl-detail-item stl-detail-item--wide">
-              <span class="stl-detail-item__label">{{ content.fields.targetSelection }}</span>
-              <span class="stl-detail-item__val">
-                {{ getTargetLabel(selectedSettlement.targetType, selectedSettlement.targetPublicId) }}
-              </span>
-            </div>
-
-            <div class="stl-detail-item stl-detail-item--wide">
-              <span class="stl-detail-item__label">{{ content.fields.period }}</span>
-              <span class="stl-detail-item__val">
-                {{ formatDateRange(selectedSettlement.settlementPeriodStart, selectedSettlement.settlementPeriodEnd) }}
-              </span>
-            </div>
-
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.createdAt }}</span>
-              <span class="stl-detail-item__val">{{ formatDate(selectedSettlement.createdAt) }}</span>
-            </div>
-
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.updatedAt }}</span>
-              <span class="stl-detail-item__val">{{ formatDate(selectedSettlement.updatedAt) }}</span>
-            </div>
-          </div>
-
-          <div class="stl-subcard">
-            <div class="stl-subcard__head">
-              <div>
-                <span class="stl-card__eyebrow">{{ content.itemEyebrow }}</span>
-                <h4 class="stl-subcard__title">{{ content.itemTitle }}</h4>
-              </div>
-              <span class="stl-chip stl-chip--sm">{{ selectedSettlement.details.length }}</span>
-            </div>
-
-            <div v-if="selectedSettlement.details.length === 0" class="stl-empty stl-empty--sm">
-              {{ content.emptyDetails }}
-            </div>
-
-            <div v-else class="stl-table-wrap">
-              <table class="stl-table stl-table--sm">
-                <thead>
-                  <tr>
-                    <th>{{ content.fields.poItemId }}</th>
-                    <th>{{ content.fields.itemId }}</th>
-                    <th>{{ content.fields.qty }}</th>
-                    <th>{{ content.fields.unitPrice }}</th>
-                    <th>{{ content.fields.detailAmount }}</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  <tr v-for="item in selectedSettlement.details" :key="item.publicId">
-                    <td>{{ item.poItemId }}</td>
-                    <td>{{ item.itemId }}</td>
-                    <td>{{ Number(item.qty).toLocaleString() }}</td>
-                    <td>{{ Number(item.unitPrice).toLocaleString() }}</td>
-                    <td class="stl-table__amount">{{ Number(item.amount).toLocaleString() }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </template>
       </article>
     </section>
   </section>
@@ -1403,8 +1112,7 @@ onMounted(() => {
       <div class="stl-field">
         <label class="stl-field__label">{{ content.budgetModal.currency }}</label>
         <select v-model="budgetForm.currencyCode" class="stl-select">
-          <option value="KRW">KRW</option>
-          <option value="DOLLAR">DOLLAR</option>
+          <option value="KRW">원</option>
         </select>
       </div>
 
@@ -1619,6 +1327,7 @@ onMounted(() => {
 }
 
 .stl-card {
+  min-width: 0;
   background: var(--stl-card);
   border: 1px solid var(--stl-border);
   border-radius: 0;
@@ -1649,7 +1358,7 @@ onMounted(() => {
 
 .stl-chart-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -1748,7 +1457,7 @@ onMounted(() => {
 
 .stl-main-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(420px, 0.85fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -1773,6 +1482,7 @@ onMounted(() => {
 }
 
 .stl-table-wrap {
+  max-width: 100%;
   overflow-x: auto;
 }
 
@@ -1806,10 +1516,6 @@ onMounted(() => {
 
 .stl-table__row:hover td {
   background: rgb(var(--surface-container-rgb, 235 238 239) / 0.46);
-}
-
-.stl-table__row--active td {
-  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.72);
 }
 
 .stl-table__id {
@@ -1879,69 +1585,12 @@ onMounted(() => {
   animation: spin 0.7s linear infinite;
 }
 
-.stl-detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  overflow: hidden;
-  margin-bottom: 16px;
-  border: 1px solid var(--stl-border);
-  border-radius: 0;
-  background: var(--stl-border);
-  gap: 1px;
-}
-
-.stl-detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  background: var(--stl-card);
-}
-
-.stl-detail-item--wide {
-  grid-column: span 2;
-}
-
-.stl-detail-item__label,
 .stl-field__label {
   color: var(--stl-text-muted);
   font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.stl-detail-item__val {
-  color: var(--stl-text-primary);
-  font-size: 0.82rem;
-  font-weight: 800;
-  word-break: break-all;
-}
-
-.stl-detail-item__val--amount {
-  font-size: 1rem;
-}
-
-.stl-subcard {
-  overflow: hidden;
-  border: 1px solid var(--stl-border);
-  border-radius: 0;
-}
-
-.stl-subcard__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 14px;
-  background: #fafafa;
-  border-bottom: 1px solid var(--stl-border);
-}
-
-.stl-subcard__title {
-  margin: 0;
-  font-size: 0.85rem;
-  font-weight: 900;
 }
 
 .stl-form-grid {
@@ -1995,6 +1644,14 @@ onMounted(() => {
   font-weight: 800;
 }
 
+.stl-chart-card :deep(.apexcharts-text),
+.stl-chart-card :deep(.apexcharts-datalabel),
+.stl-chart-card :deep(.apexcharts-legend-text),
+.stl-chart-card :deep(.apexcharts-datalabel-label),
+.stl-chart-card :deep(.apexcharts-datalabel-value) {
+  font-family: Pretendard, "Segoe UI", sans-serif !important;
+}
+
 
 @keyframes spin {
   to {
@@ -2016,20 +1673,132 @@ onMounted(() => {
 @media (max-width: 768px) {
   .stl-page {
     padding: 16px;
+    overflow-x: hidden;
   }
 
-  .stl-kpi-row,
-  .stl-form-grid,
-  .stl-detail-grid {
+  .stl-page__header {
+    align-items: flex-start;
+  }
+
+  .stl-page__actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .stl-page__actions .stl-btn,
+  .stl-page__actions .stl-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .stl-kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .stl-kpi-card {
+    min-height: 104px;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .stl-kpi-card__icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .stl-kpi-card__label {
+    font-size: 0.66rem;
+    letter-spacing: 0.02em;
+  }
+
+  .stl-kpi-card__value {
+    font-size: 1.05rem;
+    overflow-wrap: anywhere;
+  }
+
+  .stl-insight-grid,
+  .stl-main-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stl-card {
+    padding: 16px;
+  }
+
+  .stl-chart-card :deep(.apexcharts-canvas),
+  .stl-chart-card :deep(.apexcharts-svg) {
+    max-width: 100%;
+  }
+
+  .stl-form-grid {
     grid-template-columns: 1fr;
-  }
-
-  .stl-detail-item--wide {
-    grid-column: auto;
   }
 
   .stl-chart-total {
     align-items: flex-start;
   }
+
+  .stl-empty {
+    min-width: 0;
+    padding: 28px 14px;
+    overflow-wrap: anywhere;
+  }
+
+  .stl-empty--hint {
+    min-height: 180px;
+  }
+
+  .stl-table-wrap {
+    overflow-x: hidden;
+  }
+
+  .stl-card--list .stl-table {
+    table-layout: fixed;
+  }
+
+  .stl-card--list .stl-table th:nth-child(1),
+  .stl-card--list .stl-table td:nth-child(1),
+  .stl-card--list .stl-table th:nth-child(5),
+  .stl-card--list .stl-table td:nth-child(5),
+  .stl-card--list .stl-table th:nth-child(6),
+  .stl-card--list .stl-table td:nth-child(6) {
+    display: none;
+  }
+
+  .stl-card--list .stl-table th:nth-child(2),
+  .stl-card--list .stl-table td:nth-child(2) {
+    width: 48%;
+  }
+
+  .stl-card--list .stl-table th:nth-child(3),
+  .stl-card--list .stl-table td:nth-child(3) {
+    width: 22%;
+  }
+
+  .stl-card--list .stl-table th:nth-child(4),
+  .stl-card--list .stl-table td:nth-child(4) {
+    width: 30%;
+  }
+
+  .stl-table th,
+  .stl-table td {
+    padding: 10px 8px;
+  }
+
+  .stl-table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .stl-type-badge {
+    padding: 4px 6px;
+    white-space: normal;
+    line-height: 1.15;
+  }
+
 }
 </style>

@@ -7,7 +7,6 @@ import { ref, onMounted } from 'vue'
 import type { ChatMessageDto } from '../../types/chat'
 import ChatReferenceCard from './ChatReferenceCard.vue'
 import ChatAvatar from './ChatAvatar.vue'
-import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { getAttachment, downloadFileFromUrl, triggerBlobDownload, triggerLinkDownload } from '../../services/file'
 import { apiClient } from '../../services/http'
 
@@ -23,7 +22,6 @@ const emit = defineEmits<{
   reply: [message: ChatMessageDto, senderDisplayName: string]
 }>()
 
-const preferences = useAtlasPreferencesStore()
 const isMine = props.message.senderUserPublicId === props.currentUserPublicId
 const isSystem =
   props.message.messageType === 'SYSTEM' ||
@@ -32,7 +30,7 @@ const isSystem =
 
 function formatTime(isoString: string): string {
   const d = new Date(isoString)
-  return d.toLocaleTimeString(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+  return d.toLocaleTimeString('ko-KR', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
@@ -44,7 +42,7 @@ function handleDelete() {
 }
 
 function handleReply() {
-  emit('reply', props.message, props.senderName || (preferences.language === 'ko' ? '알 수 없음' : 'Unknown'))
+  emit('reply', props.message, props.senderName || '알 수 없음')
 }
 
 // 뷰어 관련 상태 및 함수
@@ -84,10 +82,10 @@ async function handleDownloadFiles() {
         try {
           // CDN URL → fetch → Blob → 원본 파일명으로 다운로드
           const blob = await downloadFileFromUrl(cdnUrl)
-          triggerBlobDownload(blob, fileInfo.originalFileName || `file_${fileInfo.publicId}`)
+          triggerBlobDownload(blob, fileInfo.originalFileName || '첨부파일')
         } catch {
           // CORS 실패 시 숨겨진 a태그로 조용히 다운로드 (새 탭 없음, 화면 번쩍임 없음)
-          triggerLinkDownload(cdnUrl, fileInfo.originalFileName || `file_${fileInfo.publicId}`)
+          triggerLinkDownload(cdnUrl, fileInfo.originalFileName || '첨부파일')
         }
 
         // 다중 다운로드 시 브라우저 부하 방지
@@ -97,7 +95,7 @@ async function handleDownloadFiles() {
       }
     } catch (error) {
       console.error('Download failed', error)
-      alert(preferences.language === 'ko' ? '파일 다운로드에 실패했습니다.' : 'Failed to download file.')
+      alert('파일 다운로드에 실패했습니다.')
     }
   }
 }
@@ -106,8 +104,8 @@ async function handleDownloadFiles() {
 const totalFileCount = ref(0)
 
 function replyLabel(name?: string | null) {
-  const displayName = name || (preferences.language === 'ko' ? '알 수 없는 사용자' : 'Unknown user')
-  return preferences.language === 'ko' ? `${displayName}에게 답장` : `Replying to ${displayName}`
+  const displayName = name || '알 수 없는 사용자'
+  return `${displayName}에게 답장`
 }
 
 interface MediaItem {
@@ -130,7 +128,7 @@ onMounted(async () => {
           if (props.message.messageType === 'IMAGE') {
             for (const file of attachment.files) {
               const ct = file.contentType || ''
-              const fileName = file.originalFileName || ''
+              const fileName = file.originalFileName || '첨부파일'
               const isVideo = ct.startsWith('video/') || !!fileName.match(/\.(mp4|webm|ogg|mov)$/i)
               const isImage = ct.startsWith('image/') || !!fileName.match(/\.(jpeg|jpg|gif|png|webp|svg|bmp)$/i)
 
@@ -204,7 +202,7 @@ onMounted(async () => {
             v-if="isMine"
             class="chat-msg__delete"
             type="button"
-            :title="preferences.language === 'ko' ? '메시지 삭제' : 'Delete message'"
+            title="메시지 삭제"
             @click="handleDelete"
           >
             <span class="material-symbols-outlined">delete</span>
@@ -215,7 +213,7 @@ onMounted(async () => {
             v-if="!message.isDeleted"
             class="chat-msg__reply"
             type="button"
-            :title="preferences.language === 'ko' ? '답장' : 'Reply'"
+            title="답장"
             @click="handleReply"
           >
             <span class="material-symbols-outlined">reply</span>
@@ -236,7 +234,7 @@ onMounted(async () => {
                   {{ replyLabel(message.parentSenderDisplayName) }}
                 </strong>
                 <p class="chat-msg__reply-body">
-                  {{ message.parentMessageBody || (preferences.language === 'ko' ? '내용을 불러올 수 없습니다.' : 'Could not load content.') }}
+                  {{ message.parentMessageBody || '내용을 불러올 수 없습니다.' }}
                 </p>
               </div>
             </div>
@@ -269,14 +267,12 @@ onMounted(async () => {
             >
               <span class="material-symbols-outlined">download</span>
               <span>
-                {{ preferences.language === 'ko'
-                  ? `${totalFileCount || message.attachmentPublicIds.length}건 다운로드`
-                  : `Download ${totalFileCount || message.attachmentPublicIds.length} file${(totalFileCount || message.attachmentPublicIds.length) === 1 ? '' : 's'}` }}
+                {{ `${totalFileCount || message.attachmentPublicIds.length}건 다운로드` }}
               </span>
             </button>
 
             <span v-if="message.editedAt" class="chat-msg__edited">
-              {{ preferences.language === 'ko' ? '(수정됨)' : '(edited)' }}
+              (수정됨)
             </span>
           </div>
 
