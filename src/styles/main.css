@@ -7244,7 +7244,7 @@ select:not(.app-language-select select):focus {
 .items-page__table-wrap {
   max-width: 100%;
   width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .items-page__table {
@@ -7255,18 +7255,14 @@ select:not(.app-language-select select):focus {
 .items-page__table .page-table__row {
   display: grid;
   grid-template-columns:
-    minmax(82px, 0.76fr)
-    minmax(112px, 1fr)
-    minmax(112px, 1fr)
-    minmax(62px, 0.52fr)
-    minmax(104px, 0.9fr)
-    minmax(112px, 0.94fr)
-    minmax(88px, 0.72fr)
-    minmax(78px, 0.64fr)
-    minmax(98px, 0.82fr)
-    minmax(70px, 0.58fr)
-    minmax(70px, 0.58fr);
-  gap: 12px;
+    80px
+    minmax(132px, 1.1fr)
+    minmax(180px, 1.45fr)
+    minmax(120px, 1fr)
+    minmax(72px, 0.55fr)
+    minmax(80px, 0.6fr)
+    92px;
+  gap: 24px;
   align-items: center;
 }
 
@@ -7301,6 +7297,61 @@ select:not(.app-language-select select):focus {
   line-height: 1.4;
   word-break: keep-all;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 1440px) {
+  .items-page__table .page-table__row {
+    grid-template-columns:
+      72px
+      minmax(132px, 1.1fr)
+      minmax(180px, 1.45fr)
+      minmax(68px, 0.55fr)
+      minmax(76px, 0.6fr)
+      88px;
+    gap: 18px;
+  }
+
+  .items-page__table .page-table__row>span:nth-child(4) {
+    display: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .items-page__table .page-table__row {
+    grid-template-columns:
+      68px
+      minmax(126px, 1fr)
+      minmax(160px, 1.35fr)
+      minmax(72px, 0.6fr)
+      86px;
+    gap: 14px;
+  }
+
+  .items-page__table .page-table__row>span:nth-child(5) {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .items-page__table .page-table__row {
+    grid-template-columns: 58px minmax(0, 1fr) 78px;
+    gap: 12px;
+  }
+
+  .items-page__table .page-table__row>span:nth-child(2),
+  .items-page__table .page-table__row>span:nth-child(6) {
+    display: none;
+  }
+
+  .items-page__table .page-table__row--head>span {
+    font-size: 0.78rem;
+  }
+
+  .items-page__detail-cell .page-button {
+    min-width: 0;
+    width: 100%;
+    padding-inline: 10px;
+  }
 }
 
 .items-page__detail-stack {

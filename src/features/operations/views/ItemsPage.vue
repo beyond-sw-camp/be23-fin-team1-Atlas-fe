@@ -112,7 +112,7 @@ const copy = computed(() =>
         subtitle: '품목 마스터와 협력사 품목 공급 역량을 함께 조회하고 관리합니다.',
         createLabel: '품목 등록',
         tableTitle: '품목 목록',
-        searchPlaceholder: '품목명, 품목코드, 카테고리, 협력사 검색',
+        searchPlaceholder: '품목명, 품목코드, 카테고리 검색',
         mediaColumn: '미디어',
         mediaTitle: '품목 미디어',
         mediaUploadTitle: '이미지/동영상',
@@ -125,11 +125,6 @@ const copy = computed(() =>
           '품목명',
           '카테고리',
           '단위',
-          '현재 가용 수량',
-          '최소 발주 수량',
-          '품질 등급',
-          '리드타임',
-          '협력사',
           '상태',
           '상세',
         ],
@@ -211,7 +206,7 @@ const copy = computed(() =>
         exportLabel: 'EXPORT',
         createLabel: 'ADD ITEM',
         tableTitle: 'Item Registry',
-        searchPlaceholder: 'Search item, code, category, or supplier',
+        searchPlaceholder: 'Search item, code, or category',
         mediaColumn: 'Media',
         mediaTitle: 'Item Media',
         mediaUploadTitle: 'Images / Videos',
@@ -224,11 +219,6 @@ const copy = computed(() =>
           'ITEM NAME',
           'CATEGORY',
           'UNIT',
-          'AVAILABLE QTY',
-          'MOQ',
-          'QUALITY',
-          'LEAD TIME',
-          'SUPPLIER',
           'STATUS',
           'DETAIL',
         ],
@@ -684,11 +674,6 @@ function toItemRow(
       item.itemName,
       item.categoryName,
       item.unit,
-      formatNumber(capability?.availableQty ?? null),
-      formatNumber(capability?.moq ?? null),
-      qualityGradeText(capability?.qualityGrade),
-      formatLeadTime(capability?.leadTimeDays),
-      item.supplierName,
       itemStatusText(item.status),
     ],
   }
@@ -937,8 +922,7 @@ const filteredRows = computed(() => {
       row.cells.some((cell) => cell.toLowerCase().includes(query)) ||
       row.itemCode.toLowerCase().includes(query) ||
       row.itemName.toLowerCase().includes(query) ||
-      row.categoryName.toLowerCase().includes(query) ||
-      row.supplierName.toLowerCase().includes(query)
+      row.categoryName.toLowerCase().includes(query)
 
     if (!matchesQuery) return false
 
@@ -1228,7 +1212,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
                 type="button"
                 @click="openItemDetailPage(row)"
               >
-                {{ copy.columns[10] }}
+                {{ copy.columns[5] }}
               </button>
             </span>
           </div>
