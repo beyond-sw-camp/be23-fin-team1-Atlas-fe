@@ -1009,7 +1009,7 @@ onBeforeUnmount(() => header.clearActions())
     minmax(280px, 1.8fr)
     minmax(100px, 0.7fr)
     minmax(90px, 0.6fr)
-    minmax(88px, 0.36fr);
+    minmax(64px, 0.22fr);
   gap: 14px;
   align-items: center;
   padding: 14px 16px;
@@ -1126,6 +1126,33 @@ onBeforeUnmount(() => header.clearActions())
   color: var(--color-critical);
   font-size: 0.875rem;
   font-weight: 800;
+}
+
+@container atlas-page-table (max-width: 1240px) {
+  .logistics-table {
+    grid-template-columns:
+      minmax(132px, 0.74fr)
+      minmax(112px, 0.62fr)
+      minmax(180px, 1fr)
+      minmax(84px, 0.42fr)
+      minmax(74px, 0.36fr)
+      64px !important;
+  }
+}
+
+@container atlas-page-table (max-width: 1040px) {
+  .logistics-table {
+    grid-template-columns:
+      minmax(132px, 0.82fr)
+      minmax(96px, 0.58fr)
+      minmax(150px, 1fr)
+      minmax(76px, 0.36fr)
+      64px !important;
+  }
+
+  .logistics-table > span:nth-child(5):not(:last-child) {
+    display: none !important;
+  }
 }
 
 @media (max-width: 960px) {
