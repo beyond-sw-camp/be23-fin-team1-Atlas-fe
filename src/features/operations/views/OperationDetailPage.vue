@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useActorScope } from '../../../composables/useActorScope'
+import { getItem, getManagedItems, getManagedItemLinkedOrders } from '../../../services/item'
+import {
+  confirmPurchaseOrderItem,
+  getPurchaseOrder,
+  rejectPurchaseOrder,
+} from '../../../services/purchaseOrder'
 import { useRoute, useRouter } from 'vue-router'
 import { getCertificate, getCertificateHistories } from '../../../services/certificate'
 import { getAttachment, type AttachmentFileDto } from '../../../services/file'
-import { getInventory } from '../../../services/inventory'
-import { getItem, getManagedItemLinkedOrders } from '../../../services/item'
+import { getInventory, getInventories } from '../../../services/inventory'
 import { getLogisticsNode } from '../../../services/logistics'
-import { getPurchaseOrder } from '../../../services/purchaseOrder'
 import { getReturnHistories, getReturnRequest } from '../../../services/return'
 import { getSettlement } from '../../../services/settlement'
 import { getShipment, getShipmentEta, getShipmentStatusHistories } from '../../../services/shipment'
@@ -14,6 +19,8 @@ import { getSupplier, getSupplierItemCapabilities } from '../../../services/supp
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSidebarBadgesStore } from '../../../stores/sidebarBadges'
 import type { PageKey } from '../../../types'
+import { BaseModal } from '../../shared'
+
 
 type DetailKind =
   | 'orders'
@@ -48,7 +55,7 @@ const route = useRoute()
 const router = useRouter()
 const preferences = useAtlasPreferencesStore()
 const sidebarBadges = useAtlasSidebarBadgesStore()
-
+const actor = useActorScope()
 const DETAIL_BADGE_KEY_BY_KIND: Record<DetailKind, PageKey> = {
   orders: 'ordersDesk',
   shipments: 'shipments',
@@ -60,6 +67,16 @@ const DETAIL_BADGE_KEY_BY_KIND: Record<DetailKind, PageKey> = {
   settlements: 'settlements',
   certificates: 'certificateWatch',
 }
+
+const confirmModalOpen = ref(false)
+const confirmLines = ref<Array<{
+  poItemPublicId: string
+  itemName: string
+  orderedQty: number
+  confirmedQty: number | null
+  partialConfirmationAllowed: boolean | null
+}>>([])
+const confirmErrorMessage = ref('')
 
 function t(ko: string, en: string) {
   return preferences.language === 'ko' ? ko : en
@@ -286,6 +303,31 @@ const statusTone = computed<DetailMetric['tone']>(() => {
   return 'neutral'
 })
 
+const isOrderDetail = computed(() => kind.value === 'orders')
+
+const isReceivedOrderDetail = computed(() =>
+  isOrderDetail.value && actor.isSupplierOrganization.value,
+)
+
+const isBuyerOrderDetail = computed(() =>
+  isOrderDetail.value && actor.isBuyerOrganization.value,
+)
+
+const isAcceptedOrder = computed(() => {
+  const value = String(data.value?.poStatus ?? '').toUpperCase()
+  return ['PARTIALLY_CONFIRMED', 'CONFIRMED', 'COMPLETED'].includes(value)
+})
+
+const canAcceptOrRejectOrder = computed(() => {
+  const value = String(data.value?.poStatus ?? '').toUpperCase()
+  return isReceivedOrderDetail.value && value === 'CREATED'
+})
+
+const canEditOrder = computed(() => {
+  const value = String(data.value?.poStatus ?? '').toUpperCase()
+  return isBuyerOrderDetail.value && value === 'CREATED'
+})
+
 const hasDomainLayout = computed(() => (
   ['orders', 'shipments', 'returns', 'suppliers', 'inventory', 'items'].includes(kind.value)
 ))
@@ -355,6 +397,47 @@ const inventoryRows = computed(() => [
   ['ITEM-000256', '베어링 6205', 'EA', '87', '300', '-213', 'SHORTAGE', 'PO-2026-000031'],
   ['ITEM-000312', 'PCB ASSY B-100', 'EA', '210', '200', '10', 'NORMAL', '-'],
 ])
+
+function openConfirmOrderModal() {
+  confirmErrorMessage.value = ''
+
+  confirmLines.value = orderItems.value.map((item: any) => ({
+    poItemPublicId: item.poItemPublicId,
+    itemName: item.itemName ?? item.itemCode ?? '-',
+    orderedQty: Number(item.orderedQty ?? 0),
+    confirmedQty: Number(item.orderedQty ?? 0),
+    partialConfirmationAllowed: item.partialConfirmationAllowed,
+  }))
+
+  confirmModalOpen.value = true
+}
+
+function closeConfirmOrderModal() {
+  confirmModalOpen.value = false
+  confirmErrorMessage.value = ''
+  confirmLines.value = []
+}
+
+function validateConfirmLines() {
+  for (const line of confirmLines.value) {
+    const confirmedQty = Number(line.confirmedQty)
+    const orderedQty = Number(line.orderedQty)
+
+    if (!confirmedQty || confirmedQty <= 0) {
+      return `${line.itemName} 확정 수량을 입력해 주세요.`
+    }
+
+    if (confirmedQty > orderedQty) {
+      return `${line.itemName} 확정 수량은 발주 수량 ${formatNumber(orderedQty)}개를 넘을 수 없습니다.`
+    }
+
+    if (line.partialConfirmationAllowed === false && confirmedQty !== orderedQty) {
+      return `${line.itemName}은 부분 확정이 불가합니다. 전체 수량 ${formatNumber(orderedQty)}개로 확정해야 합니다.`
+    }
+  }
+
+  return ''
+}
 
 const heroMetrics = computed<DetailMetric[]>(() => {
   const item = data.value
@@ -797,6 +880,81 @@ function lineCell(row: any, index: number) {
   return [row.publicId ?? row.id ?? '-', row.name ?? row.itemName ?? row.status ?? '-', row.status ?? '-'][index]
 }
 
+async function handleAcceptOrder() {
+  if (!data.value?.poPublicId) return
+
+  const message = validateConfirmLines()
+  if (message) {
+    confirmErrorMessage.value = message
+    return
+  }
+
+  try {
+    loading.value = true
+
+    let latest = data.value
+
+    for (const line of confirmLines.value) {
+      latest = await confirmPurchaseOrderItem(
+        data.value.poPublicId,
+        line.poItemPublicId,
+        {
+          confirmedQty: Number(line.confirmedQty),
+        },
+      )
+    }
+
+    data.value = latest
+    closeConfirmOrderModal()
+  } catch (error: any) {
+    confirmErrorMessage.value = error?.message ?? '발주 수락에 실패했습니다.'
+  } finally {
+    loading.value = false
+  }
+}
+
+
+async function handleRejectOrder() {
+  if (!data.value?.poPublicId) return
+
+  try {
+    loading.value = true
+    data.value = await rejectPurchaseOrder(data.value.poPublicId)
+  } catch (error: any) {
+    errorMessage.value = error?.message ?? '발주 반려에 실패했습니다.'
+  } finally {
+    loading.value = false
+  }
+}
+
+function handleEditOrder() {
+  router.push({
+    name: 'ordersDesk',
+    query: {
+      edit: publicId.value,
+    },
+  })
+}
+
+function handleEditItem() {
+  router.push({
+    name: 'items',
+    query: {
+      edit: publicId.value,
+    },
+  })
+}
+
+function handleEditInventory() {
+  router.push({
+    name: 'inventory',
+    query: {
+      edit: publicId.value,
+    },
+  })
+}
+
+
 function rowKey(row: any, index: number) {
   return row.publicId ?? row.poItemPublicId ?? row.itemPublicId ?? row.id ?? `${index}`
 }
@@ -826,12 +984,26 @@ async function fetchDetail() {
       data.value = detail as Record<string, any>
       related.value = { histories }
     } else if (kind.value === 'inventory') {
-      data.value = await getInventory(publicId.value)
+      const inventories = await getInventories()
+      const detail = inventories.find((row) => row.inventoryPublicId === publicId.value)
+
+      if (!detail) {
+        throw new Error('조회 가능한 재고가 아닙니다.')
+      }
+
+      data.value = detail as Record<string, any>
     } else if (kind.value === 'items') {
-      const [detail, linkedOrders] = await Promise.all([
-        getItem(publicId.value),
+      const [itemPage, linkedOrders] = await Promise.all([
+        getManagedItems(0, 500),
         getManagedItemLinkedOrders(publicId.value).catch(() => []),
       ])
+
+      const detail = itemPage.content.find((row) => row.publicId === publicId.value)
+
+      if (!detail) {
+        throw new Error('조회 가능한 품목이 아닙니다.')
+      }
+
       data.value = detail as Record<string, any>
       related.value = { linkedOrders }
     } else if (kind.value === 'suppliers') {
@@ -976,11 +1148,32 @@ watch(
             </article>
 
             <div class="operation-detail-page__bottom-actions">
-              <button class="page-button page-button--secondary" type="button" @click="goBack">{{ detailCopy.backToList }}</button>
+              <button class="page-button page-button--secondary" type="button" @click="goBack">
+                {{ detailCopy.backToList }}
+              </button>
+
               <span></span>
-              <button class="page-button page-button--secondary" type="button">{{ detailCopy.order.cancel }}</button>
-              <button class="page-button page-button--primary" type="button">{{ detailCopy.order.applyChange }}</button>
+
+              <template v-if="canAcceptOrRejectOrder">
+                <button class="page-button page-button--secondary" type="button" @click="handleRejectOrder">
+                  반려
+                </button>
+                <button class="page-button page-button--primary" type="button" @click="openConfirmOrderModal">
+                  수락
+                </button>
+
+              </template>
+
+              <button
+                v-else-if="canEditOrder && !isAcceptedOrder"
+                class="page-button page-button--primary"
+                type="button"
+                @click="handleEditOrder"
+              >
+                수정
+              </button>
             </div>
+
           </section>
 
           <aside class="operation-detail-page__analysis-panel">
@@ -1094,6 +1287,32 @@ watch(
             <article class="operation-detail-page__domain-card"><h3>{{ kind === 'items' ? 'ITEM DETAIL' : 'INVENTORY STATUS' }}</h3><table class="operation-detail-page__domain-table"><thead><tr><th>ITEM CODE</th><th>ITEM NAME</th><th>UOM</th><th>CURRENT STOCK</th><th>SAFETY STOCK</th><th>SHORTAGE QTY</th><th>STATUS</th><th>AFFECTED POs</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="row[0]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table></article>
             <article class="operation-detail-page__domain-card"><h3>DEMAND vs SAFETY STOCK</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>Forecast demand</strong></div></article>
           </section>
+          <div v-if="kind === 'items' || kind === 'inventory'" class="operation-detail-page__bottom-actions">
+            <button class="page-button page-button--secondary" type="button" @click="goBack">
+              {{ detailCopy.backToList }}
+            </button>
+
+            <span></span>
+
+            <button
+              v-if="kind === 'items'"
+              class="page-button page-button--primary"
+              type="button"
+              @click="handleEditItem"
+            >
+              수정
+            </button>
+
+            <button
+              v-else-if="kind === 'inventory'"
+              class="page-button page-button--primary"
+              type="button"
+              @click="handleEditInventory"
+            >
+              수정
+            </button>
+          </div>
+
           <aside class="operation-detail-page__analysis-panel is-inventory"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 재고 부족 대응', 'AI Inventory Shortage Response') }}</h2><span class="operation-detail-page__chip is-high">{{ t('안전재고 미달', 'Below Safety Stock') }}</span></div><div class="operation-detail-page__recommendation"><strong>{{ t('01 긴급 발주', '01 Urgent Order') }}</strong><span>HIGH</span><p>{{ t('필요 수량 165 EA, 권장 발주 수량 170 EA', 'Required 165 EA, recommended order 170 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('실행 계획 보기', 'View Action Plan') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('02 대체 공급처 검토', '02 Review Alternative Suppliers') }}</strong><span>MEDIUM</span><p>{{ t('공급처 3개, 필요 수량 165 EA', '3 suppliers, required 165 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('후보 공급처 보기', 'View Supplier Candidates') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('03 분할 입고', '03 Split Inbound') }}</strong><span>LOW</span><p>{{ t('분할 횟수 2회, 운송 영향 보통', '2 splits, normal logistics impact') }}</p><button class="page-button page-button--primary" type="button">{{ t('분할 계획 보기', 'View Split Plan') }}</button></div></aside>
         </main>
       </div>
@@ -1265,6 +1484,53 @@ watch(
         </aside>
       </div>
     </template>
+
+    <BaseModal
+      v-model="confirmModalOpen"
+      title="발주 수락"
+      description="품목별 확정 수량을 입력해 주세요."
+      size="md"
+      @close="closeConfirmOrderModal"
+    >
+      <div class="operation-detail-page__confirm-form">
+        <div
+          v-for="line in confirmLines"
+          :key="line.poItemPublicId"
+          class="operation-detail-page__confirm-line"
+        >
+          <div>
+            <strong>{{ line.itemName }}</strong>
+            <small>
+              발주 수량 {{ formatNumber(line.orderedQty) }}
+              /
+              부분 확정 {{ line.partialConfirmationAllowed === false ? '불가' : '허용' }}
+            </small>
+          </div>
+
+          <input
+            v-model.number="line.confirmedQty"
+            type="number"
+            min="1"
+            :max="line.orderedQty"
+          />
+        </div>
+
+        <p v-if="confirmErrorMessage" class="operation-detail-page__error">
+          {{ confirmErrorMessage }}
+        </p>
+
+        <div class="operation-detail-page__bottom-actions">
+          <button class="page-button page-button--secondary" type="button" @click="closeConfirmOrderModal">
+            취소
+          </button>
+          <span></span>
+          <button class="page-button page-button--primary" type="button" :disabled="loading" @click="handleAcceptOrder">
+            수락 완료
+          </button>
+        </div>
+      </div>
+    </BaseModal>
+
   </section>
 </template>
 
@@ -2194,4 +2460,46 @@ watch(
     display: none;
   }
 }
+
+.operation-detail-page__confirm-form {
+  display: grid;
+  gap: 14px;
+}
+
+.operation-detail-page__confirm-line {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.operation-detail-page__confirm-line strong,
+.operation-detail-page__confirm-line small {
+  display: block;
+}
+
+.operation-detail-page__confirm-line small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.operation-detail-page__confirm-line input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 700;
+}
+
+.operation-detail-page__error {
+  color: #b42318;
+  font-weight: 700;
+}
+
 </style>

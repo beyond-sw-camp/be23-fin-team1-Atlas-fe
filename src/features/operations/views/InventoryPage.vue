@@ -14,6 +14,11 @@ import {
   type InventoryStatus,
   type ItemInventoryResponseDto,
 } from '../../../services/inventory'
+import {
+  getLogisticsNodes,
+  type LogisticsNodeResponseDto,
+} from '../../../services/logistics'
+
 
 type InventoryTabKey = 'ALL' | InventoryStatus
 
@@ -24,6 +29,7 @@ const router = useRouter()
 
 const rows = ref<ItemInventoryResponseDto[]>([])
 const items = ref<ItemResponseDto[]>([])
+const logisticsNodeOptions = ref<LogisticsNodeResponseDto[]>([])
 const search = ref('')
 const activeTabKey = ref<InventoryTabKey>('ALL')
 const errorMessage = ref('')
@@ -37,12 +43,17 @@ const formErrorMessage = ref('')
 
 const form = ref({
   itemPublicId: '',
+  logisticsNodePublicId: '',
   manufacturedDate: '',
   qty: null as number | null,
   memo: '',
 })
 
 const selectedCreateItem = computed(() =>
+  items.value.find((item) => item.publicId === form.value.itemPublicId) ?? null,
+)
+
+const selectedFormItem = computed(() =>
   items.value.find((item) => item.publicId === form.value.itemPublicId) ?? null,
 )
 
@@ -92,6 +103,7 @@ const copy = computed(() =>
           status: '상태',
           memo: '메모',
           qty: '수량',
+          logisticsNode: '창고',
         },
         columns: [
           '품목코드',
@@ -131,6 +143,7 @@ const copy = computed(() =>
           editFail: '재고 수정에 실패했습니다.',
           deleteConfirm: '이 재고를 삭제/폐기하시겠습니까?',
           deleteFail: '재고 삭제에 실패했습니다.',
+          selectLogisticsNode: '창고를 선택해 주세요.',
         },
       }
     : {
@@ -168,6 +181,7 @@ const copy = computed(() =>
           status: 'Status',
           memo: 'Memo',
           qty: 'Qty',
+          logisticsNode: 'Warehouse',
         },
         columns: [
           'Item Code',
@@ -207,6 +221,7 @@ const copy = computed(() =>
           editFail: 'Failed to update inventory.',
           deleteConfirm: 'Delete or dispose this inventory?',
           deleteFail: 'Failed to delete inventory.',
+          selectLogisticsNode: 'Select a warehouse.',
         },
       },
 )
@@ -265,18 +280,30 @@ function canDelete(row: ItemInventoryResponseDto) {
   return row.reservedQty === 0
 }
 
+async function loadLogisticsNodeOptions() {
+  try {
+    const response = await getLogisticsNodes({ page: 0, size: 100 })
+    logisticsNodeOptions.value = response.content.filter((node) => node.active)
+  } catch {
+    logisticsNodeOptions.value = []
+  }
+}
+
 async function fetchPageData() {
   if (!actor.isSupplierOrganization.value) return
 
   try {
     errorMessage.value = ''
-    const [inventoryRows, itemPage] = await Promise.all([
+    const [inventoryRows, itemPage, nodePage] = await Promise.all([
       getInventories(),
       getManagedItems(0, 500),
+      getLogisticsNodes({ page: 0, size: 100 }),
     ])
 
     rows.value = inventoryRows
     items.value = itemPage.content
+    logisticsNodeOptions.value = nodePage.content.filter((node) => node.active)
+
   } catch (error: any) {
     rows.value = []
     errorMessage.value = error.message ?? copy.value.messages.listFail
@@ -287,6 +314,7 @@ function resetForm() {
   formErrorMessage.value = ''
   form.value = {
     itemPublicId: '',
+    logisticsNodePublicId: '',
     manufacturedDate: '',
     qty: null,
     memo: '',
@@ -310,6 +338,9 @@ function openDetail(row: ItemInventoryResponseDto) {
     params: { kind: 'inventory', publicId: row.inventoryPublicId },
   })
 }
+function handleSelectItemForInventory() {
+  form.value.logisticsNodePublicId = selectedCreateItem.value?.originLogisticsNodePublicId ?? ''
+}
 
 function closeDetail() {
   detailModalOpen.value = false
@@ -322,6 +353,7 @@ function openEditModal() {
   formErrorMessage.value = ''
   form.value = {
     itemPublicId: selectedInventory.value.itemPublicId,
+    logisticsNodePublicId: selectedInventory.value.logisticsNodePublicId,
     manufacturedDate: selectedInventory.value.manufacturedDate,
     qty: selectedInventory.value.initialQty,
     memo: selectedInventory.value.memo ?? '',
@@ -337,6 +369,7 @@ function closeEditModal() {
 
 function validateForm(isCreate: boolean) {
   if (isCreate && !form.value.itemPublicId) return copy.value.messages.selectItem
+  if (!form.value.logisticsNodePublicId) return '선택한 품목에 출발 창고가 없습니다. 품목 정보를 먼저 확인해 주세요.'
   if (!form.value.manufacturedDate) return copy.value.messages.manufacturedDate
   if (!form.value.qty || form.value.qty <= 0) return copy.value.messages.invalidQty
   return ''
@@ -353,6 +386,7 @@ async function submitCreate() {
     loading.value = true
     await createInventory({
       itemPublicId: form.value.itemPublicId,
+      logisticsNodePublicId: form.value.logisticsNodePublicId,
       manufacturedDate: form.value.manufacturedDate,
       qty: Number(form.value.qty),
       memo: form.value.memo || null,
@@ -378,6 +412,7 @@ async function submitEdit() {
   try {
     loading.value = true
     const updated = await updateInventory(selectedInventory.value.inventoryPublicId, {
+      logisticsNodePublicId: form.value.logisticsNodePublicId,
       manufacturedDate: form.value.manufacturedDate,
       qty: Number(form.value.qty),
       memo: form.value.memo || null,
@@ -540,12 +575,21 @@ onMounted(() => {
       <div class="inventory-page__form">
         <label class="inventory-page__field">
           <span>{{ copy.item }}</span>
-          <select v-model="form.itemPublicId">
+          <select v-model="form.itemPublicId" @change="handleSelectItemForInventory">
             <option value="">{{ copy.selectItem }}</option>
             <option v-for="item in items" :key="item.publicId" :value="item.publicId">
               {{ item.itemCode }} / {{ item.itemName }} / {{ item.unit }}
             </option>
           </select>
+        </label>
+        
+        <label class="inventory-page__field">
+          <span>출발 창고</span>
+          <input
+            :value="selectedCreateItem?.originLogisticsNodeName ?? '품목에 등록된 출발 창고가 없습니다.'"
+            type="text"
+            readonly
+          />
         </label>
 
         <label class="inventory-page__field">

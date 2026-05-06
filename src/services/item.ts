@@ -120,6 +120,8 @@ export interface ItemResponseDto {
   moq: number | null
   partialConfirmationAllowed: boolean | null
   unitPrice: number | null
+  originLogisticsNodePublicId: string | null
+  originLogisticsNodeName: string | null  
 }
 
 export interface CreateItemRequestDto {

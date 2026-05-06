@@ -17,18 +17,23 @@ export interface ItemInventoryResponseDto {
   availableQty: number
   status: InventoryStatus
   memo: string | null
+  logisticsNodePublicId: string
+  logisticsNodeCode: string
+  logisticsNodeName: string
   createdAt: string
   updatedAt: string
 }
 
 export interface CreateItemInventoryRequestDto {
   itemPublicId: string
+  logisticsNodePublicId: string
   manufacturedDate: string
   qty: number
   memo?: string | null
 }
 
 export interface UpdateItemInventoryRequestDto {
+  logisticsNodePublicId: string
   manufacturedDate: string
   qty: number
   memo?: string | null
