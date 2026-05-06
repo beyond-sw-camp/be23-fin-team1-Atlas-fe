@@ -9,6 +9,7 @@ import {
 } from '../../../services/return'
 import { getItems, type ItemResponseDto } from '../../../services/item'
 import { getShipment, getShipments, type ShipmentListResponseDto, type ShipmentLineResponseDto } from '../../../services/shipment'
+import { uploadAttachment } from '../../../services/file'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 
 const props = defineProps<{
@@ -29,6 +30,14 @@ const shipmentLines = ref<ShipmentLineResponseDto[]>([])
 const isSubmitting = ref(false)
 const isLoadingItems = ref(false)
 const isLoadingShipments = ref(false)
+const proofFiles = ref<File[]>([])
+
+function handleProofFilesChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  if (input.files) {
+    proofFiles.value = Array.from(input.files)
+  }
+}
 
 function createEmptyItem(): CreateReturnItemDto {
   return {
@@ -73,6 +82,7 @@ const content = computed(() => {
         cancel: '취소',
         submit: '반품 요청',
         required: '*',
+        proofPhotos: '증빙 사진 첨부 (선택)',
       }
     : {
         title: 'Create Return Request',
@@ -96,6 +106,7 @@ const content = computed(() => {
         cancel: 'Cancel',
         submit: 'Submit Request',
         required: '*',
+        proofPhotos: 'Attach Proof Photos (Optional)',
       }
 })
 
@@ -206,6 +217,7 @@ function resetForm() {
     attachmentPublicIds: [],
     items: [createEmptyItem()],
   }
+  proofFiles.value = []
 }
 
 watch(
@@ -271,7 +283,12 @@ async function handleSubmit() {
   try {
     isSubmitting.value = true
     console.log('[ReturnCreate] 요청 데이터:', JSON.stringify(form.value, null, 2))
-    await createReturn(form.value)
+    const createdReturn = await createReturn(form.value)
+    
+    if (proofFiles.value.length > 0) {
+      await uploadAttachment(proofFiles.value, 'RETURN_REQUEST', createdReturn.publicId)
+    }
+
     await dialog.alert(props.language === 'ko' ? '반품 요청이 완료되었습니다.' : 'Return request completed.')
     emit('success')
   } catch (error: any) {
@@ -372,6 +389,13 @@ async function handleSubmit() {
             :disabled="isSubmitting"
             placeholder="..."
           />
+        </label>
+      </div>
+
+      <div class="terminal-form-group">
+        <label>
+          <span>{{ content.proofPhotos }}</span>
+          <input type="file" accept="image/*" multiple @change="handleProofFilesChange" :disabled="isSubmitting" />
         </label>
       </div>
 

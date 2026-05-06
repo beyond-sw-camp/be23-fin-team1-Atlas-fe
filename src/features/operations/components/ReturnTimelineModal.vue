@@ -9,9 +9,7 @@ import {
   type ReturnStatusHistoryResponseDto,
   type QcStatus,
   type QcGrade,
-  type DisposalReason,
 } from '../../../services/return'
-import { uploadAttachment } from '../../../services/file'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 
 const props = defineProps<{
@@ -37,11 +35,7 @@ const expandedHistoryIds = ref<Set<number>>(new Set())
 const qcResults = ref<Record<number, { qcStatus: QcStatus; qcGrade: QcGrade; action: 'RESTOCK' | 'DISPOSE'; description: string }>>({})
 const isInspecting = ref(false)
 
-// 폐기 증빙 관련
-const disposalReason = ref<DisposalReason>('DAMAGED')
-const disposalProofFile = ref<File | null>(null)
-const disposalProofUploaded = ref(false)
-const isUploadingProof = ref(false)
+// 폐기 관련 변수 제거
 
 const myOrgPublicId = window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
 
@@ -134,17 +128,6 @@ const content = computed(() => {
         qcGradeDef: '불량 (파손)',
         qcRestock: '재입고',
         qcDispose: '폐기',
-        // 폐기 증빙
-        disposalTitle: '폐기 증빙',
-        disposalReason: '폐기 사유',
-        disposalReasonExpired: '유통기한 만료',
-        disposalReasonDamaged: '파손',
-        disposalReasonContaminated: '오염',
-        disposalReasonOther: '기타',
-        disposalProof: '증빙 사진',
-        disposalUpload: '사진 업로드',
-        disposalUploaded: '업로드 완료',
-        disposalRequired: '폐기 증빙 사진을 첨부해야 폐기 처리가 가능합니다.',
       }
     : {
         title: 'Return Audit Trail',
@@ -195,17 +178,6 @@ const content = computed(() => {
         qcGradeDef: 'Defective',
         qcRestock: 'Restock',
         qcDispose: 'Dispose',
-        // Disposal
-        disposalTitle: 'Disposal Proof',
-        disposalReason: 'Reason',
-        disposalReasonExpired: 'Expired',
-        disposalReasonDamaged: 'Damaged',
-        disposalReasonContaminated: 'Contaminated',
-        disposalReasonOther: 'Other',
-        disposalProof: 'Proof Photo',
-        disposalUpload: 'Upload Photo',
-        disposalUploaded: 'Uploaded',
-        disposalRequired: 'Disposal proof photo is required to proceed.',
       }
 })
 
@@ -416,31 +388,6 @@ function initQcResults() {
   qcResults.value = results
 }
 
-/** 폐기 증빙 사진 업로드 */
-async function handleDisposalProofUpload() {
-  if (!disposalProofFile.value || !props.targetReturn) return
-
-  try {
-    isUploadingProof.value = true
-    await uploadAttachment(disposalProofFile.value, 'RETURN_DISPOSAL', props.targetReturn.publicId)
-    disposalProofUploaded.value = true
-    await dialog.alert(
-      props.language === 'ko' ? '폐기 증빙 사진이 업로드되었습니다.' : 'Disposal proof photo uploaded.',
-    )
-  } catch (error: any) {
-    await dialog.alert(error.message || 'Failed to upload disposal proof.')
-  } finally {
-    isUploadingProof.value = false
-  }
-}
-
-function onDisposalFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    disposalProofFile.value = input.files[0]
-    disposalProofUploaded.value = false
-  }
-}
 </script>
 
 <template>
@@ -599,12 +546,12 @@ function onDisposalFileChange(event: Event) {
 
           <!-- APPROVED: 유형별 분기 -->
           <template v-if="targetReturn.returnStatus === 'APPROVED'">
-            <!-- DISPOSAL: 폐기 처리 (증빙 첨부 필수) -->
+            <!-- DISPOSAL: 폐기 처리 -->
             <button
               v-if="resType === 'DISPOSAL'"
               class="btn btn-reject"
               type="button"
-              :disabled="isUpdating || !disposalProofUploaded"
+              :disabled="isUpdating"
               @click="doUpdateStatus('DISPOSED')"
             >
               {{ content.actDispose }}
@@ -698,42 +645,6 @@ function onDisposalFileChange(event: Event) {
           <button class="btn btn-primary" type="button" :disabled="isInspecting" @click="handleQcSubmit">
             {{ content.qcSubmit }}
           </button>
-        </div>
-      </div>
-
-      <!-- 폐기 증빙 (DISPOSAL + APPROVED 상태일 때 표시) -->
-      <div
-        v-if="targetReturn.returnStatus === 'APPROVED' && resType === 'DISPOSAL' && canChangeStatus"
-        class="info-card"
-      >
-        <div class="info-card__eyebrow">{{ content.disposalTitle }}</div>
-        <div class="disposal-form">
-          <label class="disposal-field">
-            <span>{{ content.disposalReason }}</span>
-            <select v-model="disposalReason">
-              <option value="EXPIRED">{{ content.disposalReasonExpired }}</option>
-              <option value="DAMAGED">{{ content.disposalReasonDamaged }}</option>
-              <option value="CONTAMINATED">{{ content.disposalReasonContaminated }}</option>
-              <option value="OTHER">{{ content.disposalReasonOther }}</option>
-            </select>
-          </label>
-          <label class="disposal-field">
-            <span>{{ content.disposalProof }}</span>
-            <div class="disposal-upload-row">
-              <input type="file" accept="image/*" @change="onDisposalFileChange" />
-              <button
-                class="btn btn-primary"
-                type="button"
-                :disabled="!disposalProofFile || isUploadingProof || disposalProofUploaded"
-                @click="handleDisposalProofUpload"
-              >
-                {{ disposalProofUploaded ? content.disposalUploaded : content.disposalUpload }}
-              </button>
-            </div>
-          </label>
-          <p v-if="!disposalProofUploaded" class="disposal-required">
-            {{ content.disposalRequired }}
-          </p>
         </div>
       </div>
 
