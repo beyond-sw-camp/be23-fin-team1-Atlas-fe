@@ -1175,8 +1175,17 @@ async function fetchDetail() {
         })
       )
 
+      const attachmentPublicIds = [
+        ...(detail.attachmentPublicIds || []),
+        ...detail.items.flatMap((item: any) => item.attachmentPublicIds || [])
+      ].filter((v, i, a) => a.indexOf(v) === i)
+
+      const returnAttachments = (await Promise.all(
+        attachmentPublicIds.map(id => getAttachment(id).catch(() => null))
+      )).filter(Boolean)
+
       data.value = detail as Record<string, any>
-      related.value = { histories, sourceShipment }
+      related.value = { histories, sourceShipment, returnAttachments }
     } else if (kind.value === 'inventory') {
       const inventories = await getInventories()
       const detail = inventories.find((row) => row.inventoryPublicId === publicId.value)
@@ -1236,6 +1245,11 @@ function goBack() {
 const certificateFiles = computed<AttachmentFileDto[]>(() => {
   const files = related.value.attachment?.files
   return Array.isArray(files) ? files : []
+})
+
+const returnProofFiles = computed<AttachmentFileDto[]>(() => {
+  if (!related.value.returnAttachments) return []
+  return related.value.returnAttachments.flatMap((att: any) => att.files || [])
 })
 
 function fileLink(file: AttachmentFileDto) {
@@ -1460,6 +1474,16 @@ watch(
                 <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemCode ?? formatShortId(item.itemPublicId)) }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason) }}</td><td>{{ display(item.itemStatus) }}</td></tr></tbody>
               </table>
             </article>
+            <article class="operation-detail-page__domain-card">
+              <h3>{{ t('반품 증빙 사진', 'Return Proof Photos') }}</h3>
+              <div v-if="returnProofFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 사진이 없습니다.', 'No attached proof photos.') }}</div>
+              <div v-else class="operation-detail-page__proof-gallery">
+                <a v-for="file in returnProofFiles" :key="file.publicId" :href="fileLink(file)" target="_blank" rel="noreferrer">
+                  <img v-if="file.contentType?.startsWith('image/')" :src="fileLink(file)" :alt="file.originalFileName" />
+                  <span v-else class="material-symbols-outlined">description</span>
+                </a>
+              </div>
+            </article>
             <article class="operation-detail-page__domain-card"><h3>{{ detailCopy.common.history }}</h3><table class="operation-detail-page__domain-table"><tbody><tr v-for="(row, index) in historyRows" :key="rowKey(row, index)"><td>{{ formatDate(row.recordedAt ?? row.createdAt) }}</td><td>{{ kind === 'returns' ? displayReturnStatus(row.afterStatus ?? row.statusCode) : display(row.afterStatus ?? row.statusCode) }}</td><td>{{ kind === 'returns' ? formatActor(row.recordedBy ?? row.processedByUserPublicId) : display(row.recordedBy ?? row.processedByUserPublicId) }}</td><td>{{ display(row.reason ?? row.memo) }}</td></tr></tbody></table></article>
 
             <!-- 반품 상태 변경 -->
@@ -1472,10 +1496,6 @@ watch(
               <label class="operation-detail-page__return-reason">
                 <span>{{ t('사유', 'Reason') }}</span>
                 <input v-model="returnReasonText" type="text" :placeholder="t('사유를 입력하세요 (선택)', 'Enter reason (optional)')" />
-              </label>
-              <label class="operation-detail-page__return-file" v-if="resolutionType === 'DISPOSAL' && returnNextActions.some(a => a.status === 'DISPOSED' || a.status === 'COMPLETED')">
-                <span>{{ t('증빙 파일', 'Proof File') }}</span>
-                <input type="file" multiple @change="handleReturnFileChange" :disabled="isReturnUpdating" />
               </label>
               <div class="operation-detail-page__return-buttons">
                 <button
@@ -1651,6 +1671,17 @@ watch(
             </table>
           </article>
 
+          <article v-if="isReturnDetail" class="operation-detail-page__block">
+            <h2>{{ t('반품 증빙 사진', 'Return Proof Photos') }}</h2>
+            <div v-if="returnProofFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 사진이 없습니다.', 'No attached proof photos.') }}</div>
+            <div v-else class="operation-detail-page__proof-gallery">
+              <a v-for="file in returnProofFiles" :key="file.publicId" :href="fileLink(file)" target="_blank" rel="noreferrer">
+                <img v-if="file.contentType?.startsWith('image/')" :src="fileLink(file)" :alt="file.originalFileName" />
+                <span v-else class="material-symbols-outlined">description</span>
+              </a>
+            </div>
+          </article>
+
           <!-- 반품 상태 변경 영역 -->
           <article v-if="isReturnDetail && returnNextActions.length > 0" class="operation-detail-page__block operation-detail-page__return-actions">
             <h2>{{ t('상태 변경', 'Change Status') }}</h2>
@@ -1661,10 +1692,6 @@ watch(
             <label class="operation-detail-page__return-reason">
               <span>{{ t('사유', 'Reason') }}</span>
               <input v-model="returnReasonText" type="text" :placeholder="t('사유를 입력하세요 (선택)', 'Enter reason (optional)')" />
-            </label>
-            <label class="operation-detail-page__return-file" v-if="resolutionType === 'DISPOSAL' && returnNextActions.some(a => a.status === 'DISPOSED' || a.status === 'COMPLETED')">
-              <span>{{ t('증빙 파일', 'Proof File') }}</span>
-              <input type="file" multiple @change="handleReturnFileChange" :disabled="isReturnUpdating" />
             </label>
             <div class="operation-detail-page__return-buttons">
               <button
@@ -2797,5 +2824,51 @@ watch(
   justify-content: flex-end;
 }
 
-</style>
+.operation-detail-page__return-proofs {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
+.operation-detail-page__return-proofs span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.operation-detail-page__proof-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.operation-detail-page__proof-gallery a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+  border-radius: 4px;
+  transition: opacity 0.2s;
+}
+
+.operation-detail-page__proof-gallery a:hover {
+  opacity: 0.8;
+}
+
+.operation-detail-page__proof-gallery img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.operation-detail-page__proof-gallery .material-symbols-outlined {
+  font-size: 32px;
+  color: var(--muted);
+}
+
+</style>
