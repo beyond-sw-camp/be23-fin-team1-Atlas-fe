@@ -2,12 +2,18 @@ import { apiClient } from './http'
 
 export interface AttachmentFileDto {
   publicId: string
+  filePublicId?: string
   originalFileName: string
+  fileName?: string
   fileSize: number
+  size?: number
   contentType: string
+  mimeType?: string
   fileUrl?: string
   fileThumbPath?: string | null
   filePath?: string | null
+  sortOrder?: number
+  uploadedByUserPublicId?: string | null
 }
 
 export interface AttachmentUploadResponseDto {

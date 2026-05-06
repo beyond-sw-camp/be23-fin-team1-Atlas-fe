@@ -1129,7 +1129,7 @@ select:not(.app-language-select select):focus {
 
 .orders-page__item-picker-row {
   display: grid;
-  grid-template-columns: 140px minmax(180px, 1.4fr) minmax(160px, 1fr) 80px 88px 88px;
+  grid-template-columns: 52px 140px minmax(180px, 1.4fr) minmax(160px, 1fr) 80px 88px 88px;
   align-items: center;
   gap: 12px;
   min-height: 54px;
@@ -1146,6 +1146,25 @@ select:not(.app-language-select select):focus {
 .orders-page__item-picker-row .page-button {
   width: 100%;
   min-height: 38px;
+}
+
+.orders-page__item-thumb {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+  border: 1px solid var(--page-border);
+  border-radius: 6px;
+}
+
+.orders-page__item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .orders-page__select-button {
@@ -6351,6 +6370,19 @@ select:not(.app-language-select select):focus {
   gap: 12px;
 }
 
+.orders-page__line-title,
+.orders-page__detail-item-title {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.orders-page__line-title strong,
+.orders-page__detail-item-title > span:last-child {
+  min-width: 0;
+}
+
 .orders-page__detail-table {
   display: flex;
   flex-direction: column;
@@ -6432,6 +6464,10 @@ select:not(.app-language-select select):focus {
   .orders-page__line-grid,
   .orders-page__detail-row {
     grid-template-columns: 1fr;
+  }
+
+  .orders-page__item-picker-row {
+    grid-template-columns: 52px minmax(0, 1fr);
   }
 
   .orders-page__suborder-row {
