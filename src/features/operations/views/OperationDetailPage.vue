@@ -9,7 +9,7 @@ import {
 } from '../../../services/purchaseOrder'
 import { useRoute, useRouter } from 'vue-router'
 import { getCertificate, getCertificateHistories } from '../../../services/certificate'
-import { getAttachment, type AttachmentFileDto } from '../../../services/file'
+import { getAttachment, uploadAttachment, type AttachmentFileDto } from '../../../services/file'
 import { getInventory, getInventories } from '../../../services/inventory'
 import { getLogisticsNode } from '../../../services/logistics'
 import { getReturnHistories, getReturnRequest, updateReturnStatus, type ReturnStatus } from '../../../services/return'
@@ -63,6 +63,16 @@ const userNamesMap = ref<Record<string, string>>({})
 // ── 반품 상태 변경 ──
 const myOrgPublicId = window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
 const returnReasonText = ref('')
+const returnAttachmentFiles = ref<File[]>([])
+
+function handleReturnFileChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  if (target.files) {
+    returnAttachmentFiles.value = Array.from(target.files)
+  } else {
+    returnAttachmentFiles.value = []
+  }
+}
 const isReturnUpdating = ref(false)
 
 const isReturnDetail = computed(() => kind.value === 'returns' && !!data.value)
@@ -120,11 +130,22 @@ async function handleReturnStatusChange(nextStatus: ReturnStatus) {
   if (!data.value?.publicId) return
   isReturnUpdating.value = true
   try {
+    let attachmentPublicIds: string[] | undefined = undefined
+
+    if (returnAttachmentFiles.value.length > 0) {
+      const uploadRes = await uploadAttachment(returnAttachmentFiles.value, 'RETURN_REQUEST', data.value.publicId)
+      attachmentPublicIds = uploadRes.files.map((f) => f.publicId)
+    }
+
     data.value = await updateReturnStatus(data.value.publicId, {
       returnStatus: nextStatus,
       reason: returnReasonText.value || '',
+      attachmentPublicIds,
     }) as Record<string, any>
+    
     returnReasonText.value = ''
+    returnAttachmentFiles.value = []
+    
     // 이력도 다시 로드
     related.value.histories = await getReturnHistories(data.value.publicId).catch(() => [])
   } catch (error: any) {
@@ -1452,6 +1473,10 @@ watch(
                 <span>{{ t('사유', 'Reason') }}</span>
                 <input v-model="returnReasonText" type="text" :placeholder="t('사유를 입력하세요 (선택)', 'Enter reason (optional)')" />
               </label>
+              <label class="operation-detail-page__return-file" v-if="resolutionType === 'DISPOSAL' && returnNextActions.some(a => a.status === 'DISPOSED' || a.status === 'COMPLETED')">
+                <span>{{ t('증빙 파일', 'Proof File') }}</span>
+                <input type="file" multiple @change="handleReturnFileChange" :disabled="isReturnUpdating" />
+              </label>
               <div class="operation-detail-page__return-buttons">
                 <button
                   v-for="action in returnNextActions"
@@ -1636,6 +1661,10 @@ watch(
             <label class="operation-detail-page__return-reason">
               <span>{{ t('사유', 'Reason') }}</span>
               <input v-model="returnReasonText" type="text" :placeholder="t('사유를 입력하세요 (선택)', 'Enter reason (optional)')" />
+            </label>
+            <label class="operation-detail-page__return-file" v-if="resolutionType === 'DISPOSAL' && returnNextActions.some(a => a.status === 'DISPOSED' || a.status === 'COMPLETED')">
+              <span>{{ t('증빙 파일', 'Proof File') }}</span>
+              <input type="file" multiple @change="handleReturnFileChange" :disabled="isReturnUpdating" />
             </label>
             <div class="operation-detail-page__return-buttons">
               <button

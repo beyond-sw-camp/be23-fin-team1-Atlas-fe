@@ -40,10 +40,37 @@ export async function uploadAttachment(fileOrFiles: File | File[], refType: stri
     formData.append('files', f)
   }
 
-  const response = await apiClient.post<AttachmentUploadResponseDto>('/api/files/attachments', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+  try {
+    const response = await apiClient.post<AttachmentUploadResponseDto>('/api/files/attachments', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    if (error?.response?.status === 409) {
+      const existing = await getAttachmentByRef(refType, refPublicId)
+      return appendFiles(existing.attachmentPublicId, filesArray)
+    }
+    throw error
+  }
+}
+
+export async function getAttachmentByRef(refType: string, refPublicId: string): Promise<AttachmentUploadResponseDto> {
+  const response = await apiClient.get<AttachmentUploadResponseDto>('/api/files/attachments/by-ref', {
+    params: { refType, refPublicId }
+  })
+  return response.data
+}
+
+export async function appendFiles(attachmentPublicId: string, fileOrFiles: File | File[]): Promise<AttachmentUploadResponseDto> {
+  const formData = new FormData()
+  const filesArray = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles]
+  for (const f of filesArray) {
+    formData.append('files', f)
+  }
+  const response = await apiClient.post<AttachmentUploadResponseDto>(`/api/files/attachments/${attachmentPublicId}/files`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
   })
   return response.data
 }
