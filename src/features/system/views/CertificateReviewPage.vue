@@ -329,14 +329,12 @@ onBeforeUnmount(() => header.clearActions())
 }
 
 .certificate-review-page__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
-  gap: 24px;
+  width: 100%;
 }
 
 .certificate-review-page__table .page-table__row {
   grid-template-columns: 1.2fr 1fr 1.15fr 1fr 0.9fr 0.9fr 0.7fr;
-  min-width: 840px;
+  min-width: 1040px;
 }
 
 .certificate-review-page__row.is-active {
@@ -351,10 +349,21 @@ onBeforeUnmount(() => header.clearActions())
 }
 
 .certificate-review-page__empty {
-  padding: 32px 16px;
-  color: var(--color-on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  margin-top: 16px;
+  padding: 24px 16px;
+  border: 1px dashed var(--color-outline-variant);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
   font-weight: 800;
   text-align: center;
+}
+
+.certificate-review-page__detail {
+  display: none;
 }
 
 .certificate-review-page__detail-body {
