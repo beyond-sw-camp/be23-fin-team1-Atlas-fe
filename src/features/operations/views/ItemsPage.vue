@@ -1808,7 +1808,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   color: var(--color-on-surface);
   background: var(--color-surface);
   border: 1px solid var(--color-outline);
-  border-radius: 6px;
+  border-radius: 0;
 }
 
 .items-page__thumb img,
