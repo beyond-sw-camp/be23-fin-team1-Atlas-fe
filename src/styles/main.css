@@ -7025,7 +7025,7 @@ select:not(.app-language-select select):focus {
   overflow-wrap: anywhere;
 }
 
-.orders-page__table .action-cell {
+.orders-page__table .page-table__row>.action-cell {
   justify-content: center;
 }
 
