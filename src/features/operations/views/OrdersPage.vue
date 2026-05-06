@@ -270,7 +270,7 @@ const copy = computed(() =>
         selectedSubOrderFallback: '선택한 서브발주의 상세 정보를 확인합니다.',
         previousPage: '이전',
         nextPage: '다음',
-        columns: ['발주번호', '거래처', '협력사 상태', '품목', '수량', '총금액(원)', '발주일', '예상 납기일', '상태', '작업'],
+        columns: ['발주번호', '거래처', '품목', '수량', '총금액(원)', '발주일', '예상 납기일', '상태', '작업'],
         directionOptions: [
           { key: 'ALL' as const, label: '전체' },
           { key: 'ISSUED' as const, label: '발주' },
@@ -483,7 +483,7 @@ const copy = computed(() =>
         selectedSubOrderFallback: 'Review the selected sub order detail.',
         previousPage: 'Previous',
         nextPage: 'Next',
-        columns: ['Document No.', 'Counterparty', 'Supplier Status', 'Item', 'Qty', 'Total Amount', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
+        columns: ['Document No.', 'Counterparty', 'Item', 'Qty', 'Total Amount', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
         directionOptions: [
           { key: 'ALL' as const, label: 'All' },
           { key: 'ISSUED' as const, label: 'Issued' },
@@ -2654,7 +2654,6 @@ function downloadOrdersCsv() {
     ...filteredOrders.value.map((order) => [
       order.number,
       order.counterpartyName,
-      supplierStatusText(order.supplierStatus),
       order.itemLabel,
       order.qtyLabel,
       formatThousandAmount(order.totalAmount),
@@ -2889,7 +2888,7 @@ onBeforeUnmount(() => header.clearActions())
             <span class="page-panel__chip">{{ filteredOrders.length }}</span>
           </div>
 
-          <div class="page-table terminal-page__table orders-page__table is-ten-cols">
+          <div class="page-table terminal-page__table orders-page__table is-nine-cols">
             <div class="page-table__row page-table__row--head">
               <span v-for="column in TABLE_COLUMNS" :key="column">{{ column }}</span>
             </div>
@@ -2908,11 +2907,6 @@ onBeforeUnmount(() => header.clearActions())
               >
                 <span>{{ order.number }}</span>
                 <span>{{ order.counterpartyName }}</span>
-                <span>
-                  <span :class="['page-status-chip', supplierStatusTone(order.supplierStatus)]">
-                    {{ supplierStatusText(order.supplierStatus) }}
-                  </span>
-                </span>
                 <span>{{ order.itemLabel }}</span>
                 <span>{{ order.qtyLabel }}</span>
                 <span>{{ formatThousandAmount(order.totalAmount) }}</span>
