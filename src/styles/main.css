@@ -5628,6 +5628,12 @@ select:not(.app-language-select select):focus {
   white-space: nowrap;
 }
 
+.notifications-page__read-all-button {
+  min-height: 32px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
 .notifications-page__preferences {
   margin-top: 24px;
 }

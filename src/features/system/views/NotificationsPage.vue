@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { NotificationDto } from '../../../services/notification'
-import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasNotificationStore } from '../../../stores/notification'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSessionStore } from '../../../stores/session'
 
-const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
 const notificationStore = useAtlasNotificationStore()
 const session = useAtlasSessionStore()
@@ -22,7 +20,7 @@ const CONTENT = {
     title: '알림 센터',
     subtitle: '리스크 이벤트, 시스템 메시지, 운영 알림을 확인하고 읽음 상태를 관리합니다.',
     search: '제목, 메시지, 유형 검색...',
-    readAll: '전체 읽음',
+    readAll: '알림 모두 읽음',
     preferencesButton: '알림 설정',
     preferencesClose: '닫기',
     tableTitle: '알림 목록',
@@ -247,19 +245,7 @@ async function movePage(offset: number) {
   await loadNotifications(nextPage)
 }
 
-function syncHeaderActions() {
-  header.setActions([
-    {
-      key: 'notifications-read-all',
-      label: content.value.readAll,
-      tone: 'secondary',
-      onClick: handleReadAll,
-    },
-  ])
-}
-
 onMounted(async () => {
-  syncHeaderActions()
   await Promise.all([
     loadNotifications(0),
     notificationStore.fetchPreferences(),
@@ -268,11 +254,6 @@ onMounted(async () => {
 
 watch(() => preferences.language, () => {
   activeTab.value = content.value.tabs[0].key
-  syncHeaderActions()
-})
-
-onBeforeUnmount(() => {
-  header.clearActions()
 })
 </script>
 
@@ -322,7 +303,14 @@ onBeforeUnmount(() => {
           <span class="page-panel__eyebrow">CONTROL</span>
           <h3>{{ content.tableTitle }}</h3>
         </div>
-        <span class="page-panel__chip">{{ notificationStore.totalElements }}</span>
+        <button
+          class="page-button page-button--secondary notifications-page__read-all-button"
+          type="button"
+          :disabled="notificationStore.isLoading || notificationStore.unreadCount === 0"
+          @click="handleReadAll"
+        >
+          {{ content.readAll }}
+        </button>
       </div>
 
       <div v-if="notificationStore.isLoading" class="notifications-page__state">
