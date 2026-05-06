@@ -1266,7 +1266,8 @@ function organizationDisplayName(organizationPublicId: string) {
 function formatDate(value: string | null | undefined) {
   if (!value) return '-'
 
-  const [year, month, day] = value.split('-')
+  const datePart = value.split('T')[0]
+  const [year, month, day] = datePart.split('-')
   if (!year || !month || !day) return value
 
   return `${year}.${month}.${day}`
