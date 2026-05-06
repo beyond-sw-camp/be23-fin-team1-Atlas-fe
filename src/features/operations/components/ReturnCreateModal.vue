@@ -8,7 +8,7 @@ import {
   type ResolutionType,
 } from '../../../services/return'
 import { getItems, type ItemResponseDto } from '../../../services/item'
-import { getShipments, type ShipmentListResponseDto } from '../../../services/shipment'
+import { getShipment, getShipments, type ShipmentListResponseDto, type ShipmentLineResponseDto } from '../../../services/shipment'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 
 const props = defineProps<{
@@ -25,6 +25,7 @@ const emit = defineEmits<{
 const items = ref<ItemResponseDto[]>([])
 const dialog = useAtlasDialogStore()
 const shipments = ref<ShipmentListResponseDto[]>([])
+const shipmentLines = ref<ShipmentLineResponseDto[]>([])
 const isSubmitting = ref(false)
 const isLoadingItems = ref(false)
 const isLoadingShipments = ref(false)
@@ -177,12 +178,13 @@ async function loadShipments() {
 
 function handleItemChange(index: number, event: Event) {
   const selectedPublicId = (event.target as HTMLSelectElement).value
+  const selectedLine = shipmentLines.value.find((line) => line.itemPublicId === selectedPublicId)
   const selectedItem = items.value.find((item) => item.publicId === selectedPublicId)
 
-  if (!selectedItem) return
+  if (!selectedLine) return
 
-  form.value.items[index].itemName = selectedItem.itemName
-  form.value.items[index].unit = selectedItem.unit
+  form.value.items[index].itemName = selectedLine.itemName
+  form.value.items[index].unit = selectedItem?.unit || 'EA'
 }
 
 function addItem() {
@@ -216,6 +218,34 @@ watch(
     loadShipments()
   },
   { immediate: true },
+)
+
+watch(
+  () => form.value.sourceShipmentPublicId,
+  async (newId) => {
+    if (!newId) {
+      shipmentLines.value = []
+      return
+    }
+    try {
+      isLoadingItems.value = true
+      const shipment = await getShipment(newId)
+      shipmentLines.value = shipment.shipmentLines ?? []
+      
+      form.value.items.forEach(item => {
+        if (item.itemPublicId && !shipmentLines.value.find(l => l.itemPublicId === item.itemPublicId)) {
+           item.itemPublicId = ''
+           item.itemName = ''
+           item.returnQty = 1
+        }
+      })
+    } catch (e) {
+      console.error(e)
+      shipmentLines.value = []
+    } finally {
+      isLoadingItems.value = false
+    }
+  }
 )
 
 async function handleSubmit() {
@@ -370,7 +400,7 @@ async function handleSubmit() {
               <option value="" disabled>
                 {{ isLoadingItems ? content.itemLoading : content.itemPlaceholder }}
               </option>
-              <option v-for="option in items" :key="option.publicId" :value="option.publicId">
+              <option v-for="option in shipmentLines" :key="option.itemPublicId" :value="option.itemPublicId">
                 {{ option.itemName }} ({{ option.itemCode }})
               </option>
             </select>

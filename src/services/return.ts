@@ -118,8 +118,8 @@ export interface ReturnStatusHistoryResponseDto {
 
 export interface UpdateReturnStatusDto {
   returnStatus: ReturnStatus
-
   reason: string
+  attachmentPublicIds?: string[]
 }
 
 export interface GetReturnRequestsParams {
