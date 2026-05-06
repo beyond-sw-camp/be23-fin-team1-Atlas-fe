@@ -3148,7 +3148,6 @@ onMounted(() => {
 
 @media (max-width: 960px) {
   .korea-map-layout,
-  .shipment-kpi-row,
   .shipment-work-board,
   .shipment-detail-shell,
   .shipment-form-grid,
@@ -3156,6 +3155,10 @@ onMounted(() => {
   .shipment-order-summary,
   .shipment-detail-line-list {
     grid-template-columns: 1fr;
+  }
+
+  .shipment-kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .korea-map-layout :deep(.shipment-korea-map) {
