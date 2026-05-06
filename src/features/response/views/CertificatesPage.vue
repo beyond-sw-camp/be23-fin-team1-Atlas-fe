@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasDialogStore } from '../../../stores/dialog'
-import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSessionStore } from '../../../stores/session'
 import { 
   getAllCertificates, getExpiringCertificates, 
@@ -19,7 +18,6 @@ import { getAttachment } from '../../../services/file'
 
 const header = useAtlasHeaderStore()
 const dialog = useAtlasDialogStore()
-const preferences = useAtlasPreferencesStore()
 const session = useAtlasSessionStore()
 const router = useRouter()
 
@@ -34,7 +32,7 @@ const CONTENT = {
       { label: '갱신 필요', value: '4', meta: '만료됨', tone: 'warning' },
       { label: '협력사 수', value: '18', meta: '등록 업체', tone: 'info' },
     ],
-    tabs: ['ALL', 'REVIEW_REQUESTED', 'APPROVED', 'EXPIRED', 'REJECTED', 'REVOKED'],
+    tabs: ['전체', '심사 요청', '승인', '만료', '반려', '철회'],
     searchPlaceholder: '협력사명, 인증 번호 검색...',
     tableTitle: '전체 인증서 이력',
     exportLabel: '내보내기',
@@ -43,35 +41,33 @@ const CONTENT = {
     timelineTitle: '인증서 심사 추적 이력',
     detailLabel: '상세보기'
   },
-  en: {
-    eyebrow: 'Documents / Certificates',
-    title: 'Certificates',
-    subtitle: 'Manage supplier certificate validity and renewal status from one control point.',
-    metrics: [
-      { label: 'VALID CERTS', value: '84', meta: 'ACTIVE', tone: 'nominal' },
-      { label: 'EXPIRING SOON', value: '6', meta: 'WITHIN 30 DAYS', tone: 'critical' },
-      { label: 'RENEWAL NEEDED', value: '4', meta: 'ALREADY EXPIRED', tone: 'warning' },
-      { label: 'SUPPLIERS', value: '18', meta: 'REGISTERED', tone: 'info' },
-    ],
-    tabs: ['ALL', 'REVIEW_REQUESTED', 'APPROVED', 'EXPIRED', 'REJECTED', 'REVOKED'],
-    searchPlaceholder: 'Search supplier or cert number...',
-    tableTitle: 'Certificate Registry',
-    exportLabel: 'EXPORT',
-    createLabel: 'ADD CERT',
-    columns: ['CERT NO', 'SUPPLIER', 'TYPE', 'ISSUER', 'ISSUED', 'EXPIRES', 'DAYS LEFT', 'STATUS', 'VIEW'],
-    timelineTitle: 'Certificate Audit Trail',
-    detailLabel: 'VIEW'
-  },
 }
 
-const content = computed(() => CONTENT[preferences.language])
+const CERTIFICATE_TAB_STATUS: Record<string, string> = {
+  전체: 'ALL',
+  '심사 요청': 'REVIEW_REQUESTED',
+  승인: 'APPROVED',
+  만료: 'EXPIRED',
+  반려: 'REJECTED',
+  철회: 'REVOKED',
+}
+
+const CERTIFICATE_STATUS_TEXT: Record<string, string> = {
+  REVIEW_REQUESTED: '심사 요청',
+  APPROVED: '승인',
+  EXPIRED: '만료',
+  REJECTED: '반려',
+  REVOKED: '철회',
+}
+
+const content = computed(() => CONTENT.ko)
 
 // API States
 const certs = ref<SupplierCertificateResponseDto[]>([])
 const certHistories = ref<CertificateHistoryResponseDto[]>([])
 const expiringCount = ref<number>(0)
 const search = ref('')
-const activeTab = ref<string>('ALL')
+const activeTab = ref<string>('전체')
 
 // Modals
 const { isOpen: traceOpen, payload: selectedCert, open: openTrace, close: closeTrace } = useModal<SupplierCertificateResponseDto>(false)
@@ -147,10 +143,16 @@ const filteredRows = computed(() => {
       cert.certificateType?.name?.toLowerCase().includes(query)
     
     if (!textMatch) return false
-    if (statusTab === 'ALL') return true
-    return cert.certificateStatus === statusTab
+    const statusKey = CERTIFICATE_TAB_STATUS[statusTab] ?? 'ALL'
+    if (statusKey === 'ALL') return true
+    return cert.certificateStatus === statusKey
   })
 })
+
+function certStatusText(status: string | null | undefined) {
+  if (!status) return '-'
+  return CERTIFICATE_STATUS_TEXT[status] ?? status
+}
 
 function getDaysLeft(expiredAt: string) {
   if (!expiredAt) return '-'
@@ -194,7 +196,7 @@ async function handleApprove() {
     // update local payload reference status
     selectedCert.value.certificateStatus = 'APPROVED'
   } catch (err: any) {
-    await dialog.alert('Failed to approve: ' + err.message)
+    await dialog.alert('승인에 실패했습니다: ' + err.message)
   }
 }
 
@@ -210,7 +212,7 @@ async function handleReject() {
     certHistories.value = await getCertificateHistories(selectedCert.value.publicId)
     selectedCert.value.certificateStatus = 'REJECTED'
   } catch (err: any) {
-    await dialog.alert('Failed to reject: ' + err.message)
+    await dialog.alert('반려에 실패했습니다: ' + err.message)
   }
 }
 
@@ -222,13 +224,13 @@ async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupp
     await dialog.alert('인증서가 성공적으로 등록 되었습니다.')
     await fetchCertificates()
   } catch (err: any) {
-    await dialog.alert('Error creating certificate: ' + err.message)
+    await dialog.alert('인증서 등록에 실패했습니다: ' + err.message)
   }
 }
 
 async function handleDownloadPdf(attachmentPublicId: string | undefined) {
   if (!attachmentPublicId) {
-    await dialog.alert(preferences.language === 'ko' ? '첨부된 파일이 없습니다.' : 'No attachment found.')
+    await dialog.alert('첨부된 파일이 없습니다.')
     return
   }
   try {
@@ -242,11 +244,11 @@ async function handleDownloadPdf(attachmentPublicId: string | undefined) {
         throw new Error('File URL not found')
       }
     } else {
-      await dialog.alert(preferences.language === 'ko' ? '파일을 찾을 수 없습니다.' : 'File not found.')
+      await dialog.alert('파일을 찾을 수 없습니다.')
     }
   } catch (err) {
     console.error('Download failed:', err)
-    await dialog.alert(preferences.language === 'ko' ? '다운로드 중 오류가 발생했습니다.' : 'Error during download.')
+    await dialog.alert('다운로드 중 오류가 발생했습니다.')
   }
 }
 
@@ -303,7 +305,7 @@ onBeforeUnmount(() => header.clearActions())
 
     <article class="page-panel">
       <div class="page-panel__head">
-        <div><div class="page-panel__eyebrow">CERTS</div><h3>{{ content.tableTitle }}</h3></div>
+        <div><div class="page-panel__eyebrow">인증서</div><h3>{{ content.tableTitle }}</h3></div>
         <span class="page-panel__chip">{{ filteredRows.length }}</span>
       </div>
       <div class="page-table terminal-page__table is-nine-cols">
@@ -323,7 +325,7 @@ onBeforeUnmount(() => header.clearActions())
           </span>
           <span>
             <span :class="['page-status-chip', certStatusTone(cert.certificateStatus)]">
-              {{ cert.certificateStatus }}
+              {{ certStatusText(cert.certificateStatus) }}
             </span>
           </span>
           <span style="display: flex; justify-content: flex-end;">
@@ -334,7 +336,7 @@ onBeforeUnmount(() => header.clearActions())
         </div>
 
         <div v-if="filteredRows.length === 0" style="padding: 32px 16px; text-align: center; color: var(--color-on-surface-variant); font-size: 0.875rem;">
-          No matching certificates found.
+          조건에 맞는 인증서가 없습니다.
         </div>
       </div>
     </article>
@@ -343,7 +345,7 @@ onBeforeUnmount(() => header.clearActions())
   <!-- Create CERT Modal -->
   <CertificateCreateModal 
     :is-open="isCreateModalOpen" 
-    :language="preferences.language" 
+    language="ko"
     @close="isCreateModalOpen = false" 
     @submit="handleCreateCertSubmit" 
   />
@@ -352,7 +354,7 @@ onBeforeUnmount(() => header.clearActions())
   <BaseModal
     v-model="traceOpen"
     :title="traceTitle"
-    :description="preferences.language === 'ko' ? '인증서의 심사, 승인, 반려 이력을 조회합니다.' : 'Review certificate review audit trail.'"
+    :description="'인증서의 심사, 승인, 반려 이력을 조회합니다.'"
     size="lg"
     @close="closeTrace"
   >
@@ -368,34 +370,34 @@ onBeforeUnmount(() => header.clearActions())
 
     <div class="page-table is-trace-cols" style="margin-top: 16px;">
       <div class="page-table__row page-table__row--head">
-        <span>{{ preferences.language === 'ko' ? '일시' : 'Date' }}</span>
-        <span>{{ preferences.language === 'ko' ? '상태' : 'Status' }}</span>
-        <span>{{ preferences.language === 'ko' ? '상세 사유' : 'Reason' }}</span>
+        <span>{{ '일시' }}</span>
+        <span>{{ '상태' }}</span>
+        <span>{{ '상세 사유' }}</span>
       </div>
       <div v-for="hist in certHistories" :key="hist.publicId" class="page-table__row">
         <span>{{ formatDate(hist.recordedAt) }}</span>
         <span>
           <span :class="{'text-warning': hist.afterStatus === 'REVIEW_REQUESTED', 'text-nominal': hist.afterStatus === 'APPROVED', 'text-critical': hist.afterStatus === 'REJECTED' || hist.afterStatus === 'REVOKED'}">
-            {{ hist.afterStatus }}
+            {{ certStatusText(hist.afterStatus) }}
           </span>
         </span>
         <span>{{ hist.reason || '-' }}</span>
       </div>
       <div v-if="certHistories.length === 0" style="padding: 16px; text-align: center; color: var(--color-on-surface-variant); grid-column: 1 / -1;">
-        No history available.
+        표시할 이력이 없습니다.
       </div>
     </div>
     
     <!-- Admin Review Actions -->
     <div v-if="session.userRole === 'ADMIN' && selectedCert && selectedCert.certificateStatus === 'REVIEW_REQUESTED'" style="margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--color-surface-container-high); display: flex; flex-direction: column; gap: 16px;">
       <div>
-        <div style="font-size: 0.75rem; color: var(--color-warning); margin-bottom: 8px;">ADMIN ACTION (REVIEW REQUESTED)</div>
+        <div style="font-size: 0.75rem; color: var(--color-warning); margin-bottom: 8px;">관리자 검토 작업</div>
         <div style="display: flex; gap: 8px;">
           <button class="page-button page-button--secondary" style="border-color: var(--color-nominal)" type="button" @click="handleApprove">
-            APPROVE
+            승인
           </button>
           <button class="page-button page-button--secondary" style="border-color: var(--color-critical)" type="button" @click="handleReject">
-            REJECT
+            반려
           </button>
         </div>
       </div>

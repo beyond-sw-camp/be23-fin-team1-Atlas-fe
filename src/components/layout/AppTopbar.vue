@@ -52,6 +52,29 @@ const visibleSections = computed(() =>
 
 // 실제로 보여줄 결과가 하나라도 있는지 확인합니다.
 const hasSearchResults = computed(() => visibleSections.value.length > 0)
+const searchSectionLabels: Record<IntegratedSearchSectionType, string> = {
+  USER: '사용자',
+  ORGANIZATION: '조직',
+  SUPPLIER: '협력사',
+  ITEM: '품목',
+  PURCHASE_ORDER: '발주',
+  SHIPMENT: '출하',
+  RETURN: '반품',
+  PRODUCTION_LINE: '생산 라인',
+  SETTLEMENT: '정산',
+}
+
+const searchStatusLabels: Record<string, string> = {
+  ACTIVE: '활성',
+  DEACTIVE: '비활성',
+  DELETE: '삭제',
+  PENDING: '대기',
+  APPROVED: '승인',
+  REJECTED: '반려',
+  COMPLETED: '완료',
+  CANCELLED: '취소',
+  REVIEW_REQUESTED: '심사 요청',
+}
 
 // 검색 패널을 보여줄지 결정합니다.
 const shouldShowSearchPanel = computed(() => {
@@ -288,6 +311,31 @@ function handleSearchItemClick(item: IntegratedSearchItem) {
 function buildItemKey(item: IntegratedSearchItem, index: number) {
   return `${item.type}-${item.publicId ?? item.id ?? index}`
 }
+
+function isPublicIdLike(value: string | null | undefined) {
+  if (!value) return false
+  return /^[A-Z]{2,}[-_][A-Z0-9_-]+$/.test(value) || /^PUB[-_]/i.test(value)
+}
+
+function resolveSearchSectionLabel(section: IntegratedSearchSection) {
+  return searchSectionLabels[section.type] ?? section.label
+}
+
+function resolveSearchItemTitle(item: IntegratedSearchItem) {
+  if (!isPublicIdLike(item.title)) return item.title
+  return searchSectionLabels[item.type] ? `${searchSectionLabels[item.type]} 결과` : '검색 결과'
+}
+
+function resolveSearchItemSubtitle(item: IntegratedSearchItem) {
+  if (isPublicIdLike(item.subtitle)) return ''
+  return item.subtitle ?? ''
+}
+
+function resolveSearchStatusLabel(status: string | null) {
+  if (!status) return ''
+  return searchStatusLabels[status] ?? status
+}
+
 function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
   // 검색 결과마다 이미지 필드명이 다를 수 있어서 순서대로 확인합니다.
   return (
@@ -313,7 +361,7 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
         class="app-session-controls app-session-controls--mobile"
         type="button"
         :disabled="session.isRefreshingSession"
-        :aria-label="preferences.language === 'ko' ? '로그인 연장' : 'Extend Session'"
+        aria-label="로그인 연장"
         @click="session.extendSession()"
       >
         <div class="app-session-controls__meta">
@@ -326,7 +374,7 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
         v-if="session.isAuthenticated"
         :class="['app-icon-button app-mobile-notification-button', { 'app-icon-button--badge': notificationStore.unreadCount > 0 }]"
         type="button"
-        :aria-label="preferences.language === 'ko' ? '알림' : 'Notifications'"
+        aria-label="알림"
         @click="handleNotificationClick"
       >
         <span class="material-symbols-outlined">notifications</span>
@@ -342,7 +390,7 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
           id="app-integrated-search"
           name="app-integrated-search"
           type="text"
-          :placeholder="UI_COPY.searchPlaceholder[preferences.language]"
+          :placeholder="UI_COPY.searchPlaceholder.ko"
           @focus="handleSearchFocus"
           @keydown.enter.prevent="handleSearchEnter"
           @keydown.esc="closeSearchPanel"
@@ -377,7 +425,7 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
               class="app-search__section"
             >
               <header class="app-search__section-head">
-                <strong>{{ section.label }}</strong>
+                <strong>{{ resolveSearchSectionLabel(section) }}</strong>
                 <span>{{ section.totalCount }}</span>
               </header>
 
@@ -392,7 +440,7 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
                     <img
                         v-if="resolveSearchItemThumbnail(item)"
                         :src="resolveSearchItemThumbnail(item)"
-                        :alt="item.title"
+                        :alt="resolveSearchItemTitle(item)"
                         class="app-search__item-thumb-image"
                       />
 
@@ -403,11 +451,11 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
 
                   <span class="app-search__item-content">
                     <span class="app-search__item-title-row">
-                      <strong class="app-search__item-title">{{ item.title }}</strong>
-                      <span v-if="item.status" class="app-search__chip">{{ item.status }}</span>
+                      <strong class="app-search__item-title">{{ resolveSearchItemTitle(item) }}</strong>
+                      <span v-if="resolveSearchStatusLabel(item.status)" class="app-search__chip">{{ resolveSearchStatusLabel(item.status) }}</span>
                     </span>
-                    <span v-if="item.subtitle" class="app-search__item-subtitle">
-                      {{ item.subtitle }}
+                    <span v-if="resolveSearchItemSubtitle(item)" class="app-search__item-subtitle">
+                      {{ resolveSearchItemSubtitle(item) }}
                     </span>
                   </span>
                 </button>
@@ -434,8 +482,8 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
         >
           {{
             session.isRefreshingSession
-              ? (preferences.language === 'ko' ? '연장 중...' : 'Extending...')
-              : (preferences.language === 'ko' ? '로그인 연장' : 'Extend Session')
+              ? '연장 중...'
+              : '로그인 연장'
           }}
         </button>
       </div>

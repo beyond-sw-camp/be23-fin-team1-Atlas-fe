@@ -8,8 +8,8 @@ const preferences = useAtlasPreferencesStore()
 
 const CONTENT = {
   ko: {
-    protocol: 'OPTIMIZATION_PROTOCOL_036',
-    title: 'RECOMMENDATIONS_ENGINE',
+    protocol: '최적화 프로토콜 036',
+    title: '권고안 엔진',
     subtitle: '대체 공급 전략과 절감 추정치를 우선순위 기준으로 집계합니다.',
     metrics: [
       { label: '대기 중', value: '8', meta: '수용 결정 필요', tone: 'warning' },
@@ -20,74 +20,35 @@ const CONTENT = {
     searchPlaceholder: '권고안, 협력사, 리스크 유형 검색...',
     tabs: ['전체', '대기', '수용됨', '거절됨'],
     savingsLabel: '예상 절감',
-    savingsValue: '$1.24M',
+    savingsValue: '124만 원',
     savingsMeta: '분기 효율 차이',
     criticalTitle: '시스템 경보',
-    criticalBadge: '03_ALERTS',
+    criticalBadge: '경보 3건',
     critical: [
-      ['STOCK_OUT_RISK', 'TITANIUM_STRUCTURAL_BOLTS', '재고 가용성 6일 이하'],
-      ['LOGISTIC_DELAY', 'CHASSIS_COMPONENT_SHIPMENT_A', '항만 체류 5일 지연'],
-      ['SUPPLY_PIVOT', 'THERMAL_PASTE_TYPE_X', '즉시 소싱 대체 필요'],
+      ['재고 부족 위험', '티타늄 구조 볼트', '재고 가용성 6일 이하'],
+      ['물류 지연', '섀시 부품 출하', '항만 체류 5일 지연'],
+      ['공급 전환', '열전도 페이스트 X', '즉시 소싱 대체 필요'],
     ],
     analysisTitle: '대체 소싱 분석',
-    analysisChip: 'AI_RECOMMENDED_PATH',
+    analysisChip: 'AI 권고 경로',
     analysisRows: [
-      ['AXL-900-P', 'StandardHeavy.Ind', 'APEX_LOGISTICS_MFG', '+12.4%', '-2 DAYS', '|||||||'],
-      ['RED-XR-BLUE', 'GlobalFab_01', 'VERTEX_CHIP_CORP', '+5.2%', '-4 DAYS', '||||||'],
-      ['CASE-L-BLK', 'Proto_Steel.Works', 'NULLALLOY_LIMITED', '+18.1%', '+0 DAYS', '||||'],
+      ['AXL-900-P', '표준중공업', '에이펙스 물류 제조', '+12.4%', '2일 단축', '|||||||'],
+      ['RED-XR-BLUE', '글로벌팹 1공장', '버텍스 칩', '+5.2%', '4일 단축', '||||||'],
+      ['CASE-L-BLK', '프로토스틸', '널알로이', '+18.1%', '변동 없음', '||||'],
     ],
     mappingTitle: '효율 매핑',
     mapping: [
-      ['Route Optimization Alpha', '88%'],
-      ['Inventory Decoupling_7', '84%'],
-      ['Supplier Consolidation', '82%'],
+      ['경로 최적화 알파', '88%'],
+      ['재고 분리 전략 7', '84%'],
+      ['협력사 통합', '82%'],
     ],
     overlayTitle: '라이브 네트워크 오버레이',
-    overlayText: 'Pacific Corridor 에서 활성 이상 3건 감지',
-    overlayActions: ['MAP SNAPSHOT', 'LAST 12H LOG'],
-  },
-  en: {
-    protocol: 'OPTIMIZATION_PROTOCOL_036',
-    title: 'RECOMMENDATIONS_ENGINE',
-    subtitle: 'Aggregate alternate sourcing strategies and projected savings by execution priority.',
-    metrics: [
-      { label: 'PENDING', value: '8', meta: 'DECISION REQUIRED', tone: 'warning' },
-      { label: 'ACCEPTED', value: '13', meta: 'THIS MONTH', tone: 'nominal' },
-      { label: 'REJECTED', value: '3', meta: 'THIS MONTH', tone: 'critical' },
-      { label: 'ACCEPTANCE', value: '72%', meta: 'CUMULATIVE', tone: 'info' },
-    ],
-    searchPlaceholder: 'Search recommendation, supplier, or risk type...',
-    tabs: ['ALL', 'PENDING', 'ACCEPTED', 'REJECTED'],
-    savingsLabel: 'AI_PROJECTED_SAVINGS',
-    savingsValue: '$1.24M',
-    savingsMeta: 'quarter efficiency delta',
-    criticalTitle: 'SYSTEM_CRITICAL',
-    criticalBadge: '03_ALERTS',
-    critical: [
-      ['STOCK_OUT_RISK', 'TITANIUM_STRUCTURAL_BOLTS', 'Inventory availability under 6 days'],
-      ['LOGISTIC_DELAY', 'CHASSIS_COMPONENT_SHIPMENT_A', 'Port dwell exceeds 5-day delay'],
-      ['SUPPLY_PIVOT', 'THERMAL_PASTE_TYPE_X', 'Immediate sourcing replacement required'],
-    ],
-    analysisTitle: 'SOURCING_ALTERNATIVES_ANALYSIS',
-    analysisChip: 'AI_RECOMMENDED_PATH',
-    analysisRows: [
-      ['AXL-900-P', 'StandardHeavy.Ind', 'APEX_LOGISTICS_MFG', '+12.4%', '-2 DAYS', '|||||||'],
-      ['RED-XR-BLUE', 'GlobalFab_01', 'VERTEX_CHIP_CORP', '+5.2%', '-4 DAYS', '||||||'],
-      ['CASE-L-BLK', 'Proto_Steel.Works', 'NULLALLOY_LIMITED', '+18.1%', '+0 DAYS', '||||'],
-    ],
-    mappingTitle: 'EFFICIENCY_MAPPING',
-    mapping: [
-      ['Route Optimization Alpha', '88%'],
-      ['Inventory Decoupling_7', '84%'],
-      ['Supplier Consolidation', '82%'],
-    ],
-    overlayTitle: 'LIVE_NETWORK_OVERLAY',
-    overlayText: '3 active anomalies detected in Pacific Corridor',
-    overlayActions: ['MAP SNAPSHOT', 'LAST 12H LOG'],
+    overlayText: '태평양 회랑에서 활성 이상 3건 감지',
+    overlayActions: ['지도 스냅샷', '최근 12시간 로그'],
   },
 }
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 const search = ref('')
 const selectedTab = ref<string>(content.value.tabs[0])
 
@@ -96,15 +57,15 @@ const filteredAnalysisRows = computed(() => {
   const activeTab = selectedTab.value
   const rows = content.value.analysisRows.filter((row) => row.some((item) => item.toLowerCase().includes(query)))
 
-  if (activeTab === '대기' || activeTab === 'PENDING') {
+  if (activeTab === '대기') {
     return rows.slice(0, 1)
   }
 
-  if (activeTab === '수용됨' || activeTab === 'ACCEPTED') {
+  if (activeTab === '수용됨') {
     return rows.slice(1, 3)
   }
 
-  if (activeTab === '거절됨' || activeTab === 'REJECTED') {
+  if (activeTab === '거절됨') {
     return rows.slice(2, 3)
   }
 
@@ -114,8 +75,8 @@ const filteredAnalysisRows = computed(() => {
 watchEffect(() => {
   selectedTab.value = content.value.tabs[0]
   header.setActions([
-    { key: 'recommendations-export', label: preferences.language === 'ko' ? '스키마 내보내기' : 'EXPORT SCHEMA', tone: 'secondary' },
-    { key: 'recommendations-execute', label: preferences.language === 'ko' ? '전체 변경 실행' : 'EXECUTE ALL CHANGES', tone: 'primary' },
+    { key: 'recommendations-export', label: '스키마 내보내기', tone: 'secondary' },
+    { key: 'recommendations-execute', label: '전체 변경 실행', tone: 'primary' },
   ])
 })
 
@@ -132,8 +93,8 @@ onBeforeUnmount(() => {
         <h2 class="recommendations-page__title">{{ content.title }}</h2>
       </div>
       <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button">{{ preferences.language === 'ko' ? '스키마 내보내기' : 'EXPORT SCHEMA' }}</button>
-        <button class="page-button page-button--primary" type="button">{{ preferences.language === 'ko' ? '전체 변경 실행' : 'EXECUTE ALL CHANGES' }}</button>
+        <button class="page-button page-button--secondary" type="button">{{ '스키마 내보내기' }}</button>
+        <button class="page-button page-button--primary" type="button">{{ '전체 변경 실행' }}</button>
       </div>
     </header>
 
@@ -180,17 +141,17 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div class="recommendations-page__timeline">
-          <span>JAN_24</span>
-          <span>APR_24</span>
-          <span>JUL_24</span>
-          <span>OCT_24</span>
-          <span>DEC_24</span>
+          <span>1월</span>
+          <span>4월</span>
+          <span>7월</span>
+          <span>10월</span>
+          <span>12월</span>
         </div>
       </article>
 
       <article class="page-panel recommendations-page__critical">
         <div class="page-panel__head">
-          <div><div class="page-panel__eyebrow">RISK ENGINE</div><h3>{{ content.criticalTitle }}</h3></div>
+          <div><div class="page-panel__eyebrow">리스크 엔진</div><h3>{{ content.criticalTitle }}</h3></div>
           <span class="page-panel__chip recommendations-page__alert-chip">{{ content.criticalBadge }}</span>
         </div>
         <div class="page-feed">
@@ -206,19 +167,19 @@ onBeforeUnmount(() => {
     <article class="page-panel">
       <div class="page-panel__head">
         <div>
-          <div class="page-panel__eyebrow">DECISION TABLE</div>
+          <div class="page-panel__eyebrow">의사결정 테이블</div>
           <h3>{{ content.analysisTitle }}</h3>
         </div>
         <span class="page-panel__chip">{{ content.analysisChip }}</span>
       </div>
       <div class="page-table">
         <div class="page-table__row page-table__row--head">
-          <span>COMPONENT_SKU</span>
-          <span>SUPPLIER_VENDOR</span>
-          <span>PROPOSED_ALTERNATE</span>
-          <span>COST_DELTA</span>
-          <span>LEAD_TIME_DELTA</span>
-          <span>RESILIENCY_INDEX</span>
+          <span>품목 코드</span>
+          <span>현재 협력사</span>
+          <span>대체 협력사</span>
+          <span>비용 차이</span>
+          <span>납기 차이</span>
+          <span>회복 지수</span>
         </div>
         <div v-for="[sku, vendor, alt, cost, lead, resiliency] in filteredAnalysisRows" :key="sku" class="page-table__row">
           <span>{{ sku }}</span>
@@ -234,7 +195,7 @@ onBeforeUnmount(() => {
     <section class="recommendations-page__bottom">
       <article class="page-panel">
         <div class="page-panel__head">
-          <div><div class="page-panel__eyebrow">EFFICIENCY</div><h3>{{ content.mappingTitle }}</h3></div>
+          <div><div class="page-panel__eyebrow">효율</div><h3>{{ content.mappingTitle }}</h3></div>
         </div>
         <div class="recommendations-mapping-list">
           <div v-for="([label, score], index) in content.mapping" :key="label" class="recommendations-mapping-row">
@@ -247,8 +208,8 @@ onBeforeUnmount(() => {
 
       <article class="page-panel recommendations-page__overlay">
         <div class="page-panel__head">
-          <div><div class="page-panel__eyebrow">NETWORK</div><h3>{{ content.overlayTitle }}</h3></div>
-          <span class="page-panel__chip">LIVE</span>
+          <div><div class="page-panel__eyebrow">네트워크</div><h3>{{ content.overlayTitle }}</h3></div>
+          <span class="page-panel__chip">실시간</span>
         </div>
         <p>{{ content.overlayText }}</p>
         <div class="design-trigger-row">

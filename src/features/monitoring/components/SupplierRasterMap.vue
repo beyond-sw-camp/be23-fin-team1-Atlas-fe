@@ -65,8 +65,8 @@ function closePopup() {
 function applyMapLanguage() {
   if (!map?.isStyleLoaded()) return
 
-  const primaryField = props.language === 'ko' ? 'name:ko' : 'name:en'
-  const fallbackField = props.language === 'ko' ? 'name:en' : 'name'
+  const primaryField = 'name:ko'
+  const fallbackField = 'name'
   const textField = ['coalesce', ['get', primaryField], ['get', 'name'], ['get', fallbackField]]
 
   for (const layer of map.getStyle().layers ?? []) {

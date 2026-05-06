@@ -157,7 +157,7 @@ const CONTENT = {
 } as const
 
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 
 function openLogisticsNodeDetailPage(node: LogisticsNodeResponseDto) {
   router.push({
@@ -374,7 +374,7 @@ function formatDate(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
 
-  return new Intl.DateTimeFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+  return new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -525,7 +525,7 @@ onBeforeUnmount(() => header.clearActions())
       <div class="terminal-page__main">
         <section class="logistics-filter-card">
           <label class="logistics-search">
-            <span>SEARCH</span>
+            <span>검색</span>
             <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
           </label>
 
@@ -557,7 +557,7 @@ onBeforeUnmount(() => header.clearActions())
         <article class="logistics-card">
           <div class="page-panel__head">
             <div>
-              <div class="page-panel__eyebrow">LOGISTICS</div>
+              <div class="page-panel__eyebrow">창고</div>
               <h3>{{ content.tableTitle }}</h3>
             </div>
             <span class="page-panel__chip">{{ filteredNodes.length }}</span>

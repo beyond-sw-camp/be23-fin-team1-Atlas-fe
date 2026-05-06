@@ -254,19 +254,19 @@ function clearPasswordForm() {
 // 입력칸과 달력 표시 형식을 언어에 맞춥니다.
 const datePickerFormats = computed(() => ({
   // 입력칸에는 날짜만 보이게 합니다.
-  input: preferences.language === 'ko' ? 'yyyy-MM-dd' : 'MM/dd/yyyy',
+  input: 'yyyy-MM-dd',
 
   // 아래 미리보기에도 날짜만 보이게 합니다.
-  preview: preferences.language === 'ko' ? 'yyyy-MM-dd' : 'MM/dd/yyyy',
+  preview: 'yyyy-MM-dd',
 
   // 달력 상단 월 표기를 언어에 맞춥니다.
-  month: preferences.language === 'ko' ? 'M월' : 'LLL',
+  month: 'M월',
 
   // 달력 상단 연도 표기를 언어에 맞춥니다.
-  year: preferences.language === 'ko' ? 'yyyy년' : 'yyyy',
+  year: 'yyyy년',
 
   // 요일 표기도 언어에 맞춥니다.
-  weekDay: preferences.language === 'ko' ? 'EEE' : 'EEE',
+  weekDay: 'EEE',
 }))
 
 // 사용자 상세 값을 수정 폼에 그대로 채웁니다.
@@ -290,7 +290,7 @@ async function loadDepartmentOptions() {
     departmentOptions.value = [...response].sort((a, b) =>
       a.departmentName.localeCompare(
         b.departmentName,
-        preferences.language === 'ko' ? 'ko-KR' : 'en-US',
+        'ko-KR',
       ),
     )
   } catch {
@@ -511,7 +511,7 @@ function syncProfileHeaderActions() {
     header.setActions([
       {
         key: 'profile-chat',
-        label: preferences.language === 'ko' ? '채팅하기' : 'Chat',
+        label: '채팅하기',
         tone: 'primary',
         onClick: openChatWithProfileUser,
       },
@@ -523,7 +523,7 @@ function syncProfileHeaderActions() {
     header.setActions([
       {
         key: 'profile-edit',
-        label: preferences.language === 'ko' ? '수정' : 'Edit',
+        label: '수정',
         tone: 'primary',
         onClick: startEdit,
       },
@@ -534,7 +534,7 @@ function syncProfileHeaderActions() {
   header.setActions([
     {
       key: 'profile-cancel',
-      label: preferences.language === 'ko' ? '취소' : 'Cancel',
+      label: '취소',
       tone: 'secondary',
       disabled: isSavingProfile.value,
       onClick: cancelEdit,
@@ -542,8 +542,8 @@ function syncProfileHeaderActions() {
     {
       key: 'profile-save',
       label: isSavingProfile.value
-        ? (preferences.language === 'ko' ? '저장 중...' : 'Saving...')
-        : (preferences.language === 'ko' ? '저장' : 'Save'),
+        ? ('저장 중...')
+        : ('저장'),
       tone: 'primary',
       disabled: isSavingProfile.value,
       onClick: submitProfileUpdate,
@@ -882,7 +882,7 @@ function formatDateTime(value?: string) {
     return value
   }
 
-  return new Intl.DateTimeFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+  return new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -903,7 +903,7 @@ function formatLoginTimeOnly(value?: string) {
     return value
   }
 
-  const timeText = new Intl.DateTimeFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+  const timeText = new Intl.DateTimeFormat('ko-KR', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -1374,11 +1374,11 @@ onBeforeUnmount(() => {
   <main v-if="session.passwordChangeRequired" class="login-screen">
     <section class="login-card">
       <div class="login-card__eyebrow">
-        {{ preferences.language === 'ko' ? '보안 안내' : 'Security Notice' }}
+        {{ '보안 안내' }}
       </div>
 
       <h1>
-        {{ preferences.language === 'ko' ? '비밀번호를 먼저 변경해 주세요' : 'Please change your password first' }}
+        {{ '비밀번호를 먼저 변경해 주세요' }}
       </h1>
 
       <p>
@@ -1394,7 +1394,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-if="isLoadingProfile" class="login-hint">
-        {{ preferences.language === 'ko' ? '사용자 정보를 불러오는 중입니다...' : 'Loading user information...' }}
+        {{ '사용자 정보를 불러오는 중입니다...' }}
       </div>
 
       <form
@@ -1403,7 +1403,7 @@ onBeforeUnmount(() => {
   @submit.prevent="passwordVerificationRequired ? confirmPasswordChange() : submitPasswordChange()"
 >
   <label>
-    <span>{{ preferences.language === 'ko' ? '새 비밀번호' : 'New Password' }}</span>
+    <span>{{ '새 비밀번호' }}</span>
     <input
       v-model="passwordForm.newPassword"
       type="password"
@@ -1413,7 +1413,7 @@ onBeforeUnmount(() => {
   </label>
 
   <label>
-    <span>{{ preferences.language === 'ko' ? '새 비밀번호 확인' : 'Confirm New Password' }}</span>
+    <span>{{ '새 비밀번호 확인' }}</span>
     <input
       v-model="passwordForm.newPasswordConfirm"
       type="password"
@@ -1431,7 +1431,7 @@ onBeforeUnmount(() => {
   </div>
 
   <label v-if="passwordVerificationRequired">
-    <span>{{ preferences.language === 'ko' ? '이메일 인증코드' : 'Email Verification Code' }}</span>
+    <span>{{ '이메일 인증코드' }}</span>
     <input
       v-model="passwordVerificationCode"
       type="text"
@@ -1447,13 +1447,13 @@ onBeforeUnmount(() => {
       passwordVerificationRequired
         ? (
             isConfirmingPasswordVerification
-              ? (preferences.language === 'ko' ? '확인 중...' : 'Verifying...')
-              : (preferences.language === 'ko' ? '인증 확인 후 변경' : 'Verify and Change Password')
+              ? ('확인 중...')
+              : ('인증 확인 후 변경')
           )
         : (
             isRequestingPasswordVerification
-              ? (preferences.language === 'ko' ? '발송 중...' : 'Sending...')
-              : (preferences.language === 'ko' ? '인증코드 보내기' : 'Send Verification Code')
+              ? ('발송 중...')
+              : ('인증코드 보내기')
           )
     }}
   </button>
@@ -1466,8 +1466,8 @@ onBeforeUnmount(() => {
   >
     {{
       isRequestingPasswordVerification
-        ? (preferences.language === 'ko' ? '재발송 중...' : 'Resending...')
-        : (preferences.language === 'ko' ? '인증코드 다시 보내기' : 'Resend Verification Code')
+        ? ('재발송 중...')
+        : ('인증코드 다시 보내기')
     }}
   </button>
 </form>
@@ -1481,7 +1481,7 @@ onBeforeUnmount(() => {
   <!-- 일반 상태에서는 프로필 화면을 보여줍니다. -->
   <section v-else class="app-screen profile-page">
     <div v-if="isLoadingProfile" class="login-hint">
-      {{ preferences.language === 'ko' ? '사용자 정보를 불러오는 중입니다...' : 'Loading user information...' }}
+      {{ '사용자 정보를 불러오는 중입니다...' }}
     </div>
 
     <div v-else-if="profileError" class="login-error">
@@ -1497,11 +1497,11 @@ onBeforeUnmount(() => {
               <div class="page-panel__eyebrow">
                 {{
   isOwnProfile
-    ? (preferences.language === 'ko' ? '내 정보' : 'My Info')
-    : (preferences.language === 'ko' ? '사용자 정보' : 'User Info')
+    ? ('내 정보')
+    : ('사용자 정보')
 }}
               </div>
-              <h3>{{ preferences.language === 'ko' ? '프로필' : 'Profile' }}</h3>
+              <h3>{{ '프로필' }}</h3>
             </div>
             <div class="profile-panel__head-side">
               <div class="profile-hero__avatar-stack">
@@ -1510,8 +1510,8 @@ onBeforeUnmount(() => {
                   type="button"
                   :disabled="!canOpenProfileImageViewer"
                   :title="canOpenProfileImageViewer
-                    ? (preferences.language === 'ko' ? '원본 이미지 보기' : 'Open original image')
-                    : (preferences.language === 'ko' ? '등록된 프로필 이미지가 없습니다.' : 'No profile image uploaded.')"
+                    ? ('원본 이미지 보기')
+                    : ('등록된 프로필 이미지가 없습니다.')"
                   @click="openProfileImageViewer"
                 >
                   <span class="profile-hero__avatar-frame" aria-hidden="true">
@@ -1534,8 +1534,8 @@ onBeforeUnmount(() => {
                 >
                   {{
                     isUploadingProfileImage
-                      ? (preferences.language === 'ko' ? '업로드 중...' : 'Uploading...')
-                      : (preferences.language === 'ko' ? '이미지 변경' : 'Change Image')
+                      ? ('업로드 중...')
+                      : ('이미지 변경')
                   }}
                 </button>
               </div>
@@ -1552,37 +1552,37 @@ onBeforeUnmount(() => {
 
           <div v-if="!isEditing" class="profile-kv">
             <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '이름' : 'Name' }}</span>
+              <span>{{ '이름' }}</span>
               <strong>{{ fullName }}</strong>
             </div>
 
            <div v-if="isOwnProfile" class="profile-kv__row">
-  <span>{{ preferences.language === 'ko' ? '로그인 ID' : 'Login ID' }}</span>
+  <span>{{ '로그인 ID' }}</span>
   <strong>{{ userDetail.loginId }}</strong>
 </div>
 
             <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '이메일' : 'Email' }}</span>
+              <span>{{ '이메일' }}</span>
               <strong>{{ userDetail.email || '-' }}</strong>
             </div>
 
             <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '연락처' : 'Phone' }}</span>
+              <span>{{ '연락처' }}</span>
               <strong>{{ userDetail.phone || '-' }}</strong>
             </div>
 
             <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '직책' : 'Job Title' }}</span>
+              <span>{{ '직책' }}</span>
               <strong>{{ userDetail.jobTitle || '-' }}</strong>
             </div>
 
             <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '부서' : 'Department' }}</span>
+              <span>{{ '부서' }}</span>
               <strong>{{ currentDepartmentLabel }}</strong>
             </div>
 
             <div v-if="isOwnProfile" class="profile-kv__row">
-  <span>{{ preferences.language === 'ko' ? '권한' : 'Role' }}</span>
+  <span>{{ '권한' }}</span>
   <strong>{{ currentRoleLabel }}</strong>
 </div>
           </div>
@@ -1591,28 +1591,28 @@ onBeforeUnmount(() => {
             <div class="settings-form">
             <div class="profile-name-fields">
               <label>
-                <span>{{ preferences.language === 'ko' ? '성' : 'Last Name' }}</span>
+                <span>{{ '성' }}</span>
                 <input v-model="profileForm.lastName" type="text" />
               </label>
 
               <label>
-                <span>{{ preferences.language === 'ko' ? '중간이름 (선택)' : 'Middle Name (Optional)' }}</span>
+                <span>{{ '중간이름 (선택)' }}</span>
                 <input v-model="profileForm.middleName" type="text" />
               </label>
 
               <label>
-                <span>{{ preferences.language === 'ko' ? '이름' : 'First Name' }}</span>
+                <span>{{ '이름' }}</span>
                 <input v-model="profileForm.firstName" type="text" />
               </label>
             </div>
 
             <label>
-              <span>{{ preferences.language === 'ko' ? '이메일' : 'Email' }}</span>
+              <span>{{ '이메일' }}</span>
               <input v-model="profileForm.email" type="email" />
             </label>
 
             <label>
-              <span>{{ preferences.language === 'ko' ? '연락처' : 'Phone' }}</span>
+              <span>{{ '연락처' }}</span>
               <PhoneField
                 v-model="profileForm.phone"
                 v-model:valid="profilePhoneValid"
@@ -1622,13 +1622,13 @@ onBeforeUnmount(() => {
 
             <div class="profile-work-fields">
               <label>
-                <span>{{ preferences.language === 'ko' ? '부서' : 'Department' }}</span>
+                <span>{{ '부서' }}</span>
                 <select v-model="profileForm.departmentPublicId">
                   <option value="">
                     {{
                       isLoadingDepartmentOptions
-                        ? (preferences.language === 'ko' ? '부서 목록 불러오는 중...' : 'Loading departments...')
-                        : (preferences.language === 'ko' ? '부서를 선택하세요.' : 'Select a department.')
+                        ? ('부서 목록 불러오는 중...')
+                        : ('부서를 선택하세요.')
                     }}
                   </option>
                   <option
@@ -1642,7 +1642,7 @@ onBeforeUnmount(() => {
               </label>
 
               <label>
-                <span>{{ preferences.language === 'ko' ? '직책' : 'Job Title' }}</span>
+                <span>{{ '직책' }}</span>
                 <input v-model="profileForm.jobTitle" type="text" />
               </label>
             </div>
@@ -1650,14 +1650,14 @@ onBeforeUnmount(() => {
             <div class="page-feed" style="margin-top: 12px;">
               <div class="page-feed__item">
                 <span class="page-feed__label">
-                  {{ preferences.language === 'ko' ? '로그인 ID' : 'Login ID' }}
+                  {{ '로그인 ID' }}
                 </span>
                 <strong class="page-feed__text">{{ userDetail.loginId }}</strong>
               </div>
 
               <div class="page-feed__item">
                 <span class="page-feed__label">
-                  {{ preferences.language === 'ko' ? '권한' : 'Role' }}
+                  {{ '권한' }}
                 </span>
                 <strong class="page-feed__text">{{ currentRoleLabel }}</strong>
               </div>
@@ -1670,58 +1670,58 @@ onBeforeUnmount(() => {
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">
-                {{ preferences.language === 'ko' ? '소속' : 'Organization' }}
+                {{ '소속' }}
               </div>
-              <h3>{{ preferences.language === 'ko' ? '조직 정보' : 'Organization Info' }}</h3>
+              <h3>{{ '조직 정보' }}</h3>
             </div>
           </div>
 
           <div v-if="organizationDetail" class="profile-kv">
             <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '조직명' : 'Organization Name' }}</span>
+              <span>{{ '조직명' }}</span>
               <strong>{{ organizationDetail.organizationName }}</strong>
             </div>
 
             <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '조직 영문명' : 'Organization English Name' }}</span>
+              <span>{{ '조직 영문명' }}</span>
               <strong>{{ organizationDetail.organizationEnglishName || '-' }}</strong>
             </div>
 
             <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '조직 유형' : 'Organization Type' }}</span>
+              <span>{{ '조직 유형' }}</span>
               <strong>{{ organizationDetail.organizationType }}</strong>
             </div>
 
             <template v-if="isOrgAdmin">
               <div class="profile-kv__row">
-                <span>{{ preferences.language === 'ko' ? '사업자번호' : 'Business No' }}</span>
+                <span>{{ '사업자번호' }}</span>
                 <strong>{{ organizationDetail.businessNo || '-' }}</strong>
               </div>
 
               <div class="profile-kv__row">
-                <span>{{ preferences.language === 'ko' ? '담당자명' : 'Contact Name' }}</span>
+                <span>{{ '담당자명' }}</span>
                 <strong>{{ organizationContactName }}</strong>
               </div>
 
               <div class="profile-kv__row">
-                <span>{{ preferences.language === 'ko' ? '담당자 이메일' : 'Contact Email' }}</span>
+                <span>{{ '담당자 이메일' }}</span>
                 <strong>{{ organizationDetail.contactEmail || '-' }}</strong>
               </div>
 
               <div class="profile-kv__row">
-                <span>{{ preferences.language === 'ko' ? '담당자 연락처' : 'Contact Phone' }}</span>
+                <span>{{ '담당자 연락처' }}</span>
                 <strong>{{ organizationDetail.contactPhone || '-' }}</strong>
               </div>
             </template>
 
             <template v-else>
               <div class="profile-kv__row">
-                <span>{{ preferences.language === 'ko' ? '담당자 이메일' : 'Contact Email' }}</span>
+                <span>{{ '담당자 이메일' }}</span>
                 <strong>{{ organizationDetail.contactEmail || '-' }}</strong>
               </div>
 
               <div v-if="isAdmin" class="profile-kv__row">
-                <span>{{ preferences.language === 'ko' ? '담당자 연락처' : 'Contact Phone' }}</span>
+                <span>{{ '담당자 연락처' }}</span>
                 <strong>{{ organizationDetail.contactPhone || '-' }}</strong>
               </div>
 
@@ -1730,9 +1730,9 @@ onBeforeUnmount(() => {
 
           <div v-else class="profile-kv">
             <div class="profile-kv__row">
-              <span>{{ preferences.language === 'ko' ? '조직 정보' : 'Organization Info' }}</span>
+              <span>{{ '조직 정보' }}</span>
               <strong>
-                {{ preferences.language === 'ko' ? '조직 정보를 불러오지 못했습니다.' : 'Could not load organization info.' }}
+                {{ '조직 정보를 불러오지 못했습니다.' }}
               </strong>
             </div>
           </div>
@@ -1745,13 +1745,13 @@ onBeforeUnmount(() => {
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">
-                {{ preferences.language === 'ko' ? '로그' : 'Log' }}
+                {{ '로그' }}
               </div>
-              <h3>{{ preferences.language === 'ko' ? '로그인 이력' : 'Login History' }}</h3>
+              <h3>{{ '로그인 이력' }}</h3>
             </div>
 
             <span class="page-panel__chip">
-              {{ preferences.language === 'ko' ? '로그인 이력' : 'Login History' }}
+              {{ '로그인 이력' }}
             </span>
           </div>
 
@@ -1766,8 +1766,8 @@ onBeforeUnmount(() => {
                 <span :style="{ color: history.failureReason ? '#dc2626' : '#16a34a' }">
                   {{
                     history.failureReason
-                      ? (preferences.language === 'ko' ? '실패' : 'Failed')
-                      : (preferences.language === 'ko' ? '성공' : 'Success')
+                      ? ('실패')
+                      : ('성공')
                   }}
                 </span>
                 / {{ formatLoginTimeOnly(history.loginAt) }}
@@ -1786,7 +1786,7 @@ onBeforeUnmount(() => {
 
   <!-- 실패 이력이면 실패 사유도 같이 보여줍니다. -->
   <template v-if="history.failureReason">
-    · {{ preferences.language === 'ko' ? '실패 사유' : 'Reason' }} = {{ formatLoginFailureReason(history.failureReason) }}
+    · {{ '실패 사유' }} = {{ formatLoginFailureReason(history.failureReason) }}
   </template>
 </strong>
 
@@ -1794,7 +1794,7 @@ onBeforeUnmount(() => {
 
             <div v-if="loginHistories.length === 0" class="page-feed__item">
               <strong class="page-feed__text">
-                {{ preferences.language === 'ko' ? '로그인 이력이 없습니다.' : 'No login history available.' }}
+                {{ '로그인 이력이 없습니다.' }}
               </strong>
             </div>
           </div>
@@ -1805,7 +1805,7 @@ onBeforeUnmount(() => {
               type="button"
               @click="openLoginHistoryModal"
             >
-              {{ preferences.language === 'ko' ? '더보기' : 'Show More' }}
+              {{ '더보기' }}
             </button>
           </div>
         </article>
@@ -1814,9 +1814,9 @@ onBeforeUnmount(() => {
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">
-                {{ preferences.language === 'ko' ? '보안' : 'Security' }}
+                {{ '보안' }}
               </div>
-              <h3>{{ preferences.language === 'ko' ? '보안 이력' : 'Security History' }}</h3>
+              <h3>{{ '보안 이력' }}</h3>
             </div>
           </div>
 
@@ -1841,7 +1841,7 @@ onBeforeUnmount(() => {
 
             <div v-if="securityHistories.length === 0" class="page-feed__item">
               <strong class="page-feed__text">
-                {{ preferences.language === 'ko' ? '보안 이력이 없습니다.' : 'No security history available.' }}
+                {{ '보안 이력이 없습니다.' }}
               </strong>
             </div>
           </div>
@@ -1852,7 +1852,7 @@ onBeforeUnmount(() => {
               type="button"
               @click="openSecurityHistoryModal"
             >
-              {{ preferences.language === 'ko' ? '더보기' : 'Show More' }}
+              {{ '더보기' }}
             </button>
           </div>
         </article>
@@ -1864,7 +1864,7 @@ onBeforeUnmount(() => {
           type="button"
           @click="session.signOut()"
         >
-          {{ preferences.language === 'ko' ? '로그아웃' : 'Sign Out' }}
+          {{ '로그아웃' }}
         </button>
       </div>
 
@@ -1874,20 +1874,20 @@ onBeforeUnmount(() => {
           class="profile-image-viewer"
           role="dialog"
           aria-modal="true"
-          :aria-label="preferences.language === 'ko' ? '프로필 이미지' : 'Profile image'"
+          :aria-label="'프로필 이미지'"
           @click.self="closeProfileImageViewer"
         >
           <button
             class="profile-image-viewer__close"
             type="button"
-            :aria-label="preferences.language === 'ko' ? '닫기' : 'Close'"
+            :aria-label="'닫기'"
             @click="closeProfileImageViewer"
           >
             <span class="material-symbols-outlined">close</span>
           </button>
 
           <div v-if="isLoadingProfileImageViewer" class="profile-image-viewer__message">
-            {{ preferences.language === 'ko' ? '원본 이미지를 불러오는 중입니다...' : 'Loading original image...' }}
+            {{ '원본 이미지를 불러오는 중입니다...' }}
           </div>
 
           <div v-else-if="profileImageViewerError" class="profile-image-viewer__message">
@@ -1906,7 +1906,7 @@ onBeforeUnmount(() => {
       <!-- 로그인 이력 더보기 모달입니다. -->
       <BaseModal
         v-model="loginHistoryModalOpen"
-        :title="preferences.language === 'ko' ? '로그인 이력' : 'Login History'"
+        :title="'로그인 이력'"
         hide-eyebrow
         size="lg"
       >
@@ -1941,8 +1941,8 @@ onBeforeUnmount(() => {
               :hide-navigation="['time']"
               :clearable="true"
               auto-apply
-              :placeholder="preferences.language === 'ko' ? '기간 선택' : 'Select period'"
-              :aria-label="preferences.language === 'ko' ? '기간 선택' : 'Select period'"
+              :placeholder="'기간 선택'"
+              :aria-label="'기간 선택'"
               @update:model-value="handleLoginHistoryRangeChange"
             />
           </label>
@@ -1962,7 +1962,7 @@ onBeforeUnmount(() => {
               :style="getQuickRangeButtonStyle(loginHistoryQuickRange === '7d')"
               @click="setLoginHistoryQuickRange('7d')"
             >
-              {{ preferences.language === 'ko' ? '1주' : '1W' }}
+              {{ '1주' }}
             </button>
 
             <button
@@ -1971,7 +1971,7 @@ onBeforeUnmount(() => {
               :style="getQuickRangeButtonStyle(loginHistoryQuickRange === '1m')"
               @click="setLoginHistoryQuickRange('1m')"
             >
-              {{ preferences.language === 'ko' ? '1개월' : '1M' }}
+              {{ '1개월' }}
             </button>
 
             <button
@@ -1980,7 +1980,7 @@ onBeforeUnmount(() => {
               :style="getQuickRangeButtonStyle(loginHistoryQuickRange === '6m')"
               @click="setLoginHistoryQuickRange('6m')"
             >
-              {{ preferences.language === 'ko' ? '6개월' : '6M' }}
+              {{ '6개월' }}
             </button>
 
             <button
@@ -1989,7 +1989,7 @@ onBeforeUnmount(() => {
               :style="getQuickRangeButtonStyle(loginHistoryQuickRange === 'all')"
               @click="setLoginHistoryQuickRange('all')"
             >
-              {{ preferences.language === 'ko' ? '전체' : 'ALL' }}
+              {{ '전체' }}
             </button>
           </div>
         </div>
@@ -2010,8 +2010,8 @@ onBeforeUnmount(() => {
                 <span :style="{ color: history.failureReason ? '#dc2626' : '#16a34a' }">
                   {{
                     history.failureReason
-                      ? (preferences.language === 'ko' ? '실패' : 'Failed')
-                      : (preferences.language === 'ko' ? '성공' : 'Success')
+                      ? ('실패')
+                      : ('성공')
                   }}
                 </span>
                 / {{ formatDateTime(history.loginAt) }}
@@ -2024,19 +2024,19 @@ onBeforeUnmount(() => {
                   · {{ formatUserAgent(history.userAgent) }}
                 </template>
                 <template v-if="history.failureReason">
-                  · {{ preferences.language === 'ko' ? '실패 사유' : 'Reason' }} = {{ formatLoginFailureReason(history.failureReason) }}
+                  · {{ '실패 사유' }} = {{ formatLoginFailureReason(history.failureReason) }}
                 </template>
               </strong>
             </div>
 
             <div v-if="loginHistoryModalItems.length === 0 && !isLoadingLoginHistoryModal" class="page-feed__item">
               <strong class="page-feed__text">
-                {{ preferences.language === 'ko' ? '조건에 맞는 로그인 이력이 없습니다.' : 'No login history matches the selected period.' }}
+                {{ '조건에 맞는 로그인 이력이 없습니다.' }}
               </strong>
             </div>
 
             <div v-if="isLoadingMoreLoginHistoryModal" class="login-hint profile-history-modal__loading-more">
-              {{ preferences.language === 'ko' ? '더 불러오는 중입니다...' : 'Loading more...' }}
+              {{ '더 불러오는 중입니다...' }}
             </div>
           </div>
 
@@ -2052,7 +2052,7 @@ onBeforeUnmount(() => {
               background: rgba(255, 255, 255, 0.6);
             "
           >
-            {{ preferences.language === 'ko' ? '로그인 이력을 불러오는 중입니다...' : 'Loading login history...' }}
+            {{ '로그인 이력을 불러오는 중입니다...' }}
           </div>
         </div>
       </BaseModal>
@@ -2060,7 +2060,7 @@ onBeforeUnmount(() => {
       <!-- 보안 이력 더보기 모달입니다. -->
       <BaseModal
         v-model="securityHistoryModalOpen"
-        :title="preferences.language === 'ko' ? '보안 이력' : 'Security History'"
+        :title="'보안 이력'"
         :description="preferences.language === 'ko'
           ? '기간을 선택해 보안 이력을 조회합니다.'
           : 'Select a period to view security history.'"
@@ -2085,7 +2085,7 @@ onBeforeUnmount(() => {
               max-width: 100%;
             "
           >
-            <span>{{ preferences.language === 'ko' ? '기간' : 'Period' }}</span>
+            <span>{{ '기간' }}</span>
 
             <VueDatePicker
               v-model="securityHistoryRange"
@@ -2097,7 +2097,7 @@ onBeforeUnmount(() => {
               :hide-navigation="['time']"
               :clearable="true"
               auto-apply
-              :placeholder="preferences.language === 'ko' ? '기간 선택' : 'Select period'"
+              :placeholder="'기간 선택'"
               @update:model-value="handleSecurityHistoryRangeChange"
             />
           </label>
@@ -2117,7 +2117,7 @@ onBeforeUnmount(() => {
               :style="getQuickRangeButtonStyle(securityHistoryQuickRange === '7d')"
               @click="setSecurityHistoryQuickRange('7d')"
             >
-              {{ preferences.language === 'ko' ? '1주' : '1W' }}
+              {{ '1주' }}
             </button>
 
             <button
@@ -2126,7 +2126,7 @@ onBeforeUnmount(() => {
               :style="getQuickRangeButtonStyle(securityHistoryQuickRange === '1m')"
               @click="setSecurityHistoryQuickRange('1m')"
             >
-              {{ preferences.language === 'ko' ? '1개월' : '1M' }}
+              {{ '1개월' }}
             </button>
 
             <button
@@ -2135,7 +2135,7 @@ onBeforeUnmount(() => {
               :style="getQuickRangeButtonStyle(securityHistoryQuickRange === '6m')"
               @click="setSecurityHistoryQuickRange('6m')"
             >
-              {{ preferences.language === 'ko' ? '6개월' : '6M' }}
+              {{ '6개월' }}
             </button>
 
             <button
@@ -2144,7 +2144,7 @@ onBeforeUnmount(() => {
               :style="getQuickRangeButtonStyle(securityHistoryQuickRange === 'all')"
               @click="setSecurityHistoryQuickRange('all')"
             >
-              {{ preferences.language === 'ko' ? '전체' : 'ALL' }}
+              {{ '전체' }}
             </button>
           </div>
         </div>
@@ -2172,7 +2172,7 @@ onBeforeUnmount(() => {
 
             <div v-if="securityHistoryModalItems.length === 0 && !isLoadingSecurityHistoryModal" class="page-feed__item">
               <strong class="page-feed__text">
-                {{ preferences.language === 'ko' ? '조건에 맞는 보안 이력이 없습니다.' : 'No security history matches the selected period.' }}
+                {{ '조건에 맞는 보안 이력이 없습니다.' }}
               </strong>
             </div>
           </div>
@@ -2189,14 +2189,14 @@ onBeforeUnmount(() => {
               background: rgba(255, 255, 255, 0.6);
             "
           >
-            {{ preferences.language === 'ko' ? '보안 이력을 불러오는 중입니다...' : 'Loading security history...' }}
+            {{ '보안 이력을 불러오는 중입니다...' }}
           </div>
         </div>
       </BaseModal>
 
       <BaseModal
         v-model="profileSuccessModalOpen"
-        :title="preferences.language === 'ko' ? '프로필 수정 완료' : 'Profile Updated'"
+        :title="'프로필 수정 완료'"
         :description="profileSuccess"
         hide-eyebrow
         hide-dividers
@@ -2209,7 +2209,7 @@ onBeforeUnmount(() => {
             type="button"
             @click="profileSuccessModalOpen = false"
           >
-            {{ preferences.language === 'ko' ? '확인' : 'OK' }}
+            {{ '확인' }}
           </button>
         </template>
       </BaseModal>

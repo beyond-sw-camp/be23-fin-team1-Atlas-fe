@@ -234,10 +234,8 @@ const CONTENT = {
   },
 } as const
 
-const content = computed(() => CONTENT[preferences.language])
-const shipmentKpiContent = computed(() =>
-  preferences.language === 'ko'
-    ? {
+const content = computed(() => CONTENT.ko)
+const shipmentKpiContent = computed(() => ({
         active: '진행 중 출하',
         ready: '상품 준비 완료',
         inTransit: '배송 중',
@@ -246,18 +244,7 @@ const shipmentKpiContent = computed(() =>
         readySub: '배송 시작 대기',
         inTransitSub: '운송 진행',
         delayedSub: '확인 필요',
-      }
-    : {
-        active: 'Active Shipments',
-        ready: 'Ready',
-        inTransit: 'In Transit',
-        delayed: 'Delayed',
-        activeSub: 'Shown on map',
-        readySub: 'Waiting departure',
-        inTransitSub: 'In delivery',
-        delayedSub: 'Needs review',
-      },
-)
+}))
 
 const shipments = ref<ShipmentListResponseDto[]>([])
 const mapShipments = ref<ShipmentMapResponseDto[]>([])
@@ -524,8 +511,14 @@ function formatShipmentStatus(status?: ShipmentStatus | string | null) {
     ARRIVED: { ko: '도착완료', en: 'Arrived' },
     DELAYED: { ko: '지연', en: 'Delayed' },
     CANCELLED: { ko: '취소', en: 'Cancelled' },
+    CREATED: { ko: '확인 대기', en: 'Created' },
+    ACCEPTED: { ko: '승인', en: 'Accepted' },
+    CONFIRMED: { ko: '확정', en: 'Confirmed' },
+    PARTIALLY_CONFIRMED: { ko: '부분 확정', en: 'Partially confirmed' },
+    COMPLETED: { ko: '완료', en: 'Completed' },
+    REJECTED: { ko: '반려', en: 'Rejected' },
   }
-  return labels[status]?.[preferences.language] ?? status
+  return labels[status]?.ko ?? status
 }
 
 function formatShipmentSourceType(value?: string | null) {
@@ -535,7 +528,7 @@ function formatShipmentSourceType(value?: string | null) {
     EXCHANGE: { ko: '교환 출하', en: 'Exchange shipment' },
   }
 
-  return labels[value ?? '']?.[preferences.language] ?? value ?? '-'
+  return labels[value ?? '']?.ko ?? value ?? '-'
 }
 
 function formatCheckpointType(value?: string | null) {
@@ -545,7 +538,7 @@ function formatCheckpointType(value?: string | null) {
     ARRIVAL: { ko: '도착', en: 'Arrival' },
   }
 
-  return labels[value ?? '']?.[preferences.language] ?? value ?? '-'
+  return labels[value ?? '']?.ko ?? value ?? '-'
 }
 
 function formatCheckpointStatus(value?: string | null) {
@@ -555,7 +548,7 @@ function formatCheckpointStatus(value?: string | null) {
     FAILED: { ko: '실패', en: 'Failed' },
   }
 
-  return labels[value ?? '']?.[preferences.language] ?? value ?? '-'
+  return labels[value ?? '']?.ko ?? value ?? '-'
 }
 
 function formatExceptionType(value?: string | null) {
@@ -566,7 +559,7 @@ function formatExceptionType(value?: string | null) {
     WRONG_DELIVERY: { ko: '오배송', en: 'Wrong Delivery' },
   }
 
-  return labels[value ?? '']?.[preferences.language] ?? value ?? '-'
+  return labels[value ?? '']?.ko ?? value ?? '-'
 }
 
 function formatSeverity(value?: string | null) {
@@ -577,7 +570,7 @@ function formatSeverity(value?: string | null) {
     CRITICAL: { ko: '긴급', en: 'Critical' },
   }
 
-  return labels[value ?? '']?.[preferences.language] ?? value ?? '-'
+  return labels[value ?? '']?.ko ?? value ?? '-'
 }
 
 function formatShortShipmentNumber(value?: string | null) {
@@ -594,11 +587,11 @@ function formatShortShipmentNumber(value?: string | null) {
 }
 
 function formatBooleanLabel(value?: boolean | null) {
-  return value ? (preferences.language === 'ko' ? '필요' : 'Required') : (preferences.language === 'ko' ? '없음' : 'No')
+  return value ? '필요' : '없음'
 }
 
 function formatDelayMinutes(value?: number | null) {
-  return preferences.language === 'ko' ? `${value ?? 0}분` : `${value ?? 0}m`
+  return `${value ?? 0}분`
 }
 
 function isSelectedShipment(publicId?: string | null) {
@@ -1230,7 +1223,7 @@ onMounted(() => {
                 >
                   <option value="">{{ isOrderOptionsLoading ? content.loading : content.select }}</option>
                   <option v-for="order in acceptedPurchaseOrders" :key="order.sourcePublicId" :value="order.sourcePublicId">
-                    {{ order.orderNumber }} / {{ order.supplierName }} / {{ order.status }}
+                    {{ order.orderNumber }} / {{ order.supplierName }} / {{ formatShipmentStatus(order.status) }}
                   </option>
                 </select>
               </label>
@@ -1299,20 +1292,20 @@ onMounted(() => {
 
             <section class="shipment-create-spec-grid">
               <div>
-                <span>ITEMS</span>
+                <span>품목</span>
                 <strong>{{ selectedOrderItemCount }}</strong>
               </div>
               <div>
-                <span>QTY</span>
+                <span>수량</span>
                 <strong>{{ selectedOrderTotalQuantity }}</strong>
               </div>
               <div>
                 <span>{{ content.status }}</span>
-                <strong>{{ selectedCreateOrder?.status ?? '-' }}</strong>
+                <strong>{{ selectedCreateOrder ? formatShipmentStatus(selectedCreateOrder.status) : '-' }}</strong>
               </div>
               <div>
                 <span>{{ content.destinationNode }}</span>
-                <strong>{{ selectedOrderHasDestinationNode ? 'READY' : '-' }}</strong>
+                <strong>{{ selectedOrderHasDestinationNode ? '준비 완료' : '-' }}</strong>
               </div>
             </section>
 
@@ -1623,7 +1616,7 @@ onMounted(() => {
         <article class="stl-card shipment-detail-card">
           <div class="stl-card__head">
             <div>
-              <div class="page-panel__eyebrow">READY</div>
+              <div class="page-panel__eyebrow">준비 완료</div>
               <h3>{{ content.updateTitle }}</h3>
             </div>
           </div>

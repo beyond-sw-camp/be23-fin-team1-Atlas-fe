@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
-import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { ApiError } from '../../../services/http'
 import {
   getKafkaEventLogs,
@@ -9,8 +8,6 @@ import {
 } from '../../../services/kafkaMonitoring'
 
 const header = useAtlasHeaderStore()
-const preferences = useAtlasPreferencesStore()
-
 const CONTENT = {
   ko: {
     eyebrow: '시스템 / 감사 로그',
@@ -29,43 +26,19 @@ const CONTENT = {
     refreshLabel: '새로고침',
     columns: ['시각', '사용자', '액션', '모듈', '세부 내용', 'IP', '결과'],
   },
-  en: {
-    eyebrow: 'System / Audit Log',
-    title: 'Audit Log',
-    subtitle: 'Track user, system, and security events in a unified audit timeline.',
-    metrics: [
-      { label: 'EVENTS TODAY', value: '1,429', meta: 'ALL EVENT TYPES', tone: 'nominal' },
-      { label: 'USERS ACTIVE', value: '12', meta: 'LAST 24H', tone: 'info' },
-      { label: 'CRITICAL EVENTS', value: '3', meta: 'NEEDS REVIEW', tone: 'critical' },
-      { label: 'FAILED ACTIONS', value: '7', meta: 'DENIED / ERROR', tone: 'warning' },
-    ],
-    tabs: ['ALL', 'USER ACTIONS', 'SYSTEM', 'SECURITY', 'DATA CHANGES'],
-    searchPlaceholder: 'Search user, action, resource...',
-    tableTitle: 'Event Log',
-    exportLabel: 'EXPORT',
-    refreshLabel: 'REFRESH',
-    columns: ['TIME', 'USER', 'ACTION', 'MODULE', 'DETAILS', 'IP', 'RESULT'],
-  },
 }
 
 const ROWS = {
   ko: [
-    ['09:14:22', 'M. Reyes', '발주 승인', 'Orders', 'ORD-2024-9025 승인', '10.0.1.42', '성공'],
-    ['09:12:44', 'SYSTEM', '자동 발주 생성', 'Forecast', '수요 모델 기반 8건 생성', 'internal', '성공'],
-    ['09:11:30', 'J. Torres', '통관 상태 오버라이드', 'Customs', 'MV-EOS-4471 상태 강제 변경', '10.0.1.18', '표시됨'],
-    ['09:10:05', 'A. Chen', '출하 삭제 시도', 'Shipments', '권한 부족으로 차단', '192.168.1.4', '거부'],
-    ['09:08:22', 'M. Reyes', 'ETA 수정', 'Orders', 'ORD-2024-8841 ETA 변경', '10.0.1.42', '성공'],
-  ],
-  en: [
-    ['09:14:22', 'M. Reyes', 'Approve Order', 'Orders', 'ORD-2024-9025 approved', '10.0.1.42', 'SUCCESS'],
-    ['09:12:44', 'SYSTEM', 'Auto PO Generated', 'Forecast', '8 POs generated from demand model', 'internal', 'SUCCESS'],
-    ['09:11:30', 'J. Torres', 'Override Customs', 'Customs', 'Forced status change on MV-EOS-4471', '10.0.1.18', 'FLAGGED'],
-    ['09:10:05', 'A. Chen', 'Delete Shipment', 'Shipments', 'Blocked due to insufficient permissions', '192.168.1.4', 'DENIED'],
-    ['09:08:22', 'M. Reyes', 'Edit ETA', 'Orders', 'ETA changed on ORD-2024-8841', '10.0.1.42', 'SUCCESS'],
+    ['09:14:22', '운영자 레예스', '발주 승인', '발주', '발주 9025 승인', '10.0.1.42', '성공'],
+    ['09:12:44', '시스템', '자동 발주 생성', '수요예측', '수요 모델 기반 8건 생성', '내부', '성공'],
+    ['09:11:30', '운영자 토레스', '통관 상태 변경', '통관', '선박 4471 상태 강제 변경', '10.0.1.18', '검토'],
+    ['09:10:05', '운영자 첸', '출하 삭제 시도', '출하', '권한 부족으로 차단', '192.168.1.4', '거부'],
+    ['09:08:22', '운영자 레예스', '도착 예정 시각 수정', '발주', '발주 8841 도착 예정 시각 변경', '10.0.1.42', '성공'],
   ],
 }
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 const search = ref('')
 const activeTab = ref('')
 const eventLogs = ref<EventLogSearchResponse[]>([])
@@ -93,11 +66,7 @@ function formatAuditDateTime(value?: string | null) {
 }
 
 function formatAuditStatus(value: EventLogSearchResponse['status']) {
-  if (preferences.language === 'ko') {
-    return value === 'PUBLISHED' ? '성공' : '실패'
-  }
-
-  return value
+  return value === 'PUBLISHED' ? '성공' : '실패'
 }
 
 function buildAuditDetail(log: EventLogSearchResponse) {
@@ -107,16 +76,16 @@ function buildAuditDetail(log: EventLogSearchResponse) {
   ].filter(Boolean).join(' / ') || '-'
 }
 
-const fallbackRows = computed(() => ROWS[preferences.language])
+const fallbackRows = computed(() => ROWS.ko)
 
 const esRows = computed(() => {
   return eventLogs.value.map((log) => [
     formatAuditDateTime(log.publishedAt ?? log.createdAt),
-    'SYSTEM',
+    '시스템',
     log.eventType || '-',
     log.topic || String(log.aggregateType ?? '-'),
     buildAuditDetail(log),
-    'internal',
+    '내부',
     formatAuditStatus(log.status),
   ])
 })
@@ -159,9 +128,7 @@ async function fetchAuditLogs() {
     eventLogsErrorMessage.value =
       error instanceof ApiError
         ? error.message
-        : preferences.language === 'ko'
-          ? '감사 로그를 불러오지 못했습니다.'
-          : 'Failed to load audit logs.'
+        : '감사 로그를 불러오지 못했습니다.'
     isInitialEventLogsLoading.value = false
   } finally {
     isLoadingEventLogs.value = false
@@ -258,7 +225,7 @@ onBeforeUnmount(() => header.clearActions())
         <span class="page-panel__chip">{{ visibleRows.length }}</span>
       </div>
       <div v-if="false && isInitialEventLogsLoading" class="login-hint">
-        {{ preferences.language === 'ko' ? '감사 로그를 불러오는 중입니다.' : 'Loading audit logs...' }}
+        {{ '감사 로그를 불러오는 중입니다.' }}
       </div>
 
       <div v-if="eventLogsErrorMessage" class="login-error">
@@ -266,7 +233,7 @@ onBeforeUnmount(() => header.clearActions())
       </div>
 
       <div v-if="visibleRows.length === 0" class="login-hint">
-        {{ preferences.language === 'ko' ? '감사 로그가 없습니다.' : 'No audit logs found.' }}
+        {{ '감사 로그가 없습니다.' }}
       </div>
 
       <div v-else class="page-table terminal-page__table is-seven-cols">

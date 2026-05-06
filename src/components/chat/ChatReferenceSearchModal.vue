@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useAtlasSessionStore } from '../../stores/session'
-import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { getPurchaseOrders } from '../../services/purchaseOrder'
 import { getReturnRequests } from '../../services/return'
 import type { PurchaseOrderSummaryResponseDto } from '../../services/purchaseOrder'
@@ -18,8 +17,6 @@ const emit = defineEmits<{
 }>()
 
 const session = useAtlasSessionStore()
-const preferences = useAtlasPreferencesStore()
-
 const isLoading = ref(false)
 const keyword = ref('')
 
@@ -27,8 +24,8 @@ const orderList = ref<PurchaseOrderSummaryResponseDto[]>([])
 const returnList = ref<ReturnRequestResponseDto[]>([])
 
 const typeLabel = computed(() => {
-  if (props.referenceType === 'ORDER') return preferences.language === 'ko' ? '발주서 검색' : 'Search Orders'
-  if (props.referenceType === 'RETURN_REQUEST') return preferences.language === 'ko' ? '반품 요청 검색' : 'Search Returns'
+  if (props.referenceType === 'ORDER') return '발주서 검색'
+  if (props.referenceType === 'RETURN_REQUEST') return '반품 요청 검색'
   return ''
 })
 
@@ -73,7 +70,7 @@ function selectOrder(order: PurchaseOrderSummaryResponseDto) {
 }
 
 function selectReturn(ret: ReturnRequestResponseDto) {
-  const reason = ret.returnReason || (preferences.language === 'ko' ? '반품 요청' : 'Return Request')
+  const reason = ret.returnReason || '반품 요청'
   emit('select', 'RETURN_REQUEST', ret.publicId, ret.returnNumber, reason)
   emit('close')
 }
@@ -95,7 +92,7 @@ function selectReturn(ret: ReturnRequestResponseDto) {
           <input
             v-model="keyword"
             type="text"
-            :placeholder="preferences.language === 'ko' ? '검색어 입력 후 Enter' : 'Search...'"
+            placeholder="검색어 입력 후 Enter"
             @keydown.enter="handleSearch"
           />
         </div>
@@ -107,7 +104,7 @@ function selectReturn(ret: ReturnRequestResponseDto) {
 
           <template v-else-if="referenceType === 'ORDER'">
             <div v-if="orderList.length === 0" class="chat-ref-modal__empty">
-              {{ preferences.language === 'ko' ? '결과가 없습니다.' : 'No results.' }}
+              결과가 없습니다.
             </div>
             <div
               v-for="order in orderList"
@@ -122,7 +119,7 @@ function selectReturn(ret: ReturnRequestResponseDto) {
 
           <template v-else-if="referenceType === 'RETURN_REQUEST'">
             <div v-if="returnList.length === 0" class="chat-ref-modal__empty">
-              {{ preferences.language === 'ko' ? '결과가 없습니다.' : 'No results.' }}
+              결과가 없습니다.
             </div>
             <div
               v-for="ret in returnList"

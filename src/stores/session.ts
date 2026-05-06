@@ -262,11 +262,7 @@ function startDuplicateLoginCheckTimer() {
     updateSessionRemainingMs()
 
     if (remainingMs <= 0) {
-      signOut(
-        preferences.language === 'ko'
-          ? '세션이 만료되었습니다. 다시 로그인해 주세요.'
-          : 'Your session has expired. Please sign in again.',
-      )
+      signOut('세션이 만료되었습니다. 다시 로그인해 주세요.')
       return
     }
 
@@ -279,11 +275,7 @@ function startDuplicateLoginCheckTimer() {
     }, 1000)
 
     sessionExpiryTimer = window.setTimeout(() => {
-      signOut(
-        preferences.language === 'ko'
-          ? '세션이 만료되었습니다. 다시 로그인해 주세요.'
-          : 'Your session has expired. Please sign in again.',
-      )
+      signOut('세션이 만료되었습니다. 다시 로그인해 주세요.')
     }, remainingMs)
   }
 
@@ -332,7 +324,7 @@ function startDuplicateLoginCheckTimer() {
 
   async function signIn() {
     if (!loginId.value || !loginPassword.value) {
-      loginError.value = UI_COPY.loginError[preferences.language]
+      loginError.value = UI_COPY.loginError.ko
       return
     }
 
@@ -364,11 +356,11 @@ function startDuplicateLoginCheckTimer() {
       resetVerificationState()
 
       if (error instanceof ApiError) {
-        loginError.value = error.payload?.message || UI_COPY.loginError[preferences.language]
+        loginError.value = error.payload?.message || UI_COPY.loginError.ko
         return
       }
 
-      loginError.value = UI_COPY.loginError[preferences.language]
+      loginError.value = UI_COPY.loginError.ko
     }
   }
 
@@ -380,11 +372,7 @@ function startDuplicateLoginCheckTimer() {
     const refreshToken = window.sessionStorage.getItem(REFRESH_TOKEN_STORAGE_KEY)
 
     if (!refreshToken) {
-      signOut(
-        preferences.language === 'ko'
-          ? '로그인 정보가 없어 다시 로그인해야 합니다.'
-          : 'Session information is missing. Please sign in again.',
-      )
+      signOut('로그인 정보가 없어 다시 로그인해야 합니다.')
       return
     }
 
@@ -410,19 +398,12 @@ function startDuplicateLoginCheckTimer() {
     } catch (error) {
       if (error instanceof ApiError) {
         signOut(
-          error.payload?.message ||
-            (preferences.language === 'ko'
-              ? '로그인 연장에 실패했습니다. 다시 로그인해 주세요.'
-              : 'Failed to extend the session. Please sign in again.'),
+          error.payload?.message || '로그인 연장에 실패했습니다. 다시 로그인해 주세요.',
         )
         return
       }
 
-      signOut(
-        preferences.language === 'ko'
-          ? '로그인 연장 중 오류가 발생했습니다. 다시 로그인해 주세요.'
-          : 'An error occurred while extending the session. Please sign in again.',
-      )
+      signOut('로그인 연장 중 오류가 발생했습니다. 다시 로그인해 주세요.')
     } finally {
       isRefreshingSession.value = false
     }
@@ -430,10 +411,7 @@ function startDuplicateLoginCheckTimer() {
 
   async function verifyLoginIp() {
     if (!loginVerificationRequestId.value || !loginVerificationCode.value.trim()) {
-      loginVerificationError.value =
-        preferences.language === 'ko'
-          ? '이메일 인증 코드를 입력해 주세요.'
-          : 'Please enter the verification code.'
+      loginVerificationError.value = '이메일 인증 코드를 입력해 주세요.'
       return
     }
 
@@ -449,10 +427,7 @@ function startDuplicateLoginCheckTimer() {
     } catch (error) {
       if (error instanceof ApiError) {
         const message =
-          error.payload?.message ||
-          (preferences.language === 'ko'
-            ? '이메일 인증에 실패했습니다.'
-            : 'Email verification failed.')
+          error.payload?.message || '이메일 인증에 실패했습니다.'
 
         const code = error.payload?.code
 
@@ -470,10 +445,7 @@ function startDuplicateLoginCheckTimer() {
         return
       }
 
-      loginVerificationError.value =
-        preferences.language === 'ko'
-          ? '이메일 인증 중 오류가 발생했습니다.'
-          : 'An error occurred during email verification.'
+      loginVerificationError.value = '이메일 인증 중 오류가 발생했습니다.'
     }
   }
 
@@ -511,22 +483,12 @@ registerUnauthorizedHandler((payload) => {
 
   const isDuplicateLogin = payload?.code === 'DUPLICATE_LOGIN_SESSION_EXPIRED'
 
-  const title = isDuplicateLogin
-    ? preferences.language === 'ko'
-      ? '중복 로그인 감지'
-      : 'Duplicate login detected'
-    : preferences.language === 'ko'
-      ? '세션 만료'
-      : 'Session expired'
+  const title = isDuplicateLogin ? '중복 로그인 감지' : '세션 만료'
 
   const message = isDuplicateLogin
-    ? preferences.language === 'ko'
-      ? '다른 기기에서 로그인되어 현재 기기에서 로그아웃되었습니다. 다시 로그인해 주세요.'
-      : 'You have been signed out because your account was used on another device. Please sign in again.'
+    ? '다른 기기에서 로그인되어 현재 기기에서 로그아웃되었습니다. 다시 로그인해 주세요.'
     : payload?.message ||
-      (preferences.language === 'ko'
-        ? '세션이 만료되었습니다. 다시 로그인해 주세요.'
-        : 'Your session has expired. Please sign in again.')
+      '세션이 만료되었습니다. 다시 로그인해 주세요.'
 
   clearAuthenticatedState()
   resetVerificationState()
@@ -548,9 +510,9 @@ registerUnauthorizedHandler((payload) => {
 
   watch(
     () => preferences.language,
-    (nextLanguage) => {
+    () => {
       if (loginError.value) {
-        loginError.value = UI_COPY.loginError[nextLanguage]
+        loginError.value = UI_COPY.loginError.ko
       }
     },
     { immediate: true },

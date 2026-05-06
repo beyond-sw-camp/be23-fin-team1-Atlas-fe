@@ -40,15 +40,15 @@ export function isPageKey(value: string | undefined): value is PageKey {
 }
 
 export const ORGANIZATION_LABELS: Record<OrganizationType, string> = {
-  mainBuyer: 'Main Buyer Ops',
-  supplier: 'Tier-1 Supplier',
-  admin: 'Platform Admin',
+  mainBuyer: '메인 발주 운영',
+  supplier: '1차 협력사',
+  admin: '플랫폼 관리자',
 }
 
 export const NAV_ITEMS: NavEntry[] = [
   {
     key: 'designSystem',
-    label: 'Design System',
+    label: '디자인 시스템',
     icon: 'palette',
     description: '토큰, 타이포, 인터랙션 기준',
     pageSubtitle: 'Kinetic Blueprint 토큰, 계층, 컴포넌트 기준',
@@ -69,18 +69,18 @@ export const NAV_ITEMS: NavEntry[] = [
 
   {
     key: 'controlTower',
-    label: 'Dashboard',
+    label: '대시보드',
     icon: 'dashboard',
     description: '운영 대시보드와 핵심 위험 지표',
     pageSubtitle: '전체 공급망 운영 현황과 핵심 경보 모니터링',
     section: 'monitoring',
     organizations: ['mainBuyer', 'admin'],
-    badge: 'LIVE',
+    badge: '실시간',
     badgeTone: 'ok',
   },
   {
     key: 'supplierNetwork',
-    label: 'Network',
+    label: '공급망 네트워크',
     icon: 'hub',
     description: '공급망 네트워크 시각화',
     pageSubtitle: 'Tier 연결, 병목 지점, 대체 경로 가시화',
@@ -91,7 +91,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'shipmentOps',
-    label: 'Risk Events',
+    label: '리스크 이벤트',
     icon: 'warning',
     description: 'supplier_issue / shipment_delayed',
     pageSubtitle: '이벤트 기반 지연 대응과 리스크 오케스트레이션',
@@ -102,7 +102,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'impactOrders',
-    label: 'Impact',
+    label: '영향 분석',
     icon: 'receipt_long',
     description: '영향 분석과 우선순위 주문',
     pageSubtitle: '영향 주문, ETA 편차, 우선순위 실행 큐',
@@ -122,7 +122,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'items',
-    label: 'Items',
+    label: '품목 관리',
     icon: 'inventory_2',
     description: '품목 관리 및 공급역량',
     pageSubtitle: 'SKU, 재고, 재발주점, 공급사 기준 운영',
@@ -131,7 +131,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'inventory',
-    label: 'Inventory',
+    label: '재고 관리',
     icon: 'inventory',
     description: '품목별 유통기한 재고 관리',
     pageSubtitle: '제조일, 유통기한, 예약 수량 기준 재고를 관리합니다.',
@@ -140,7 +140,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'ordersDesk',
-    label: 'Orders',
+    label: '발주 관리',
     icon: 'shopping_cart',
     description: '발주 승인, ETA, 우선순위 운영',
     pageSubtitle: '발주 승인 상태, ETA 변동, 공급처별 우선순위 제어',
@@ -151,7 +151,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'supplierControl',
-    label: 'Suppliers',
+    label: '협력사 관리',
     icon: 'domain',
     description: '협력사 상태, 등급, 온보딩 관리',
     pageSubtitle: '협력사 등급, 인증, 온보딩 및 성과 상태 관리',
@@ -162,16 +162,16 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'shipments',
-    label: 'Shipments',
+    label: '출하',
     icon: 'local_shipping',
-    description: 'Shipment list, tracking, ETA, and exceptions',
-    pageSubtitle: 'Manage outbound shipment flow and tracking status',
+    description: '출하 목록, 추적, ETA, 예외 관리',
+    pageSubtitle: '출하 흐름과 추적 상태를 관리합니다',
     section: 'operations',
     organizations: ['mainBuyer', 'supplier'],
   },
   {
     key: 'returns',
-    label: 'Returns',
+    label: '반품',
     icon: 'assignment_return',
     description: '반품 요청 및 처리 관리',
     pageSubtitle: '요청, 승인, 회수, 입고 상태와 이력 추적',
@@ -182,16 +182,16 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'settlements',
-    label: 'Settlements',
+    label: '정산',
     icon: 'request_quote',
-    description: 'Settlement list, detail, approval, and cancellation',
-    pageSubtitle: 'Manage settlement processing status and approval flow',
+    description: '정산 목록, 상세, 승인, 취소 관리',
+    pageSubtitle: '정산 처리 상태와 승인 흐름을 관리합니다',
     section: 'operations',
     organizations: ['mainBuyer', 'supplier'],
   },
   {
     key: 'certificateWatch',
-    label: 'Certificates',
+    label: '인증서',
     icon: 'workspace_premium',
     description: '인증서 유효성 및 갱신 관리',
     pageSubtitle: '인증 유형, 만료일, 협력사 상태 추적',
@@ -202,7 +202,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'recoveryTracking',
-    label: 'Recovery Tracking',
+    label: '복구 추적',
     icon: 'timeline',
     description: '복구 ETA, 실행 상태, 병목 해소 추적',
     pageSubtitle: '복구 ETA, 조치 이행, 병목 해소 상태 추적',
@@ -214,7 +214,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'documents',
-    label: 'Documents',
+    label: '문서 관리',
     icon: 'description',
     description: '문서 보관과 OCR 검증 관리',
     pageSubtitle: '송장, BOL, OCR 검증과 문서 상태 추적',
@@ -223,7 +223,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'recommendations',
-    label: 'Recommendations',
+    label: '권고안',
     icon: 'insights',
     description: '대체 1차 / 2차 권고안',
     pageSubtitle: '추천 엔진 기반 대체 공급처 의사결정',
@@ -234,7 +234,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'esgSignals',
-    label: 'ESG Signals',
+    label: 'ESG 시그널',
     icon: 'eco',
     description: 'ESG 경보와 권고안 점수 반영',
     pageSubtitle: 'ESG 경보, 원산지, 지속가능성 점수 반영',
@@ -246,7 +246,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'governance',
-    label: 'Governance',
+    label: '거버넌스',
     icon: 'gavel',
     description: '수용 여부와 사후평가 관리',
     pageSubtitle: '권고안 수용, 실행, 회복 성과, 사후평가',
@@ -256,7 +256,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'evaluation',
-    label: 'Evaluation',
+    label: '평가',
     icon: 'analytics',
     description: '수용 결과와 성과 평가 현황',
     pageSubtitle: '권고안 반영 결과, 평가 점수, 월별 추이 관리',
@@ -265,7 +265,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'vendorKpi',
-    label: 'Vendor KPI',
+    label: '벤더 KPI',
     icon: 'monitoring',
     description: '협력사 KPI 대시보드',
     pageSubtitle: '납기, 품질, ESG, 대응속도 기준 KPI 비교',
@@ -274,7 +274,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'acceptance',
-    label: 'Acceptance',
+    label: '수용률',
     icon: 'rule',
     description: '권고안 수용률 현황',
     pageSubtitle: '수용률, 거절 사유, 긴급도별 반영 상태 추적',
@@ -283,7 +283,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'auditTrail',
-    label: 'Audit',
+    label: '감사 로그',
     icon: 'fact_check',
     description: '시스템 감사 로그',
     pageSubtitle: '사용자, 시스템, 보안 이벤트 감사 로그',
@@ -292,7 +292,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'collaboration',
-    label: 'Collaboration',
+    label: '협업',
     icon: 'forum',
     description: '실시간 대응 협업과 알림',
     pageSubtitle: '운영자, 협력사, 알림 흐름의 실시간 협업',
@@ -304,7 +304,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'notificationsCenter',
-    label: 'Notifications',
+    label: '알림',
     icon: 'notifications',
     description: '채널 정책과 읽지 않은 경보 관리',
     pageSubtitle: '알림 채널, 미확인 경보, topic 상태 관리',
@@ -313,7 +313,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'certificateReview',
-    label: 'Certificate Review',
+    label: '인증서 심사',
     icon: 'fact_check',
     description: '인증서 신청 승인과 반려 처리',
     pageSubtitle: '심사 요청 인증서를 검토하고 승인 또는 반려합니다.',
@@ -322,7 +322,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'riskRules',
-    label: 'Risk Rules',
+    label: '리스크 규칙',
     icon: 'tune',
     description: '이벤트 규칙과 임계치 정책 관리',
     pageSubtitle: '리스크 룰, 임계치, 자동 에스컬레이션 정책 관리',
@@ -331,7 +331,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'settings',
-    label: 'Settings',
+    label: '설정',
     icon: 'settings',
     description: '조직, 사용자, 알림, API 키 정책',
     pageSubtitle: '시스템 전역 설정, 사용자, 보안 정책 관리',
@@ -340,7 +340,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
     {
     key: 'organizationManagement',
-    label: 'Organization Management',
+    label: '조직관리',
     icon: 'apartment',
     description: '조직 목록 조회와 조직 정보 수정',
     pageSubtitle: '플랫폼 관리자와 조직 대표자가 조직 정보를 관리하는 화면',
@@ -350,7 +350,7 @@ export const NAV_ITEMS: NavEntry[] = [
 
   {
     key: 'systemSpec',
-    label: 'System Spec',
+    label: '시스템 스펙',
     icon: 'schema',
     description: '디자인 스펙과 화면 규격 문서',
     pageSubtitle: 'Kinetic Blueprint 시스템 스펙 문서',
@@ -360,7 +360,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'profile',
-    label: 'Profile',
+    label: '프로필',
     icon: 'account_circle',
     description: '운영자 계정, 권한, 알림 정책',
     pageSubtitle: '운영자 권한, 알림 정책, KPI와 감사 이력',
@@ -371,9 +371,9 @@ export const NAV_ITEMS: NavEntry[] = [
 ]
 
 export const NAV_SECTION_LABELS: Record<NavSection, string> = {
-  monitoring: 'Control Tower',
-  operations: 'Supply Chain Ops',
-  response: 'Documents & Certificates',
-  governance: 'Governance',
-  system: 'System',
+  monitoring: '컨트롤 타워',
+  operations: '공급망 운영',
+  response: '문서 / 인증',
+  governance: '거버넌스',
+  system: '시스템',
 }

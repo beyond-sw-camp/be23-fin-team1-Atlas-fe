@@ -207,12 +207,12 @@ const confirmLines = ref<Array<{
 }>>([])
 const confirmErrorMessage = ref('')
 
-function t(ko: string, en: string) {
-  return preferences.language === 'ko' ? ko : en
+function t(ko: string, _en: string) {
+  return ko
 }
 
 const detailCopy = computed(() =>
-  preferences.language === 'ko'
+  true
     ? {
         configs: {
           orders: { eyebrow: '공급망 운영 / 발주 관리', title: '발주 상세', idLabel: '발주번호' },
@@ -446,10 +446,8 @@ const title = computed(() => {
     item.supplierName ??
     item.nodeName ??
     item.certificateNo ??
-    item.publicId ??
-    item.inventoryPublicId ??
-    item.poPublicId ??
-    publicId.value
+    item.inventoryNumber ??
+    config.value.title
   )
 })
 
@@ -508,19 +506,19 @@ const hasDomainLayout = computed(() => (
 ))
 
 const detailLabel = computed(() => {
-  if (kind.value === 'orders') return 'PURCHASE ORDER'
-  if (kind.value === 'shipments') return 'SHIPMENT DETAIL'
-  if (kind.value === 'returns') return 'RETURN REQUEST'
-  if (kind.value === 'suppliers') return 'SUPPLIER DETAIL'
-  if (kind.value === 'inventory') return 'INVENTORY DETAIL'
-  if (kind.value === 'items') return 'ITEM DETAIL'
+  if (kind.value === 'orders') return '발주 상세'
+  if (kind.value === 'shipments') return '출하 상세'
+  if (kind.value === 'returns') return '반품 요청'
+  if (kind.value === 'suppliers') return '협력사 상세'
+  if (kind.value === 'inventory') return '재고 상세'
+  if (kind.value === 'items') return '품목 상세'
   return config.value.title
 })
 
 const riskLevel = computed(() => {
-  if (statusTone.value === 'critical') return 'HIGH'
-  if (statusTone.value === 'success') return 'LOW'
-  return 'MEDIUM'
+  if (statusTone.value === 'critical') return '높음'
+  if (statusTone.value === 'success') return '낮음'
+  return '보통'
 })
 
 const orderItems = computed(() => {
@@ -537,15 +535,15 @@ const shipmentPathRows = computed(() => {
       delay: row.statusCode === 'DELAYED' ? shipmentDelayText.value : '0',
       status: displayShipmentStatus(row.statusCode),
       statusCode: String(row.statusCode || '').toLowerCase(),
-      order: data.value?.purchaseOrderPublicId ?? data.value?.subPurchaseOrderPublicId ?? '-',
+      order: data.value?.purchaseOrderNumber ?? data.value?.subPurchaseOrderNumber ?? '관련 발주',
     }))
   }
   return [
-    { seq: 1, node: display(data.value?.originNodeName ?? data.value?.originNodeCode), eta: formatShipmentEta(data.value?.departureEta), delay: '0', status: displayShipmentStatus('DEPARTED'), statusCode: 'departed', order: display(data.value?.purchaseOrderPublicId) },
-    { seq: 2, node: display(data.value?.currentNodeName ?? data.value?.currentNodeCode), eta: formatShipmentEta(data.value?.departureEta), delay: '0', status: displayShipmentStatus('ARRIVED'), statusCode: 'arrived', order: display(data.value?.purchaseOrderPublicId) },
-    { seq: 3, node: display(data.value?.destinationNodeName ?? data.value?.destinationNodeCode), eta: formatShipmentEta(related.value.eta?.estimatedArrivalAt ?? data.value?.arrivalEta), delay: shipmentDelayText.value, status: displayShipmentStatus(status.value || 'DELAYED'), statusCode: 'delayed', order: display(data.value?.purchaseOrderPublicId) },
-    { seq: 4, node: t('인천물류센터 (ICN DC)', 'Incheon Logistics Center (ICN DC)'), eta: '04. 29. 11:30', delay: shipmentDelayText.value, status: displayShipmentStatus('PENDING'), statusCode: 'pending', order: display(data.value?.purchaseOrderPublicId) },
-    { seq: 5, node: t('고객사 창고 (CUSTOMER DC)', 'Customer Warehouse (CUSTOMER DC)'), eta: '04. 29. 14:00', delay: shipmentDelayText.value, status: displayShipmentStatus('PENDING'), statusCode: 'pending', order: display(data.value?.purchaseOrderPublicId) },
+    { seq: 1, node: display(data.value?.originNodeName ?? data.value?.originNodeCode), eta: formatShipmentEta(data.value?.departureEta), delay: '0', status: displayShipmentStatus('DEPARTED'), statusCode: 'departed', order: display(data.value?.purchaseOrderNumber ?? '관련 발주') },
+    { seq: 2, node: display(data.value?.currentNodeName ?? data.value?.currentNodeCode), eta: formatShipmentEta(data.value?.departureEta), delay: '0', status: displayShipmentStatus('ARRIVED'), statusCode: 'arrived', order: display(data.value?.purchaseOrderNumber ?? '관련 발주') },
+    { seq: 3, node: display(data.value?.destinationNodeName ?? data.value?.destinationNodeCode), eta: formatShipmentEta(related.value.eta?.estimatedArrivalAt ?? data.value?.arrivalEta), delay: shipmentDelayText.value, status: displayShipmentStatus(status.value || 'DELAYED'), statusCode: 'delayed', order: display(data.value?.purchaseOrderNumber ?? '관련 발주') },
+    { seq: 4, node: t('인천물류센터 (ICN DC)', 'Incheon Logistics Center (ICN DC)'), eta: '04. 29. 11:30', delay: shipmentDelayText.value, status: displayShipmentStatus('PENDING'), statusCode: 'pending', order: display(data.value?.purchaseOrderNumber ?? '관련 발주') },
+    { seq: 5, node: t('고객사 창고 (CUSTOMER DC)', 'Customer Warehouse (CUSTOMER DC)'), eta: '04. 29. 14:00', delay: shipmentDelayText.value, status: displayShipmentStatus('PENDING'), statusCode: 'pending', order: display(data.value?.purchaseOrderNumber ?? '관련 발주') },
   ]
 })
 
@@ -557,9 +555,7 @@ const shipmentDelayMinutes = computed(() => {
 const shipmentDelayText = computed(() => detailCopy.value.minutes(shipmentDelayMinutes.value))
 
 const shipmentDelayEtaText = computed(() => {
-  return preferences.language === 'ko'
-    ? `ETA + ${shipmentDelayMinutes.value}분`
-    : `ETA + ${shipmentDelayMinutes.value} MIN`
+  return `ETA + ${shipmentDelayMinutes.value}분`
 })
 
 const shipmentDepartureEta = computed(() => formatShipmentEta(data.value?.departureEta))
@@ -567,22 +563,22 @@ const shipmentArrivalEta = computed(() => formatShipmentEta(related.value.eta?.e
 
 const shipmentAffectedRows = computed(() => [
   {
-    order: display(data.value?.purchaseOrderPublicId),
+    order: display(data.value?.purchaseOrderNumber ?? '관련 발주'),
     item: 'LED DRIVER 60W',
     qty: '1,200 EA',
     due: '04. 29.',
     impact: shipmentDelayText.value,
-    priority: 'HIGH',
+      priority: '높음',
   },
-  { order: 'PO-2026-000015', item: 'SMPS 24V 5A', qty: '800 EA', due: '04. 29.', impact: shipmentDelayText.value, priority: 'HIGH' },
-  { order: 'PO-2026-000016', item: 'AL CASE - M', qty: '500 EA', due: '04. 29.', impact: shipmentDelayText.value, priority: 'MEDIUM' },
-  { order: 'PO-2026-000017', item: 'CABLE ASSY', qty: '2,000 EA', due: '04. 30.', impact: '+82분', priority: 'LOW' },
+  { order: 'PO-2026-000015', item: 'SMPS 24V 5A', qty: '800 EA', due: '04. 29.', impact: shipmentDelayText.value, priority: '높음' },
+  { order: 'PO-2026-000016', item: 'AL CASE - M', qty: '500 EA', due: '04. 29.', impact: shipmentDelayText.value, priority: '보통' },
+  { order: 'PO-2026-000017', item: 'CABLE ASSY', qty: '2,000 EA', due: '04. 30.', impact: '+82분', priority: '낮음' },
 ])
 
 const shipmentRecommendationRows = computed(() => [
   {
     title: t('우회 운송 검토', 'Review Alternate Route'),
-    priority: 'HIGH',
+    priority: '높음',
     icon: 'sync_alt',
     reason: t('인천항 혼잡 및 입항 대기 지연으로 ETA 추가 지연 가능성 높음', 'Port congestion and berth waiting may add ETA delay.'),
     action: t('군산항 우회 입항 후 내륙 운송 전환을 권고합니다.', 'Route through Gunsan port and switch to inland transport.'),
@@ -590,7 +586,7 @@ const shipmentRecommendationRows = computed(() => [
   },
   {
     title: t('부분 출하', 'Partial Shipment'),
-    priority: 'MEDIUM',
+    priority: '보통',
     icon: 'inventory_2',
     reason: t('긴급 품목 우선 분리 시 고객 영향 최소화 가능', 'Separating urgent items first can reduce customer impact.'),
     action: t('긴급 품목(LED DRIVER 60W) 먼저 출하하여 부분 납품을 진행합니다.', 'Ship urgent LED DRIVER 60W items first and proceed with partial delivery.'),
@@ -598,7 +594,7 @@ const shipmentRecommendationRows = computed(() => [
   },
   {
     title: t('납기 재협의', 'Renegotiate Due Date'),
-    priority: 'MEDIUM',
+    priority: '보통',
     icon: 'handshake',
     reason: t('지연 회복까지 시간이 소요되어 고객과의 납기 조정이 필요', 'Delay recovery requires time, so due date adjustment is needed.'),
     action: t('고객사에 지연 사유와 새로운 ETA를 제안하고 납기 재협의를 진행합니다.', 'Share delay cause and new ETA with the customer and renegotiate due date.'),
@@ -615,17 +611,17 @@ const returnItems = computed(() => {
 })
 
 const supplierCertificateRows = computed(() => [
-  ['HACCP', 'HACCP-24-01520', '2024.04.10', '2026.05.10', 'CERTIFICATE EXPIRING', 'MEDIUM', '12일 전'],
-  ['ISO9001', 'ISO9001-23-0876', '2023.03.15', '2026.03.15', 'EXPIRED', 'HIGH', '-44일'],
-  ['원산지 증명', 'COO-26-000331', '2026.01.05', '2026.07.05', 'VALID', 'LOW', '68일'],
-  ['식품안전관리 인증', 'FSMS-25-00211', '2025.02.20', '2027.02.19', 'VALID', 'LOW', '296일'],
+  ['HACCP', 'HACCP-24-01520', '2024.04.10', '2026.05.10', '인증 만료 임박', '보통', '12일 전'],
+  ['ISO9001', 'ISO9001-23-0876', '2023.03.15', '2026.03.15', '만료됨', '높음', '-44일'],
+  ['원산지 증명', 'COO-26-000331', '2026.01.05', '2026.07.05', '유효', '낮음', '68일'],
+  ['식품안전관리 인증', 'FSMS-25-00211', '2025.02.20', '2027.02.19', '유효', '낮음', '296일'],
 ])
 
 const inventoryRows = computed(() => [
-  ['ITEM-000124', '알루미늄 하우징 A1', 'EA', '120', '500', '-380', 'SHORTAGE', 'PO-2026-000014'],
-  ['ITEM-000178', display(data.value?.itemName ?? '모터 컨트롤러 M5'), 'EA', formatNumber(data.value?.remainingQty ?? 35), '200', '-165', 'SHORTAGE', 'PO-2026-000021'],
-  ['ITEM-000256', '베어링 6205', 'EA', '87', '300', '-213', 'SHORTAGE', 'PO-2026-000031'],
-  ['ITEM-000312', 'PCB ASSY B-100', 'EA', '210', '200', '10', 'NORMAL', '-'],
+  ['ITEM-000124', '알루미늄 하우징 A1', 'EA', '120', '500', '-380', '부족', 'PO-2026-000014'],
+  ['ITEM-000178', display(data.value?.itemName ?? '모터 컨트롤러 M5'), 'EA', formatNumber(data.value?.remainingQty ?? 35), '200', '-165', '부족', 'PO-2026-000021'],
+  ['ITEM-000256', '베어링 6205', 'EA', '87', '300', '-213', '부족', 'PO-2026-000031'],
+  ['ITEM-000312', 'PCB ASSY B-100', 'EA', '210', '200', '10', '정상', '-'],
 ])
 
 const itemInformationSummary = computed(() => {
@@ -670,7 +666,7 @@ const itemInformationGroups = computed(() => {
     {
       title: t('공급 정보', 'Supply Info'),
       rows: [
-        [t('출발 물류거점', 'Origin Node'), item.originLogisticsNodeName ?? item.originLogisticsNodePublicId],
+        [t('출발 물류거점', 'Origin Node'), item.originLogisticsNodeName ?? item.originLogisticsNodeCode ?? '출발 물류거점'],
         [t('월간 생산량', 'Monthly Capacity'), formatNumber(item.monthlyCapacity)],
         [t('공급 유형', 'Supply Type'), item.supplyType],
         [t('상태', 'Status'), displayItemStatus(item.status)],
@@ -679,8 +675,8 @@ const itemInformationGroups = computed(() => {
     {
       title: t('미디어 / 시스템', 'Media / System'),
       rows: [
-        [t('대표 미디어', 'Primary Media'), primaryMediaFile?.originalFileName ?? item.primaryMediaFilePublicId],
-        [t('첨부 묶음', 'Attachment'), item.mediaAttachmentPublicId],
+        [t('대표 미디어', 'Primary Media'), primaryMediaFile?.originalFileName ?? (item.primaryMediaFilePublicId ? '대표 미디어 있음' : '-')],
+        [t('첨부 묶음', 'Attachment'), item.mediaAttachmentPublicId ? '첨부 묶음 있음' : '-'],
         [t('등록일', 'Created At'), formatDate(item.createdAt)],
         [t('최종 수정', 'Updated At'), formatDate(item.updatedAt)],
       ],
@@ -723,7 +719,7 @@ const itemHistoryRows = computed(() => {
       time: formatDate(order.orderedAt ?? order.expectedDueDate),
       event: t('발주 유입', 'Purchase Order Received'),
       qty: formatNumber(order.orderedQty),
-      ref: display(order.poNumber ?? order.poPublicId),
+      ref: display(order.poNumber ?? '발주 문서'),
       status: display(order.poStatus ?? order.itemStatus),
       note: order.expectedDueDate ? `${t('납기', 'Due')} ${display(order.expectedDueDate)}` : '-',
     })
@@ -748,7 +744,7 @@ const itemHistoryRows = computed(() => {
       time: formatDate(item?.updatedAt),
       event: t('미디어 등록', 'Media Attached'),
       qty: `${itemMediaFiles.value.length}`,
-      ref: display(primaryMediaFile?.originalFileName ?? item?.primaryMediaFilePublicId),
+      ref: display(primaryMediaFile?.originalFileName ?? (item?.primaryMediaFilePublicId ? '대표 미디어 있음' : '-')),
       status: t('활성', 'Active'),
       note: t('대표 이미지/동영상 연결', 'Primary image/video linked'),
     })
@@ -804,7 +800,7 @@ const heroMetrics = computed<DetailMetric[]>(() => {
 
   if (kind.value === 'orders') {
     return [
-      { label: '상태', value: display(item.poStatus), tone: statusTone.value },
+      { label: '상태', value: displayStatus(item.poStatus), tone: statusTone.value },
       { label: '발주일', value: formatDate(item.orderedAt) },
       { label: '거래처', value: display(item.supplierName) },
       { label: '총 금액', value: formatAmount(item.totalAmount, item.currencyCode) },
@@ -813,8 +809,8 @@ const heroMetrics = computed<DetailMetric[]>(() => {
 
   if (kind.value === 'shipments') {
     return [
-      { label: '운송 상태', value: display(item.status), tone: statusTone.value },
-      { label: '현재 거점', value: display(item.currentNodeName ?? item.currentNodeCode ?? item.currentNodePublicId) },
+      { label: '운송 상태', value: displayStatus(item.status), tone: statusTone.value },
+      { label: '현재 거점', value: display(item.currentNodeName ?? item.currentNodeCode ?? '현재 거점') },
       { label: '출발 ETA', value: formatDate(item.departureEta) },
       { label: '도착 ETA', value: formatDate(related.value.eta?.estimatedArrivalAt ?? item.arrivalEta) },
     ]
@@ -822,17 +818,17 @@ const heroMetrics = computed<DetailMetric[]>(() => {
 
   if (kind.value === 'returns') {
     return [
-      { label: '판정', value: display(item.returnStatus), tone: statusTone.value },
-      { label: '반품 유형', value: display(item.returnType) },
-      { label: '요청 조직', value: display(item.requestOrganizationName ?? item.requestOrganizationPublicId) },
-      { label: '대상 조직', value: display(item.targetOrganizationName ?? item.targetOrganizationPublicId) },
+      { label: '판정', value: displayReturnStatus(item.returnStatus), tone: statusTone.value },
+      { label: '반품 유형', value: displayReturnType(item.returnType) },
+      { label: '요청 조직', value: display(item.requestOrganizationName ?? '요청 조직') },
+      { label: '대상 조직', value: display(item.targetOrganizationName ?? '대상 조직') },
     ]
   }
 
   if (kind.value === 'inventory') {
     return [
       { label: '품목', value: display(item.itemName ?? item.itemCode) },
-      { label: '상태', value: display(item.status), tone: statusTone.value },
+      { label: '상태', value: displayStatus(item.status), tone: statusTone.value },
       { label: '잔여 수량', value: formatNumber(item.remainingQty), meta: 'EA' },
       { label: '주문 가능', value: formatNumber(item.availableQty), meta: 'EA' },
     ]
@@ -843,14 +839,14 @@ const heroMetrics = computed<DetailMetric[]>(() => {
       { label: '품목 코드', value: display(item.itemCode) },
       { label: '단위', value: display(item.unit) },
       { label: '공급사', value: display(item.supplierName) },
-      { label: '상태', value: display(item.status), tone: statusTone.value },
+      { label: '상태', value: displayItemStatus(item.status), tone: statusTone.value },
     ]
   }
 
   if (kind.value === 'suppliers') {
     return [
       { label: '협력사 코드', value: display(item.supplierCode) },
-      { label: '상태', value: display(item.supplierStatus), tone: statusTone.value },
+      { label: '상태', value: displayStatus(item.supplierStatus), tone: statusTone.value },
       { label: '담당자', value: display(item.primaryContactName) },
       { label: '연락처', value: display(item.primaryContactPhone) },
     ]
@@ -867,8 +863,8 @@ const heroMetrics = computed<DetailMetric[]>(() => {
 
   if (kind.value === 'settlements') {
     return [
-      { label: '정산 상태', value: display(item.settlementStatus), tone: statusTone.value },
-      { label: '대상 유형', value: display(item.targetType) },
+      { label: '정산 상태', value: displayStatus(item.settlementStatus), tone: statusTone.value },
+      { label: '대상 유형', value: displayStatus(item.targetType) },
       { label: '기간', value: `${item.settlementPeriodStart ?? '-'} ~ ${item.settlementPeriodEnd ?? '-'}` },
       { label: '금액', value: formatAmount(item.amount, item.currencyCode) },
     ]
@@ -877,7 +873,7 @@ const heroMetrics = computed<DetailMetric[]>(() => {
   return [
     { label: '인증 번호', value: display(item.certificateNo) },
     { label: '인증 유형', value: display(item.certificateTypeName ?? item.certificateTypeCode) },
-    { label: '상태', value: display(item.certificateStatus), tone: statusTone.value },
+    { label: '상태', value: displayStatus(item.certificateStatus), tone: statusTone.value },
     { label: '만료일', value: display(item.expiredAt) },
   ]
 })
@@ -898,7 +894,7 @@ const processSteps = computed<DetailStep[]>(() => {
     return [
       { label: '요청 생성', meta: formatDate(item?.createdAt), state: 'done' },
       { label: '검수', meta: display(item?.reason), state: current.includes('REQUEST') ? 'active' : 'done' },
-      { label: '승인/거절', meta: display(item?.returnStatus), state: statusTone.value === 'critical' ? 'critical' : statusTone.value === 'success' ? 'done' : 'active' },
+      { label: '승인/거절', meta: displayReturnStatus(item?.returnStatus), state: statusTone.value === 'critical' ? 'critical' : statusTone.value === 'success' ? 'done' : 'active' },
       { label: '완료', meta: formatDate(item?.updatedAt), state: current.includes('COMPLETE') ? 'done' : 'pending' },
     ]
   }
@@ -907,8 +903,8 @@ const processSteps = computed<DetailStep[]>(() => {
     return [
       { label: '발주 생성', meta: formatDate(item?.createdAt ?? item?.orderedAt), state: 'done' },
       { label: '협력사 확인', meta: display(item?.supplierName), state: current.includes('CREATED') ? 'active' : 'done' },
-      { label: '수량 확정', meta: `${lineItems.value.length} items`, state: current.includes('PARTIAL') ? 'active' : current.includes('REJECT') ? 'critical' : 'done' },
-      { label: '운영 완료', meta: display(item?.poStatus), state: current.includes('COMPLETE') ? 'done' : 'pending' },
+      { label: '수량 확정', meta: `${lineItems.value.length}건`, state: current.includes('PARTIAL') ? 'active' : current.includes('REJECT') ? 'critical' : 'done' },
+      { label: '운영 완료', meta: displayStatus(item?.poStatus), state: current.includes('COMPLETE') ? 'done' : 'pending' },
     ]
   }
 
@@ -937,20 +933,20 @@ const recommendationRows = computed(() => {
   if (kind.value === 'orders') {
     return [
       ['품목 수', `${lineItems.value.length}건`],
-      ['거래처 상태', data.value?.supplierStatus ?? '-'],
+      ['거래처 상태', displayStatus(data.value?.supplierStatus)],
       ['권장 조치', statusTone.value === 'warning' ? '협력사 응답 및 확정 수량 확인' : '발주 품목 상태 확인'],
     ]
   }
   if (kind.value === 'returns') {
     return [
       ['반품 사유', data.value?.reason ?? '-'],
-      ['처리 방식', data.value?.resolutionType ?? '-'],
+      ['처리 방식', displayResolutionType(data.value?.resolutionType)],
       ['권장 조치', '검수 결과와 후속 체크리스트 확인'],
     ]
   }
   return [
-    ['식별자', publicId.value],
-    ['상태', status.value || '-'],
+    ['상세 구분', config.value.title],
+    ['상태', displayStatus(status.value)],
     ['권장 조치', '상세 필드와 관련 항목 확인'],
   ]
 })
@@ -964,7 +960,7 @@ const sections = computed<DetailSection[]>(() => {
       section('기본 정보', [
         ['발주번호', item.poNumber],
         ['거래처', item.supplierName],
-        ['상태', item.poStatus],
+        ['상태', displayStatus(item.poStatus)],
         ['발주일', formatDate(item.orderedAt)],
         ['총 금액', formatAmount(item.totalAmount, item.currencyCode)],
         ['메모', item.memo],
@@ -976,15 +972,15 @@ const sections = computed<DetailSection[]>(() => {
     return [
       section('기본 정보', [
         ['출하번호', item.shipmentNumber],
-        ['상태', item.status],
+        ['상태', displayShipmentStatus(item.status)],
         ['운송사', item.carrierName],
         ['차량번호', item.vehicleNo],
         ['출발 예정', formatDate(item.departureEta)],
         ['도착 예정', formatDate(item.arrivalEta)],
       ]),
       section('경로 정보', [
-        ['출발지', item.originNodeName ?? item.originNodePublicId],
-        ['도착지', item.destinationNodeName ?? item.destinationNodePublicId],
+        ['출발지', item.originNodeName ?? item.originNodeCode ?? '출발 물류거점'],
+        ['도착지', item.destinationNodeName ?? item.destinationNodeCode ?? '도착 물류거점'],
         ['예상 도착', formatDate(related.value.eta?.estimatedArrivalAt)],
         ['지연 시간', formatMinutes(related.value.eta?.delayMinutes)],
       ]),
@@ -994,11 +990,11 @@ const sections = computed<DetailSection[]>(() => {
   if (kind.value === 'returns') {
     return [
       section('기본 정보', [
-        ['반품번호', item.returnNumber ?? item.publicId],
-        ['상태', item.returnStatus],
-        ['요청 조직', item.requestOrganizationName ?? item.requestOrganizationPublicId],
-        ['대상 조직', item.targetOrganizationName ?? item.targetOrganizationPublicId],
-        ['반품 유형', item.returnType],
+        ['반품번호', item.returnNumber ?? '반품 요청'],
+        ['상태', displayReturnStatus(item.returnStatus)],
+        ['요청 조직', item.requestOrganizationName ?? '요청 조직'],
+        ['대상 조직', item.targetOrganizationName ?? '대상 조직'],
+        ['반품 유형', displayReturnType(item.returnType)],
         ['사유', item.reason],
       ]),
     ]
@@ -1009,7 +1005,7 @@ const sections = computed<DetailSection[]>(() => {
       section('재고 정보', [
         ['품목', item.itemName],
         ['품목코드', item.itemCode],
-        ['상태', item.status],
+        ['상태', displayStatus(item.status)],
         ['제조일', item.manufacturedDate],
         ['유통기한', item.expirationDate],
         ['초기 수량', formatNumber(item.initialQty)],
@@ -1029,7 +1025,7 @@ const sections = computed<DetailSection[]>(() => {
         ['단위', item.unit],
         ['규격', item.specification],
         ['공급사', item.supplierName],
-        ['상태', item.status],
+        ['상태', displayItemStatus(item.status)],
       ]),
     ]
   }
@@ -1039,7 +1035,7 @@ const sections = computed<DetailSection[]>(() => {
       section('협력사 정보', [
         ['협력사 코드', item.supplierCode],
         ['협력사명', item.supplierName],
-        ['상태', item.supplierStatus],
+        ['상태', displayStatus(item.supplierStatus)],
         ['담당자', item.primaryContactName],
         ['이메일', item.primaryContactEmail],
         ['연락처', item.primaryContactPhone],
@@ -1063,10 +1059,10 @@ const sections = computed<DetailSection[]>(() => {
   if (kind.value === 'settlements') {
     return [
       section('정산 정보', [
-        ['정산 ID', item.publicId],
-        ['상태', item.settlementStatus],
-        ['대상 유형', item.targetType],
-        ['대상 ID', item.targetPublicId],
+        ['정산 번호', item.settlementNumber ?? '정산 상세'],
+        ['상태', displayStatus(item.settlementStatus)],
+        ['대상 유형', displayStatus(item.targetType)],
+        ['대상', item.targetName ?? item.targetNumber ?? '정산 대상'],
         ['기간', `${item.settlementPeriodStart ?? '-'} ~ ${item.settlementPeriodEnd ?? '-'}`],
         ['금액', formatAmount(item.amount, item.currencyCode)],
       ]),
@@ -1078,12 +1074,12 @@ const sections = computed<DetailSection[]>(() => {
       ['인증서 번호', item.certificateNo],
       ['협력사', item.supplierName],
       ['인증 유형', item.certificateType?.name ?? item.certificateTypeName ?? item.certificateTypeCode],
-      ['상태', item.certificateStatus],
+      ['상태', displayStatus(item.certificateStatus)],
       ['발급일', item.issuedAt],
       ['만료일', item.expiredAt],
       ['발급기관', item.issuerName],
       ['반려 사유', item.rejectReason],
-      ['첨부 ID', item.attachmentPublicId],
+      ['첨부 파일', related.value.attachment?.files?.[0]?.originalFileName ?? (item.attachmentPublicId ? '첨부 파일 있음' : '-')],
     ]),
   ]
 })
@@ -1110,9 +1106,7 @@ const lineColumns = computed(() => {
   if (kind.value === 'suppliers') return ['품목', '등급', '리드타임', '가용 수량', '상태']
   if (kind.value === 'logistics-nodes') return ['품목', '남은 수량', '예약 수량', '상태', '유통기한']
   if (kind.value === 'certificates') {
-    return preferences.language === 'ko'
-      ? ['일시', '이전 상태', '변경 상태', '사유']
-      : ['Date', 'Before', 'After', 'Reason']
+    return ['일시', '이전 상태', '변경 상태', '사유']
   }
   return ['항목', '값', '상태']
 })
@@ -1122,36 +1116,36 @@ const detailRows = computed(() => sections.value.flatMap((item) => item.rows))
 const aiImpactRows = computed(() => {
   if (kind.value === 'orders') {
     return [
-      ['하위 발주', statusTone.value === 'critical' ? 'HIGH' : 'MEDIUM', `${lineItems.value.length}건 영향 가능`],
-      ['출하', statusTone.value === 'success' ? 'LOW' : 'MEDIUM', '요청 납기 기준 확인 필요'],
-      ['재고', 'MEDIUM', '품목별 가용 수량 확인'],
-      ['협력사 영향', statusTone.value === 'warning' ? 'HIGH' : 'MEDIUM', display(data.value?.supplierName)],
+      ['하위 발주', statusTone.value === 'critical' ? '높음' : '보통', `${lineItems.value.length}건 영향 가능`],
+      ['출하', statusTone.value === 'success' ? '낮음' : '보통', '요청 납기 기준 확인 필요'],
+      ['재고', '보통', '품목별 가용 수량 확인'],
+      ['협력사 영향', statusTone.value === 'warning' ? '높음' : '보통', display(data.value?.supplierName)],
     ]
   }
 
   if (kind.value === 'shipments') {
     return [
-      ['배송 지연', statusTone.value === 'critical' ? 'HIGH' : 'MEDIUM', formatMinutes(related.value.eta?.delayMinutes)],
-      ['영향 발주', 'MEDIUM', `${lineItems.value.length}건`],
-      ['재고', 'LOW', '입고 일정 확인'],
-      ['고객 영향', statusTone.value === 'critical' ? 'HIGH' : 'MEDIUM', display(data.value?.destinationNodeName)],
+      ['배송 지연', statusTone.value === 'critical' ? '높음' : '보통', formatMinutes(related.value.eta?.delayMinutes)],
+      ['영향 발주', '보통', `${lineItems.value.length}건`],
+      ['재고', '낮음', '입고 일정 확인'],
+      ['고객 영향', statusTone.value === 'critical' ? '높음' : '보통', display(data.value?.destinationNodeName)],
     ]
   }
 
   if (kind.value === 'returns') {
     return [
-      ['검수', statusTone.value === 'critical' ? 'HIGH' : 'MEDIUM', display(data.value?.reason)],
-      ['교체 출고', 'MEDIUM', '가용 재고 확인'],
-      ['환불', 'LOW', display(data.value?.resolutionType)],
-      ['고객 영향', statusTone.value === 'critical' ? 'HIGH' : 'MEDIUM', display(data.value?.targetOrganizationName)],
+      ['검수', statusTone.value === 'critical' ? '높음' : '보통', display(data.value?.reason)],
+      ['교체 출고', '보통', '가용 재고 확인'],
+      ['환불', '낮음', displayResolutionType(data.value?.resolutionType)],
+      ['고객 영향', statusTone.value === 'critical' ? '높음' : '보통', display(data.value?.targetOrganizationName)],
     ]
   }
 
   return [
-    ['운영 상태', statusTone.value === 'critical' ? 'HIGH' : statusTone.value === 'success' ? 'LOW' : 'MEDIUM', display(status.value)],
-    ['관련 항목', 'MEDIUM', `${lineItems.value.length}건`],
-    ['데이터 품질', 'LOW', '필수 필드 확인'],
-    ['후속 조치', 'MEDIUM', '담당자 검토'],
+    ['운영 상태', statusTone.value === 'critical' ? '높음' : statusTone.value === 'success' ? '낮음' : '보통', displayStatus(status.value)],
+    ['관련 항목', '보통', `${lineItems.value.length}건`],
+    ['데이터 품질', '낮음', '필수 필드 확인'],
+    ['후속 조치', '보통', '담당자 검토'],
   ]
 })
 
@@ -1182,9 +1176,62 @@ function display(value: unknown) {
   return String(value)
 }
 
+const statusTextMap: Record<string, string> = {
+  ACTIVE: '활성',
+  INACTIVE: '비활성',
+  DEACTIVE: '비활성',
+  DELETE: '삭제',
+  AVAILABLE: '사용 가능',
+  EMPTY: '여유',
+  FULL: '가득 참',
+  HIGH: '높음',
+  MEDIUM: '보통',
+  LOW: '낮음',
+  CREATED: '생성됨',
+  READY: '준비',
+  PENDING: '대기',
+  OPEN: '진행 중',
+  APPROVED: '승인됨',
+  CONFIRMED: '확정됨',
+  PARTIALLY_CONFIRMED: '부분 확정',
+  COMPLETED: '완료',
+  COMPLETE: '완료',
+  REJECTED: '반려됨',
+  CANCELLED: '취소됨',
+  CANCELED: '취소됨',
+  DELAYED: '지연',
+  DEPARTED: '출발',
+  ARRIVED: '도착',
+  IN_TRANSIT: '운송 중',
+  EXPIRED: '만료됨',
+  VALID: '유효',
+  SHORTAGE: '부족',
+  NORMAL: '정상',
+  WARNING: '주의',
+  SAFE: '안전',
+  FAILED: '실패',
+  REVIEW: '검토',
+  RETURN: '반품',
+  EXCHANGE: '교환',
+  DISPOSAL: '폐기',
+}
+
+const displayStatus = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return '-'
+  const statusValue = String(value).toUpperCase()
+  return statusTextMap[statusValue] ?? display(value)
+}
+
+const riskClass = (value: unknown) => {
+  const text = String(value)
+  if (text === '높음') return 'high'
+  if (text === '보통') return 'medium'
+  if (text === '낮음') return 'low'
+  return text.toLowerCase()
+}
+
 function displayItemStatus(value: unknown) {
   const statusValue = String(value || '').toUpperCase()
-  if (preferences.language !== 'ko') return display(value)
   if (statusValue === 'ACTIVE') return '활성'
   if (statusValue === 'DEACTIVE') return '비활성'
   if (statusValue === 'DELETE') return '삭제'
@@ -1193,7 +1240,6 @@ function displayItemStatus(value: unknown) {
 
 function displayLogisticsCapacityStatus(value: unknown) {
   const statusValue = String(value || '').toUpperCase()
-  if (preferences.language !== 'ko') return display(value)
   if (statusValue === 'AVAILABLE') return '사용 가능'
   if (statusValue === 'EMPTY') return '여유'
   if (statusValue === 'FULL') return '가득 참'
@@ -1201,13 +1247,12 @@ function displayLogisticsCapacityStatus(value: unknown) {
 }
 
 function displayLogisticsActiveStatus(value: unknown) {
-  if (preferences.language !== 'ko') return value ? 'ACTIVE' : 'INACTIVE'
   return value ? '활성' : '비활성'
 }
 
 function formatNumber(value: unknown) {
   return typeof value === 'number'
-    ? value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')
+    ? value.toLocaleString('ko-KR')
     : display(value)
 }
 
@@ -1268,9 +1313,9 @@ function formatShortId(publicId: unknown) {
   return str
 }
 
-function formatAmount(value: unknown, currency?: string) {
+function formatAmount(value: unknown, _currency?: string) {
   if (typeof value !== 'number') return display(value)
-  return `${currency ?? ''} ${value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')}`.trim()
+  return `${value.toLocaleString('ko-KR')}원`
 }
 
 function formatDate(value: unknown) {
@@ -1293,7 +1338,6 @@ function formatShipmentEta(value: unknown) {
 
 function displayShipmentStatus(value: unknown) {
   const statusValue = String(value || '').toUpperCase()
-  if (preferences.language !== 'ko') return display(value)
   if (statusValue === 'DEPARTED') return '출발'
   if (statusValue === 'ARRIVED') return '도착'
   if (statusValue === 'DELAYED') return '지연'
@@ -1328,44 +1372,44 @@ function lineCell(row: any, index: number) {
       formatNumber(row.orderedQty),
       display(row.confirmedQty),
       formatAmount(row.lineAmount),
-      row.itemStatus ?? row.lineStatus,
+      displayStatus(row.itemStatus ?? row.lineStatus),
     ][index]
   }
   if (kind.value === 'shipments' || kind.value === 'returns') {
     return [
       formatDate(row.recordedAt ?? row.createdAt),
-      row.statusCode ?? row.returnStatus,
-      row.location ?? row.processedByUserPublicId,
+      kind.value === 'returns' ? displayReturnStatus(row.statusCode ?? row.returnStatus) : displayShipmentStatus(row.statusCode ?? row.returnStatus),
+      row.location ?? formatActor(row.processedByUserPublicId),
       row.memo ?? row.description,
     ][index]
   }
   if (kind.value === 'settlements') {
-    return [row.itemId, formatNumber(row.qty), formatAmount(row.unitPrice), formatAmount(row.amount), row.detailStatus][index]
+    return [row.itemName ?? row.itemCode ?? '정산 품목', formatNumber(row.qty), formatAmount(row.unitPrice), formatAmount(row.amount), displayStatus(row.detailStatus)][index]
   }
   if (kind.value === 'items') {
-    return [row.poNumber, row.supplierName, formatNumber(row.orderedQty), row.poStatus, row.expectedDueDate][index]
+    return [row.poNumber, row.supplierName, formatNumber(row.orderedQty), displayStatus(row.poStatus), row.expectedDueDate][index]
   }
   if (kind.value === 'suppliers') {
-    return [row.itemName, row.qualityGrade, row.leadTimeDays, formatNumber(row.availableQty), row.status][index]
+    return [row.itemName, row.qualityGrade, row.leadTimeDays, formatNumber(row.availableQty), displayStatus(row.status)][index]
   }
   if (kind.value === 'logistics-nodes') {
     return [
       row.itemName ?? row.itemCode,
       formatNumber(row.remainingQty),
       formatNumber(row.reservedQty),
-      row.status,
+      displayStatus(row.status),
       row.expirationDate,
     ][index]
   }
   if (kind.value === 'certificates') {
     return [
       formatDate(row.recordedAt),
-      row.beforeStatus ?? '-',
-      row.afterStatus ?? row.actionType ?? '-',
+      displayStatus(row.beforeStatus),
+      displayStatus(row.afterStatus ?? row.actionType),
       row.reason ?? '-',
     ][index]
   }
-  return [row.publicId ?? row.id ?? '-', row.name ?? row.itemName ?? row.status ?? '-', row.status ?? '-'][index]
+  return [row.name ?? row.itemName ?? '상세 항목', row.name ?? row.itemName ?? displayStatus(row.status), displayStatus(row.status)][index]
 }
 
 async function handleAcceptOrder() {
@@ -1826,11 +1870,11 @@ watch(
                 <p>{{ detailLabel }}</p>
                 <h2>{{ title }}</h2>
               </div>
-              <span :class="['operation-detail-page__status', `is-${statusTone}`]">{{ status || 'CONFIRMED' }}</span>
+              <span :class="['operation-detail-page__status', `is-${statusTone}`]">{{ displayStatus(status || 'CONFIRMED') }}</span>
               <dl>
                 <div><dt>{{ detailCopy.order.orderDate }}</dt><dd>{{ formatDate(data.orderedAt ?? data.createdAt) }}</dd></div>
                 <div><dt>{{ detailCopy.order.requestedDue }}</dt><dd>{{ display(orderItems[0]?.expectedDueDate) }}</dd></div>
-                <div><dt>{{ detailCopy.order.currency }}</dt><dd>{{ display(data.currencyCode ?? 'KRW') }}</dd></div>
+                <div><dt>{{ detailCopy.order.currency }}</dt><dd>원화</dd></div>
                 <div><dt>{{ detailCopy.order.totalAmount }}</dt><dd>{{ formatAmount(data.totalAmount, data.currencyCode) }}</dd></div>
               </dl>
             </article>
@@ -1838,13 +1882,13 @@ watch(
             <article class="operation-detail-page__domain-card">
               <h3>{{ detailCopy.order.basicInfo }}</h3>
               <dl class="operation-detail-page__kv-grid is-two-col">
-                <div><dt>{{ detailCopy.order.buyerOrg }}</dt><dd>{{ display(data.buyerOrganizationPublicId) }}</dd></div>
-                <div><dt>{{ detailCopy.order.docType }}</dt><dd>STANDARD PO</dd></div>
+                <div><dt>{{ detailCopy.order.buyerOrg }}</dt><dd>{{ display(data.buyerOrganizationName ?? '구매 조직') }}</dd></div>
+                <div><dt>{{ detailCopy.order.docType }}</dt><dd>표준 발주</dd></div>
                 <div><dt>{{ detailCopy.order.supplier }}</dt><dd>{{ display(data.supplierName) }}</dd></div>
                 <div><dt>{{ detailCopy.order.shipTo }}</dt><dd>{{ display(orderItems[0]?.arrivalLogisticsNodeName ?? orderItems[0]?.arrivalLogisticsNodeAddress) }}</dd></div>
-                <div><dt>{{ detailCopy.order.owner }}</dt><dd>{{ display(data.createdByUserPublicId) }}</dd></div>
-                <div><dt>{{ detailCopy.order.shippingMethod }}</dt><dd>SEA</dd></div>
-                <div><dt>{{ detailCopy.order.paymentTerms }}</dt><dd>NET 30</dd></div>
+                <div><dt>{{ detailCopy.order.owner }}</dt><dd>{{ formatActor(data.createdByUserPublicId) }}</dd></div>
+                <div><dt>{{ detailCopy.order.shippingMethod }}</dt><dd>해상 운송</dd></div>
+                <div><dt>{{ detailCopy.order.paymentTerms }}</dt><dd>30일 후 지급</dd></div>
                 <div><dt>{{ detailCopy.order.memo }}</dt><dd>{{ display(data.memo) }}</dd></div>
               </dl>
             </article>
@@ -1852,7 +1896,7 @@ watch(
             <article class="operation-detail-page__domain-card">
               <h3>{{ detailCopy.order.items }} ({{ orderItems.length }})</h3>
               <table class="operation-detail-page__domain-table">
-                <thead><tr><th>NO</th><th>ITEM CODE</th><th>ITEM NAME</th><th>SPEC</th><th>UNIT</th><th>{{ detailCopy.common.qty }}</th><th>UNIT PRICE</th><th>{{ detailCopy.common.amount }}</th><th>{{ detailCopy.order.requestedDue }}</th></tr></thead>
+                <thead><tr><th>번호</th><th>품목 코드</th><th>품목명</th><th>규격</th><th>단위</th><th>{{ detailCopy.common.qty }}</th><th>단가</th><th>{{ detailCopy.common.amount }}</th><th>{{ detailCopy.order.requestedDue }}</th></tr></thead>
                 <tbody>
                   <tr v-for="(item, index) in orderItems" :key="rowKey(item, index)">
                     <td>{{ index + 1 }}</td>
@@ -1875,7 +1919,7 @@ watch(
                 <tbody>
                   <tr><th>{{ detailCopy.order.requestedDueChange }}</th><td>{{ display(orderItems[0]?.expectedDueDate) }}</td><td>→</td><td>2026-05-20</td><td>{{ detailCopy.order.dueChangeReason }}</td></tr>
                   <tr><th>{{ detailCopy.order.quantityChange }}</th><td>{{ formatNumber(orderItems.reduce((sum: number, item: any) => sum + Number(item.orderedQty ?? 0), 0)) }}</td><td>→</td><td>1,500</td><td>{{ detailCopy.order.qtyChangeReason }}</td></tr>
-                  <tr><th>{{ detailCopy.order.paymentTermsChange }}</th><td>NET 30</td><td>→</td><td>NET 30</td><td>-</td></tr>
+                  <tr><th>{{ detailCopy.order.paymentTermsChange }}</th><td>30일 후 지급</td><td>→</td><td>30일 후 지급</td><td>-</td></tr>
                 </tbody>
               </table>
             </article>
@@ -1912,10 +1956,10 @@ watch(
           <aside class="operation-detail-page__analysis-panel">
             <div class="operation-detail-page__panel-head"><h2>{{ detailCopy.order.aiTitle }}</h2><span>×</span></div>
             <div class="operation-detail-page__risk-band"><span>{{ detailCopy.order.risk }}</span><strong>{{ riskLevel }}</strong><p>{{ aiSummary }}</p></div>
-            <div class="operation-detail-page__impact-row"><strong>{{ detailCopy.order.subOrders }}</strong><span>HIGH</span><small>{{ detailCopy.order.impactCount(3) }}</small></div>
-            <div class="operation-detail-page__impact-row"><strong>{{ detailCopy.order.shipments }}</strong><span>HIGH</span><small>{{ detailCopy.order.impactCount(2) }}</small></div>
-            <div class="operation-detail-page__impact-row"><strong>{{ detailCopy.order.inventory }}</strong><span>MEDIUM</span><small>{{ detailCopy.order.impactCount(5) }}</small></div>
-            <div class="operation-detail-page__impact-row"><strong>{{ detailCopy.order.supplierImpact }}</strong><span>MEDIUM</span><small>{{ detailCopy.order.impactCount(2) }}</small></div>
+            <div class="operation-detail-page__impact-row"><strong>{{ detailCopy.order.subOrders }}</strong><span>높음</span><small>{{ detailCopy.order.impactCount(3) }}</small></div>
+            <div class="operation-detail-page__impact-row"><strong>{{ detailCopy.order.shipments }}</strong><span>높음</span><small>{{ detailCopy.order.impactCount(2) }}</small></div>
+            <div class="operation-detail-page__impact-row"><strong>{{ detailCopy.order.inventory }}</strong><span>보통</span><small>{{ detailCopy.order.impactCount(5) }}</small></div>
+            <div class="operation-detail-page__impact-row"><strong>{{ detailCopy.order.supplierImpact }}</strong><span>보통</span><small>{{ detailCopy.order.impactCount(2) }}</small></div>
             <section><h3>{{ detailCopy.order.aiSummaryTitle }}</h3><p>{{ detailCopy.order.aiSummaryText }}</p></section>
             <section><h3>{{ detailCopy.order.communicationDraft }}</h3><p>{{ detailCopy.order.communicationText }}</p></section>
           </aside>
@@ -1931,20 +1975,20 @@ watch(
               </div>
             </article>
             <article class="operation-detail-page__shipment-summary-card">
-              <span>SHIPMENT DELAY</span>
+              <span>출하 지연</span>
               <strong class="is-alert">{{ shipmentDelayEtaText }}</strong>
               <small>{{ t('지연 발생', 'Delay Detected') }}</small>
             </article>
             <article class="operation-detail-page__shipment-summary-card operation-detail-page__shipment-summary-card--nodes">
               <dl>
-                <div><dt>CURRENT NODE</dt><dd>{{ display(data.currentNodeName ?? data.currentNodeCode) }}</dd></div>
-                <div><dt>DESTINATION</dt><dd>{{ display(data.destinationNodeName ?? data.destinationNodeCode) }}</dd></div>
+                <div><dt>현재 거점</dt><dd>{{ display(data.currentNodeName ?? data.currentNodeCode) }}</dd></div>
+                <div><dt>목적지</dt><dd>{{ display(data.destinationNodeName ?? data.destinationNodeCode) }}</dd></div>
               </dl>
             </article>
             <article class="operation-detail-page__shipment-summary-card operation-detail-page__shipment-summary-card--eta">
               <dl>
-                <div><dt>DEPARTURE ETA</dt><dd>{{ shipmentDepartureEta }}</dd></div>
-                <div><dt>ARRIVAL ETA</dt><dd>{{ shipmentArrivalEta }}</dd></div>
+                <div><dt>출발 예정</dt><dd>{{ shipmentDepartureEta }}</dd></div>
+                <div><dt>도착 예정</dt><dd>{{ shipmentArrivalEta }}</dd></div>
               </dl>
             </article>
           </section>
@@ -1955,7 +1999,7 @@ watch(
                 <h3>{{ t('출하 경로 및 지연 현황', 'Shipment Route and Delay Status') }}</h3>
                 <table class="operation-detail-page__shipment-table">
                   <thead>
-                    <tr><th>SEQ</th><th>NODE</th><th>{{ t('도착 ETA', 'Arrival ETA') }}</th><th>{{ t('지연 (분)', 'Delay (Min)') }}</th><th>{{ detailCopy.common.status }}</th><th>{{ t('관련 발주', 'Related Order') }}</th></tr>
+                    <tr><th>순번</th><th>거점</th><th>{{ t('도착 ETA', 'Arrival ETA') }}</th><th>{{ t('지연 (분)', 'Delay (Min)') }}</th><th>{{ detailCopy.common.status }}</th><th>{{ t('관련 발주', 'Related Order') }}</th></tr>
                   </thead>
                   <tbody>
                     <tr v-for="row in shipmentPathRows" :key="row.seq">
@@ -2027,14 +2071,14 @@ watch(
         <main v-else-if="kind === 'returns'" class="operation-detail-page__document-grid">
           <section class="operation-detail-page__document-main">
             <article class="operation-detail-page__doc-hero">
-              <div><p>RETURN REQUEST</p><h2>{{ title }}</h2></div>
-              <span :class="['operation-detail-page__status', `is-${statusTone}`]">{{ status || 'REJECTED' }}</span>
+              <div><p>반품 요청</p><h2>{{ title }}</h2></div>
+              <span :class="['operation-detail-page__status', `is-${statusTone}`]">{{ displayReturnStatus(status || 'REJECTED') }}</span>
               <dl>
                 <div><dt>{{ t('요청일시', 'Requested At') }}</dt><dd>{{ formatDate(data.requestedAt ?? data.createdAt) }}</dd></div>
                 <div><dt>{{ t('요청자', 'Requester') }}</dt><dd>{{ formatActor(data.createdByUserPublicId) }}</dd></div>
-                <div><dt>{{ t('원출하', 'Source Shipment') }}</dt><dd>{{ display(related.sourceShipment?.shipmentNumber ?? formatShortId(data.sourceShipmentPublicId)) }}</dd></div>
+                <div><dt>{{ t('원출하', 'Source Shipment') }}</dt><dd>{{ display(related.sourceShipment?.shipmentNumber ?? (data.sourceShipmentPublicId ? '원출하 정보' : '-')) }}</dd></div>
                 <div><dt>{{ t('사유 코드', 'Reason Code') }}</dt><dd>{{ displayReturnType(data.returnType) }}</dd></div>
-                <div><dt>{{ t('우선순위', 'Priority') }}</dt><dd>HIGH</dd></div>
+                <div><dt>{{ t('우선순위', 'Priority') }}</dt><dd>높음</dd></div>
                 <div><dt>{{ t('처리 방식', 'Resolution Type') }}</dt><dd>{{ displayResolutionType(data.resolutionType) }}</dd></div>
               </dl>
             </article>
@@ -2048,7 +2092,7 @@ watch(
               <h3>{{ t('반품 품목 및 클레임 정보', 'Return Items and Claims') }}</h3>
               <table class="operation-detail-page__domain-table">
                 <thead><tr><th>#</th><th>{{ t('품목 코드', 'Item Code') }}</th><th>{{ t('품목명', 'Item Name') }}</th><th>{{ t('반품 수량', 'Return Qty') }}</th><th>{{ t('단위', 'Unit') }}</th><th>{{ t('클레임 사유', 'Claim Reason') }}</th><th>{{ t('판정', 'Decision') }}</th></tr></thead>
-                <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemCode ?? formatShortId(item.itemPublicId)) }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason) }}</td><td>{{ display(item.itemStatus) }}</td></tr></tbody>
+                <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemCode ?? '품목 코드 없음') }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason) }}</td><td>{{ displayStatus(item.itemStatus) }}</td></tr></tbody>
               </table>
             </article>
             <article class="operation-detail-page__domain-card">
@@ -2093,17 +2137,17 @@ watch(
 
         <main v-else-if="kind === 'suppliers'" class="operation-detail-page__document-grid">
           <section class="operation-detail-page__document-main">
-            <article class="operation-detail-page__supplier-head"><div><p>SUPPLIER DETAIL</p><h2>{{ display(data.supplierName) }}</h2></div><dl><div><dt>SUPPLIER PUBLIC ID</dt><dd>{{ publicId }}</dd></div><div><dt>BUSINESS TYPE</dt><dd>FOOD_MANUFACTURER</dd></div><div><dt>COUNTRY</dt><dd>KOREA</dd></div><div><dt>RISK SCORE</dt><dd>72 / 100 <span class="operation-detail-page__chip is-high">HIGH RISK</span></dd></div><div><dt>LAST UPDATED</dt><dd>{{ formatDate(data.updatedAt) }}</dd></div></dl></article>
-            <section class="operation-detail-page__metric-row"><div><span>SUPPLIER GRADE</span><strong>B</strong></div><div><span>ESG SCORE</span><strong>68 / 100</strong></div><div><span>ON-TIME DELIVERY</span><strong>92.1%</strong></div><div><span>QUALITY SCORE</span><strong>84 / 100</strong></div><div><span>ACTIVE ORDERS</span><strong>{{ t('12건', '12') }}</strong></div></section>
-            <article class="operation-detail-page__domain-card"><h3>CERTIFICATE STATUS</h3><table class="operation-detail-page__domain-table"><thead><tr><th>CERTIFICATE NAME</th><th>CERTIFICATE NO.</th><th>ISSUED DATE</th><th>EXPIRY DATE</th><th>STATUS</th><th>RISK LEVEL</th><th>DAYS LEFT</th><th>ACTIONS</th></tr></thead><tbody><tr v-for="row in supplierCertificateRows" :key="row[1]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.relatedDocuments }}</button></td></tr></tbody></table></article>
-            <article class="operation-detail-page__domain-card"><h3>RISK EVENT TIMELINE</h3><table class="operation-detail-page__domain-table"><tbody><tr><td>2026.04.28 10:15</td><td>CERTIFICATE EXPIRING</td><td>{{ t('HACCP 인증 만료 12일 전', 'HACCP expires in 12 days') }}</td><td>MEDIUM</td><td>CERTIFICATE SERVICE</td></tr><tr><td>2026.04.28 09:02</td><td>CERTIFICATE EXPIRED</td><td>{{ t('ISO9001 인증 만료', 'ISO9001 certificate expired') }}</td><td>HIGH</td><td>CERTIFICATE SERVICE</td></tr><tr><td>2026.04.25 14:11</td><td>RISK SCORE UPDATED</td><td>{{ t('리스크 점수 72점으로 변경', 'Risk score changed to 72') }}</td><td>MEDIUM</td><td>RISK ENGINE</td></tr></tbody></table></article>
+            <article class="operation-detail-page__supplier-head"><div><p>협력사 상세</p><h2>{{ display(data.supplierName) }}</h2></div><dl><div><dt>협력사 코드</dt><dd>{{ display(data.supplierCode ?? data.supplierName ?? '협력사') }}</dd></div><div><dt>업종</dt><dd>식품 제조</dd></div><div><dt>국가</dt><dd>대한민국</dd></div><div><dt>리스크 점수</dt><dd>72 / 100 <span class="operation-detail-page__chip is-high">고위험</span></dd></div><div><dt>최종 수정</dt><dd>{{ formatDate(data.updatedAt) }}</dd></div></dl></article>
+            <section class="operation-detail-page__metric-row"><div><span>협력사 등급</span><strong>B</strong></div><div><span>ESG 점수</span><strong>68 / 100</strong></div><div><span>정시 납품률</span><strong>92.1%</strong></div><div><span>품질 점수</span><strong>84 / 100</strong></div><div><span>활성 발주</span><strong>{{ t('12건', '12') }}</strong></div></section>
+            <article class="operation-detail-page__domain-card"><h3>인증서 상태</h3><table class="operation-detail-page__domain-table"><thead><tr><th>인증명</th><th>인증서 번호</th><th>발급일</th><th>만료일</th><th>상태</th><th>위험도</th><th>잔여일</th><th>작업</th></tr></thead><tbody><tr v-for="row in supplierCertificateRows" :key="row[1]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.relatedDocuments }}</button></td></tr></tbody></table></article>
+            <article class="operation-detail-page__domain-card"><h3>리스크 이벤트 이력</h3><table class="operation-detail-page__domain-table"><tbody><tr><td>2026.04.28 10:15</td><td>인증 만료 임박</td><td>{{ t('HACCP 인증 만료 12일 전', 'HACCP expires in 12 days') }}</td><td>보통</td><td>인증 서비스</td></tr><tr><td>2026.04.28 09:02</td><td>인증 만료</td><td>{{ t('ISO9001 인증 만료', 'ISO9001 certificate expired') }}</td><td>높음</td><td>인증 서비스</td></tr><tr><td>2026.04.25 14:11</td><td>리스크 점수 변경</td><td>{{ t('리스크 점수 72점으로 변경', 'Risk score changed to 72') }}</td><td>보통</td><td>리스크 엔진</td></tr></tbody></table></article>
           </section>
-          <aside class="operation-detail-page__analysis-panel"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 인증 리스크 요약', 'AI Certification Risk Summary') }}</h2><small>MODEL: ATLAS-RISK-1.0</small></div><div class="operation-detail-page__risk-band"><span>{{ t('종합 판단', 'Overall Decision') }}</span><strong>HIGH RISK</strong><p>{{ t('핵심 인증 만료로 품질 경영 체계 유효성이 상실되었습니다.', 'Core certification expiry invalidates the quality management system.') }}</p></div><section><h3>{{ t('비즈니스 영향 요약', 'Business Impact Summary') }}</h3><ul><li>{{ t('품질/식품안전 규정 준수 위험 증가', 'Quality and food-safety compliance risk increased') }}</li><li>{{ t('납품 중단 가능성 및 리콜 리스크 상승', 'Supply disruption and recall risk increased') }}</li><li>{{ t('고객사 감사 대응 시 컴플라이언스 이슈 발생 가능', 'Compliance issues may arise during customer audits') }}</li></ul></section><section><h3>{{ t('권장 액션 (AI)', 'Recommended Actions (AI)') }}</h3><ol><li>{{ t('ISO9001 갱신 상태 확인 및 갱신 일정 제출 요청', 'Request ISO9001 renewal status and schedule') }}</li><li>{{ t('대체 공급처 검토 및 위험 계획 수립', 'Review alternate suppliers and risk plan') }}</li><li>{{ t('인증 갱신 전까지 신규 발주 보류 검토', 'Review holding new orders until renewal') }}</li></ol></section><div class="operation-detail-page__action-list"><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.relatedDocuments }}</button><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.notifyOwner }}</button><button class="page-button page-button--secondary" type="button">{{ t('대체 후보 보기', 'View Alternatives') }}</button></div></aside>
+          <aside class="operation-detail-page__analysis-panel"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 인증 리스크 요약', 'AI Certification Risk Summary') }}</h2><small>모델: ATLAS-RISK-1.0</small></div><div class="operation-detail-page__risk-band"><span>{{ t('종합 판단', 'Overall Decision') }}</span><strong>고위험</strong><p>{{ t('핵심 인증 만료로 품질 경영 체계 유효성이 상실되었습니다.', 'Core certification expiry invalidates the quality management system.') }}</p></div><section><h3>{{ t('비즈니스 영향 요약', 'Business Impact Summary') }}</h3><ul><li>{{ t('품질/식품안전 규정 준수 위험 증가', 'Quality and food-safety compliance risk increased') }}</li><li>{{ t('납품 중단 가능성 및 리콜 리스크 상승', 'Supply disruption and recall risk increased') }}</li><li>{{ t('고객사 감사 대응 시 컴플라이언스 이슈 발생 가능', 'Compliance issues may arise during customer audits') }}</li></ul></section><section><h3>{{ t('권장 액션 (AI)', 'Recommended Actions (AI)') }}</h3><ol><li>{{ t('ISO9001 갱신 상태 확인 및 갱신 일정 제출 요청', 'Request ISO9001 renewal status and schedule') }}</li><li>{{ t('대체 공급처 검토 및 위험 계획 수립', 'Review alternate suppliers and risk plan') }}</li><li>{{ t('인증 갱신 전까지 신규 발주 보류 검토', 'Review holding new orders until renewal') }}</li></ol></section><div class="operation-detail-page__action-list"><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.relatedDocuments }}</button><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.notifyOwner }}</button><button class="page-button page-button--secondary" type="button">{{ t('대체 후보 보기', 'View Alternatives') }}</button></div></aside>
         </main>
 
         <main v-else class="operation-detail-page__document-grid">
           <section class="operation-detail-page__document-main">
-            <section v-if="kind !== 'items'" class="operation-detail-page__metric-row"><div><span>TOTAL ITEMS</span><strong>1,248 EA</strong></div><div><span>TOTAL INVENTORY VALUE</span><strong>₩ 2,451,830,000</strong></div><div><span>NORMAL</span><strong>1,012</strong></div><div><span>LOW STOCK</span><strong>156</strong></div><div><span>SHORTAGE DETECTED</span><strong class="is-alert">80</strong></div></section>
+            <section v-if="kind !== 'items'" class="operation-detail-page__metric-row"><div><span>전체 품목</span><strong>1,248 EA</strong></div><div><span>전체 재고 금액</span><strong>2,451,830,000원</strong></div><div><span>정상</span><strong>1,012</strong></div><div><span>부족 임박</span><strong>156</strong></div><div><span>부족 감지</span><strong class="is-alert">80</strong></div></section>
             <article v-if="kind === 'items'" class="operation-detail-page__domain-card">
               <h3>{{ t('품목 미디어', 'Item Media') }}</h3>
               <div v-if="itemMediaFiles.length === 0" class="page-table__empty">
@@ -2164,7 +2208,7 @@ watch(
               </div>
             </article>
             <article class="operation-detail-page__domain-card">
-              <h3>{{ kind === 'items' ? t('품목 히스토리', 'ITEM HISTORY') : 'INVENTORY STATUS' }}</h3>
+              <h3>{{ kind === 'items' ? t('품목 히스토리', 'ITEM HISTORY') : '재고 상태' }}</h3>
               <table v-if="kind === 'items'" class="operation-detail-page__domain-table operation-detail-page__item-history-table">
                 <thead>
                   <tr>
@@ -2187,9 +2231,9 @@ watch(
                   </tr>
                 </tbody>
               </table>
-              <table v-else class="operation-detail-page__domain-table"><thead><tr><th>ITEM CODE</th><th>ITEM NAME</th><th>UOM</th><th>CURRENT STOCK</th><th>SAFETY STOCK</th><th>SHORTAGE QTY</th><th>STATUS</th><th>AFFECTED POs</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="row[0]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
+              <table v-else class="operation-detail-page__domain-table"><thead><tr><th>품목 코드</th><th>품목명</th><th>단위</th><th>현재 재고</th><th>안전 재고</th><th>부족 수량</th><th>상태</th><th>영향 발주</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="row[0]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
             </article>
-            <article class="operation-detail-page__domain-card"><h3>DEMAND vs SAFETY STOCK</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>Forecast demand</strong></div></article>
+            <article class="operation-detail-page__domain-card"><h3>수요 대비 안전재고</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>예측 수요</strong></div></article>
           </section>
           <div v-if="kind === 'inventory'" class="operation-detail-page__bottom-actions">
             <button class="page-button page-button--secondary" type="button" @click="goBack">
@@ -2207,7 +2251,7 @@ watch(
             </button>
           </div>
 
-          <aside class="operation-detail-page__analysis-panel is-inventory"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 재고 부족 대응', 'AI Inventory Shortage Response') }}</h2><span class="operation-detail-page__chip is-high">{{ t('안전재고 미달', 'Below Safety Stock') }}</span></div><div class="operation-detail-page__recommendation"><strong>{{ t('01 긴급 발주', '01 Urgent Order') }}</strong><span>HIGH</span><p>{{ t('필요 수량 165 EA, 권장 발주 수량 170 EA', 'Required 165 EA, recommended order 170 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('실행 계획 보기', 'View Action Plan') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('02 대체 공급처 검토', '02 Review Alternative Suppliers') }}</strong><span>MEDIUM</span><p>{{ t('공급처 3개, 필요 수량 165 EA', '3 suppliers, required 165 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('후보 공급처 보기', 'View Supplier Candidates') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('03 분할 입고', '03 Split Inbound') }}</strong><span>LOW</span><p>{{ t('분할 횟수 2회, 운송 영향 보통', '2 splits, normal logistics impact') }}</p><button class="page-button page-button--primary" type="button">{{ t('분할 계획 보기', 'View Split Plan') }}</button></div></aside>
+          <aside class="operation-detail-page__analysis-panel is-inventory"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 재고 부족 대응', 'AI Inventory Shortage Response') }}</h2><span class="operation-detail-page__chip is-high">{{ t('안전재고 미달', 'Below Safety Stock') }}</span></div><div class="operation-detail-page__recommendation"><strong>{{ t('01 긴급 발주', '01 Urgent Order') }}</strong><span>높음</span><p>{{ t('필요 수량 165 EA, 권장 발주 수량 170 EA', 'Required 165 EA, recommended order 170 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('실행 계획 보기', 'View Action Plan') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('02 대체 공급처 검토', '02 Review Alternative Suppliers') }}</strong><span>보통</span><p>{{ t('공급처 3개, 필요 수량 165 EA', '3 suppliers, required 165 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('후보 공급처 보기', 'View Supplier Candidates') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('03 분할 입고', '03 Split Inbound') }}</strong><span>낮음</span><p>{{ t('분할 횟수 2회, 운송 영향 보통', '2 splits, normal logistics impact') }}</p><button class="page-button page-button--primary" type="button">{{ t('분할 계획 보기', 'View Split Plan') }}</button></div></aside>
         </main>
       </div>
     </template>
@@ -2314,8 +2358,8 @@ watch(
               <tbody>
                 <tr v-for="(row, rowIndex) in historyRows" :key="rowKey(row, rowIndex)">
                   <td>{{ formatDate(row.createdAt ?? row.recordedAt ?? row.updatedAt) }}</td>
-                  <td>{{ row.statusCode ?? row.returnStatus ?? row.status ?? status }}</td>
-                  <td>{{ row.processedByUserPublicId ?? row.createdBy ?? '-' }}</td>
+                  <td>{{ displayStatus(row.statusCode ?? row.returnStatus ?? row.status ?? status) }}</td>
+                  <td>{{ formatActor(row.processedByUserPublicId ?? row.createdBy) }}</td>
                   <td>{{ row.memo ?? row.description ?? aiSummary }}</td>
                 </tr>
               </tbody>
@@ -2346,8 +2390,8 @@ watch(
           <article v-if="isReturnDetail && returnNextActions.length > 0" class="operation-detail-page__block operation-detail-page__return-actions">
             <h2>{{ t('상태 변경', 'Change Status') }}</h2>
             <p class="operation-detail-page__return-status-label">
-              {{ t('현재 상태', 'Current Status') }}: <strong>{{ returnStatus }}</strong>
-              <span v-if="resolutionType">({{ resolutionType }})</span>
+              {{ t('현재 상태', 'Current Status') }}: <strong>{{ displayReturnStatus(returnStatus) }}</strong>
+              <span v-if="resolutionType">({{ displayResolutionType(resolutionType) }})</span>
             </p>
             <label class="operation-detail-page__return-reason">
               <span>{{ t('사유', 'Reason') }}</span>
@@ -2372,15 +2416,15 @@ watch(
           <article class="operation-detail-page__ai-panel">
             <div class="operation-detail-page__ai-head">
               <div>
-                <p>AI ANALYSIS</p>
+                <p>AI 분석</p>
                 <h2>{{ detailCopy.common.aiAnalysis }}</h2>
               </div>
-              <span :class="['operation-detail-page__ai-status', `is-${statusTone}`]">{{ status || 'REVIEW' }}</span>
+              <span :class="['operation-detail-page__ai-status', `is-${statusTone}`]">{{ displayStatus(status || 'REVIEW') }}</span>
             </div>
 
             <div class="operation-detail-page__risk-summary">
               <span>{{ detailCopy.order.risk }}</span>
-              <strong>{{ statusTone === 'critical' ? 'HIGH' : statusTone === 'success' ? 'LOW' : 'MEDIUM' }}</strong>
+              <strong>{{ statusTone === 'critical' ? '높음' : statusTone === 'success' ? '낮음' : '보통' }}</strong>
               <p>{{ aiSummary }}</p>
             </div>
 
@@ -2389,7 +2433,7 @@ watch(
               <div class="operation-detail-page__impact-grid">
                 <div v-for="[label, level, description] in aiImpactRows" :key="label" class="operation-detail-page__impact-card">
                   <span>{{ label }}</span>
-                  <strong :class="`is-${String(level).toLowerCase()}`">{{ level }}</strong>
+                  <strong :class="`is-${riskClass(level)}`">{{ level }}</strong>
                   <small>{{ description }}</small>
                 </div>
               </div>
@@ -2482,17 +2526,17 @@ watch(
           <h3>{{ t('품목 기본 정보', 'Item Basic Info') }}</h3>
 
           <label class="operation-detail-page__edit-field">
-            <span>ITEM NAME</span>
+            <span>품목명</span>
             <input v-model="itemEditForm.itemName" type="text" />
           </label>
 
           <label class="operation-detail-page__edit-field">
-            <span>UNIT PRICE</span>
+            <span>단가</span>
             <input v-model.number="itemEditForm.unitPrice" type="number" min="0" step="0.01" />
           </label>
 
           <label class="operation-detail-page__edit-field">
-            <span>SHELF LIFE DAYS</span>
+            <span>유통기한 일수</span>
             <input v-model.number="itemEditForm.shelfLifeDays" type="number" min="0" />
           </label>
 
@@ -2505,7 +2549,7 @@ watch(
           </label>
 
           <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
-            <span>SPEC</span>
+            <span>규격</span>
             <textarea v-model="itemEditForm.spec" />
           </label>
         </section>
@@ -2608,7 +2652,7 @@ watch(
             <span>{{ t('창고 상태', 'Capacity Status') }}</span>
             <select v-model="logisticsEditForm.capacityStatus">
               <option v-for="statusOption in logisticsCapacityStatusOptions" :key="statusOption" :value="statusOption">
-                {{ display(statusOption) }}
+                {{ displayLogisticsCapacityStatus(statusOption) }}
               </option>
             </select>
           </label>

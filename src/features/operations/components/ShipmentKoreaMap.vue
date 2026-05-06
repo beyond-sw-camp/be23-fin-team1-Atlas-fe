@@ -47,7 +47,7 @@ function roleLabel(role: MarkerRole) {
     destination: { ko: '도', en: 'D' },
   }
 
-  return labels[role][props.language]
+  return labels[role].ko
 }
 
 function roleTitle(role: MarkerRole) {
@@ -57,7 +57,7 @@ function roleTitle(role: MarkerRole) {
     destination: { ko: '도착 창고', en: 'Destination' },
   }
 
-  return labels[role][props.language]
+  return labels[role].ko
 }
 
 function shortShipmentNumber(value: string) {
@@ -280,7 +280,7 @@ onMounted(async () => {
     map.on('styledata', renderMapData)
   } catch (error) {
     console.error('Failed to initialize shipment Korea map:', error)
-    loadError.value = props.language === 'ko' ? '지도를 불러오지 못했습니다.' : 'Failed to load map.'
+    loadError.value = '지도를 불러오지 못했습니다.'
   }
 })
 
@@ -307,9 +307,9 @@ onBeforeUnmount(() => {
   <div class="shipment-korea-map">
     <div ref="mapElement" class="shipment-korea-map__canvas" />
     <div class="shipment-korea-map__legend">
-      <span><i class="is-origin" /> {{ language === 'ko' ? '출발' : 'Origin' }}</span>
-      <span><i class="is-current" /> {{ language === 'ko' ? '현재' : 'Current' }}</span>
-      <span><i class="is-destination" /> {{ language === 'ko' ? '도착' : 'Destination' }}</span>
+      <span><i class="is-origin" /> {{ '출발' }}</span>
+      <span><i class="is-current" /> {{ '현재' }}</span>
+      <span><i class="is-destination" /> {{ '도착' }}</span>
     </div>
     <div v-if="loadError" class="shipment-korea-map__fallback">
       {{ loadError }}

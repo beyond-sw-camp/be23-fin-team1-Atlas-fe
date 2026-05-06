@@ -28,11 +28,11 @@ const CONTENT = {
     eyebrow: '공급망 운영 / 정산',
     title: '정산 관리',
     subtitle: '배송과 반품 완료로 자동 생성된 정산 명세와 예산 사용 현황을 확인합니다.',
-    listEyebrow: 'SETTLEMENT LEDGER',
+    listEyebrow: '정산 명세',
     listTitle: '정산 명세 목록',
-    detailEyebrow: 'DETAIL',
+    detailEyebrow: '상세',
     detailTitle: '정산 명세 상세',
-    itemEyebrow: 'DETAIL ITEMS',
+    itemEyebrow: '상세 항목',
     itemTitle: '상세 항목',
     selectLabel: '상세',
     emptyList: '정산 명세가 없습니다.',
@@ -47,11 +47,11 @@ const CONTENT = {
       targetSelection: '정산 대상',
       period: '정산 기간',
       amount: '정산 금액',
-      currencyCode: '통화',
+      currencyCode: '기준 통화',
       createdAt: '생성 일시',
       updatedAt: '수정 일시',
-      poItemId: 'PO ITEM ID',
-      itemId: 'ITEM ID',
+      poItemId: '발주 품목 ID',
+      itemId: '품목 ID',
       qty: '수량',
       unitPrice: '단가',
       detailAmount: '금액',
@@ -115,7 +115,7 @@ const CONTENT = {
       amount: '예산 금액',
       currency: '통화',
       warningThreshold: '경고 기준 (%)',
-      hint: '예산 사용률이 경고 기준 이상이면 WARNING, 예산을 초과하면 EXCEEDED 상태로 표시됩니다.',
+      hint: '예산 사용률이 경고 기준 이상이면 주의, 예산을 초과하면 예산 초과 상태로 표시됩니다.',
     },
     validation: {
       invalidYear: '예산 연도를 확인해주세요.',
@@ -126,111 +126,9 @@ const CONTENT = {
       statsFailed: '정산 통계 데이터를 불러오지 못했습니다.',
     },
   },
-  en: {
-    eyebrow: 'SUPPLY CHAIN OPS / SETTLEMENTS',
-    title: 'Settlement Management',
-    subtitle: 'Review auto-generated settlement ledger and budget usage.',
-    listEyebrow: 'SETTLEMENT LEDGER',
-    listTitle: 'Settlement Ledger',
-    detailEyebrow: 'DETAIL',
-    detailTitle: 'Settlement Detail',
-    itemEyebrow: 'DETAIL ITEMS',
-    itemTitle: 'Detail Items',
-    selectLabel: 'Detail',
-    emptyList: 'No settlement ledger found.',
-    loadingList: 'Loading settlements...',
-    loadingDetail: 'Loading settlement detail...',
-    emptyDetail: 'Select a settlement from the list.',
-    emptyDetails: 'No detail items.',
-    fields: {
-      id: 'ID',
-      supplier: 'Supplier',
-      targetType: 'Type',
-      targetSelection: 'Target',
-      period: 'Period',
-      amount: 'Amount',
-      currencyCode: 'Currency',
-      createdAt: 'Created At',
-      updatedAt: 'Updated At',
-      poItemId: 'PO ITEM ID',
-      itemId: 'ITEM ID',
-      qty: 'Qty',
-      unitPrice: 'Unit Price',
-      detailAmount: 'Amount',
-    },
-    targetTypes: {
-      ORDER: 'Order',
-      SHIPMENT: 'Shipment',
-      RETURN: 'Return',
-      DELIVERY_EXCEPTION: 'Delivery Exception',
-    },
-    actions: {
-      refresh: 'Refresh',
-      registerBudget: 'Register Budget',
-      cancel: 'Cancel',
-      exportExcel: 'Export Excel',
-      exportingExcel: 'Exporting...',
-      saveBudget: 'Save Budget',
-      saving: 'Saving...',
-    },
-    stats: {
-      currentBudget: 'Current Month Budget',
-      monthlyBudgetBase: 'Monthly budget base',
-      payableThisMonth: 'Payable This Month',
-      budgetUsageBase: 'Budget usage base',
-      budgetUsageRate: 'Budget Usage Rate',
-      receivableThisMonth: 'Receivable This Month',
-      receivableBase: 'Receivable settlement base',
-      monthlyBudgetChart: 'Monthly Budget vs Payable Settlement',
-      annualPayable: 'Annual Payable Settlement',
-      settlementAmountAnalysis: 'Settlement Amount Analysis',
-      targetTypeAmount: 'Amount by Settlement Type',
-      flowCompare: 'Payable / Receivable Comparison',
-      settlementFlow: 'Current Month Settlement Flow',
-      payableExpected: 'Expected Payable',
-      receivableExpected: 'Expected Receivable',
-      remainingBudget: 'Remaining Budget',
-      netFlow: 'Net Flow',
-      all: 'All',
-      q1: 'Q1',
-      q2: 'Q2',
-      q3: 'Q3',
-      q4: 'Q4',
-      recent6: 'Recent 6 Months',
-      loadingStats: 'Loading statistics...',
-      noBudgetData: 'No budget or settlement data.',
-      noTargetTypeAmount: 'No settlement type amount.',
-      total: 'Total',
-      amount: 'Amount',
-      budgetStatuses: {
-        SAFE: 'Safe',
-        WARNING: 'Warning',
-        EXCEEDED: 'Over Budget',
-        NO_BUDGET: 'Budget not registered.',
-      },
-    },
-    budgetModal: {
-      title: 'Register Monthly Budget',
-      description: 'Compare settlements and budget usage on charts by registering monthly budgets.',
-      year: 'Budget Year',
-      month: 'Budget Month',
-      amount: 'Budget Amount',
-      currency: 'Currency',
-      warningThreshold: 'Warning Threshold (%)',
-      hint: 'Usage at or above the threshold is shown as WARNING, and over-budget usage is shown as EXCEEDED.',
-    },
-    validation: {
-      invalidYear: 'Check the budget year.',
-      invalidMonth: 'Budget month must be between 1 and 12.',
-      invalidAmount: 'Budget amount must be 0 or greater.',
-      invalidThreshold: 'Warning threshold must be between 0 and 100.',
-      saveFailed: 'Failed to save budget.',
-      statsFailed: 'Failed to load settlement statistics.',
-    },
-  },
 } as const
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 
 function openSettlementDetailPage(publicId: string) {
   router.push({
@@ -292,7 +190,8 @@ const CHART_MONTH_LABELS = [
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
 ]
 
-const monthLabel = (month: number) => preferences.language === 'ko' ? `${month}월` : `M${month}`
+const monthLabel = (month: number) => `${month}월`
+const formatWonAmount = (value: number) => `${Number(value).toLocaleString('ko-KR')}원`
 
 type BudgetUsageStatusLabel = keyof typeof CONTENT.ko.stats.budgetStatuses
 
@@ -415,7 +314,7 @@ const monthlyBudgetChartOptions = computed(() => {
       shared: true,
       intersect: false,
       y: {
-        formatter: (value: number) => `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
+        formatter: formatWonAmount,
       },
     },
     legend: {
@@ -441,7 +340,7 @@ const targetTypeDonutChartSeries = computed(() => {
 })
 
 const targetTypeDonutChartLabels = computed(() => {
-  return targetTypeChartPoints.value.map((point) => point.label)
+  return targetTypeChartPoints.value.map((point) => formatTargetType(point.value as SettlementTargetType))
 })
 
 const hasTargetTypeChartData = computed(() => {
@@ -499,7 +398,7 @@ const targetTypeDonutChartOptions = computed(() => {
               label: content.value.stats.total,
               fontFamily: 'Pretendard, "Segoe UI", sans-serif',
               fontWeight: 800,
-              formatter: () => `${targetTypeAmountTotal.value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
+              formatter: () => formatWonAmount(targetTypeAmountTotal.value),
             },
           },
         },
@@ -507,7 +406,7 @@ const targetTypeDonutChartOptions = computed(() => {
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
+        formatter: formatWonAmount,
       },
     },
   }
@@ -554,7 +453,7 @@ const settlementFlowAmountChartOptions = computed(() => {
     },
     dataLabels: {
       enabled: true,
-      formatter: (value: number) => `${Number(value).toLocaleString()} KRW`,
+      formatter: formatWonAmount,
       style: {
         fontSize: '11px',
         fontWeight: 900,
@@ -575,7 +474,7 @@ const settlementFlowAmountChartOptions = computed(() => {
     legend: { show: false },
     tooltip: {
       y: {
-        formatter: (value: number) => `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
+        formatter: formatWonAmount,
       },
     },
   }
@@ -671,14 +570,14 @@ function formatDate(value?: string | null) {
   return value.length >= 16 ? value.substring(0, 16).replace('T', ' ') : value
 }
 
-function formatAmount(value?: number | null, currency?: string | null) {
+function formatAmount(value?: number | null) {
   if (value == null) return '-'
-  return `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')}${currency ? ` ${currency}` : ''}`
+  return formatWonAmount(value)
 }
 
 function formatStatisticsAmount(value?: number | null) {
   if (value == null) return '-'
-  return `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`
+  return formatWonAmount(value)
 }
 
 function formatRate(value?: number | null) {
@@ -698,7 +597,7 @@ function getSupplierLabel(publicId: string, organizationPublicId?: string | null
       item.organizationPublicId === organizationPublicId
     )
   })
-  if (!supplier) return organizationPublicId ?? publicId
+  if (!supplier) return '공급업체 미확인'
   return `${supplier.supplierName} (${supplier.supplierCode})`
 }
 
@@ -729,7 +628,7 @@ async function fetchSettlements() {
   } catch (err: any) {
     console.error('Failed to fetch settlements:', err)
     settlements.value = []
-    listErrorMessage.value = err?.message ?? 'Failed to load settlements.'
+    listErrorMessage.value = err?.message ?? '정산 명세를 불러오지 못했습니다.'
   } finally {
     isListLoading.value = false
   }
@@ -797,9 +696,7 @@ async function handleDownloadSettlementExcel() {
       err?.payload?.message ||
       err?.response?.data?.message ||
       err?.message ||
-      (preferences.language === 'ko'
-        ? '정산 엑셀 파일을 내려받지 못했습니다.'
-        : 'Failed to download settlement Excel file.')
+      '정산 엑셀 파일을 내려받지 못했습니다.'
   } finally {
     isExcelDownloading.value = false
   }
@@ -940,7 +837,7 @@ onMounted(() => {
       <article class="stl-card stl-chart-card stl-chart-card--monthly">
         <div class="stl-card__head stl-card__head--chart">
           <div>
-            <span class="stl-card__eyebrow">BUDGET VS SETTLEMENT</span>
+            <span class="stl-card__eyebrow">예산 대비 정산</span>
             <h3 class="stl-card__title">{{ content.stats.monthlyBudgetChart }}</h3>
           </div>
 
@@ -1029,7 +926,7 @@ onMounted(() => {
       <article class="stl-card stl-chart-card stl-chart-card--insight">
         <div class="stl-card__head">
           <div>
-            <span class="stl-card__eyebrow">SETTLEMENT AMOUNT</span>
+            <span class="stl-card__eyebrow">정산 금액</span>
             <h3 class="stl-card__title">{{ content.stats.settlementAmountAnalysis }}</h3>
           </div>
         </div>
@@ -1085,7 +982,7 @@ onMounted(() => {
       <article class="stl-card stl-chart-card stl-chart-card--flow">
         <div class="stl-card__head">
           <div>
-            <span class="stl-card__eyebrow">SETTLEMENT FLOW</span>
+            <span class="stl-card__eyebrow">정산 흐름</span>
             <h3 class="stl-card__title">{{ content.stats.settlementFlow }}</h3>
           </div>
         </div>
@@ -1168,7 +1065,7 @@ onMounted(() => {
                   </span>
                 </td>
                 <td class="stl-table__amount">
-                  {{ formatAmount(settlement.amount, settlement.currencyCode) }}
+                  {{ formatAmount(settlement.amount) }}
                 </td>
                 <td>{{ formatDate(settlement.createdAt) }}</td>
                 <td>
@@ -1215,8 +1112,7 @@ onMounted(() => {
       <div class="stl-field">
         <label class="stl-field__label">{{ content.budgetModal.currency }}</label>
         <select v-model="budgetForm.currencyCode" class="stl-select">
-          <option value="KRW">KRW</option>
-          <option value="DOLLAR">DOLLAR</option>
+          <option value="KRW">원</option>
         </select>
       </div>
 

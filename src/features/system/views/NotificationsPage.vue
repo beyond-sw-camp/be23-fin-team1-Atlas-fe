@@ -26,12 +26,12 @@ const CONTENT = {
     preferencesClose: '닫기',
     tableTitle: '알림 목록',
     preferencesTitle: '개인 알림 설정',
-    preferencesEyebrow: 'PREFERENCES',
+    preferencesEyebrow: '알림 설정',
     preferencesDescription: '카테고리별 알림 수신 여부는 서버에 저장되며, 꺼진 알림은 발행되지 않습니다.',
     preferencesEmpty: '표시할 알림 설정이 없습니다.',
     preferencesLoading: '알림 설정을 불러오는 중입니다.',
-    enabled: 'ON',
-    disabled: 'OFF',
+    enabled: '켜짐',
+    disabled: '꺼짐',
     empty: '표시할 알림이 없습니다.',
     loading: '알림 목록을 불러오는 중입니다.',
     retry: '다시 불러오기',
@@ -65,12 +65,12 @@ const CONTENT = {
     preferencesClose: 'Close',
     tableTitle: 'Notification List',
     preferencesTitle: 'Notification Preferences',
-    preferencesEyebrow: 'PREFERENCES',
+    preferencesEyebrow: '알림 설정',
     preferencesDescription: 'Category preferences are stored on the server. Disabled notifications are not published.',
     preferencesEmpty: 'No notification preferences to display.',
     preferencesLoading: 'Loading notification preferences.',
-    enabled: 'ON',
-    disabled: 'OFF',
+    enabled: '켜짐',
+    disabled: '꺼짐',
     empty: 'No notifications to display.',
     loading: 'Loading notifications.',
     retry: 'Retry',
@@ -81,13 +81,13 @@ const CONTENT = {
     columns: ['Received', 'Type', 'Content', 'Status', 'Action'],
     tabs: [
       { key: 'ALL', label: 'ALL' },
-      { key: 'UNREAD', label: 'UNREAD' },
-      { key: 'RISK', label: 'RISK' },
-      { key: 'SYSTEM', label: 'SYSTEM' },
+      { key: 'UNREAD', label: '미읽음' },
+      { key: 'RISK', label: '리스크' },
+      { key: 'SYSTEM', label: '시스템' },
     ],
     actions: {
-      read: 'READ',
-      delete: 'DELETE',
+      read: '읽음',
+      delete: '삭제',
     },
     readStatus: {
       read: 'Read',
@@ -96,7 +96,7 @@ const CONTENT = {
   },
 }
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 const notifications = computed(() => notificationStore.notifications)
 
 const topNotificationDomain = computed(() => {
@@ -187,12 +187,12 @@ function formatDomainType(type?: string) {
   if (!type) return '-'
 
   const labels: Record<string, string> = {
-    ORDER: preferences.language === 'ko' ? '발주' : 'Order',
-    SHIPMENT: preferences.language === 'ko' ? '출하' : 'Shipment',
-    RETURN_REQUEST: preferences.language === 'ko' ? '반품' : 'Return Request',
-    SUPPLIER: preferences.language === 'ko' ? '협력사' : 'Supplier',
-    RISK: preferences.language === 'ko' ? '리스크' : 'Risk',
-    SYSTEM: preferences.language === 'ko' ? '시스템' : 'System',
+    ORDER: '발주',
+    SHIPMENT: '출하',
+    RETURN_REQUEST: '반품',
+    SUPPLIER: '협력사',
+    RISK: '리스크',
+    SYSTEM: '시스템',
   }
   return labels[type] ?? type.replace(/_/g, ' ')
 }
@@ -207,7 +207,7 @@ function notificationToneClass(type: string) {
 function formatDateTime(value: string) {
   if (!value) return '-'
 
-  return new Intl.DateTimeFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+  return new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

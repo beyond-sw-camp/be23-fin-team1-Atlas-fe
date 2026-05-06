@@ -64,25 +64,25 @@ const availableNavItems = computed(() =>
   const activeNavItem = computed(
     () => availableNavItems.value.find((item) => item.key === preferences.pageKey) ?? availableNavItems.value[0] ?? NAV_ITEMS[0],
   )
-  const pageLabel = computed(() => NAV_I18N[activeNavItem.value.key]?.[preferences.language]?.label ?? activeNavItem.value.label)
+  const pageLabel = computed(() => NAV_I18N[activeNavItem.value.key]?.ko?.label ?? activeNavItem.value.label)
   const pageSubtitle = computed(
-    () => NAV_I18N[activeNavItem.value.key]?.[preferences.language]?.pageSubtitle ?? activeNavItem.value.pageSubtitle,
+    () => NAV_I18N[activeNavItem.value.key]?.ko?.pageSubtitle ?? activeNavItem.value.pageSubtitle,
   )
-  const organizationLabel = computed(() => ORGANIZATION_I18N[preferences.organization][preferences.language])
+  const organizationLabel = computed(() => ORGANIZATION_I18N[preferences.organization].ko)
   const sidebarOperator = computed(() => SIDEBAR_OPERATOR_I18N[preferences.organization])
   const groupedNavItems = computed(() =>
     Object.entries(NAV_SECTION_LABELS)
       .map(([sectionKey]) => ({
         key: sectionKey,
-        label: SECTION_I18N[sectionKey as keyof typeof SECTION_I18N][preferences.language],
+        label: SECTION_I18N[sectionKey as keyof typeof SECTION_I18N].ko,
         items: availableNavItems.value
           .filter((item) => item.section === sectionKey && !item.hidden)
           .map((item) => ({
             ...item,
             displayDescription:
-              NAV_I18N[item.key]?.[preferences.language]?.description ?? item.description,
+              NAV_I18N[item.key]?.ko?.description ?? item.description,
             displayLabel:
-              NAV_I18N[item.key]?.[preferences.language]?.label ?? item.label,
+              NAV_I18N[item.key]?.ko?.label ?? item.label,
           })),
       }))
       .filter((group) => group.items.length > 0),

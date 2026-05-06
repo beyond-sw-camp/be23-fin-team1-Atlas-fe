@@ -8,88 +8,48 @@ const preferences = useAtlasPreferencesStore()
 
 const CONTENT = {
   ko: {
-    title: 'DOCUMENTS.SYS',
+    title: '문서 관리',
     subtitle: '기술 승인 문서와 송장 체인을 한 화면에서 추적합니다.',
-    tabs: ['ALL_FILES (124)', 'PENDING_OCR (8)', 'VERIFIED (96)', 'FLAGGED (14)'],
+    tabs: ['전체 파일 (124)', 'OCR 대기 (8)', '검증 완료 (96)', '주의 필요 (14)'],
     currentDocument: '현재 문서',
     fileQueue: [
-      { name: 'INV-9920-X1.PDF', state: '열람 중', note: '2.4MB / 업로드 14:22', issue: false },
-      { name: 'BOL-SHIP-440.PDF', state: '검증됨', note: '1.1MB / 업로드 12:05', issue: false },
-      { name: 'CUST_DECLAR_02.PNG', state: 'OCR 오류', note: '4.8MB / 업로드 10:45', issue: true },
-      { name: 'PACKING_SLP_ZZ.PDF', state: '대기', note: '0.8MB / 업로드 09:30', issue: false },
+      { name: '송장-9920-X1.pdf', state: '열람 중', note: '2.4MB / 업로드 14:22', issue: false },
+      { name: '선하증권-440.pdf', state: '검증됨', note: '1.1MB / 업로드 12:05', issue: false },
+      { name: '통관신고-02.png', state: 'OCR 오류', note: '4.8MB / 업로드 10:45', issue: true },
+      { name: '포장명세-ZZ.pdf', state: '대기', note: '0.8MB / 업로드 09:30', issue: false },
     ],
     previewTitle: '상업 송장',
-    previewId: '#INV-9920-X1',
+    previewId: '송장 9920-X1',
     previewDateLabel: '발행일',
-    previewDate: '2024-OCT-12',
+    previewDate: '2024.10.12',
     previewSupplierLabel: '공급 법인',
-    previewSupplierValue: 'GLOBAL LOGISTICS HUB LTD.',
+    previewSupplierValue: '글로벌 물류 허브',
     previewBuyerLabel: '수신 법인',
-    previewBuyerValue: 'MONOLITH CORP SCM',
+    previewBuyerValue: '모노리스 공급망 운영',
     previewRows: [
-      ['REFRIGERATED_UNIT_X', '02', '14,200', '28,400.00'],
-      ['SENSOR_ARRAY_V4', '39', '450', '4,500.00'],
+      ['냉장 유닛 X', '2', '14,200원', '28,400원'],
+      ['센서 배열 V4', '39', '450원', '4,500원'],
     ],
     previewTableHead: ['품목 설명', '수량', '단가', '총계'],
     totalLabel: '총액',
-    totalValue: '$32,900.00',
+    totalValue: '32,900원',
     stats: [
-      { label: 'OCR_CONFIDENCE', value: '98.4%', meta: 'NO_RETRY_REQUIRED' },
-      { label: 'FIELDS_DETECTED', value: '14 / 14', meta: 'COMPLETE_SCHEMA_MATCH' },
-      { label: 'ERP_SYNC_STATUS', value: 'READY', meta: 'QUEUED_FOR_VOUCHER_ENTRY' },
+      { label: 'OCR 신뢰도', value: '98.4%', meta: '재처리 불필요' },
+      { label: '감지 필드', value: '14 / 14', meta: '스키마 일치' },
+      { label: '전표 연동 상태', value: '대기', meta: '전표 입력 대기열' },
     ],
     extractionTitle: '추출 데이터 검증',
-    extractionChip: 'EDIT_MAP',
+    extractionChip: '매핑 수정',
     extractionRows: [
-      ['invoice_id', 'INV-9920-X1', '0.99', 'ready'],
-      ['tax_id_vat', 'NL88290123801', '0.97', 'ready'],
-      ['currency', 'USD', '1.00', 'ready'],
-      ['due_date', '2024-NOV-12', '0.92', 'review'],
-    ],
-  },
-  en: {
-    title: 'DOCUMENTS.SYS',
-    subtitle: 'Track technical approval documents and invoice chains in a single operator view.',
-    tabs: ['ALL_FILES (124)', 'PENDING_OCR (8)', 'VERIFIED (96)', 'FLAGGED (14)'],
-    currentDocument: 'Current Document',
-    fileQueue: [
-      { name: 'INV-9920-X1.PDF', state: 'Viewing', note: '2.4MB / uploaded 14:22', issue: false },
-      { name: 'BOL-SHIP-440.PDF', state: 'Verified', note: '1.1MB / uploaded 12:05', issue: false },
-      { name: 'CUST_DECLAR_02.PNG', state: 'OCR Error', note: '4.8MB / uploaded 10:45', issue: true },
-      { name: 'PACKING_SLP_ZZ.PDF', state: 'Pending', note: '0.8MB / uploaded 09:30', issue: false },
-    ],
-    previewTitle: 'Commercial Invoice',
-    previewId: '#INV-9920-X1',
-    previewDateLabel: 'DATE_ISSUED',
-    previewDate: '2024-OCT-12',
-    previewSupplierLabel: 'SUPPLIER_ENTITY',
-    previewSupplierValue: 'GLOBAL LOGISTICS HUB LTD.',
-    previewBuyerLabel: 'RECEIVER_ENTITY',
-    previewBuyerValue: 'MONOLITH CORP SCM',
-    previewRows: [
-      ['REFRIGERATED_UNIT_X', '02', '14,200', '28,400.00'],
-      ['SENSOR_ARRAY_V4', '39', '450', '4,500.00'],
-    ],
-    previewTableHead: ['ITEM_DESCRIPTION', 'QTY', 'UNIT', 'TOTAL'],
-    totalLabel: 'GRAND_TOTAL_USD',
-    totalValue: '$32,900.00',
-    stats: [
-      { label: 'OCR_CONFIDENCE', value: '98.4%', meta: 'NO_RETRY_REQUIRED' },
-      { label: 'FIELDS_DETECTED', value: '14 / 14', meta: 'COMPLETE_SCHEMA_MATCH' },
-      { label: 'ERP_SYNC_STATUS', value: 'READY', meta: 'QUEUED_FOR_VOUCHER_ENTRY' },
-    ],
-    extractionTitle: 'EXTRACTED_DATA_RECONCILIATION',
-    extractionChip: 'EDIT_MAP',
-    extractionRows: [
-      ['invoice_id', 'INV-9920-X1', '0.99', 'ready'],
-      ['tax_id_vat', 'NL88290123801', '0.97', 'ready'],
-      ['currency', 'USD', '1.00', 'ready'],
-      ['due_date', '2024-NOV-12', '0.92', 'review'],
+      ['송장 번호', '송장 9920-X1', '0.99', '준비'],
+      ['사업자 번호', 'NL88290123801', '0.97', '준비'],
+      ['통화', '원', '1.00', '준비'],
+      ['지급 기한', '2024.11.12', '0.92', '검토'],
     ],
   },
 }
 
-const content = computed(() => CONTENT[preferences.language])
+const content = computed(() => CONTENT.ko)
 const search = ref('')
 const activeTab = ref(0)
 const activeFileIndex = ref(0)
@@ -108,10 +68,10 @@ const filteredFileQueue = computed(() => {
       return false
     }
 
-    if (activeFilter.includes('ALL_FILES')) return true
-    if (activeFilter.includes('PENDING_OCR')) return file.state === 'OCR 오류' || file.state === 'OCR Error'
-    if (activeFilter.includes('VERIFIED')) return file.state === '검증됨' || file.state === 'Verified'
-    if (activeFilter.includes('FLAGGED')) return file.issue
+    if (activeFilter.includes('전체 파일')) return true
+    if (activeFilter.includes('OCR 대기')) return file.state === 'OCR 오류'
+    if (activeFilter.includes('검증 완료')) return file.state === '검증됨'
+    if (activeFilter.includes('주의 필요')) return file.issue
 
     return true
   })
@@ -137,8 +97,8 @@ watchEffect(() => {
   }
 
   header.setActions([
-    { key: 'documents-upload', label: preferences.language === 'ko' ? '업로드 파일' : 'UPLOAD FILE', tone: 'primary' },
-    { key: 'documents-export', label: preferences.language === 'ko' ? '데이터 내보내기' : 'DATA_EXPORT', tone: 'secondary' },
+    { key: 'documents-upload', label: '업로드 파일', tone: 'primary' },
+    { key: 'documents-export', label: '데이터 내보내기', tone: 'secondary' },
   ])
 })
 
@@ -154,8 +114,8 @@ onBeforeUnmount(() => {
         <h2 class="documents-page__title">{{ content.title }}</h2>
       </div>
       <div class="design-trigger-row">
-        <button class="page-button page-button--primary" type="button">{{ preferences.language === 'ko' ? '업로드 파일' : 'UPLOAD_FILE' }}</button>
-        <button class="page-button page-button--secondary" type="button">{{ preferences.language === 'ko' ? '배치 내보내기' : 'BATCH_EXPORT' }}</button>
+        <button class="page-button page-button--primary" type="button">{{ '업로드 파일' }}</button>
+        <button class="page-button page-button--secondary" type="button">{{ '배치 내보내기' }}</button>
       </div>
     </header>
 
@@ -164,7 +124,7 @@ onBeforeUnmount(() => {
         <span>⌕</span>
         <input
           v-model="search"
-          :placeholder="preferences.language === 'ko' ? '문서명, 상태, 메모 검색...' : 'Search name, state, or note...'"
+          :placeholder="'문서명, 상태, 메모 검색...'"
           type="text"
         />
       </label>
@@ -184,8 +144,8 @@ onBeforeUnmount(() => {
     <section class="documents-page__workspace">
       <article class="page-panel documents-page__list-panel">
         <div class="documents-page__directory">
-          <span class="page-panel__eyebrow">CURRENT_DIRECTORY</span>
-          <strong>root / logistics / invoices_2024</strong>
+          <span class="page-panel__eyebrow">현재 경로</span>
+          <strong>루트 / 물류 / 2024년 송장</strong>
         </div>
         <div class="page-panel__eyebrow">{{ content.currentDocument }}</div>
         <div class="documents-file-list">
@@ -265,10 +225,10 @@ onBeforeUnmount(() => {
       </div>
       <div class="documents-recon__table">
         <div class="documents-recon__row documents-recon__row--head">
-          <span>DATA_POINT</span>
-          <span>RAW_VALUE</span>
-          <span>CONFIDENCE</span>
-          <span>STATUS</span>
+          <span>데이터 항목</span>
+          <span>원본 값</span>
+          <span>신뢰도</span>
+          <span>상태</span>
         </div>
         <div
           v-for="[field, value, confidence, status] in content.extractionRows"
@@ -279,7 +239,7 @@ onBeforeUnmount(() => {
           <span>{{ value }}</span>
           <span>{{ confidence }}</span>
           <span class="documents-recon__status">
-            <i :class="['documents-recon__dot', { 'is-review': status === 'review' }]" />
+            <i :class="['documents-recon__dot', { 'is-review': status === '검토' }]" />
           </span>
         </div>
       </div>

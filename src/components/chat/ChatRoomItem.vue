@@ -6,14 +6,11 @@
  */
 import type { ChatRoom } from '../../types/chat'
 import ChatAvatar from './ChatAvatar.vue'
-import { useAtlasPreferencesStore } from '../../stores/preferences'
 
 defineProps<{
   room: ChatRoom
   currentUserPublicId: string
 }>()
-
-const preferences = useAtlasPreferencesStore()
 
 defineEmits<{
   select: [roomPublicId: string]
@@ -54,7 +51,7 @@ function getRoomPreview(room: ChatRoom) {
 function formatTime(isoString?: string): string {
   if (!isoString) return ''
   const d = new Date(isoString)
-  return d.toLocaleTimeString(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+  return d.toLocaleTimeString('ko-KR', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
@@ -93,16 +90,14 @@ function formatTime(isoString?: string): string {
     <div class="chat-room-item__content">
       <div class="chat-room-item__head">
         <strong class="chat-room-item__name">
-          {{ room.roomName || (preferences.language === 'ko' ? '이름 없음' : 'Untitled') }}
+          {{ room.roomName || '이름 없음' }}
         </strong>
         <div class="chat-room-item__meta">
           <span class="chat-room-item__time">{{ formatTime(getRoomTime(room)) }}</span>
           <button
             :class="['chat-room-item__pin-btn', { 'is-pinned': !!room.pinnedAt }]"
             type="button"
-            :title="room.pinnedAt
-              ? (preferences.language === 'ko' ? '고정 해제' : 'Unpin')
-              : (preferences.language === 'ko' ? '고정' : 'Pin')"
+            :title="room.pinnedAt ? '고정 해제' : '고정'"
             @click.stop="room.pinnedAt ? $emit('unpin', room.publicId) : $emit('pin', room.publicId)"
           >
             <span class="material-symbols-outlined">push_pin</span>
