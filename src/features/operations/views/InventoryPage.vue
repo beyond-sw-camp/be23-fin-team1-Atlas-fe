@@ -193,6 +193,13 @@ function statusText(status: InventoryStatus) {
   return copy.value.tabs[status] ?? status
 }
 
+function statusTone(status: InventoryStatus) {
+  if (status === 'ACTIVE') return 'is-success'
+  if (status === 'RESERVED') return 'is-warning'
+  if (status === 'EXHAUSTED' || status === 'EXPIRED' || status === 'DELETED') return 'is-critical'
+  return 'is-muted'
+}
+
 function canEdit(row: ItemInventoryResponseDto) {
   return row.status === 'ACTIVE' && row.reservedQty === 0
 }
@@ -440,7 +447,11 @@ onMounted(() => {
             <span>{{ formatNumber(row.remainingQty) }}</span>
             <span>{{ formatNumber(row.reservedQty) }}</span>
             <span>{{ formatNumber(row.availableQty) }}</span>
-            <span>{{ statusText(row.status) }}</span>
+            <span>
+              <span :class="['page-status-chip', 'inventory-page__status-chip', statusTone(row.status)]">
+                {{ statusText(row.status) }}
+              </span>
+            </span>
             <span>
               <button class="page-button page-button--secondary" type="button" @click="openDetail(row)">
                 {{ copy.detailButton }}
@@ -573,6 +584,17 @@ onMounted(() => {
 
 .inventory-page__table .page-table__row {
   grid-template-columns: 1.1fr 1.4fr 0.6fr 1fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 0.7fr 0.8fr;
+}
+
+.inventory-page__table .page-table__row > span:nth-child(10) {
+  justify-content: center;
+}
+
+.inventory-page__status-chip {
+  min-width: 64px;
+  min-height: 26px;
+  padding: 0 12px;
+  font-size: 0.86rem;
 }
 
 .inventory-page__form {
