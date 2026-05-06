@@ -19,7 +19,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { getCertificate, getCertificateHistories } from '../../../services/certificate'
 import { getAttachment, uploadAttachment, type AttachmentFileDto } from '../../../services/file'
 import { getInventories, getRecentNodeInventories } from '../../../services/inventory'
-import { getLogisticsNode } from '../../../services/logistics'
+import {
+  activateLogisticsNode,
+  deactivateLogisticsNode,
+  getLogisticsNode,
+  updateLogisticsNode,
+  type LogisticsNodeCapacityStatus,
+} from '../../../services/logistics'
 import { getReturnHistories, getReturnRequest, updateReturnStatus, type ReturnStatus } from '../../../services/return'
 import { getSettlement } from '../../../services/settlement'
 import { getShipment, getShipmentEta, getShipmentStatusHistories } from '../../../services/shipment'
@@ -388,6 +394,16 @@ const itemEditForm = ref({
   validFrom: '',
   partialConfirmationAllowed: true,
 })
+const logisticsEditModalOpen = ref(false)
+const logisticsEditLoading = ref(false)
+const logisticsEditErrorMessage = ref('')
+const logisticsEditForm = ref({
+  nodeName: '',
+  baseAddress: '',
+  detailAddress: '',
+  capacityStatus: 'EMPTY' as LogisticsNodeCapacityStatus,
+})
+const logisticsCapacityStatusOptions: LogisticsNodeCapacityStatus[] = ['EMPTY', 'AVAILABLE', 'FULL']
 
 const QUALITY_GRADE_OPTIONS: SupplierItemQualityGrade[] = [
   'AAA',
@@ -1340,6 +1356,74 @@ function closeItemEditModal() {
   itemEditErrorMessage.value = ''
 }
 
+function handleEditLogisticsNode() {
+  if (!data.value) return
+
+  logisticsEditErrorMessage.value = ''
+  logisticsEditForm.value = {
+    nodeName: String(data.value.nodeName ?? ''),
+    baseAddress: String(data.value.baseAddress ?? data.value.address ?? ''),
+    detailAddress: String(data.value.detailAddress ?? ''),
+    capacityStatus: (data.value.capacityStatus ?? 'EMPTY') as LogisticsNodeCapacityStatus,
+  }
+  logisticsEditModalOpen.value = true
+}
+
+function closeLogisticsEditModal() {
+  logisticsEditModalOpen.value = false
+  logisticsEditLoading.value = false
+  logisticsEditErrorMessage.value = ''
+}
+
+async function submitLogisticsEdit() {
+  if (!data.value) return
+
+  const nodeName = logisticsEditForm.value.nodeName.trim()
+  const baseAddress = logisticsEditForm.value.baseAddress.trim()
+
+  if (!nodeName || !baseAddress) {
+    logisticsEditErrorMessage.value = t('창고명과 주소를 입력해 주세요.', 'Enter warehouse name and address.')
+    return
+  }
+
+  try {
+    logisticsEditLoading.value = true
+    logisticsEditErrorMessage.value = ''
+
+    await updateLogisticsNode(publicId.value, {
+      nodeName,
+      nodeType: 'WAREHOUSE',
+      baseAddress,
+      detailAddress: logisticsEditForm.value.detailAddress.trim() || null,
+      capacityStatus: logisticsEditForm.value.capacityStatus,
+    })
+
+    await fetchDetail()
+    closeLogisticsEditModal()
+  } catch (error: any) {
+    logisticsEditErrorMessage.value = error?.message ?? t('물류거점 수정에 실패했습니다.', 'Failed to edit logistics node.')
+  } finally {
+    logisticsEditLoading.value = false
+  }
+}
+
+async function toggleLogisticsNodeActive() {
+  if (!data.value) return
+
+  try {
+    loading.value = true
+    errorMessage.value = ''
+
+    data.value = data.value.active
+      ? await deactivateLogisticsNode(publicId.value)
+      : await activateLogisticsNode(publicId.value)
+  } catch (error: any) {
+    errorMessage.value = error?.message ?? t('활성 상태 변경에 실패했습니다.', 'Failed to update active status.')
+  } finally {
+    loading.value = false
+  }
+}
+
 async function submitItemEdit() {
   if (!data.value) return
 
@@ -1618,6 +1702,23 @@ watch(
           @click="handleEditItem"
         >
           수정
+        </button>
+        <button
+          v-if="kind === 'logistics-nodes'"
+          class="page-button page-button--primary"
+          type="button"
+          @click="handleEditLogisticsNode"
+        >
+          수정
+        </button>
+        <button
+          v-if="kind === 'logistics-nodes' && data"
+          class="page-button page-button--secondary"
+          type="button"
+          :disabled="loading"
+          @click="toggleLogisticsNodeActive"
+        >
+          {{ data.active ? t('비활성화', 'Deactivate') : t('활성화', 'Activate') }}
         </button>
         <button class="page-button page-button--secondary" type="button" @click="goBack">{{ detailCopy.backToList }}</button>
       </div>
@@ -2323,6 +2424,58 @@ watch(
           <span></span>
           <button class="page-button page-button--primary" type="button" :disabled="itemEditLoading" @click="submitItemEdit">
             {{ t('품목 수정', 'Save Item') }}
+          </button>
+        </div>
+      </div>
+    </BaseModal>
+
+    <BaseModal
+      v-model="logisticsEditModalOpen"
+      :title="t('물류거점 수정', 'Edit Logistics Node')"
+      :description="t('현재 물류거점의 기본 정보와 용량 상태를 수정합니다.', 'Edit logistics node information and capacity status.')"
+      size="md"
+      @close="closeLogisticsEditModal"
+    >
+      <div class="operation-detail-page__edit-form">
+        <section class="operation-detail-page__edit-section">
+          <h3>{{ t('창고 기본 정보', 'Warehouse Basic Info') }}</h3>
+
+          <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
+            <span>{{ t('창고명', 'Warehouse Name') }}</span>
+            <input v-model="logisticsEditForm.nodeName" type="text" />
+          </label>
+
+          <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
+            <span>{{ t('주소', 'Address') }}</span>
+            <input v-model="logisticsEditForm.baseAddress" type="text" />
+          </label>
+
+          <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
+            <span>{{ t('상세주소', 'Address Detail') }}</span>
+            <input v-model="logisticsEditForm.detailAddress" type="text" />
+          </label>
+
+          <label class="operation-detail-page__edit-field">
+            <span>{{ t('창고 상태', 'Capacity Status') }}</span>
+            <select v-model="logisticsEditForm.capacityStatus">
+              <option v-for="statusOption in logisticsCapacityStatusOptions" :key="statusOption" :value="statusOption">
+                {{ display(statusOption) }}
+              </option>
+            </select>
+          </label>
+        </section>
+
+        <p v-if="logisticsEditErrorMessage" class="operation-detail-page__error">
+          {{ logisticsEditErrorMessage }}
+        </p>
+
+        <div class="operation-detail-page__bottom-actions">
+          <button class="page-button page-button--secondary" type="button" @click="closeLogisticsEditModal">
+            {{ t('취소', 'Cancel') }}
+          </button>
+          <span></span>
+          <button class="page-button page-button--primary" type="button" :disabled="logisticsEditLoading" @click="submitLogisticsEdit">
+            {{ logisticsEditLoading ? t('저장 중', 'Saving') : t('수정 완료', 'Save Changes') }}
           </button>
         </div>
       </div>

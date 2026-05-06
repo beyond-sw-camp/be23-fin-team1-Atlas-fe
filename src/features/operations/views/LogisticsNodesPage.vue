@@ -611,20 +611,6 @@ onBeforeUnmount(() => header.clearActions())
                 >
                   {{ content.detail }}
                 </button>
-                <button
-                  class="page-button page-button--secondary"
-                  type="button"
-                  @click="handleOpenEditModal(node)"
-                >
-                  {{ content.edit }}
-                </button>
-                <button
-                  class="page-button page-button--secondary"
-                  type="button"
-                  @click="handleToggleActive(node)"
-                >
-                  {{ node.active ? content.deactivate : content.activate }}
-                </button>
               </span>
             </div>
           </div>
