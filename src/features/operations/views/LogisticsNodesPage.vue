@@ -1130,7 +1130,7 @@ onBeforeUnmount(() => header.clearActions())
 
 @media (max-width: 960px) {
   .logistics-kpi-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .logistics-filter-card {
