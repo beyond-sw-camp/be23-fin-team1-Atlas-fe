@@ -7410,3 +7410,84 @@ select:not(.app-language-select select):focus {
   object-fit: cover;
   display: block;
 }
+
+/* Responsive table policy shared by operational pages.
+   Keep primary identity columns and the final action/status column visible, and
+   progressively remove lower-priority middle columns as the table container narrows. */
+.page-table {
+  container-type: inline-size;
+  container-name: atlas-page-table;
+}
+
+@container atlas-page-table (max-width: 1240px) {
+  .page-table:not(.items-page__table) .page-table__row {
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)) !important;
+    min-width: 0 !important;
+  }
+
+  .page-table:not(.items-page__table) .page-table__row>span:nth-child(8):not(:last-child),
+  .page-table:not(.items-page__table) .page-table__row>span:nth-child(9):not(:last-child),
+  .page-table:not(.items-page__table) .page-table__row>span:nth-child(10):not(:last-child),
+  .page-table:not(.items-page__table) .page-table__row>span:nth-child(11):not(:last-child) {
+    display: none !important;
+  }
+}
+
+@container atlas-page-table (max-width: 1040px) {
+  .page-table:not(.items-page__table) .page-table__row {
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)) !important;
+  }
+
+  .page-table:not(.items-page__table) .page-table__row>span:nth-child(5):not(:last-child),
+  .page-table:not(.items-page__table) .page-table__row>span:nth-child(6):not(:last-child),
+  .page-table:not(.items-page__table) .page-table__row>span:nth-child(7):not(:last-child) {
+    display: none !important;
+  }
+}
+
+@container atlas-page-table (max-width: 760px) {
+  .page-table:not(.items-page__table) .page-table__row {
+    grid-template-columns: minmax(88px, 0.9fr) minmax(0, 1.25fr) minmax(72px, 0.7fr) !important;
+    gap: 10px !important;
+  }
+
+  .page-table:not(.items-page__table) .page-table__row>span:nth-child(n+3):not(:last-child) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1240px) {
+  .screen-root .page-table:not(.items-page__table) {
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .screen-root table th:nth-child(8):not(:last-child),
+  .screen-root table td:nth-child(8):not(:last-child),
+  .screen-root table th:nth-child(9):not(:last-child),
+  .screen-root table td:nth-child(9):not(:last-child),
+  .screen-root table th:nth-child(10):not(:last-child),
+  .screen-root table td:nth-child(10):not(:last-child),
+  .screen-root table th:nth-child(11):not(:last-child),
+  .screen-root table td:nth-child(11):not(:last-child) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1040px) {
+  .screen-root table th:nth-child(5):not(:last-child),
+  .screen-root table td:nth-child(5):not(:last-child),
+  .screen-root table th:nth-child(6):not(:last-child),
+  .screen-root table td:nth-child(6):not(:last-child),
+  .screen-root table th:nth-child(7):not(:last-child),
+  .screen-root table td:nth-child(7):not(:last-child) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .screen-root table th:nth-child(n+3):not(:last-child),
+  .screen-root table td:nth-child(n+3):not(:last-child) {
+    display: none !important;
+  }
+}
