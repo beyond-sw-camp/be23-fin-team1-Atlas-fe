@@ -6978,16 +6978,29 @@ select:not(.app-language-select select):focus {
 }
 
 .orders-page__status-select select {
-  min-height: 38px;
+  min-height: 40px;
   min-width: 132px;
-  border: 1px solid rgb(var(--outline-variant-rgb, 71 71 71) / 0.28);
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.35);
   border-radius: 0;
-  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.92);
+  background-color: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.4);
   color: inherit;
   padding: 0 34px 0 12px;
   font: inherit;
-  font-size: 0.84rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  outline: none;
+  box-shadow: none;
+}
+
+.orders-page__status-select select:hover,
+.orders-page__status-select select:focus,
+.orders-page__status-select select:focus-visible {
+  border-color: rgb(var(--outline-variant-rgb, 172 179 180) / 0.35);
+  background-color: var(--color-surface-container-high);
+  outline: none;
+  box-shadow: none;
 }
 
 @media (max-width: 1280px) {
