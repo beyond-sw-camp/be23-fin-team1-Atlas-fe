@@ -266,7 +266,7 @@ const copy = computed(() =>
         orderCountSummary: (count: number, amount: string) => `${count}건 / ${amount}`,
         selectedOrderFallback: '선택한 발주의 상세 정보를 확인합니다.',
         selectedSubOrderFallback: '선택한 서브발주의 상세 정보를 확인합니다.',
-        columns: ['발주번호', '거래처', '협력사 상태', '품목', '수량', '총금액', '발주일', '예상 납기일', '상태', '작업'],
+        columns: ['발주번호', '거래처', '협력사 상태', '품목', '수량', '총금액(KRW)', '발주일', '예상 납기일', '상태', '작업'],
         directionOptions: [
           { key: 'ALL' as const, label: '전체' },
           { key: 'ISSUED' as const, label: '발주' },
@@ -288,11 +288,11 @@ const copy = computed(() =>
           pendingMeta: '확인 대기 중인 발주',
           completed: '납기 완료',
           completedMeta: '완료 처리된 발주',
-          totalAmount: '총금액',
-          amountMeta: '발주 기준 총금액',
+          totalAmount: '총금액(KRW)',
+          amountMeta: '발주 기준 총금액(KRW)',
           issuedCount: '발주 수',
           receivedCount: '수주 수',
-          totalAmountIssued: '총금액',
+          totalAmountIssued: '총금액(KRW)',
         },
         supplierStatuses: {
           ACTIVE: '활성',
@@ -1205,14 +1205,14 @@ function formatThousandAmount(value: number | null | undefined) {
   ]
   const unit = units.find((candidate) => Math.abs(amount) >= candidate.threshold)
 
-  if (!unit) return `${formatNumber(amount)} KRW`
+  if (!unit) return preferences.language === 'ko' ? `${formatNumber(amount)} 원` : `${formatNumber(amount)} KRW`
 
   const scaled = amount / unit.divisor
   const formatted = new Intl.NumberFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
     maximumFractionDigits: 1,
   }).format(scaled)
 
-  return `${formatted} ${unit.label} KRW`
+  return preferences.language === 'ko' ? `${formatted} ${unit.label} 원` : `${formatted} ${unit.label} KRW`
 }
 
 function organizationDisplayName(organizationPublicId: string) {
