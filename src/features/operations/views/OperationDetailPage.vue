@@ -552,30 +552,67 @@ const inventoryRows = computed(() => [
   ['ITEM-000312', 'PCB ASSY B-100', 'EA', '210', '200', '10', 'NORMAL', '-'],
 ])
 
-const itemInformationRows = computed(() => {
+const itemInformationSummary = computed(() => {
+  const item = data.value
+  if (!item || kind.value !== 'items') return null
+
+  return {
+    code: display(item.itemCode),
+    name: display(item.itemName),
+    category: display(item.categoryName),
+    status: displayItemStatus(item.status),
+  }
+})
+
+const itemInformationMetrics = computed(() => {
   const item = data.value
   if (!item || kind.value !== 'items') return []
 
   return [
-    [t('품목 코드', 'Item Code'), item.itemCode],
-    [t('품목명', 'Item Name'), item.itemName],
-    [t('카테고리', 'Category'), item.categoryName],
-    [t('단위', 'Unit'), item.unit],
-    [t('상태', 'Status'), displayItemStatus(item.status)],
-    [t('공급 유형', 'Supply Type'), item.supplyType],
-    [t('규격', 'Spec'), item.spec ?? item.specification],
-    [t('단가', 'Unit Price'), formatAmount(item.unitPrice, 'KRW')],
-    [t('유통기한', 'Shelf Life'), item.shelfLifeDays ? `${formatNumber(item.shelfLifeDays)}${t('일', ' days')}` : '-'],
-    [t('출발 물류거점', 'Origin Node'), item.originLogisticsNodeName ?? item.originLogisticsNodePublicId],
-    [t('리드타임', 'Lead Time'), item.leadTimeDays ? `${formatNumber(item.leadTimeDays)}${t('일', ' days')}` : '-'],
-    [t('월간 생산량', 'Monthly Capacity'), item.monthlyCapacity],
-    [t('현재 가용 수량', 'Available Qty'), item.availableQty],
-    [t('최소 발주 수량', 'MOQ'), item.moq],
-    [t('품질 등급', 'Quality Grade'), qualityGradeText(item.qualityGrade)],
-    [t('부분 확정', 'Partial Confirm'), item.partialConfirmationAllowed === false ? t('불가', 'Not Allowed') : t('가능', 'Allowed')],
-    [t('대표 미디어', 'Primary Media'), item.primaryMediaFilePublicId],
-    [t('최종 수정', 'Updated At'), formatDate(item.updatedAt)],
-  ].map(([label, value]) => ({ label: String(label), value: display(value) }))
+    { label: t('현재 가용 수량', 'Available Qty'), value: formatNumber(item.availableQty), meta: display(item.unit) },
+    { label: t('최소 발주 수량', 'MOQ'), value: formatNumber(item.moq), meta: display(item.unit) },
+    { label: t('리드타임', 'Lead Time'), value: item.leadTimeDays ? formatNumber(item.leadTimeDays) : '-', meta: t('일', 'days') },
+    { label: t('유통기한', 'Shelf Life'), value: item.shelfLifeDays ? formatNumber(item.shelfLifeDays) : '-', meta: t('일', 'days') },
+  ]
+})
+
+const itemInformationGroups = computed(() => {
+  const item = data.value
+  if (!item || kind.value !== 'items') return []
+  const primaryMediaFile = itemMediaFiles.value.find((file) => file.publicId === item.primaryMediaFilePublicId) ?? itemMediaFiles.value[0]
+
+  return [
+    {
+      title: t('기본 정보', 'Basic Info'),
+      rows: [
+        [t('규격', 'Spec'), item.spec ?? item.specification],
+        [t('단가', 'Unit Price'), formatAmount(item.unitPrice, 'KRW')],
+        [t('품질 등급', 'Quality Grade'), qualityGradeText(item.qualityGrade)],
+        [t('부분 확정', 'Partial Confirm'), item.partialConfirmationAllowed === false ? t('불가', 'Not Allowed') : t('가능', 'Allowed')],
+      ],
+    },
+    {
+      title: t('공급 정보', 'Supply Info'),
+      rows: [
+        [t('출발 물류거점', 'Origin Node'), item.originLogisticsNodeName ?? item.originLogisticsNodePublicId],
+        [t('월간 생산량', 'Monthly Capacity'), formatNumber(item.monthlyCapacity)],
+        [t('공급 유형', 'Supply Type'), item.supplyType],
+        [t('상태', 'Status'), displayItemStatus(item.status)],
+      ],
+    },
+    {
+      title: t('미디어 / 시스템', 'Media / System'),
+      rows: [
+        [t('대표 미디어', 'Primary Media'), primaryMediaFile?.originalFileName ?? item.primaryMediaFilePublicId],
+        [t('첨부 묶음', 'Attachment'), item.mediaAttachmentPublicId],
+        [t('등록일', 'Created At'), formatDate(item.createdAt)],
+        [t('최종 수정', 'Updated At'), formatDate(item.updatedAt)],
+      ],
+    },
+  ].map((group) => ({
+    title: group.title,
+    rows: group.rows.map(([label, value]) => ({ label: String(label), value: display(value) })),
+  }))
 })
 
 const itemHistoryRows = computed(() => {
@@ -629,12 +666,13 @@ const itemHistoryRows = computed(() => {
   }
 
   if (itemMediaFiles.value.length > 0) {
+    const primaryMediaFile = itemMediaFiles.value.find((file) => file.publicId === item?.primaryMediaFilePublicId) ?? itemMediaFiles.value[0]
     rows.push({
       id: 'item-media',
       time: formatDate(item?.updatedAt),
       event: t('미디어 등록', 'Media Attached'),
       qty: `${itemMediaFiles.value.length}`,
-      ref: display(item?.primaryMediaFilePublicId),
+      ref: display(primaryMediaFile?.originalFileName ?? item?.primaryMediaFilePublicId),
       status: t('활성', 'Active'),
       note: t('대표 이미지/동영상 연결', 'Primary image/video linked'),
     })
@@ -1573,6 +1611,14 @@ watch(
         <h1 class="terminal-page__title">{{ title }}</h1>
       </div>
       <div class="operation-detail-page__actions">
+        <button
+          v-if="kind === 'items'"
+          class="page-button page-button--primary"
+          type="button"
+          @click="handleEditItem"
+        >
+          수정
+        </button>
         <button class="page-button page-button--secondary" type="button" @click="goBack">{{ detailCopy.backToList }}</button>
       </div>
     </header>
@@ -1816,7 +1862,7 @@ watch(
 
         <main v-else class="operation-detail-page__document-grid">
           <section class="operation-detail-page__document-main">
-            <section class="operation-detail-page__metric-row"><div><span>TOTAL ITEMS</span><strong>1,248 EA</strong></div><div><span>TOTAL INVENTORY VALUE</span><strong>₩ 2,451,830,000</strong></div><div><span>NORMAL</span><strong>1,012</strong></div><div><span>LOW STOCK</span><strong>156</strong></div><div><span>SHORTAGE DETECTED</span><strong class="is-alert">80</strong></div></section>
+            <section v-if="kind !== 'items'" class="operation-detail-page__metric-row"><div><span>TOTAL ITEMS</span><strong>1,248 EA</strong></div><div><span>TOTAL INVENTORY VALUE</span><strong>₩ 2,451,830,000</strong></div><div><span>NORMAL</span><strong>1,012</strong></div><div><span>LOW STOCK</span><strong>156</strong></div><div><span>SHORTAGE DETECTED</span><strong class="is-alert">80</strong></div></section>
             <article v-if="kind === 'items'" class="operation-detail-page__domain-card">
               <h3>{{ t('품목 미디어', 'Item Media') }}</h3>
               <div v-if="itemMediaFiles.length === 0" class="page-table__empty">
@@ -1845,22 +1891,40 @@ watch(
                 </button>
               </div>
             </article>
-            <article v-if="kind === 'items'" class="operation-detail-page__domain-card">
+            <article
+              v-if="kind === 'items'"
+              class="operation-detail-page__domain-card operation-detail-page__item-info-card"
+            >
               <h3>{{ t('물품 상세정보', 'ITEM INFORMATION') }}</h3>
-              <dl class="operation-detail-page__item-info-grid">
-                <div
-                  v-for="row in itemInformationRows"
-                  :key="row.label"
-                  class="operation-detail-page__item-info-cell"
-                >
-                  <dt>{{ row.label }}</dt>
-                  <dd>{{ row.value }}</dd>
+              <div v-if="itemInformationSummary" class="operation-detail-page__item-info-hero">
+                <div class="operation-detail-page__item-info-main">
+                  <span>{{ itemInformationSummary.category }} · {{ itemInformationSummary.status }}</span>
+                  <strong>{{ itemInformationSummary.name }}</strong>
+                  <small>{{ itemInformationSummary.code }}</small>
                 </div>
-              </dl>
+              </div>
+              <div class="operation-detail-page__item-info-metrics">
+                <div v-for="metric in itemInformationMetrics" :key="metric.label">
+                  <span>{{ metric.label }}</span>
+                  <strong>{{ metric.value }}</strong>
+                  <small>{{ metric.meta }}</small>
+                </div>
+              </div>
+              <div class="operation-detail-page__item-info-sections">
+                <section v-for="group in itemInformationGroups" :key="group.title">
+                  <h4>{{ group.title }}</h4>
+                  <dl>
+                    <div v-for="row in group.rows" :key="row.label">
+                      <dt>{{ row.label }}</dt>
+                      <dd>{{ row.value }}</dd>
+                    </div>
+                  </dl>
+                </section>
+              </div>
             </article>
             <article class="operation-detail-page__domain-card">
               <h3>{{ kind === 'items' ? t('품목 히스토리', 'ITEM HISTORY') : 'INVENTORY STATUS' }}</h3>
-              <table v-if="kind === 'items'" class="operation-detail-page__domain-table">
+              <table v-if="kind === 'items'" class="operation-detail-page__domain-table operation-detail-page__item-history-table">
                 <thead>
                   <tr>
                     <th>{{ t('시각', 'TIME') }}</th>
@@ -1873,27 +1937,18 @@ watch(
                 </thead>
                 <tbody>
                   <tr v-for="row in itemHistoryRows" :key="row.id">
-                    <td>{{ row.time }}</td>
-                    <td>{{ row.event }}</td>
-                    <td>{{ row.qty }}</td>
-                    <td>{{ row.ref }}</td>
-                    <td>{{ row.status }}</td>
-                    <td>{{ row.note }}</td>
+                    <td :data-label="t('시각', 'TIME')">{{ row.time }}</td>
+                    <td :data-label="t('이벤트', 'EVENT')">{{ row.event }}</td>
+                    <td :data-label="t('수량', 'QTY')">{{ row.qty }}</td>
+                    <td :data-label="t('연결 문서', 'REFERENCE')">{{ row.ref }}</td>
+                    <td :data-label="t('상태', 'STATUS')">{{ row.status }}</td>
+                    <td :data-label="t('메모', 'NOTE')">{{ row.note }}</td>
                   </tr>
                 </tbody>
               </table>
               <table v-else class="operation-detail-page__domain-table"><thead><tr><th>ITEM CODE</th><th>ITEM NAME</th><th>UOM</th><th>CURRENT STOCK</th><th>SAFETY STOCK</th><th>SHORTAGE QTY</th><th>STATUS</th><th>AFFECTED POs</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="row[0]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
             </article>
             <article class="operation-detail-page__domain-card"><h3>DEMAND vs SAFETY STOCK</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>Forecast demand</strong></div></article>
-            <div v-if="kind === 'items'" class="operation-detail-page__item-edit-actions">
-              <button
-                class="page-button page-button--primary"
-                type="button"
-                @click="handleEditItem"
-              >
-                수정
-              </button>
-            </div>
           </section>
           <div v-if="kind === 'inventory'" class="operation-detail-page__bottom-actions">
             <button class="page-button page-button--secondary" type="button" @click="goBack">
@@ -2469,7 +2524,7 @@ watch(
   text-align: left;
   background: var(--detail-surface-plain);
   border: 1px solid var(--detail-border);
-  border-radius: 6px;
+  border-radius: 0;
   cursor: pointer;
 }
 
@@ -2998,39 +3053,117 @@ watch(
   border-bottom: 1px solid var(--detail-border);
 }
 
-.operation-detail-page__item-info-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0;
-  border: 1px solid var(--detail-border);
-  background: var(--detail-surface-plain);
+.operation-detail-page__item-info-card {
+  gap: 14px;
 }
 
-.operation-detail-page__item-info-cell {
+.operation-detail-page__item-info-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 14px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--detail-border);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.72);
+}
+
+.operation-detail-page__item-info-main {
   display: grid;
   gap: 6px;
-  min-height: 64px;
-  padding: 10px 12px;
-  border-right: 1px solid var(--detail-border);
-  border-bottom: 1px solid var(--detail-border);
 }
 
-.operation-detail-page__item-info-cell:nth-child(3n) {
-  border-right: 0;
-}
-
-.operation-detail-page__item-info-cell dt {
+.operation-detail-page__item-info-main span,
+.operation-detail-page__item-info-metrics span,
+.operation-detail-page__item-info-sections h4,
+.operation-detail-page__item-info-sections dt {
   color: var(--detail-muted);
   font-size: 0.68rem;
   font-weight: 900;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.operation-detail-page__item-info-cell dd {
+.operation-detail-page__item-info-main strong {
+  color: var(--on-surface, #2d3435);
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.operation-detail-page__item-info-main small {
+  color: var(--on-surface, #2d3435);
+  font-size: 0.85rem;
+  font-weight: 850;
+}
+
+.operation-detail-page__item-info-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--detail-border);
+  border-right: 0;
+  background: var(--detail-surface-plain);
+}
+
+.operation-detail-page__item-info-metrics > div {
+  display: grid;
+  gap: 6px;
+  min-height: 82px;
+  padding: 12px;
+  border-right: 1px solid var(--detail-border);
+}
+
+.operation-detail-page__item-info-metrics strong {
+  color: var(--on-surface, #2d3435);
+  font-size: 1.25rem;
+  font-weight: 950;
+}
+
+.operation-detail-page__item-info-metrics small {
+  color: var(--detail-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.operation-detail-page__item-info-sections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.operation-detail-page__item-info-sections section {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--detail-border);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.72);
+}
+
+.operation-detail-page__item-info-sections h4 {
   margin: 0;
   color: var(--on-surface, #2d3435);
-  font-size: 0.86rem;
-  font-weight: 840;
+}
+
+.operation-detail-page__item-info-sections dl {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.operation-detail-page__item-info-sections dl > div {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 34px;
+  padding: 8px 0;
+  border-top: 1px solid var(--detail-border);
+}
+
+.operation-detail-page__item-info-sections dd {
+  margin: 0;
+  color: var(--on-surface, #2d3435);
+  font-size: 0.78rem;
+  font-weight: 820;
   word-break: break-word;
 }
 
@@ -3151,11 +3284,6 @@ watch(
   grid-template-columns: max-content 1fr max-content max-content;
   gap: 10px;
   align-items: center;
-}
-
-.operation-detail-page__item-edit-actions {
-  display: flex;
-  justify-content: flex-end;
 }
 
 .operation-detail-page__recommendation {
@@ -3371,6 +3499,10 @@ watch(
 }
 
 @media (max-width: 820px) {
+  .operation-detail-page__domain-card {
+    padding: 14px;
+  }
+
   .operation-detail-page__summary-strip,
   .operation-detail-page__timeline,
   .operation-detail-page__impact-grid {
@@ -3388,7 +3520,9 @@ watch(
   .operation-detail-page__doc-hero dl,
   .operation-detail-page__shipment-hero dl,
   .operation-detail-page__supplier-head dl,
-  .operation-detail-page__item-info-grid,
+  .operation-detail-page__item-info-hero,
+  .operation-detail-page__item-info-metrics,
+  .operation-detail-page__item-info-sections,
   .operation-detail-page__metric-row,
   .operation-detail-page__kv-grid.is-two-col {
     grid-template-columns: 1fr;
@@ -3396,10 +3530,36 @@ watch(
 
   .operation-detail-page__doc-hero dl > div,
   .operation-detail-page__shipment-hero dl > div,
-  .operation-detail-page__supplier-head dl > div,
-  .operation-detail-page__item-info-cell {
+  .operation-detail-page__supplier-head dl > div {
     border-right: 0;
     border-bottom: 1px solid var(--detail-border);
+  }
+
+  .operation-detail-page__item-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  }
+
+  .operation-detail-page__item-info-card {
+    gap: 10px;
+  }
+
+  .operation-detail-page__item-info-hero,
+  .operation-detail-page__item-info-sections section {
+    padding: 12px;
+  }
+
+  .operation-detail-page__item-info-metrics {
+    border-right: 1px solid var(--detail-border);
+  }
+
+  .operation-detail-page__item-info-metrics > div {
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--detail-border);
+  }
+
+  .operation-detail-page__item-info-metrics > div:last-child {
+    border-bottom: 0;
   }
 }
 
@@ -3411,6 +3571,11 @@ watch(
   .operation-detail-page__actions,
   .operation-detail-page__actions .page-button {
     width: 100%;
+  }
+
+  .operation-detail-page__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .operation-detail-page__summary-strip,
@@ -3429,6 +3594,97 @@ watch(
 
   .operation-detail-page__summary-cell:last-child,
   .operation-detail-page__impact-card:last-child {
+    border-bottom: 0;
+  }
+
+  .operation-detail-page__item-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  }
+
+  .operation-detail-page__item-media {
+    grid-template-rows: 104px auto;
+  }
+
+  .operation-detail-page__item-info-main {
+    padding: 0;
+  }
+
+  .operation-detail-page__item-info-main strong {
+    font-size: 1.35rem;
+    overflow-wrap: anywhere;
+  }
+
+  .operation-detail-page__item-info-metrics > div {
+    min-height: 68px;
+  }
+
+  .operation-detail-page__item-info-sections {
+    gap: 8px;
+  }
+
+  .operation-detail-page__item-info-sections section {
+    padding: 10px 12px;
+  }
+
+  .operation-detail-page__item-info-sections dl > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    min-height: auto;
+    padding: 10px 0;
+  }
+
+  .operation-detail-page__item-info-sections dd {
+    overflow-wrap: anywhere;
+  }
+
+  .operation-detail-page__item-history-table,
+  .operation-detail-page__item-history-table thead,
+  .operation-detail-page__item-history-table tbody,
+  .operation-detail-page__item-history-table tr,
+  .operation-detail-page__item-history-table th,
+  .operation-detail-page__item-history-table td {
+    display: block;
+  }
+
+  .operation-detail-page__item-history-table {
+    background: transparent;
+  }
+
+  .operation-detail-page__item-history-table thead {
+    display: none;
+  }
+
+  .operation-detail-page__item-history-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .operation-detail-page__item-history-table tr {
+    border: 1px solid var(--detail-border);
+    background: var(--detail-surface-plain);
+  }
+
+  .operation-detail-page__item-history-table td {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px 10px;
+    border: 0;
+    border-bottom: 1px solid var(--detail-border);
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .operation-detail-page__item-history-table td::before {
+    content: attr(data-label);
+    color: var(--detail-muted);
+    font-size: 0.66rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .operation-detail-page__item-history-table td:last-child {
     border-bottom: 0;
   }
 
