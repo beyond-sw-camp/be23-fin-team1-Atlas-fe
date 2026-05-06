@@ -21,6 +21,8 @@ import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSidebarBadgesStore } from '../../../stores/sidebarBadges'
 import type { PageKey } from '../../../types'
 import { BaseModal } from '../../shared'
+import { getSubPurchaseOrder } from '../../../services/subPurchaseOrder'
+
 
 
 type DetailKind =
@@ -33,6 +35,7 @@ type DetailKind =
   | 'logistics-nodes'
   | 'settlements'
   | 'certificates'
+  | 'sub-orders'
 
 type DetailSection = {
   title: string
@@ -165,6 +168,7 @@ const DETAIL_BADGE_KEY_BY_KIND: Record<DetailKind, PageKey> = {
   'logistics-nodes': 'logisticsNodes',
   settlements: 'settlements',
   certificates: 'certificateWatch',
+  'sub-orders': 'ordersDesk',
 }
 
 const confirmModalOpen = ref(false)
@@ -194,6 +198,7 @@ const detailCopy = computed(() =>
           'logistics-nodes': { eyebrow: '공급망 운영 / 물류거점', title: '물류거점 상세', idLabel: '거점 코드' },
           settlements: { eyebrow: '공급망 운영 / 정산', title: '정산 상세', idLabel: '정산 ID' },
           certificates: { eyebrow: '문서 / 인증서', title: '인증서 상세', idLabel: '인증서 번호' },
+          'sub-orders': { eyebrow: '공급망 운영 / 서브발주 관리', title: '서브발주 상세', idLabel: '서브발주번호' },
         },
         backToList: '목록으로',
         loading: '상세 정보를 불러오는 중입니다.',
@@ -270,6 +275,8 @@ const detailCopy = computed(() =>
           'logistics-nodes': { eyebrow: 'Supply Operations / Logistics Nodes', title: 'Logistics Node Detail', idLabel: 'Node Code' },
           settlements: { eyebrow: 'Supply Operations / Settlements', title: 'Settlement Detail', idLabel: 'Settlement ID' },
           certificates: { eyebrow: 'Documents / Certificates', title: 'Certificate Detail', idLabel: 'Certificate No.' },
+          'sub-orders': { eyebrow: 'Supply Operations / Sub Purchase Orders', title: 'Sub Order Detail', idLabel: 'Sub Order No.' },
+
         },
         backToList: 'Back to List',
         loading: 'Loading detail.',
@@ -348,6 +355,7 @@ const publicId = computed(() => route.params.publicId as string)
 const config = computed(() => {
   const routes: Record<DetailKind, string> = {
     orders: 'ordersDesk',
+    'sub-orders': 'ordersDesk',
     shipments: 'shipments',
     returns: 'returns',
     inventory: 'inventory',
@@ -384,6 +392,7 @@ const status = computed(() => {
   if (!item) return ''
   return (
     item.poStatus ??
+    item.subPoStatus ??
     item.status ??
     item.returnStatus ??
     item.supplierStatus ??
@@ -393,6 +402,7 @@ const status = computed(() => {
     ''
   )
 })
+
 
 const statusTone = computed<DetailMetric['tone']>(() => {
   const value = String(status.value || '').toUpperCase()
@@ -428,7 +438,7 @@ const canEditOrder = computed(() => {
 })
 
 const hasDomainLayout = computed(() => (
-  ['orders', 'shipments', 'returns', 'suppliers', 'inventory', 'items'].includes(kind.value)
+  ['orders', 'sub-orders', 'shipments', 'returns', 'suppliers', 'inventory', 'items'].includes(kind.value)
 ))
 
 const detailLabel = computed(() => {
@@ -448,12 +458,7 @@ const riskLevel = computed(() => {
 })
 
 const orderItems = computed(() => {
-  if (lineItems.value.length > 0) return lineItems.value
-  return [
-    { itemCode: 'ITEM-000123', itemName: 'STEEL COIL', unit: 'TON', orderedQty: 500, unitPrice: 800000, lineAmount: 400000000, expectedDueDate: '2026-05-10', itemStatus: 'CONFIRMED' },
-    { itemCode: 'ITEM-000456', itemName: 'ALUMINUM SHEET', unit: 'TON', orderedQty: 300, unitPrice: 2400000, lineAmount: 720000000, expectedDueDate: '2026-05-15', itemStatus: 'PARTIAL' },
-    { itemCode: 'ITEM-000789', itemName: 'PLASTIC RESIN', unit: 'KG', orderedQty: 1000, unitPrice: 3200, lineAmount: 3200000, expectedDueDate: '2026-05-12', itemStatus: 'CONFIRMED' },
-  ]
+  return Array.isArray(data.value?.items) ? data.value.items : []
 })
 
 const shipmentPathRows = computed(() => {
@@ -1124,6 +1129,8 @@ async function fetchDetail() {
   try {
     if (kind.value === 'orders') {
       data.value = await getPurchaseOrder(publicId.value)
+    } else if (kind.value === 'sub-orders') {
+      data.value = await getSubPurchaseOrder(publicId.value)
     } else if (kind.value === 'shipments') {
       const [detail, eta, histories] = await Promise.all([
         getShipment(publicId.value),
@@ -1294,7 +1301,7 @@ watch(
 
     <template v-else-if="data && hasDomainLayout">
       <div class="operation-detail-page__domain-shell">
-        <main v-if="kind === 'orders'" class="operation-detail-page__document-grid">
+        <main v-if="kind === 'orders' || kind === 'sub-orders'" class="operation-detail-page__document-grid">
           <section class="operation-detail-page__document-main">
             <article class="operation-detail-page__doc-hero">
               <div>

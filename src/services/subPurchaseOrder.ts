@@ -33,6 +33,27 @@ export interface CreateSubPurchaseOrderRequestDto {
   items: CreateSubPurchaseOrderItemRequestDto[]
 }
 
+export interface CreateSubPurchaseOrderBatchLineRequestDto {
+  supplierPublicId: string
+  parentPoItemPublicId: string
+  itemPublicId: string
+  orderedQty: number
+}
+
+export interface CreateSubPurchaseOrderBatchRequestDto {
+  parentPoPublicId: string
+  lines: CreateSubPurchaseOrderBatchLineRequestDto[]
+}
+
+export async function createSubPurchaseOrdersBatch(data: CreateSubPurchaseOrderBatchRequestDto) {
+  const response = await apiClient.post<SubPurchaseOrderResponseDto[]>(
+    '/api/supply/sub-purchase-orders/batch',
+    data,
+  )
+  return response.data
+}
+
+
 export interface ConfirmSubPurchaseOrderItemRequestDto {
   confirmedQty: number
 }
