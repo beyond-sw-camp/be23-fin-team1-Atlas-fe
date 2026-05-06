@@ -482,10 +482,17 @@ const targetTypeDonutChartOptions = computed(() => {
       fontFamily: 'Pretendard, "Segoe UI", sans-serif',
       toolbar: { show: false },
     },
+    dataLabels: {
+      style: {
+        fontFamily: 'Pretendard, "Segoe UI", sans-serif',
+        fontWeight: 900,
+      },
+    },
     legend: {
       position: 'bottom',
       fontSize: '12px',
       fontWeight: 800,
+      fontFamily: 'Pretendard, "Segoe UI", sans-serif',
       labels: {
         colors: '#667085',
       },
@@ -496,9 +503,19 @@ const targetTypeDonutChartOptions = computed(() => {
           size: '68%',
           labels: {
             show: true,
+            name: {
+              fontFamily: 'Pretendard, "Segoe UI", sans-serif',
+              fontWeight: 800,
+            },
+            value: {
+              fontFamily: 'Pretendard, "Segoe UI", sans-serif',
+              fontWeight: 800,
+            },
             total: {
               show: true,
               label: content.value.stats.total,
+              fontFamily: 'Pretendard, "Segoe UI", sans-serif',
+              fontWeight: 800,
               formatter: () => `${targetTypeAmountTotal.value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')} KRW`,
             },
           },
@@ -695,9 +712,15 @@ function formatTargetType(value: SettlementTargetType) {
   return content.value.targetTypes[value as keyof typeof content.value.targetTypes] ?? value
 }
 
-function getSupplierLabel(publicId: string) {
-  const supplier = supplierOptions.value.find((item) => item.publicId === publicId)
-  if (!supplier) return publicId
+function getSupplierLabel(publicId: string, organizationPublicId?: string | null) {
+  const supplier = supplierOptions.value.find((item) => {
+    return (
+      item.publicId === publicId ||
+      item.organizationPublicId === publicId ||
+      item.organizationPublicId === organizationPublicId
+    )
+  })
+  if (!supplier) return organizationPublicId ?? publicId
   return `${supplier.supplierName} (${supplier.supplierCode})`
 }
 
@@ -1235,7 +1258,7 @@ onMounted(() => {
                 @click="handleSettlementSelect(settlement.publicId)"
               >
                 <td class="stl-table__id">{{ settlement.id }}</td>
-                <td>{{ getSupplierLabel(settlement.supplierPublicId) }}</td>
+                <td>{{ getSupplierLabel(settlement.supplierPublicId, settlement.supplierOrganizationPublicId) }}</td>
                 <td>
                   <span class="stl-type-badge">
                     {{ formatTargetType(settlement.targetType) }}
@@ -1298,7 +1321,7 @@ onMounted(() => {
             <div class="stl-detail-item">
               <span class="stl-detail-item__label">{{ content.fields.supplier }}</span>
               <span class="stl-detail-item__val">
-                {{ getSupplierLabel(selectedSettlement.supplierPublicId) }}
+                {{ getSupplierLabel(selectedSettlement.supplierPublicId, selectedSettlement.supplierOrganizationPublicId) }}
               </span>
             </div>
 
@@ -1619,6 +1642,7 @@ onMounted(() => {
 }
 
 .stl-card {
+  min-width: 0;
   background: var(--stl-card);
   border: 1px solid var(--stl-border);
   border-radius: 0;
@@ -1649,7 +1673,7 @@ onMounted(() => {
 
 .stl-chart-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -1773,6 +1797,7 @@ onMounted(() => {
 }
 
 .stl-table-wrap {
+  max-width: 100%;
   overflow-x: auto;
 }
 
@@ -1995,6 +2020,14 @@ onMounted(() => {
   font-weight: 800;
 }
 
+.stl-chart-card :deep(.apexcharts-text),
+.stl-chart-card :deep(.apexcharts-datalabel),
+.stl-chart-card :deep(.apexcharts-legend-text),
+.stl-chart-card :deep(.apexcharts-datalabel-label),
+.stl-chart-card :deep(.apexcharts-datalabel-value) {
+  font-family: Pretendard, "Segoe UI", sans-serif !important;
+}
+
 
 @keyframes spin {
   to {
@@ -2016,9 +2049,67 @@ onMounted(() => {
 @media (max-width: 768px) {
   .stl-page {
     padding: 16px;
+    overflow-x: hidden;
   }
 
-  .stl-kpi-row,
+  .stl-page__header {
+    align-items: flex-start;
+  }
+
+  .stl-page__actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .stl-page__actions .stl-btn,
+  .stl-page__actions .stl-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .stl-kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .stl-kpi-card {
+    min-height: 104px;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .stl-kpi-card__icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .stl-kpi-card__label {
+    font-size: 0.66rem;
+    letter-spacing: 0.02em;
+  }
+
+  .stl-kpi-card__value {
+    font-size: 1.05rem;
+    overflow-wrap: anywhere;
+  }
+
+  .stl-insight-grid,
+  .stl-main-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stl-card {
+    padding: 16px;
+  }
+
+  .stl-chart-card :deep(.apexcharts-canvas),
+  .stl-chart-card :deep(.apexcharts-svg) {
+    max-width: 100%;
+  }
+
   .stl-form-grid,
   .stl-detail-grid {
     grid-template-columns: 1fr;
@@ -2030,6 +2121,84 @@ onMounted(() => {
 
   .stl-chart-total {
     align-items: flex-start;
+  }
+
+  .stl-empty {
+    min-width: 0;
+    padding: 28px 14px;
+    overflow-wrap: anywhere;
+  }
+
+  .stl-empty--hint {
+    min-height: 180px;
+  }
+
+  .stl-detail-item {
+    min-width: 0;
+  }
+
+  .stl-detail-item__val {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .stl-table-wrap {
+    overflow-x: hidden;
+  }
+
+  .stl-card--list .stl-table {
+    table-layout: fixed;
+  }
+
+  .stl-card--list .stl-table th:nth-child(1),
+  .stl-card--list .stl-table td:nth-child(1),
+  .stl-card--list .stl-table th:nth-child(5),
+  .stl-card--list .stl-table td:nth-child(5),
+  .stl-card--list .stl-table th:nth-child(6),
+  .stl-card--list .stl-table td:nth-child(6) {
+    display: none;
+  }
+
+  .stl-card--list .stl-table th:nth-child(2),
+  .stl-card--list .stl-table td:nth-child(2) {
+    width: 48%;
+  }
+
+  .stl-card--list .stl-table th:nth-child(3),
+  .stl-card--list .stl-table td:nth-child(3) {
+    width: 22%;
+  }
+
+  .stl-card--list .stl-table th:nth-child(4),
+  .stl-card--list .stl-table td:nth-child(4) {
+    width: 30%;
+  }
+
+  .stl-table th,
+  .stl-table td {
+    padding: 10px 8px;
+  }
+
+  .stl-table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .stl-type-badge {
+    padding: 4px 6px;
+    white-space: normal;
+    line-height: 1.15;
+  }
+
+  .stl-subcard .stl-table {
+    table-layout: fixed;
+  }
+
+  .stl-subcard .stl-table th:nth-child(1),
+  .stl-subcard .stl-table td:nth-child(1),
+  .stl-subcard .stl-table th:nth-child(2),
+  .stl-subcard .stl-table td:nth-child(2) {
+    display: none;
   }
 }
 </style>
