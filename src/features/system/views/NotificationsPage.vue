@@ -12,6 +12,7 @@ const session = useAtlasSessionStore()
 const searchQuery = ref('')
 const activeTab = ref('ALL')
 const isPreferencesModalOpen = ref(false)
+const localPage = ref(0)
 const pageSize = 20
 
 const CONTENT = {
@@ -97,8 +98,6 @@ const CONTENT = {
 
 const content = computed(() => CONTENT[preferences.language])
 const notifications = computed(() => notificationStore.notifications)
-const currentPageLabel = computed(() => notificationStore.currentPage + 1)
-const totalPagesLabel = computed(() => Math.max(notificationStore.totalPages, 1))
 
 const topNotificationDomain = computed(() => {
   const counts = notifications.value.reduce((acc, notification) => {
@@ -165,8 +164,18 @@ const filteredNotifications = computed(() => {
   })
 })
 
-const canMovePrevious = computed(() => notificationStore.currentPage > 0 && !notificationStore.isLoading)
-const canMoveNext = computed(() => !notificationStore.isLoading && notificationStore.currentPage < notificationStore.totalPages - 1)
+const usesLocalPagination = computed(() => notificationStore.totalPages <= 1 && filteredNotifications.value.length > pageSize)
+const localTotalPages = computed(() => Math.max(Math.ceil(filteredNotifications.value.length / pageSize), 1))
+const currentPageLabel = computed(() => (usesLocalPagination.value ? localPage.value : notificationStore.currentPage) + 1)
+const totalPagesLabel = computed(() => usesLocalPagination.value ? localTotalPages.value : Math.max(notificationStore.totalPages, 1))
+const visibleNotifications = computed(() => {
+  if (!usesLocalPagination.value) return filteredNotifications.value
+
+  const start = localPage.value * pageSize
+  return filteredNotifications.value.slice(start, start + pageSize)
+})
+const canMovePrevious = computed(() => currentPageLabel.value > 1 && !notificationStore.isLoading)
+const canMoveNext = computed(() => !notificationStore.isLoading && currentPageLabel.value < totalPagesLabel.value)
 
 function isRiskNotification(notification: NotificationDto) {
   return notification.domainType === 'RISK'
@@ -241,6 +250,13 @@ async function handleReadAll() {
 }
 
 async function movePage(offset: number) {
+  if (usesLocalPagination.value) {
+    const nextPage = localPage.value + offset
+    if (nextPage < 0 || nextPage >= localTotalPages.value) return
+    localPage.value = nextPage
+    return
+  }
+
   const nextPage = notificationStore.currentPage + offset
   if (nextPage < 0 || nextPage >= notificationStore.totalPages) return
   await loadNotifications(nextPage)
@@ -255,6 +271,10 @@ onMounted(async () => {
 
 watch(() => preferences.language, () => {
   activeTab.value = content.value.tabs[0].key
+})
+
+watch([searchQuery, activeTab, notifications], () => {
+  localPage.value = 0
 })
 </script>
 
@@ -339,7 +359,7 @@ watch(() => preferences.language, () => {
         </div>
 
         <div
-          v-for="notification in filteredNotifications"
+          v-for="notification in visibleNotifications"
           :key="notification.publicId"
           class="page-table__row"
           :class="{ 'is-unread': !notification.readYn }"
@@ -376,7 +396,7 @@ watch(() => preferences.language, () => {
       </div>
     </article>
 
-    <nav v-if="notificationStore.totalPages > 1" class="risk-rules-pagination" aria-label="notification pagination">
+    <nav v-if="totalPagesLabel > 1" class="risk-rules-pagination" aria-label="notification pagination">
       <button
         class="page-button page-button--secondary risk-rules-pagination__button"
         type="button"
