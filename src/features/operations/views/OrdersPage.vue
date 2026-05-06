@@ -2895,7 +2895,7 @@ onBeforeUnmount(() => header.clearActions())
                 <span>{{ formatDate(order.orderedAt) }}</span>
                 <span>{{ formatDate(order.expectedDueDate) }}</span>
                 <span>
-                  <span :class="['page-status-chip', orderStatusTone(order.status)]">
+                  <span :class="['page-status-chip', 'orders-page__order-status-chip', orderStatusTone(order.status)]">
                     {{
                       order.kind === 'PO'
                         ? poStatusText(order.status as PoStatus)
