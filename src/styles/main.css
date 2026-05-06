@@ -947,6 +947,10 @@ select:not(.app-language-select select):focus {
   color: var(--on-surface-variant, #474747);
 }
 
+.app-sidebar .app-nav-item__label {
+  font-size: 0.74rem;
+}
+
 .app-context__value {
   font-size: 0.82rem;
   font-weight: 700;

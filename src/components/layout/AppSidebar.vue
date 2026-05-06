@@ -35,12 +35,6 @@ function toggleTheme() {
   preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
 }
 
-function handleLanguageChange(event: Event) {
-  const target = event.target as HTMLSelectElement | null
-  if (!target) return
-  preferences.setLanguage(target.value === 'en' ? 'en' : 'ko')
-}
-
 function handleSidebarNavigate(navigate: () => void) {
   navigate()
   ui.closeMobileSidebar()
@@ -54,6 +48,22 @@ function handleMobileChatClick() {
 function formatNotificationBadge(count: number) {
   if (count <= 0) return ''
   return count > 99 ? '99+' : String(count)
+}
+
+function getNumericBadgeTone(count: number) {
+  if (count <= 0) return ''
+  if (count <= 10) return 'info'
+  if (count <= 20) return 'warn'
+  return 'crit'
+}
+
+function getStaticBadgeTone(item: SidebarBadgeItem) {
+  const count = Number(item.badge)
+  if (Number.isFinite(count)) {
+    return getNumericBadgeTone(count)
+  }
+
+  return item.badgeTone
 }
 
 function getSidebarBadge(item: SidebarBadgeItem) {
@@ -70,14 +80,14 @@ function getSidebarBadge(item: SidebarBadgeItem) {
 
 function getSidebarBadgeTone(item: SidebarBadgeItem) {
   if (item.key === 'notificationsCenter') {
-    return 'crit'
+    return getNumericBadgeTone(notificationStore.unreadCount)
   }
 
   if (sidebarBadges.isDynamicBadgeKey(item.key)) {
     return sidebarBadges.getBadgeTone(item.key)
   }
 
-  return item.badgeTone
+  return getStaticBadgeTone(item)
 }
 
 function buildSidebarUserName() {
@@ -216,17 +226,6 @@ onBeforeUnmount(() => {
       <button class="app-icon-button" type="button" @click="navigation.openSettings">
         <span class="material-symbols-outlined">settings</span>
       </button>
-      <label class="app-language-select app-language-select--sidebar">
-        <select
-          id="app-language-sidebar"
-          name="app-language-sidebar"
-          :value="preferences.language"
-          @change="handleLanguageChange"
-        >
-          <option value="ko">KO</option>
-          <option value="en">EN</option>
-        </select>
-      </label>
     </div>
   </aside>
 </template>

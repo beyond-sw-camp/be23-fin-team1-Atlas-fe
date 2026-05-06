@@ -5,13 +5,14 @@ import { DEFAULT_ORGANIZATION, DEFAULT_PAGE, DEFAULT_THEME } from '../config/app
 import { NAV_ITEMS, isPageKey } from '../config/navigation'
 import { DESIGN_THEME_TOKENS, isOrganization, isTheme } from '../config/theme'
 import { PAGE_SHELL_CLASSES } from '../features/shared/pagePresentation'
-import { getMyPersonalSettings, updateMyPersonalSettings } from '../services/user'
+import { updateMyPersonalSettings } from '../services/user'
 import type { AppLanguage, OrganizationType, PageKey, ScreenTheme } from '../types'
 
 const ORG_STORAGE_KEY = 'atlas-organization'
 const LANG_STORAGE_KEY = 'atlas-language'
 const THEME_STORAGE_KEY = 'atlas-theme'
 const ACCESS_TOKEN_STORAGE_KEY = 'atlas-access-token'
+const DEFAULT_LANGUAGE: AppLanguage = 'ko'
 
 function getStoredOrganization(): OrganizationType {
   const value = window.sessionStorage.getItem(ORG_STORAGE_KEY) ?? undefined
@@ -24,8 +25,7 @@ function getStoredTheme(): ScreenTheme {
 }
 
 function getStoredLanguage(): AppLanguage {
-  const value = window.localStorage.getItem(LANG_STORAGE_KEY) ?? undefined
-  return value === 'en' ? 'en' : 'ko'
+  return DEFAULT_LANGUAGE
 }
 
 const OPERATION_DETAIL_PAGE_KEYS: Record<string, PageKey> = {
@@ -106,36 +106,27 @@ export const useAtlasPreferencesStore = defineStore('atlasPreferences', () => {
     theme.value = nextTheme
   }
 
-  function applyLanguage(nextLanguage: AppLanguage) {
-    window.localStorage.setItem(LANG_STORAGE_KEY, nextLanguage)
-    language.value = nextLanguage
+  function applyLanguage() {
+    window.localStorage.setItem(LANG_STORAGE_KEY, DEFAULT_LANGUAGE)
+    language.value = DEFAULT_LANGUAGE
   }
 
   async function syncLanguageFromServer() {
-    if (!window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) {
-      return
-    }
-
-    try {
-      const settings = await getMyPersonalSettings()
-      applyLanguage(settings.language === 'en' ? 'en' : 'ko')
-    } catch {
-      // 설정 조회 실패 시에는 로컬 캐시 언어를 유지합니다.
-    }
+    applyLanguage()
   }
 
-  async function setLanguage(nextLanguage: AppLanguage) {
-    applyLanguage(nextLanguage)
+  async function setLanguage() {
+    applyLanguage()
 
     if (!window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) {
       return
     }
 
     try {
-      const settings = await updateMyPersonalSettings({ language: nextLanguage })
-      applyLanguage(settings.language === 'en' ? 'en' : 'ko')
+      await updateMyPersonalSettings({ language: DEFAULT_LANGUAGE })
+      applyLanguage()
     } catch {
-      // 저장 실패 시 화면 언어는 사용자가 선택한 로컬 상태를 유지합니다.
+      // 저장 실패 시에도 화면 언어는 한글로 유지합니다.
     }
   }
 

@@ -22,14 +22,11 @@ function formatBadgeCount(count: number | undefined) {
   return value > 99 ? '99+' : String(value)
 }
 
-function badgeTone(key: PageKey, count: number) {
+function badgeTone(count: number) {
   if (count <= 0) return ''
-
-  if (key === 'certificateWatch' || key === 'returns' || key === 'shipments' || key === 'inventory') {
-    return 'warn'
-  }
-
-  return 'info'
+  if (count <= 10) return 'info'
+  if (count <= 20) return 'warn'
+  return 'crit'
 }
 
 export const useAtlasSidebarBadgesStore = defineStore('atlasSidebarBadges', () => {
@@ -59,7 +56,7 @@ export const useAtlasSidebarBadgesStore = defineStore('atlasSidebarBadges', () =
   }
 
   function getBadgeTone(key: string) {
-    return badgeTone(key as PageKey, getDisplayCount(key))
+    return badgeTone(getDisplayCount(key))
   }
 
   function getDisplayCount(key: string) {
