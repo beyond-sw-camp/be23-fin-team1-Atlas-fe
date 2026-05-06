@@ -2489,6 +2489,12 @@ onMounted(() => {
   gap: 5px;
 }
 
+.shipment-work-card--row .shipment-status-pill {
+  width: 98px;
+  justify-content: center;
+  justify-self: end;
+}
+
 .shipment-work-card--cancelled {
   border-left-color: #94a3b8;
   background: #f8fafc;
