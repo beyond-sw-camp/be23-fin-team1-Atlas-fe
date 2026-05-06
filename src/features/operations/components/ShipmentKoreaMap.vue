@@ -16,6 +16,16 @@ const emit = defineEmits<{
   select: [shipment: ShipmentMapResponseDto]
 }>()
 
+type MarkerRole = 'origin' | 'current' | 'destination'
+
+interface MarkerPoint {
+  key: string
+  shipment: ShipmentMapResponseDto
+  role: MarkerRole
+  lngLat: [number, number]
+  offset: [number, number]
+}
+
 const mapElement = ref<HTMLElement | null>(null)
 const loadError = ref('')
 
@@ -23,14 +33,31 @@ let map: MapLibreMap | null = null
 let maplibre: typeof import('maplibre-gl') | null = null
 const markers = new Map<string, MapLibreMarker>()
 
-const routeSourceId = 'shipment-route-source'
-const routeLayerId = 'shipment-route-line'
-
 function statusColor(status: ShipmentStatus) {
   if (status === 'READY') return '#b7791f'
   if (status === 'IN_TRANSIT') return '#047857'
   if (status === 'DELAYED') return '#dc2626'
   return '#334155'
+}
+
+function roleLabel(role: MarkerRole) {
+  const labels: Record<MarkerRole, { ko: string; en: string }> = {
+    origin: { ko: '출', en: 'O' },
+    current: { ko: '현', en: 'C' },
+    destination: { ko: '도', en: 'D' },
+  }
+
+  return labels[role][props.language]
+}
+
+function roleTitle(role: MarkerRole) {
+  const labels: Record<MarkerRole, { ko: string; en: string }> = {
+    origin: { ko: '출발 창고', en: 'Origin' },
+    current: { ko: '현재 위치', en: 'Current' },
+    destination: { ko: '도착 창고', en: 'Destination' },
+  }
+
+  return labels[role][props.language]
 }
 
 function shortShipmentNumber(value: string) {
@@ -46,6 +73,15 @@ function shortShipmentNumber(value: string) {
 
 function isValidCoordinate(latitude?: number | null, longitude?: number | null) {
   return Number.isFinite(latitude) && Number.isFinite(longitude)
+}
+
+function sameLngLat(a: [number, number] | null, b: [number, number] | null) {
+  if (!a || !b) return false
+  return Math.abs(a[0] - b[0]) < 0.00001 && Math.abs(a[1] - b[1]) < 0.00001
+}
+
+function coordinateKey(point: [number, number]) {
+  return `${point[0].toFixed(5)},${point[1].toFixed(5)}`
 }
 
 function currentLngLat(shipment: ShipmentMapResponseDto): [number, number] | null {
@@ -69,6 +105,71 @@ function destinationLngLat(shipment: ShipmentMapResponseDto): [number, number] |
   return [Number(shipment.destinationLongitude), Number(shipment.destinationLatitude)]
 }
 
+function buildMarkerPoints() {
+  const rawPoints = props.shipments.flatMap((shipment) => {
+    const origin = originLngLat(shipment)
+    const current = currentLngLat(shipment)
+    const destination = destinationLngLat(shipment)
+    const points: Array<Omit<MarkerPoint, 'offset'>> = []
+
+    if (origin) {
+      points.push({
+        key: `${shipment.publicId}-origin`,
+        shipment,
+        role: 'origin',
+        lngLat: origin,
+      })
+    }
+
+    if (current && !sameLngLat(current, origin) && !sameLngLat(current, destination)) {
+      points.push({
+        key: `${shipment.publicId}-current`,
+        shipment,
+        role: 'current',
+        lngLat: current,
+      })
+    }
+
+    if (destination && !sameLngLat(destination, origin)) {
+      points.push({
+        key: `${shipment.publicId}-destination`,
+        shipment,
+        role: 'destination',
+        lngLat: destination,
+      })
+    }
+
+    return points
+  })
+
+  const groups = rawPoints.reduce((acc, point) => {
+    const key = coordinateKey(point.lngLat)
+    const group = acc.get(key) ?? []
+    group.push(point)
+    acc.set(key, group)
+    return acc
+  }, new Map<string, Array<Omit<MarkerPoint, 'offset'>>>())
+
+  return Array.from(groups.values()).flatMap((group) => {
+    const columns = group.length <= 2 ? group.length : 2
+    const rows = Math.ceil(group.length / columns)
+    const horizontalGap = 42
+    const verticalGap = 32
+
+    return group.map((point, index) => {
+      const column = index % columns
+      const row = Math.floor(index / columns)
+      const x = (column - (columns - 1) / 2) * horizontalGap
+      const y = (row - (rows - 1) / 2) * verticalGap
+
+      return {
+        ...point,
+        offset: [x, y] as [number, number],
+      }
+    })
+  })
+}
+
 function clearMarkers() {
   markers.forEach((marker) => marker.remove())
   markers.clear()
@@ -82,87 +183,47 @@ function renderMarkers() {
 
   clearMarkers()
 
-  props.shipments.forEach((shipment) => {
-    const point = currentLngLat(shipment)
-    if (!point) return
-
+  buildMarkerPoints().forEach((point) => {
     const markerElement = document.createElement('button')
     markerElement.type = 'button'
     markerElement.className = 'shipment-korea-map__marker'
-    markerElement.classList.toggle('is-selected', shipment.publicId === props.selectedPublicId)
-    markerElement.style.setProperty('--marker-color', statusColor(shipment.status))
-    markerElement.textContent = shortShipmentNumber(shipment.shipmentNumber)
-    markerElement.title = shipment.shipmentNumber
-    markerElement.addEventListener('click', () => emit('select', shipment))
+    markerElement.classList.toggle('is-selected', point.shipment.publicId === props.selectedPublicId)
+    markerElement.classList.add(`is-${point.role}`)
+    markerElement.dataset.shipmentPublicId = point.shipment.publicId
+    markerElement.style.setProperty('--marker-color', statusColor(point.shipment.status))
+    markerElement.title = `${roleTitle(point.role)} / ${point.shipment.shipmentNumber}`
+    markerElement.innerHTML = `
+      <span>${roleLabel(point.role)}</span>
+      <strong>${shortShipmentNumber(point.shipment.shipmentNumber)}</strong>
+    `
+    markerElement.addEventListener('click', () => emit('select', point.shipment))
 
-    const marker = new maplibreInstance.Marker({ element: markerElement, anchor: 'center' })
-      .setLngLat(point)
+    const marker = new maplibreInstance.Marker({
+      element: markerElement,
+      anchor: 'center',
+      offset: point.offset,
+    })
+      .setLngLat(point.lngLat)
       .addTo(mapInstance)
 
-    markers.set(shipment.publicId, marker)
+    markers.set(point.key, marker)
   })
 }
 
 function syncSelectedMarker() {
-  markers.forEach((marker, publicId) => {
-    marker.getElement().classList.toggle('is-selected', publicId === props.selectedPublicId)
+  markers.forEach((marker) => {
+    const shipmentPublicId = marker.getElement().dataset.shipmentPublicId
+    marker.getElement().classList.toggle('is-selected', shipmentPublicId === props.selectedPublicId)
   })
-}
 
-function buildRouteData(): any {
-  return {
-    type: 'FeatureCollection',
-    features: props.shipments
-      .map((shipment) => {
-        const origin = originLngLat(shipment)
-        const current = currentLngLat(shipment)
-        const destination = destinationLngLat(shipment)
+  if (!props.selectedPublicId || !map) return
 
-        if (!origin || !current || !destination) return null
+  const selected = props.shipments.find((shipment) => shipment.publicId === props.selectedPublicId)
+  const point = selected ? currentLngLat(selected) ?? originLngLat(selected) ?? destinationLngLat(selected) : null
 
-        return {
-          type: 'Feature',
-          properties: {
-            publicId: shipment.publicId,
-            color: statusColor(shipment.status),
-          },
-          geometry: {
-            type: 'LineString',
-            coordinates: [origin, current, destination],
-          },
-        }
-      })
-      .filter(Boolean),
+  if (point) {
+    map.easeTo({ center: point, zoom: Math.max(map.getZoom(), 7), duration: 250 })
   }
-}
-
-function renderRoutes() {
-  if (!map) return
-
-  const routeData = buildRouteData()
-  const source = map.getSource(routeSourceId) as { setData?: (data: unknown) => void } | undefined
-
-  if (source?.setData) {
-    source.setData(routeData)
-    return
-  }
-
-  map.addSource(routeSourceId, {
-    type: 'geojson',
-    data: routeData,
-  })
-
-  map.addLayer({
-    id: routeLayerId,
-    type: 'line',
-    source: routeSourceId,
-    paint: {
-      'line-color': ['get', 'color'],
-      'line-width': 2.5,
-      'line-opacity': 0.55,
-      'line-dasharray': [1.5, 1.2],
-    },
-  })
 }
 
 function fitKoreaOrShipments() {
@@ -183,8 +244,8 @@ function fitKoreaOrShipments() {
   points.forEach((point) => bounds.extend(point))
 
   map.fitBounds(bounds, {
-    padding: 80,
-    maxZoom: 8,
+    padding: 86,
+    maxZoom: 8.4,
     duration: 0,
   })
 }
@@ -192,9 +253,9 @@ function fitKoreaOrShipments() {
 function renderMapData() {
   if (!map?.isStyleLoaded()) return
 
-  renderRoutes()
   renderMarkers()
   fitKoreaOrShipments()
+  syncSelectedMarker()
 }
 
 onMounted(async () => {
@@ -246,9 +307,9 @@ onBeforeUnmount(() => {
   <div class="shipment-korea-map">
     <div ref="mapElement" class="shipment-korea-map__canvas" />
     <div class="shipment-korea-map__legend">
-      <span><i class="is-ready" /> 상품 준비</span>
-      <span><i class="is-transit" /> 배송 중</span>
-      <span><i class="is-delayed" /> 지연</span>
+      <span><i class="is-origin" /> {{ language === 'ko' ? '출발' : 'Origin' }}</span>
+      <span><i class="is-current" /> {{ language === 'ko' ? '현재' : 'Current' }}</span>
+      <span><i class="is-destination" /> {{ language === 'ko' ? '도착' : 'Destination' }}</span>
     </div>
     <div v-if="loadError" class="shipment-korea-map__fallback">
       {{ loadError }}
@@ -302,16 +363,16 @@ onBeforeUnmount(() => {
   border-radius: 0;
 }
 
-.shipment-korea-map__legend .is-ready {
-  background: #b7791f;
+.shipment-korea-map__legend .is-origin {
+  background: #1d4ed8;
 }
 
-.shipment-korea-map__legend .is-transit {
+.shipment-korea-map__legend .is-current {
   background: #047857;
 }
 
-.shipment-korea-map__legend .is-delayed {
-  background: #dc2626;
+.shipment-korea-map__legend .is-destination {
+  background: #7c3aed;
 }
 
 .shipment-korea-map__fallback {
@@ -325,19 +386,51 @@ onBeforeUnmount(() => {
 }
 
 :global(.shipment-korea-map__marker) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 112px;
   border: 1px solid rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.92);
   border-radius: 0;
-  padding: 6px 9px;
+  padding: 5px 8px 5px 5px;
   background: var(--marker-color, #334155);
   color: #fff;
   font-family: Pretendard, "Segoe UI", sans-serif;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 900;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  box-shadow: none;
-  transition: background 50ms ease;
+  box-shadow: 0 8px 18px rgb(15 23 42 / 0.16);
+  transition: background 50ms ease, transform 50ms ease;
+}
+
+:global(.shipment-korea-map__marker span) {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  min-height: 20px;
+  background: rgb(255 255 255 / 0.18);
+  color: #fff;
+  font-size: 0.68rem;
+}
+
+:global(.shipment-korea-map__marker strong) {
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:global(.shipment-korea-map__marker.is-origin) {
+  border-left: 4px solid #1d4ed8;
+}
+
+:global(.shipment-korea-map__marker.is-current) {
+  transform: scale(1.04);
+}
+
+:global(.shipment-korea-map__marker.is-destination) {
+  border-left: 4px solid #7c3aed;
 }
 
 :global(.shipment-korea-map__marker:hover),

@@ -53,6 +53,7 @@ const CONTENT = {
       nodeCode: '창고 코드',
       nodeName: '창고명',
       address: '주소',
+      addressDetail: '상세주소',
       capacityStatus: '창고 상태',
     },
     createSubmitLabel: '저장',
@@ -70,6 +71,7 @@ const CONTENT = {
     addressSearchLabel: '주소 검색',
     addressSearchLoadingLabel: '검색창 여는 중...',
     addressPlaceholder: '주소 검색으로 선택해 주세요',
+    addressDetailPlaceholder: '동/층/호수 등 상세주소를 입력해 주세요',
     addressScriptLoadFailed: '주소 검색 스크립트를 불러오지 못했습니다.',
     addressUnavailable: '주소 검색을 사용할 수 없습니다.',
     addressOpenFailed: '주소 검색을 열지 못했습니다.',
@@ -105,6 +107,7 @@ const CONTENT = {
       nodeCode: 'Warehouse Code',
       nodeName: 'Warehouse Name',
       address: 'Address',
+      addressDetail: 'Address Detail',
       capacityStatus: 'Capacity Status',
     },
     createSubmitLabel: 'SAVE',
@@ -122,6 +125,7 @@ const CONTENT = {
     addressSearchLabel: 'SEARCH ADDRESS',
     addressSearchLoadingLabel: 'OPENING...',
     addressPlaceholder: 'Select an address using search',
+    addressDetailPlaceholder: 'Enter building, floor, unit, etc.',
     addressScriptLoadFailed: 'Failed to load the address search script.',
     addressUnavailable: 'Address search is unavailable.',
     addressOpenFailed: 'Failed to open address search.',
@@ -185,11 +189,13 @@ const createForm = ref<{
   nodeName: string
   nodeType: LogisticsNodeType
   address: string
+  addressDetail: string
   capacityStatus: LogisticsNodeCapacityStatus
 }>({
   nodeName: '',
   nodeType: 'WAREHOUSE',
   address: '',
+  addressDetail: '',
   capacityStatus: 'EMPTY',
 })
 
@@ -205,6 +211,7 @@ function resetCreateForm() {
     nodeName: '',
     nodeType: 'WAREHOUSE',
     address: '',
+    addressDetail: '',
     capacityStatus: 'EMPTY',
   }
 }
@@ -222,6 +229,7 @@ function handleOpenEditModal(node: LogisticsNodeResponseDto) {
     nodeName: node.nodeName,
     nodeType: 'WAREHOUSE',
     address: node.address ?? '',
+    addressDetail: '',
     capacityStatus: node.capacityStatus,
   }
   openCreateModal()
@@ -277,6 +285,7 @@ async function openAddressSearch() {
     new window.daum.Postcode({
       oncomplete(data) {
         createForm.value.address = data.roadAddress || data.jibunAddress
+        createForm.value.addressDetail = ''
       },
     }).open()
   } catch (error) {
@@ -291,6 +300,8 @@ async function openAddressSearch() {
 async function handleCreateSubmit() {
   const nodeName = createForm.value.nodeName.trim()
   const address = createForm.value.address.trim()
+  const addressDetail = createForm.value.addressDetail.trim()
+  const fullAddress = [address, addressDetail].filter(Boolean).join(' ')
 
   if (!nodeName || !address) {
     await dialog.alert(content.value.addressRequired)
@@ -304,7 +315,7 @@ async function handleCreateSubmit() {
     const payload = {
       nodeName,
       nodeType: 'WAREHOUSE' as LogisticsNodeType,
-      address,
+      address: fullAddress,
       capacityStatus: createForm.value.capacityStatus,
     }
 
@@ -676,6 +687,18 @@ onBeforeUnmount(() => header.clearActions())
             {{ isAddressScriptLoading ? content.addressSearchLoadingLabel : content.addressSearchLabel }}
           </button>
         </div>
+      </label>
+
+      <label class="logistics-modal-field">
+        <span>
+          {{ content.formLabels.addressDetail }}
+        </span>
+        <input
+          v-model="createForm.addressDetail"
+          type="text"
+          :placeholder="content.addressDetailPlaceholder"
+          :disabled="!createForm.address"
+        />
       </label>
     </div>
 
