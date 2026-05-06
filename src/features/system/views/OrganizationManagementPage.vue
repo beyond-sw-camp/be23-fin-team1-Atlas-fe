@@ -18,9 +18,11 @@ import {
 } from '../../../services/organization'
 import { createSupplier } from '../../../services/supplier'
 import {
+  createInitialOrgAdmin,
   uploadOrganizationUsersExcel,
   type OrganizationUserExcelUploadResponse,
 } from '../../../services/user'
+
 import { uploadAttachment } from '../../../services/file'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasNavigationStore } from '../../../stores/navigation'
@@ -796,6 +798,17 @@ async function submitOrganizationCreate() {
 
     })
 
+    const orgAdminResponse = await createInitialOrgAdmin(response.organizationPublicId, {
+      firstName: organizationCreateForm.contactFirstName.trim(),
+      middleName: organizationCreateForm.contactMiddleName?.trim() || undefined,
+      lastName: organizationCreateForm.contactLastName.trim(),
+      email: organizationCreateForm.contactEmail.trim(),
+      phone: organizationCreateForm.contactPhone.trim(),
+      jobTitle: preferences.language === 'ko' ? '조직 관리자' : 'Organization Admin',
+    })
+
+
+
     let supplierCreateFailed = false
 
     if (organizationCreateForm.organizationType === 'SUPPLIER') {
@@ -826,9 +839,14 @@ async function submitOrganizationCreate() {
     await refreshListAndOpenCreatedOrganization(response.organizationPublicId)
     resetCreateOrganizationForm()
 
+    const createdCredentialMessage =
+      `${copy.value.loginId}: ${orgAdminResponse.loginId} / ` +
+      `${copy.value.temporaryPassword}: ${orgAdminResponse.temporaryPassword}`
+
     pageSuccess.value = supplierCreateFailed
-      ? copy.value.createSupplierWarning
-      : copy.value.createSuccess
+      ? `${copy.value.createSupplierWarning} (${createdCredentialMessage})`
+      : `${copy.value.createSuccess} (${createdCredentialMessage})`
+
   } catch (error: any) {
     console.error('Failed to create organization:', error)
 
