@@ -1009,7 +1009,7 @@ onBeforeUnmount(() => header.clearActions())
     minmax(280px, 1.8fr)
     minmax(100px, 0.7fr)
     minmax(90px, 0.6fr)
-    minmax(170px, 1fr);
+    minmax(88px, 0.36fr);
   gap: 14px;
   align-items: center;
   padding: 14px 16px;
