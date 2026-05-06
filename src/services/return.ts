@@ -16,6 +16,15 @@ export type ReturnType = 'DAMAGE' | 'DEFECTIVE' | 'SIMPLE_RETURN'
 /** 처리 방식 (How) */
 export type ResolutionType = 'RETURN' | 'EXCHANGE' | 'DISPOSAL'
 
+/** QC 검수 상태 */
+export type QcStatus = 'PENDING' | 'PASS' | 'FAIL'
+
+/** QC 검수 등급 */
+export type QcGrade = 'A' | 'B' | 'DEFECTIVE'
+
+/** 폐기 사유 */
+export type DisposalReason = 'EXPIRED' | 'DAMAGED' | 'CONTAMINATED' | 'OTHER'
+
 /** 반품 상태 (유형별 경로가 다름) */
 export type ReturnStatus =
   | 'REQUESTED'
@@ -23,6 +32,7 @@ export type ReturnStatus =
   | 'REJECTED'
   | 'IN_TRANSIT'
   | 'RECEIVED'
+  | 'INSPECTING'  // QC 검수 진행 중
   | 'RESHIPPED'   // EXCHANGE 전용: 교체품 발송 완료
   | 'DISPOSED'    // DISPOSAL 전용: 폐기 처리 완료
   | 'COMPLETED'
@@ -56,6 +66,19 @@ export interface ReturnItemResponseDto {
   detailReason?: string | null
   itemStatus: string
   attachmentPublicIds: string[]
+  // QC 검수 관련
+  qcStatus?: QcStatus
+  qcGrade?: QcGrade
+  // 폐기 증빙 관련
+  disposalReason?: DisposalReason
+  disposalProofAttachmentPublicId?: string | null
+}
+
+export interface InspectReturnItemDto {
+  qcStatus: QcStatus
+  qcGrade: QcGrade
+  action: 'RESTOCK' | 'DISPOSE'
+  description?: string
 }
 
 
@@ -141,5 +164,18 @@ export async function updateReturnStatus(publicId: string, statusDto: UpdateRetu
 
 export async function getReturnHistories(publicId: string): Promise<ReturnStatusHistoryResponseDto[]> {
   const response = await apiClient.get<ReturnStatusHistoryResponseDto[]>(`/api/supply/returns/${publicId}/histories`)
+  return response.data
+}
+
+/** 검수 결과 입력 (품목별) */
+export async function inspectReturnItem(
+  returnPublicId: string,
+  itemId: number,
+  data: InspectReturnItemDto,
+): Promise<ReturnItemResponseDto> {
+  const response = await apiClient.patch<ReturnItemResponseDto>(
+    `/api/supply/returns/${returnPublicId}/items/${itemId}/inspect`,
+    data,
+  )
   return response.data
 }

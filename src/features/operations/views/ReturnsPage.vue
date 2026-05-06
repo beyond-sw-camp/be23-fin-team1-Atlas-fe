@@ -117,7 +117,7 @@ const filteredReturns = computed(() => {
 
   if (activeTab.value === 'IN_TRANSIT') {
     return returns.value.filter(
-      (item) => item.returnStatus === 'IN_TRANSIT' || item.returnStatus === 'RECEIVED',
+      (item) => item.returnStatus === 'IN_TRANSIT' || item.returnStatus === 'RECEIVED' || item.returnStatus === 'INSPECTING',
     )
   }
 
@@ -259,6 +259,7 @@ function returnStatusText(status: string) {
     REJECTED: '반려됨',
     IN_TRANSIT: '회수 중',
     RECEIVED: '입고 완료',
+    INSPECTING: '검수 중',
     RESHIPPED: '교체품 발송',
     DISPOSED: '폐기 완료',
     COMPLETED: '처리 완료',

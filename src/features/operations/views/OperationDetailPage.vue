@@ -12,10 +12,11 @@ import { getCertificate, getCertificateHistories } from '../../../services/certi
 import { getAttachment, type AttachmentFileDto } from '../../../services/file'
 import { getInventory, getInventories } from '../../../services/inventory'
 import { getLogisticsNode } from '../../../services/logistics'
-import { getReturnHistories, getReturnRequest } from '../../../services/return'
+import { getReturnHistories, getReturnRequest, updateReturnStatus, type ReturnStatus } from '../../../services/return'
 import { getSettlement } from '../../../services/settlement'
 import { getShipment, getShipmentEta, getShipmentStatusHistories } from '../../../services/shipment'
 import { getSupplier, getSupplierItemCapabilities } from '../../../services/supplier'
+import { getUserDetailByPublicId } from '../../../services/user'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSidebarBadgesStore } from '../../../stores/sidebarBadges'
 import type { PageKey } from '../../../types'
@@ -56,6 +57,83 @@ const router = useRouter()
 const preferences = useAtlasPreferencesStore()
 const sidebarBadges = useAtlasSidebarBadgesStore()
 const actor = useActorScope()
+
+const userNamesMap = ref<Record<string, string>>({})
+
+// ── 반품 상태 변경 ──
+const myOrgPublicId = window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
+const returnReasonText = ref('')
+const isReturnUpdating = ref(false)
+
+const isReturnDetail = computed(() => kind.value === 'returns' && !!data.value)
+const returnStatus = computed(() => String(data.value?.returnStatus ?? '').toUpperCase() as ReturnStatus)
+const resolutionType = computed(() => String(data.value?.resolutionType ?? 'RETURN').toUpperCase())
+
+const isReturnTargetOrg = computed(() => {
+  if (!data.value) return false
+  return data.value.targetOrganizationPublicId === myOrgPublicId
+})
+const isReturnRequestOrg = computed(() => {
+  if (!data.value) return false
+  return data.value.requestOrganizationPublicId === myOrgPublicId
+})
+
+const returnNextActions = computed<Array<{ label: string; status: ReturnStatus; tone: 'primary' | 'secondary' }>>(() => {
+  if (!isReturnDetail.value) return []
+  const st = returnStatus.value
+  const rt = resolutionType.value
+
+  if (st === 'REQUESTED' && isReturnTargetOrg.value) {
+    return [
+      { label: t('반려', 'Reject'), status: 'REJECTED', tone: 'secondary' },
+      { label: t('승인', 'Approve'), status: 'APPROVED', tone: 'primary' },
+    ]
+  }
+  if (st === 'APPROVED' && isReturnRequestOrg.value) {
+    if (rt === 'DISPOSAL') {
+      return [{ label: t('폐기 처리', 'Dispose'), status: 'DISPOSED', tone: 'primary' }]
+    }
+    return [{ label: t('회수 중 처리', 'Mark In Transit'), status: 'IN_TRANSIT', tone: 'primary' }]
+  }
+  if (st === 'IN_TRANSIT' && isReturnTargetOrg.value) {
+    return [{ label: t('입고 완료', 'Mark Received'), status: 'RECEIVED', tone: 'primary' }]
+  }
+  if (st === 'RECEIVED' && isReturnTargetOrg.value) {
+    return [{ label: t('검수 시작', 'Start Inspection'), status: 'INSPECTING', tone: 'primary' }]
+  }
+  if (st === 'INSPECTING' && isReturnTargetOrg.value) {
+    if (rt === 'EXCHANGE') {
+      return [{ label: t('교체품 출하', 'Reship'), status: 'RESHIPPED', tone: 'primary' }]
+    }
+    return [{ label: t('처리 완료', 'Complete'), status: 'COMPLETED', tone: 'primary' }]
+  }
+  if (st === 'RESHIPPED' && rt === 'EXCHANGE' && (isReturnRequestOrg.value || isReturnTargetOrg.value)) {
+    return [{ label: t('처리 완료', 'Complete'), status: 'COMPLETED', tone: 'primary' }]
+  }
+  if (st === 'DISPOSED' && rt === 'DISPOSAL' && isReturnTargetOrg.value) {
+    return [{ label: t('최종 확인', 'Final Confirm'), status: 'COMPLETED', tone: 'primary' }]
+  }
+  return []
+})
+
+async function handleReturnStatusChange(nextStatus: ReturnStatus) {
+  if (!data.value?.publicId) return
+  isReturnUpdating.value = true
+  try {
+    data.value = await updateReturnStatus(data.value.publicId, {
+      returnStatus: nextStatus,
+      reason: returnReasonText.value || '',
+    }) as Record<string, any>
+    returnReasonText.value = ''
+    // 이력도 다시 로드
+    related.value.histories = await getReturnHistories(data.value.publicId).catch(() => [])
+  } catch (error: any) {
+    errorMessage.value = error?.message ?? t('상태 변경에 실패했습니다.', 'Failed to update status.')
+  } finally {
+    isReturnUpdating.value = false
+  }
+}
+
 const DETAIL_BADGE_KEY_BY_KIND: Record<DetailKind, PageKey> = {
   orders: 'ordersDesk',
   shipments: 'shipments',
@@ -827,6 +905,63 @@ function formatNumber(value: unknown) {
     : display(value)
 }
 
+const returnStatusMap: Record<string, string> = {
+  REQUESTED: '요청됨',
+  APPROVED: '승인됨',
+  REJECTED: '반려됨',
+  IN_TRANSIT: '회수 중',
+  RECEIVED: '입고 완료',
+  INSPECTING: '검수 중',
+  RESHIPPED: '교체품 출하',
+  DISPOSED: '폐기 완료',
+  COMPLETED: '처리 완료',
+}
+
+const returnTypeMap: Record<string, string> = {
+  DAMAGE: '파손',
+  DEFECTIVE: '불량',
+  SIMPLE_RETURN: '단순 변심',
+}
+
+const resolutionTypeMap: Record<string, string> = {
+  RETURN: '반품 (환불)',
+  EXCHANGE: '교환',
+  DISPOSAL: '폐기',
+}
+
+function displayReturnStatus(status: unknown) {
+  if (!status) return '-'
+  const st = String(status).toUpperCase()
+  return returnStatusMap[st] || st
+}
+
+function displayReturnType(type: unknown) {
+  if (!type) return '-'
+  const str = String(type).toUpperCase()
+  return returnTypeMap[str] || str
+}
+
+function displayResolutionType(type: unknown) {
+  if (!type) return '-'
+  const str = String(type).toUpperCase()
+  return resolutionTypeMap[str] || str
+}
+
+function formatActor(publicId: unknown) {
+  if (!publicId || publicId === '-') return '-'
+  const str = String(publicId)
+  if (userNamesMap.value[str]) return userNamesMap.value[str]
+  if (str.length > 10) return `담당자 (${str.slice(-6)})`
+  return str
+}
+
+function formatShortId(publicId: unknown) {
+  if (!publicId || publicId === '-') return '-'
+  const str = String(publicId)
+  if (str.length > 12) return `...${str.slice(-6)}`
+  return str
+}
+
 function formatAmount(value: unknown, currency?: string) {
   if (typeof value !== 'number') return display(value)
   return `${currency ?? ''} ${value.toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')}`.trim()
@@ -981,8 +1116,46 @@ async function fetchDetail() {
         getReturnRequest(publicId.value),
         getReturnHistories(publicId.value).catch(() => []),
       ])
+
+      // 원출하 상세 정보 조회
+      let sourceShipment = null
+      if (detail.sourceShipmentPublicId) {
+        sourceShipment = await getShipment(detail.sourceShipmentPublicId).catch(() => null)
+      }
+
+      // 품목 코드 조회를 위해 병렬 처리
+      const itemsWithCode = await Promise.all(
+        detail.items.map(async (item) => {
+          const itemDetail = await getItem(item.itemPublicId).catch(() => null)
+          return {
+            ...item,
+            itemCode: itemDetail?.itemCode,
+          }
+        })
+      )
+      detail.items = itemsWithCode
+
+      // 사용자 이름 조회를 위해 병렬 처리
+      const userPublicIdsToFetch = new Set<string>()
+      if (detail.createdByUserPublicId) userPublicIdsToFetch.add(detail.createdByUserPublicId)
+      histories.forEach((h: any) => {
+        if (h.recordedBy) userPublicIdsToFetch.add(h.recordedBy)
+      })
+
+      await Promise.all(
+        Array.from(userPublicIdsToFetch).map(async (uid) => {
+          if (!userNamesMap.value[uid]) {
+            const userDetail = await getUserDetailByPublicId(uid).catch(() => null)
+            if (userDetail) {
+              const name = `${userDetail.lastName || ''}${userDetail.firstName || ''}`.trim()
+              userNamesMap.value[uid] = name || uid
+            }
+          }
+        })
+      )
+
       data.value = detail as Record<string, any>
-      related.value = { histories }
+      related.value = { histories, sourceShipment }
     } else if (kind.value === 'inventory') {
       const inventories = await getInventories()
       const detail = inventories.find((row) => row.inventoryPublicId === publicId.value)
@@ -1246,11 +1419,11 @@ watch(
               <span :class="['operation-detail-page__status', `is-${statusTone}`]">{{ status || 'REJECTED' }}</span>
               <dl>
                 <div><dt>{{ t('요청일시', 'Requested At') }}</dt><dd>{{ formatDate(data.requestedAt ?? data.createdAt) }}</dd></div>
-                <div><dt>{{ t('요청자', 'Requester') }}</dt><dd>{{ display(data.createdByUserPublicId) }}</dd></div>
-                <div><dt>{{ t('원출하', 'Source Shipment') }}</dt><dd>{{ display(data.sourceShipmentPublicId) }}</dd></div>
-                <div><dt>{{ t('사유 코드', 'Reason Code') }}</dt><dd>{{ display(data.returnType) }}</dd></div>
+                <div><dt>{{ t('요청자', 'Requester') }}</dt><dd>{{ formatActor(data.createdByUserPublicId) }}</dd></div>
+                <div><dt>{{ t('원출하', 'Source Shipment') }}</dt><dd>{{ display(related.sourceShipment?.shipmentNumber ?? formatShortId(data.sourceShipmentPublicId)) }}</dd></div>
+                <div><dt>{{ t('사유 코드', 'Reason Code') }}</dt><dd>{{ displayReturnType(data.returnType) }}</dd></div>
                 <div><dt>{{ t('우선순위', 'Priority') }}</dt><dd>HIGH</dd></div>
-                <div><dt>{{ t('처리 방식', 'Resolution Type') }}</dt><dd>{{ display(data.resolutionType) }}</dd></div>
+                <div><dt>{{ t('처리 방식', 'Resolution Type') }}</dt><dd>{{ displayResolutionType(data.resolutionType) }}</dd></div>
               </dl>
             </article>
             <article class="operation-detail-page__domain-card operation-detail-page__process">
@@ -1263,10 +1436,35 @@ watch(
               <h3>{{ t('반품 품목 및 클레임 정보', 'Return Items and Claims') }}</h3>
               <table class="operation-detail-page__domain-table">
                 <thead><tr><th>#</th><th>{{ t('품목 코드', 'Item Code') }}</th><th>{{ t('품목명', 'Item Name') }}</th><th>{{ t('반품 수량', 'Return Qty') }}</th><th>{{ t('단위', 'Unit') }}</th><th>{{ t('클레임 사유', 'Claim Reason') }}</th><th>{{ t('판정', 'Decision') }}</th></tr></thead>
-                <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemPublicId) }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason) }}</td><td>{{ display(item.itemStatus) }}</td></tr></tbody>
+                <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemCode ?? formatShortId(item.itemPublicId)) }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason) }}</td><td>{{ display(item.itemStatus) }}</td></tr></tbody>
               </table>
             </article>
-            <article class="operation-detail-page__domain-card"><h3>{{ detailCopy.common.history }}</h3><table class="operation-detail-page__domain-table"><tbody><tr v-for="(row, index) in historyRows" :key="rowKey(row, index)"><td>{{ formatDate(row.recordedAt ?? row.createdAt) }}</td><td>{{ display(row.afterStatus ?? row.statusCode) }}</td><td>{{ display(row.recordedBy ?? row.processedByUserPublicId) }}</td><td>{{ display(row.reason ?? row.memo) }}</td></tr></tbody></table></article>
+            <article class="operation-detail-page__domain-card"><h3>{{ detailCopy.common.history }}</h3><table class="operation-detail-page__domain-table"><tbody><tr v-for="(row, index) in historyRows" :key="rowKey(row, index)"><td>{{ formatDate(row.recordedAt ?? row.createdAt) }}</td><td>{{ kind === 'returns' ? displayReturnStatus(row.afterStatus ?? row.statusCode) : display(row.afterStatus ?? row.statusCode) }}</td><td>{{ kind === 'returns' ? formatActor(row.recordedBy ?? row.processedByUserPublicId) : display(row.recordedBy ?? row.processedByUserPublicId) }}</td><td>{{ display(row.reason ?? row.memo) }}</td></tr></tbody></table></article>
+
+            <!-- 반품 상태 변경 -->
+            <article v-if="returnNextActions.length > 0" class="operation-detail-page__domain-card operation-detail-page__return-actions">
+              <h3>{{ t('상태 변경', 'Change Status') }}</h3>
+              <p class="operation-detail-page__return-status-label">
+                {{ t('현재 상태', 'Current Status') }}: <strong>{{ displayReturnStatus(returnStatus) }}</strong>
+                <span v-if="resolutionType">({{ displayResolutionType(resolutionType) }})</span>
+              </p>
+              <label class="operation-detail-page__return-reason">
+                <span>{{ t('사유', 'Reason') }}</span>
+                <input v-model="returnReasonText" type="text" :placeholder="t('사유를 입력하세요 (선택)', 'Enter reason (optional)')" />
+              </label>
+              <div class="operation-detail-page__return-buttons">
+                <button
+                  v-for="action in returnNextActions"
+                  :key="action.status"
+                  :class="['page-button', `page-button--${action.tone}`]"
+                  type="button"
+                  :disabled="isReturnUpdating"
+                  @click="handleReturnStatusChange(action.status)"
+                >
+                  {{ isReturnUpdating ? t('처리 중...', 'Processing...') : action.label }}
+                </button>
+              </div>
+            </article>
           </section>
           <aside class="operation-detail-page__analysis-panel"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 반품/클레임 분석', 'AI Return / Claim Analysis') }}</h2><span>−</span></div><section><h3>{{ t('반품 사유 요약', 'Return Reason Summary') }}</h3><p>{{ t(`총 ${returnItems.length}개 품목 중 주요 사유는 표면 손상과 치수 불량입니다.`, `Primary reasons across ${returnItems.length} items are surface damage and dimension defects.`) }}</p></section><section><h3>{{ t('AI 권고 사항', 'AI Recommendations') }}</h3><dl class="operation-detail-page__kv-grid"><div><dt>{{ t('권고 액션', 'Recommended Action') }}</dt><dd>{{ t('교체 출고', 'Replacement Shipment') }}</dd></div><div><dt>{{ t('이유', 'Reason') }}</dt><dd>{{ t('손상 및 구성품 확인 후 고객 영향 최소화', 'Minimize customer impact after damage and component checks') }}</dd></div><div><dt>{{ t('다음 담당', 'Next Owner') }}</dt><dd>{{ t('구매팀', 'Purchasing Team') }}</dd></div><div><dt>{{ t('목표 기한', 'Target Due') }}</dt><dd>2026-04-29 18:00</dd></div></dl></section><section><h3>{{ detailCopy.common.checklist }}</h3><ul class="operation-detail-page__checklist"><li>{{ t('검수 결과 확인 및 기록', 'Confirm and record inspection results') }}</li><li>{{ t('원인 분석 및 사진/증빙 확보', 'Analyze cause and collect photos/evidence') }}</li><li>{{ t('교체 출고 또는 환불 검토', 'Review replacement shipment or refund') }}</li></ul></section><div class="operation-detail-page__action-list"><button class="page-button page-button--primary" type="button">{{ t('교체 출고 생성', 'Create Replacement Shipment') }}</button><button class="page-button page-button--secondary" type="button">{{ t('환불 검토', 'Review Refund') }}</button><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.notifyOwner }}</button></div></aside>
         </main>
@@ -1426,6 +1624,31 @@ watch(
                 </tr>
               </tbody>
             </table>
+          </article>
+
+          <!-- 반품 상태 변경 영역 -->
+          <article v-if="isReturnDetail && returnNextActions.length > 0" class="operation-detail-page__block operation-detail-page__return-actions">
+            <h2>{{ t('상태 변경', 'Change Status') }}</h2>
+            <p class="operation-detail-page__return-status-label">
+              {{ t('현재 상태', 'Current Status') }}: <strong>{{ returnStatus }}</strong>
+              <span v-if="resolutionType">({{ resolutionType }})</span>
+            </p>
+            <label class="operation-detail-page__return-reason">
+              <span>{{ t('사유', 'Reason') }}</span>
+              <input v-model="returnReasonText" type="text" :placeholder="t('사유를 입력하세요 (선택)', 'Enter reason (optional)')" />
+            </label>
+            <div class="operation-detail-page__return-buttons">
+              <button
+                v-for="action in returnNextActions"
+                :key="action.status"
+                :class="['page-button', `page-button--${action.tone}`]"
+                type="button"
+                :disabled="isReturnUpdating"
+                @click="handleReturnStatusChange(action.status)"
+              >
+                {{ isReturnUpdating ? t('처리 중...', 'Processing...') : action.label }}
+              </button>
+            </div>
           </article>
         </main>
 
@@ -2502,4 +2725,48 @@ watch(
   font-weight: 700;
 }
 
+/* ── 반품 상태 변경 ── */
+.operation-detail-page__return-actions {
+  border: 2px solid var(--primary, #4e4e4e);
+}
+
+.operation-detail-page__return-status-label {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.operation-detail-page__return-status-label strong {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.operation-detail-page__return-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.operation-detail-page__return-reason span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.operation-detail-page__return-reason input {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.operation-detail-page__return-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 </style>
+
