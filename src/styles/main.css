@@ -5631,8 +5631,10 @@ select:not(.app-language-select select):focus {
 
 .notifications-page__settings-button {
   width: auto;
-  min-width: 122px;
-  height: 52px;
+  min-width: 72px;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 0.72rem;
   white-space: nowrap;
 }
 
