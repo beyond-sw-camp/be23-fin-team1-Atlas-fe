@@ -533,18 +533,78 @@ const shipmentPathRows = computed(() => {
     return histories.map((row: any, index: number) => ({
       seq: index + 1,
       node: row.locationText || row.location || display(data.value?.currentNodeName),
-      eta: formatDate(row.recordedAt),
-      delay: row.statusCode === 'DELAYED' ? formatMinutes(related.value.eta?.delayMinutes) : '0',
-      status: row.statusCode,
+      eta: formatShipmentEta(row.recordedAt),
+      delay: row.statusCode === 'DELAYED' ? shipmentDelayText.value : '0',
+      status: displayShipmentStatus(row.statusCode),
+      statusCode: String(row.statusCode || '').toLowerCase(),
       order: data.value?.purchaseOrderPublicId ?? data.value?.subPurchaseOrderPublicId ?? '-',
     }))
   }
   return [
-    { seq: 1, node: display(data.value?.originNodeName ?? data.value?.originNodeCode), eta: formatDate(data.value?.departureEta), delay: '0', status: 'DEPARTED', order: display(data.value?.purchaseOrderPublicId) },
-    { seq: 2, node: display(data.value?.currentNodeName ?? data.value?.currentNodeCode), eta: formatDate(data.value?.departureEta), delay: formatMinutes(related.value.eta?.delayMinutes) || '142분', status: status.value || 'DELAYED', order: display(data.value?.purchaseOrderPublicId) },
-    { seq: 3, node: display(data.value?.destinationNodeName ?? data.value?.destinationNodeCode), eta: formatDate(related.value.eta?.estimatedArrivalAt ?? data.value?.arrivalEta), delay: formatMinutes(related.value.eta?.delayMinutes) || '142분', status: 'PENDING', order: display(data.value?.purchaseOrderPublicId) },
+    { seq: 1, node: display(data.value?.originNodeName ?? data.value?.originNodeCode), eta: formatShipmentEta(data.value?.departureEta), delay: '0', status: displayShipmentStatus('DEPARTED'), statusCode: 'departed', order: display(data.value?.purchaseOrderPublicId) },
+    { seq: 2, node: display(data.value?.currentNodeName ?? data.value?.currentNodeCode), eta: formatShipmentEta(data.value?.departureEta), delay: '0', status: displayShipmentStatus('ARRIVED'), statusCode: 'arrived', order: display(data.value?.purchaseOrderPublicId) },
+    { seq: 3, node: display(data.value?.destinationNodeName ?? data.value?.destinationNodeCode), eta: formatShipmentEta(related.value.eta?.estimatedArrivalAt ?? data.value?.arrivalEta), delay: shipmentDelayText.value, status: displayShipmentStatus(status.value || 'DELAYED'), statusCode: 'delayed', order: display(data.value?.purchaseOrderPublicId) },
+    { seq: 4, node: t('인천물류센터 (ICN DC)', 'Incheon Logistics Center (ICN DC)'), eta: '04. 29. 11:30', delay: shipmentDelayText.value, status: displayShipmentStatus('PENDING'), statusCode: 'pending', order: display(data.value?.purchaseOrderPublicId) },
+    { seq: 5, node: t('고객사 창고 (CUSTOMER DC)', 'Customer Warehouse (CUSTOMER DC)'), eta: '04. 29. 14:00', delay: shipmentDelayText.value, status: displayShipmentStatus('PENDING'), statusCode: 'pending', order: display(data.value?.purchaseOrderPublicId) },
   ]
 })
+
+const shipmentDelayMinutes = computed(() => {
+  const value = related.value.eta?.delayMinutes
+  return typeof value === 'number' ? value : 142
+})
+
+const shipmentDelayText = computed(() => detailCopy.value.minutes(shipmentDelayMinutes.value))
+
+const shipmentDelayEtaText = computed(() => {
+  return preferences.language === 'ko'
+    ? `ETA + ${shipmentDelayMinutes.value}분`
+    : `ETA + ${shipmentDelayMinutes.value} MIN`
+})
+
+const shipmentDepartureEta = computed(() => formatShipmentEta(data.value?.departureEta))
+const shipmentArrivalEta = computed(() => formatShipmentEta(related.value.eta?.estimatedArrivalAt ?? data.value?.arrivalEta))
+
+const shipmentAffectedRows = computed(() => [
+  {
+    order: display(data.value?.purchaseOrderPublicId),
+    item: 'LED DRIVER 60W',
+    qty: '1,200 EA',
+    due: '04. 29.',
+    impact: shipmentDelayText.value,
+    priority: 'HIGH',
+  },
+  { order: 'PO-2026-000015', item: 'SMPS 24V 5A', qty: '800 EA', due: '04. 29.', impact: shipmentDelayText.value, priority: 'HIGH' },
+  { order: 'PO-2026-000016', item: 'AL CASE - M', qty: '500 EA', due: '04. 29.', impact: shipmentDelayText.value, priority: 'MEDIUM' },
+  { order: 'PO-2026-000017', item: 'CABLE ASSY', qty: '2,000 EA', due: '04. 30.', impact: '+82분', priority: 'LOW' },
+])
+
+const shipmentRecommendationRows = computed(() => [
+  {
+    title: t('우회 운송 검토', 'Review Alternate Route'),
+    priority: 'HIGH',
+    icon: 'sync_alt',
+    reason: t('인천항 혼잡 및 입항 대기 지연으로 ETA 추가 지연 가능성 높음', 'Port congestion and berth waiting may add ETA delay.'),
+    action: t('군산항 우회 입항 후 내륙 운송 전환을 권고합니다.', 'Route through Gunsan port and switch to inland transport.'),
+    confidence: '82%',
+  },
+  {
+    title: t('부분 출하', 'Partial Shipment'),
+    priority: 'MEDIUM',
+    icon: 'inventory_2',
+    reason: t('긴급 품목 우선 분리 시 고객 영향 최소화 가능', 'Separating urgent items first can reduce customer impact.'),
+    action: t('긴급 품목(LED DRIVER 60W) 먼저 출하하여 부분 납품을 진행합니다.', 'Ship urgent LED DRIVER 60W items first and proceed with partial delivery.'),
+    confidence: '76%',
+  },
+  {
+    title: t('납기 재협의', 'Renegotiate Due Date'),
+    priority: 'MEDIUM',
+    icon: 'handshake',
+    reason: t('지연 회복까지 시간이 소요되어 고객과의 납기 조정이 필요', 'Delay recovery requires time, so due date adjustment is needed.'),
+    action: t('고객사에 지연 사유와 새로운 ETA를 제안하고 납기 재협의를 진행합니다.', 'Share delay cause and new ETA with the customer and renegotiate due date.'),
+    confidence: '71%',
+  },
+])
 
 const returnItems = computed(() => {
   if (lineItems.value.length > 0) return lineItems.value
@@ -1218,6 +1278,31 @@ function formatDate(value: unknown) {
   return String(value).replace('T', ' ').slice(0, 16)
 }
 
+function formatShipmentEta(value: unknown) {
+  if (!value) return '-'
+  const raw = String(value)
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw.replace('T', ' ').slice(5, 16)
+
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${month}. ${day}. ${hour}:${minute}`
+}
+
+function displayShipmentStatus(value: unknown) {
+  const statusValue = String(value || '').toUpperCase()
+  if (preferences.language !== 'ko') return display(value)
+  if (statusValue === 'DEPARTED') return '출발'
+  if (statusValue === 'ARRIVED') return '도착'
+  if (statusValue === 'DELAYED') return '지연'
+  if (statusValue === 'PENDING') return '대기'
+  if (statusValue === 'READY') return '준비'
+  if (statusValue === 'IN_TRANSIT') return '운송 중'
+  return display(value)
+}
+
 function qualityGradeText(value: SupplierItemQualityGrade | null | undefined) {
   if (!value) return '-'
 
@@ -1836,55 +1921,107 @@ watch(
           </aside>
         </main>
 
-        <main v-else-if="kind === 'shipments'" class="operation-detail-page__document-grid">
-          <section class="operation-detail-page__document-main">
-            <article class="operation-detail-page__shipment-hero">
-              <div class="operation-detail-page__icon-tile">▣</div>
-              <div><p>SHIPMENT</p><h2>{{ title }}</h2><strong>{{ t('출하 상세', 'Shipment Detail') }}</strong></div>
-              <div><p>SHIPMENT DELAY</p><strong class="is-alert">ETA + {{ formatMinutes(related.eta?.delayMinutes) || t('142분', '142 min') }}</strong><small>{{ t('지연 발생', 'Delay Detected') }}</small></div>
+        <main v-else-if="kind === 'shipments'" class="operation-detail-page__shipment-layout">
+          <section class="operation-detail-page__shipment-summary-strip">
+            <article class="operation-detail-page__shipment-summary-card operation-detail-page__shipment-summary-card--title">
+              <div class="operation-detail-page__shipment-icon-tile"><span class="material-symbols-outlined">local_shipping</span></div>
+              <div>
+                <h2>{{ title }}</h2>
+                <strong>{{ t('출하 상세', 'Shipment Detail') }}</strong>
+              </div>
+            </article>
+            <article class="operation-detail-page__shipment-summary-card">
+              <span>SHIPMENT DELAY</span>
+              <strong class="is-alert">{{ shipmentDelayEtaText }}</strong>
+              <small>{{ t('지연 발생', 'Delay Detected') }}</small>
+            </article>
+            <article class="operation-detail-page__shipment-summary-card operation-detail-page__shipment-summary-card--nodes">
               <dl>
                 <div><dt>CURRENT NODE</dt><dd>{{ display(data.currentNodeName ?? data.currentNodeCode) }}</dd></div>
                 <div><dt>DESTINATION</dt><dd>{{ display(data.destinationNodeName ?? data.destinationNodeCode) }}</dd></div>
-                <div><dt>DEPARTURE ETA</dt><dd>{{ formatDate(data.departureEta) }}</dd></div>
-                <div><dt>ARRIVAL ETA</dt><dd>{{ formatDate(related.eta?.estimatedArrivalAt ?? data.arrivalEta) }}</dd></div>
               </dl>
             </article>
-
-            <article class="operation-detail-page__domain-card">
-              <h3>{{ t('출하 경로 및 지연 현황', 'Shipment Route and Delay Status') }}</h3>
-              <table class="operation-detail-page__domain-table">
-                <thead><tr><th>SEQ</th><th>NODE</th><th>{{ t('도착 ETA', 'Arrival ETA') }}</th><th>{{ t('지연 (분)', 'Delay (Min)') }}</th><th>{{ detailCopy.common.status }}</th><th>{{ t('관련 발주', 'Related Order') }}</th></tr></thead>
-                <tbody><tr v-for="row in shipmentPathRows" :key="row.seq"><td>{{ row.seq }}</td><td>{{ row.node }}</td><td>{{ row.eta }}</td><td>{{ row.delay }}</td><td>{{ row.status }}</td><td>{{ row.order }}</td></tr></tbody>
-              </table>
-            </article>
-
-            <article class="operation-detail-page__domain-card">
-              <h3>{{ t('영향 받는 발주', 'Affected Purchase Orders') }}</h3>
-              <table class="operation-detail-page__domain-table">
-                <thead><tr><th>{{ t('발주번호', 'PO No.') }}</th><th>{{ detailCopy.common.item }}</th><th>{{ detailCopy.common.qty }}</th><th>{{ detailCopy.order.requestedDue }}</th><th>{{ t('지연 영향', 'Delay Impact') }}</th><th>{{ t('우선순위', 'Priority') }}</th></tr></thead>
-                <tbody>
-                  <tr><td>{{ display(data.purchaseOrderPublicId) }}</td><td>LED DRIVER 60W</td><td>1,200 EA</td><td>04.29</td><td>{{ formatMinutes(related.eta?.delayMinutes) || t('142분', '142 min') }}</td><td><span class="operation-detail-page__chip is-high">HIGH</span></td></tr>
-                  <tr><td>PO-2026-000015</td><td>SMPS 24V 5A</td><td>800 EA</td><td>04.29</td><td>{{ formatMinutes(related.eta?.delayMinutes) || t('142분', '142 min') }}</td><td><span class="operation-detail-page__chip is-high">HIGH</span></td></tr>
-                </tbody>
-              </table>
+            <article class="operation-detail-page__shipment-summary-card operation-detail-page__shipment-summary-card--eta">
+              <dl>
+                <div><dt>DEPARTURE ETA</dt><dd>{{ shipmentDepartureEta }}</dd></div>
+                <div><dt>ARRIVAL ETA</dt><dd>{{ shipmentArrivalEta }}</dd></div>
+              </dl>
             </article>
           </section>
 
-          <aside class="operation-detail-page__analysis-panel is-shipment">
-            <div class="operation-detail-page__panel-head"><h2>{{ t('AI 배송 지연 권고', 'AI Shipment Delay Recommendation') }}</h2><small>{{ t('권고안 생성됨', 'Recommendation Generated') }}</small></div>
-            <p>{{ t('현재 지연 원인을 분석하고 다음과 같은 대응 방안을 권고합니다.', 'Current delay causes were analyzed and the following actions are recommended.') }}</p>
-            <div v-for="(row, index) in [t('우회 운송 검토', 'Review Alternate Route'), t('부분 출하', 'Partial Shipment'), t('납기 재협의', 'Renegotiate Due Date')]" :key="row" class="operation-detail-page__recommendation">
-              <div class="operation-detail-page__icon-tile">{{ index + 1 }}</div>
-              <strong>{{ row }}</strong>
-              <span>{{ index === 0 ? 'HIGH' : 'MEDIUM' }}</span>
-              <p>{{ index === 0 ? t('입항 대기 지연으로 ETA 추가 지연 가능성 높음', 'Port waiting delay may add further ETA risk') : t('고객 영향 최소화를 위한 보완 조치 필요', 'Additional action required to minimize customer impact') }}</p>
-              <small>{{ index === 0 ? '82%' : index === 1 ? '76%' : '71%' }}</small>
-              <button class="page-button page-button--secondary" type="button">{{ t('상세 보기', 'View Detail') }}</button>
-              <button class="page-button page-button--primary" type="button">{{ t('수락', 'Accept') }}</button>
-              <button class="page-button page-button--secondary" type="button">{{ t('거절', 'Reject') }}</button>
-            </div>
-            <button class="page-button page-button--secondary" type="button">{{ t('분석 로그 보기', 'View Analysis Log') }}</button>
-          </aside>
+          <section class="operation-detail-page__shipment-content-grid">
+            <section class="operation-detail-page__shipment-main-column">
+              <article class="operation-detail-page__shipment-card">
+                <h3>{{ t('출하 경로 및 지연 현황', 'Shipment Route and Delay Status') }}</h3>
+                <table class="operation-detail-page__shipment-table">
+                  <thead>
+                    <tr><th>SEQ</th><th>NODE</th><th>{{ t('도착 ETA', 'Arrival ETA') }}</th><th>{{ t('지연 (분)', 'Delay (Min)') }}</th><th>{{ detailCopy.common.status }}</th><th>{{ t('관련 발주', 'Related Order') }}</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in shipmentPathRows" :key="row.seq">
+                      <td>{{ row.seq }}</td>
+                      <td>{{ row.node }}</td>
+                      <td>{{ row.eta }}</td>
+                      <td :class="{ 'is-delay': row.delay !== '0' }">{{ row.delay }}</td>
+                      <td><span :class="['operation-detail-page__shipment-status', `is-${row.statusCode}`]">{{ row.status }}</span></td>
+                      <td>{{ row.order }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </article>
+
+              <article class="operation-detail-page__shipment-card">
+                <h3>{{ t('영향 받는 발주', 'Affected Purchase Orders') }}</h3>
+                <table class="operation-detail-page__shipment-table operation-detail-page__shipment-table--affected">
+                  <thead>
+                    <tr><th>{{ t('발주번호', 'PO No.') }}</th><th>{{ detailCopy.common.item }}</th><th>{{ detailCopy.common.qty }}</th><th>{{ detailCopy.order.requestedDue }}</th><th>{{ t('지연 영향', 'Delay Impact') }}</th><th>{{ t('우선순위', 'Priority') }}</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in shipmentAffectedRows" :key="row.order">
+                      <td>{{ row.order }}</td>
+                      <td>{{ row.item }}</td>
+                      <td>{{ row.qty }}</td>
+                      <td>{{ row.due }}</td>
+                      <td>{{ row.impact }}</td>
+                      <td><span :class="['operation-detail-page__chip', `is-${row.priority.toLowerCase()}`]">{{ row.priority }}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </article>
+            </section>
+
+            <aside class="operation-detail-page__shipment-ai-panel">
+              <div class="operation-detail-page__shipment-ai-head">
+                <div>
+                  <h2>{{ t('AI 배송 지연 권고', 'AI Shipment Delay Recommendation') }}</h2>
+                  <p>{{ t('현재 지연 원인을 분석하고 다음과 같은 대응 방안을 권고합니다.', 'Current delay causes were analyzed and the following actions are recommended.') }}</p>
+                </div>
+                <small>{{ t('권고안 생성됨', 'Recommendation Generated') }} <b>04. 28. 16:08:25</b></small>
+              </div>
+
+              <article v-for="(row, index) in shipmentRecommendationRows" :key="row.title" class="operation-detail-page__shipment-recommendation">
+                <div class="operation-detail-page__shipment-recommendation-title">{{ index + 1 }}. {{ row.title }}</div>
+                <div class="operation-detail-page__shipment-recommendation-icon"><span class="material-symbols-outlined">{{ row.icon }}</span></div>
+                <div class="operation-detail-page__shipment-recommendation-priority">
+                  <span :class="['operation-detail-page__chip', `is-${row.priority.toLowerCase()}`]">{{ row.priority }}</span>
+                </div>
+                <p class="operation-detail-page__shipment-recommendation-reason">{{ row.reason }}</p>
+                <p class="operation-detail-page__shipment-recommendation-action">{{ row.action }}</p>
+                <strong class="operation-detail-page__shipment-recommendation-confidence">{{ row.confidence }}</strong>
+                <div class="operation-detail-page__shipment-recommendation-actions">
+                  <button class="page-button page-button--secondary" type="button">{{ t('상세 보기', 'View Detail') }}</button>
+                  <button class="page-button page-button--primary" type="button">{{ t('수락', 'Accept') }}</button>
+                  <button class="page-button page-button--secondary" type="button">{{ t('거절', 'Reject') }}</button>
+                </div>
+              </article>
+
+              <footer class="operation-detail-page__shipment-ai-foot">
+                <span class="material-symbols-outlined">info</span>
+                <p>{{ t('AI 권고는 과거 데이터와 실시간 이벤트를 기반으로 생성되며, 최종 결정은 담당자 판단에 따릅니다.', 'AI recommendations are generated from historical data and realtime events. Final decisions remain with the operator.') }}</p>
+                <button class="page-button page-button--secondary" type="button">{{ t('분석 로그 보기', 'View Analysis Log') }}</button>
+              </footer>
+            </aside>
+          </section>
         </main>
 
         <main v-else-if="kind === 'returns'" class="operation-detail-page__document-grid">
@@ -3479,6 +3616,305 @@ watch(
   min-height: 34px;
 }
 
+.operation-detail-page__shipment-layout {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.operation-detail-page__shipment-summary-strip {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.25fr) minmax(210px, 0.7fr) minmax(260px, 0.85fr) minmax(220px, 0.7fr);
+  border: 1px solid var(--detail-border);
+  background: var(--detail-surface-plain);
+}
+
+.operation-detail-page__shipment-summary-card {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-height: 102px;
+  padding: 16px 18px;
+  border-right: 1px solid var(--detail-border);
+}
+
+.operation-detail-page__shipment-summary-card:last-child {
+  border-right: 0;
+}
+
+.operation-detail-page__shipment-summary-card--title {
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+}
+
+.operation-detail-page__shipment-icon-tile,
+.operation-detail-page__shipment-recommendation-icon {
+  display: grid;
+  place-items: center;
+  background: #050505;
+  color: #fff;
+}
+
+.operation-detail-page__shipment-icon-tile {
+  width: 56px;
+  height: 56px;
+}
+
+.operation-detail-page__shipment-icon-tile .material-symbols-outlined {
+  font-size: 2rem;
+}
+
+.operation-detail-page__shipment-summary-card h2 {
+  margin: 0;
+  color: var(--on-surface, #2d3435);
+  font-size: clamp(1.25rem, 2vw, 1.7rem);
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.operation-detail-page__shipment-summary-card span,
+.operation-detail-page__shipment-summary-card dt,
+.operation-detail-page__shipment-card h3,
+.operation-detail-page__shipment-ai-head h2,
+.operation-detail-page__shipment-recommendation-title {
+  color: var(--on-surface, #2d3435);
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+}
+
+.operation-detail-page__shipment-summary-card > span,
+.operation-detail-page__shipment-summary-card dt,
+.operation-detail-page__shipment-card h3,
+.operation-detail-page__shipment-ai-head h2 {
+  text-transform: uppercase;
+}
+
+.operation-detail-page__shipment-summary-card strong {
+  color: var(--on-surface, #2d3435);
+  font-size: 0.98rem;
+  font-weight: 920;
+}
+
+.operation-detail-page__shipment-summary-card .is-alert {
+  color: var(--error, #d32626);
+  font-size: 1.35rem;
+}
+
+.operation-detail-page__shipment-summary-card small {
+  color: var(--on-surface, #2d3435);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.operation-detail-page__shipment-summary-card dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.operation-detail-page__shipment-summary-card dl > div {
+  display: grid;
+  grid-template-columns: 126px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.operation-detail-page__shipment-summary-card dt,
+.operation-detail-page__shipment-summary-card dd {
+  margin: 0;
+}
+
+.operation-detail-page__shipment-summary-card dd {
+  color: var(--on-surface, #2d3435);
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.operation-detail-page__shipment-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(420px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.operation-detail-page__shipment-main-column {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.operation-detail-page__shipment-card,
+.operation-detail-page__shipment-ai-panel {
+  border: 1px solid var(--detail-border);
+  background: var(--detail-surface-plain);
+}
+
+.operation-detail-page__shipment-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.operation-detail-page__shipment-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.operation-detail-page__shipment-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.78);
+}
+
+.operation-detail-page__shipment-table th,
+.operation-detail-page__shipment-table td {
+  padding: 10px 12px;
+  border: 1px solid var(--detail-border);
+  color: var(--on-surface, #2d3435);
+  font-size: 0.76rem;
+  font-weight: 760;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.operation-detail-page__shipment-table th {
+  color: var(--detail-muted);
+  font-size: 0.68rem;
+  font-weight: 950;
+}
+
+.operation-detail-page__shipment-table td:first-child,
+.operation-detail-page__shipment-table th:first-child {
+  width: 52px;
+  text-align: center;
+}
+
+.operation-detail-page__shipment-table td.is-delay {
+  color: var(--error, #d32626);
+  font-weight: 950;
+}
+
+.operation-detail-page__shipment-status {
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.operation-detail-page__shipment-status.is-departed,
+.operation-detail-page__shipment-status.is-arrived {
+  color: #197143;
+}
+
+.operation-detail-page__shipment-status.is-delayed {
+  color: var(--error, #d32626);
+}
+
+.operation-detail-page__shipment-status.is-pending {
+  color: var(--on-surface, #2d3435);
+}
+
+.operation-detail-page__chip.is-medium {
+  color: #f97316;
+}
+
+.operation-detail-page__chip.is-low {
+  color: #197143;
+}
+
+.operation-detail-page__shipment-ai-panel {
+  display: grid;
+  border-left: 4px solid #f97316;
+}
+
+.operation-detail-page__shipment-ai-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--detail-border);
+}
+
+.operation-detail-page__shipment-ai-head h2,
+.operation-detail-page__shipment-ai-head p {
+  margin: 0;
+}
+
+.operation-detail-page__shipment-ai-head p,
+.operation-detail-page__shipment-ai-head small,
+.operation-detail-page__shipment-recommendation p,
+.operation-detail-page__shipment-ai-foot p {
+  color: var(--on-surface, #2d3435);
+  font-size: 0.78rem;
+  font-weight: 720;
+  line-height: 1.55;
+}
+
+.operation-detail-page__shipment-ai-head small {
+  min-width: max-content;
+  color: var(--detail-muted);
+}
+
+.operation-detail-page__shipment-ai-head b {
+  color: var(--on-surface, #2d3435);
+}
+
+.operation-detail-page__shipment-recommendation {
+  display: grid;
+  grid-template-columns: 112px 98px minmax(0, 1fr) minmax(0, 1fr) 72px;
+  gap: 12px 16px;
+  align-items: center;
+  padding: 18px;
+  border-bottom: 1px solid var(--detail-border);
+}
+
+.operation-detail-page__shipment-recommendation-title {
+  grid-column: 1 / -1;
+  font-size: 0.86rem;
+}
+
+.operation-detail-page__shipment-recommendation-icon {
+  width: 72px;
+  height: 72px;
+}
+
+.operation-detail-page__shipment-recommendation-icon .material-symbols-outlined {
+  font-size: 2.4rem;
+}
+
+.operation-detail-page__shipment-recommendation p {
+  margin: 0;
+}
+
+.operation-detail-page__shipment-recommendation-confidence {
+  color: #197143;
+  font-size: 1.25rem;
+  font-weight: 950;
+  text-align: right;
+}
+
+.operation-detail-page__shipment-recommendation-actions {
+  grid-column: 3 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(96px, 1fr));
+  gap: 12px;
+}
+
+.operation-detail-page__shipment-recommendation-actions .page-button {
+  min-height: 34px;
+}
+
+.operation-detail-page__shipment-ai-foot {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  gap: 10px;
+  align-items: center;
+  padding: 14px 18px;
+}
+
+.operation-detail-page__shipment-ai-foot p {
+  margin: 0;
+  color: var(--detail-muted);
+}
+
 .operation-detail-page__edit-form {
   display: grid;
   gap: 22px;
@@ -3667,6 +4103,20 @@ watch(
     grid-template-columns: 1fr;
   }
 
+  .operation-detail-page__shipment-summary-strip,
+  .operation-detail-page__shipment-content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .operation-detail-page__shipment-summary-card {
+    border-right: 0;
+    border-bottom: 1px solid var(--detail-border);
+  }
+
+  .operation-detail-page__shipment-summary-card:last-child {
+    border-bottom: 0;
+  }
+
   .operation-detail-page__shipment-hero {
     grid-template-columns: 56px minmax(0, 1fr);
   }
@@ -3712,6 +4162,35 @@ watch(
   .operation-detail-page__supplier-head dl > div {
     border-right: 0;
     border-bottom: 1px solid var(--detail-border);
+  }
+
+  .operation-detail-page__shipment-card {
+    overflow-x: auto;
+  }
+
+  .operation-detail-page__shipment-table {
+    min-width: 680px;
+  }
+
+  .operation-detail-page__shipment-recommendation {
+    grid-template-columns: 72px minmax(0, 1fr) max-content;
+  }
+
+  .operation-detail-page__shipment-recommendation-title {
+    grid-column: 1 / -1;
+  }
+
+  .operation-detail-page__shipment-recommendation-reason,
+  .operation-detail-page__shipment-recommendation-action {
+    grid-column: 2 / -1;
+  }
+
+  .operation-detail-page__shipment-recommendation-confidence {
+    grid-column: 3 / 4;
+  }
+
+  .operation-detail-page__shipment-recommendation-actions {
+    grid-column: 1 / -1;
   }
 
   .operation-detail-page__item-media-grid {
@@ -3774,6 +4253,46 @@ watch(
   .operation-detail-page__summary-cell:last-child,
   .operation-detail-page__impact-card:last-child {
     border-bottom: 0;
+  }
+
+  .operation-detail-page__shipment-summary-card,
+  .operation-detail-page__shipment-card,
+  .operation-detail-page__shipment-ai-head,
+  .operation-detail-page__shipment-recommendation,
+  .operation-detail-page__shipment-ai-foot {
+    padding: 12px;
+  }
+
+  .operation-detail-page__shipment-summary-card--title,
+  .operation-detail-page__shipment-summary-card dl > div,
+  .operation-detail-page__shipment-ai-head,
+  .operation-detail-page__shipment-ai-foot {
+    grid-template-columns: 1fr;
+  }
+
+  .operation-detail-page__shipment-summary-card--title {
+    justify-items: start;
+  }
+
+  .operation-detail-page__shipment-recommendation {
+    grid-template-columns: 1fr;
+  }
+
+  .operation-detail-page__shipment-recommendation-icon,
+  .operation-detail-page__shipment-recommendation-priority,
+  .operation-detail-page__shipment-recommendation-reason,
+  .operation-detail-page__shipment-recommendation-action,
+  .operation-detail-page__shipment-recommendation-confidence,
+  .operation-detail-page__shipment-recommendation-actions {
+    grid-column: 1 / -1;
+  }
+
+  .operation-detail-page__shipment-recommendation-confidence {
+    text-align: left;
+  }
+
+  .operation-detail-page__shipment-recommendation-actions {
+    grid-template-columns: 1fr;
   }
 
   .operation-detail-page__item-media-grid {
