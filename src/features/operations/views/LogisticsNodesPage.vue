@@ -760,6 +760,10 @@ onBeforeUnmount(() => header.clearActions())
   flex-wrap: wrap;
 }
 
+.logistics-page .terminal-page__content {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .logistics-page .terminal-page__title {
   margin: 8px 0 0;
   color: var(--log-text);
