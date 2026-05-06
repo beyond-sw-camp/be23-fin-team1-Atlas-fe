@@ -1846,15 +1846,15 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <button
-            v-if="canShowMoreSecurityHistories"
-            class="page-button page-button--secondary"
-            type="button"
-            style="margin-top: 16px;"
-            @click="openSecurityHistoryModal"
-          >
-            {{ preferences.language === 'ko' ? '더보기' : 'Show More' }}
-          </button>
+          <div v-if="canShowMoreSecurityHistories" class="profile-history-actions">
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              @click="openSecurityHistoryModal"
+            >
+              {{ preferences.language === 'ko' ? '더보기' : 'Show More' }}
+            </button>
+          </div>
         </article>
       </section>
 

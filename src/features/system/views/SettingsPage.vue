@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch, watchEffect } from 'vue'
-import { useAtlasHeaderStore } from '../../../stores/header'
+import { computed, reactive, ref, watch } from 'vue'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
@@ -45,7 +44,6 @@ type CategoryTreeNode = {
   hasChildren: boolean
 }
 
-const header = useAtlasHeaderStore()
 const dialog = useAtlasDialogStore()
 const preferences = useAtlasPreferencesStore()
 
@@ -59,7 +57,6 @@ const CONTENT = {
       categories: '카테고리',
       certificateTypes: '인증 분류',
     },
-    saveLabel: '저장',
   },
   en: {
     eyebrow: 'Platform / Management',
@@ -70,7 +67,6 @@ const CONTENT = {
       categories: 'Categories',
       certificateTypes: 'Certificate Types',
     },
-    saveLabel: 'SAVE CHANGES',
   },
 } as const
 
@@ -83,16 +79,6 @@ const tabEntries = computed(() => [
   { key: 'categories' as const, label: content.value.tabs.categories },
   { key: 'certificateTypes' as const, label: content.value.tabs.certificateTypes },
 ])
-
-watchEffect(() => {
-  header.setActions([
-    { key: 'settings-save', label: content.value.saveLabel, tone: 'primary' },
-  ])
-})
-
-onBeforeUnmount(() => {
-  header.clearActions()
-})
 
 const organizationForm = reactive({
   organizationType: 'SUPPLIER' as 'BUYER' | 'SUPPLIER',
@@ -1389,12 +1375,6 @@ if (!selectedOrganizationPublicId.value) {
       <div>
         <div class="settings-page__eyebrow">{{ content.eyebrow }}</div>
         <h2 class="settings-page__title">{{ content.title }}</h2>
-      </div>
-
-      <div class="design-trigger-row">
-        <button class="page-button page-button--primary" type="button">
-          {{ content.saveLabel }}
-        </button>
       </div>
     </header>
 
