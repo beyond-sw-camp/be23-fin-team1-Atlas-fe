@@ -99,7 +99,6 @@ const copy = computed(() =>
         eyebrow: '공급망 운영 / 품목 관리',
         title: '품목 관리',
         subtitle: '품목 마스터와 협력사 품목 공급 역량을 함께 조회하고 관리합니다.',
-        exportLabel: '내보내기',
         createLabel: '품목 등록',
         tableTitle: '품목 목록',
         searchPlaceholder: '품목명, 품목코드, 카테고리, 협력사 검색',
@@ -881,7 +880,7 @@ onMounted(() => {
 // 앱 상단 헤더 버튼과 페이지 버튼을 둘 다 연결합니다.
 watchEffect(() => {
   header.setActions([
-    { key: 'items-export', label: copy.value.exportLabel, tone: 'secondary' },
+   
     ...(actor.canManageItems.value
       ? [
           {
@@ -1012,9 +1011,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       </div>
 
       <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button">
-          {{ copy.exportLabel }}
-        </button>
+        
 
         <button
           v-if="actor.canManageItems.value"
