@@ -2756,7 +2756,7 @@ watch(
   color: white;
   background: rgb(255 255 255 / 0.12);
   border: 1px solid rgb(255 255 255 / 0.26);
-  border-radius: 6px;
+  border-radius: 0;
   cursor: pointer;
 }
 
