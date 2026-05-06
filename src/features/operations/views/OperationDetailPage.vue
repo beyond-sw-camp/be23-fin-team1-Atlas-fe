@@ -1704,23 +1704,12 @@ watch(
           수정
         </button>
         <button
-          v-if="kind === 'logistics-nodes'"
-          class="page-button page-button--primary"
-          type="button"
-          @click="handleEditLogisticsNode"
-        >
-          수정
-        </button>
-        <button
-          v-if="kind === 'logistics-nodes' && data"
-          class="page-button page-button--secondary"
-          type="button"
-          :disabled="loading"
-          @click="toggleLogisticsNodeActive"
-        >
-          {{ data.active ? t('비활성화', 'Deactivate') : t('활성화', 'Activate') }}
-        </button>
-        <button class="page-button page-button--secondary" type="button" @click="goBack">{{ detailCopy.backToList }}</button>
+        class="page-button page-button--secondary"
+        type="button"
+        @click="goBack"
+      >
+        {{ detailCopy.backToList }}
+      </button>
       </div>
     </header>
 
@@ -2180,6 +2169,18 @@ watch(
                 </tr>
               </tbody>
             </table>
+          </article>
+
+          <article v-if="kind === 'logistics-nodes' && data" class="operation-detail-page__block operation-detail-page__node-actions">
+            <h2>{{ t('관리 작업', 'Management Actions') }}</h2>
+            <div class="operation-detail-page__action-list">
+              <button class="page-button page-button--primary" type="button" @click="handleEditLogisticsNode">
+                {{ t('수정', 'Edit') }}
+              </button>
+              <button class="page-button page-button--secondary" type="button" :disabled="loading" @click="toggleLogisticsNodeActive">
+                {{ data.active ? t('비활성화', 'Deactivate') : t('활성화', 'Activate') }}
+              </button>
+            </div>
           </article>
 
           <article v-if="isReturnDetail" class="operation-detail-page__block">
