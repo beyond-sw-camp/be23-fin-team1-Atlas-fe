@@ -7011,7 +7011,7 @@ select:not(.app-language-select select):focus {
     minmax(118px, 0.82fr)
     minmax(150px, 1.1fr)
     minmax(112px, 0.84fr)
-    78px
+    70px
     minmax(82px, 0.58fr);
   gap: 10px;
   min-width: 1200px;
@@ -7035,8 +7035,8 @@ select:not(.app-language-select select):focus {
 }
 
 .orders-page__order-status-chip {
-  width: 72px;
-  padding-inline: 6px;
+  width: 66px;
+  padding-inline: 4px;
 }
 
 .orders-page__status-select select {
