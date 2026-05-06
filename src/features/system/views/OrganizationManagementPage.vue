@@ -135,6 +135,9 @@ const isLoadingOrganizationSupplySummary = ref(false)
 // 목록 로딩 상태입니다.
 const isLoadingOrganizations = ref(false)
 
+// 첫 조직 목록 로딩이 끝났는지 확인합니다.
+const isOrganizationListInitialized = ref(false)
+
 // 상세 로딩 상태입니다.
 const isLoadingOrganizationDetail = ref(false)
 
@@ -882,15 +885,10 @@ async function loadOrganizationList(page = organizationListPage.value) {
     organizationListPage.value = response.number ?? page
     organizationListTotalElements.value = response.totalElements ?? 0
     organizationListTotalPages.value = response.totalPages ?? 0
-
-    selectedOrganizationId.value = null
-    selectedOrganizationDetail.value = null
-    isEditingOrganization.value = false
-    organizationPanelMode.value = 'detail'
-    resetOrganizationSupplySummary()
   } catch (error: any) {
     pageError.value = error?.payload?.message || copy.value.loadListFailed
   } finally {
+    isOrganizationListInitialized.value = true
     isLoadingOrganizations.value = false
   }
 }
@@ -1273,7 +1271,7 @@ watch(
             </button>
           </div>
 
-          <div v-if="isLoadingOrganizations" class="login-hint">
+          <div v-if="!isOrganizationListInitialized && isLoadingOrganizations" class="login-hint">
             {{ copy.loadingList }}
           </div>
 
