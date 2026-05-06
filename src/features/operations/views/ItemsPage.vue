@@ -631,6 +631,17 @@ function itemStatusText(status: ItemStatus) {
   }
 }
 
+function itemStatusTone(status: ItemStatus) {
+  switch (status) {
+    case 'ACTIVE':
+      return 'is-success'
+    case 'DELETE':
+      return 'is-critical'
+    default:
+      return 'is-muted'
+  }
+}
+
 function poStatusText(value: string) {
   if (preferences.language !== 'ko') return value
 
@@ -1201,6 +1212,12 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
               >
                 {{ cell }}
               </button>
+              <span
+                v-else-if="index === 4"
+                :class="['page-status-chip', itemStatusTone(row.status)]"
+              >
+                {{ cell }}
+              </span>
               <template v-else>
                 {{ cell }}
               </template>
