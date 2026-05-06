@@ -266,7 +266,7 @@ const copy = computed(() =>
         orderCountSummary: (count: number, amount: string) => `${count}건 / ${amount}`,
         selectedOrderFallback: '선택한 발주의 상세 정보를 확인합니다.',
         selectedSubOrderFallback: '선택한 서브발주의 상세 정보를 확인합니다.',
-        columns: ['발주번호', '거래처', '협력사 상태', '품목', '수량', '총금액(단위 천)', '발주일', '예상 납기일', '상태', '작업'],
+        columns: ['발주번호', '거래처', '협력사 상태', '품목', '수량', '총금액', '발주일', '예상 납기일', '상태', '작업'],
         directionOptions: [
           { key: 'ALL' as const, label: '전체' },
           { key: 'ISSUED' as const, label: '발주' },
@@ -288,11 +288,11 @@ const copy = computed(() =>
           pendingMeta: '확인 대기 중인 발주',
           completed: '납기 완료',
           completedMeta: '완료 처리된 발주',
-          totalAmount: '총금액(단위 천)',
-          amountMeta: '발주 기준 총금액(단위 천)',
+          totalAmount: '총금액',
+          amountMeta: '발주 기준 총금액',
           issuedCount: '발주 수',
           receivedCount: '수주 수',
-          totalAmountIssued: '총금액(단위 천)',
+          totalAmountIssued: '총금액',
         },
         supplierStatuses: {
           ACTIVE: '활성',
@@ -475,7 +475,7 @@ const copy = computed(() =>
         orderCountSummary: (count: number, amount: string) => `${count} orders / ${amount}`,
         selectedOrderFallback: 'Review the selected order detail.',
         selectedSubOrderFallback: 'Review the selected sub order detail.',
-        columns: ['Document No.', 'Counterparty', 'Supplier Status', 'Item', 'Qty', 'Total Amount (K)', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
+        columns: ['Document No.', 'Counterparty', 'Supplier Status', 'Item', 'Qty', 'Total Amount', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
         directionOptions: [
           { key: 'ALL' as const, label: 'All' },
           { key: 'ISSUED' as const, label: 'Issued' },
@@ -497,11 +497,11 @@ const copy = computed(() =>
           pendingMeta: 'Orders waiting for confirmation',
           completed: 'Due Complete',
           completedMeta: 'Completed orders',
-          totalAmount: 'Total Amount (K)',
-          amountMeta: 'Total issued amount in thousands',
+          totalAmount: 'Total Amount',
+          amountMeta: 'Total issued amount',
           issuedCount: 'Issued',
           receivedCount: 'Received',
-          totalAmountIssued: 'Total Amount (K)',
+          totalAmountIssued: 'Total Amount',
         },
         supplierStatuses: {
           ACTIVE: 'Active',
@@ -1197,7 +1197,22 @@ function formatAmount(
 
 function formatThousandAmount(value: number | null | undefined) {
   if (value == null || Number.isNaN(Number(value))) return '-'
-  return formatNumber(Number(value) / 1000)
+  const amount = Number(value)
+  const units = [
+    { threshold: 1_000_000_000, divisor: 1_000_000_000, label: preferences.language === 'ko' ? '십억' : 'B' },
+    { threshold: 1_000_000, divisor: 1_000_000, label: preferences.language === 'ko' ? '백만' : 'M' },
+    { threshold: 1_000, divisor: 1_000, label: preferences.language === 'ko' ? '천' : 'K' },
+  ]
+  const unit = units.find((candidate) => Math.abs(amount) >= candidate.threshold)
+
+  if (!unit) return `${formatNumber(amount)} KRW`
+
+  const scaled = amount / unit.divisor
+  const formatted = new Intl.NumberFormat(preferences.language === 'ko' ? 'ko-KR' : 'en-US', {
+    maximumFractionDigits: 1,
+  }).format(scaled)
+
+  return `${formatted} ${unit.label} KRW`
 }
 
 function organizationDisplayName(organizationPublicId: string) {
