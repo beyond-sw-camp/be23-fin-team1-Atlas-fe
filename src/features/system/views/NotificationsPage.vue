@@ -131,6 +131,7 @@ const metrics = computed(() => [
     label: content.value.topAlertType,
     value: topNotificationDomain.value?.label ?? '-',
     meta: topNotificationDomain.value ? content.value.topAlertCount(topNotificationDomain.value.count) : '',
+    inlineMeta: true,
   },
 ])
 
@@ -272,8 +273,14 @@ watch(() => preferences.language, () => {
     <section class="page-metrics terminal-page__metrics">
       <article v-for="metric in metrics" :key="metric.label" class="page-metric">
         <span class="page-metric__label">{{ metric.label }}</span>
-        <strong class="page-metric__value">{{ metric.value }}</strong>
-        <span v-if="metric.meta" class="page-metric__meta">{{ metric.meta }}</span>
+        <span v-if="metric.inlineMeta" class="notifications-page__metric-inline-value">
+          <strong class="page-metric__value">{{ metric.value }}</strong>
+          <strong v-if="metric.meta" class="page-metric__value">{{ metric.meta }}</strong>
+        </span>
+        <template v-else>
+          <strong class="page-metric__value">{{ metric.value }}</strong>
+          <span v-if="metric.meta" class="page-metric__meta">{{ metric.meta }}</span>
+        </template>
       </article>
     </section>
 

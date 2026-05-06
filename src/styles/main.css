@@ -1983,6 +1983,14 @@ select:not(.app-language-select select):focus {
   color: var(--on-surface, #2d3435);
 }
 
+.notifications-page__metric-inline-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
 .page-panels,
 .profile-summary {
   display: grid;
