@@ -576,7 +576,11 @@ async function loadItemMediaMap(items: ItemResponseDto[]) {
   const entries = await Promise.all(
     items.map(async (item) => [
       item.publicId,
-      itemMediaFilesFromItem(item).length ? itemMediaFilesFromItem(item) : await getItemMedia(item.publicId),
+      itemMediaFilesFromItem(item).length
+        ? itemMediaFilesFromItem(item)
+        : item.primaryMediaFilePublicId
+          ? await getItemMedia(item.publicId)
+          : [],
     ] as const),
   )
 
@@ -958,10 +962,11 @@ async function openItemDetail(row: ItemTableRow) {
   linkedOrders.value = []
 
   try {
+    const shouldLoadMedia = Boolean(row.raw.primaryMediaFilePublicId || selectedItemMedia.value.length)
     const [capability, orders, media] = await Promise.all([
       getSupplierItemCapability(row.raw.supplierPublicId, row.publicId).catch(() => null),
       getManagedItemLinkedOrders(row.publicId),
-      getItemMedia(row.publicId),
+      shouldLoadMedia ? getItemMedia(row.publicId) : Promise.resolve([]),
     ])
 
     selectedCapability.value = capability

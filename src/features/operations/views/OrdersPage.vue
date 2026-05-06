@@ -687,7 +687,11 @@ async function loadItemMediaForItems(items: ItemResponseDto[]) {
   const entries = await Promise.all(
     unloadedItems.map(async (item) => [
       item.publicId,
-      itemMediaFilesFromItem(item).length ? itemMediaFilesFromItem(item) : await getItemMedia(item.publicId),
+      itemMediaFilesFromItem(item).length
+        ? itemMediaFilesFromItem(item)
+        : item.primaryMediaFilePublicId
+          ? await getItemMedia(item.publicId)
+          : [],
     ] as const),
   )
 

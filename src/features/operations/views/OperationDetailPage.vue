@@ -1225,7 +1225,9 @@ async function fetchDetail() {
 
       const media = itemMediaFilesFromItem(detail).length
         ? itemMediaFilesFromItem(detail)
-        : await getItemMedia(publicId.value)
+        : detail.primaryMediaFilePublicId
+          ? await getItemMedia(publicId.value)
+          : []
 
       data.value = detail as Record<string, any>
       related.value = { linkedOrders, itemMedia: media }
