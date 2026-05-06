@@ -2063,6 +2063,13 @@ onMounted(() => {
   align-items: stretch;
 }
 
+.korea-map-layout :deep(.shipment-korea-map__canvas .maplibregl-ctrl-group),
+.korea-map-layout :deep(.shipment-korea-map__canvas .maplibregl-ctrl-group button),
+.korea-map-layout :deep(.shipment-korea-map__canvas .maplibregl-ctrl-group button:first-child),
+.korea-map-layout :deep(.shipment-korea-map__canvas .maplibregl-ctrl-group button:last-child) {
+  border-radius: 0;
+}
+
 .shipment-map-list {
   display: flex;
   max-height: 560px;
