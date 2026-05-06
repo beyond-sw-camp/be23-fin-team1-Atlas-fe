@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getReturnRequests, type ReturnRequestResponseDto } from '../../../services/return'
+import { getShipments } from '../../../services/shipment'
 import { getOrganizations } from '../../../services/organization'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
@@ -22,6 +23,8 @@ const isCreatePage = computed(() => route.name === 'returnCreate')
 const isTimelineModalOpen = ref(false)
 const selectedReturn = ref<ReturnRequestResponseDto | null>(null)
 const orgNameMap = ref<Record<string, string>>({})
+const totalReturnCount = ref(0)
+const totalShipmentCount = ref(0)
 
 const CONTENT = {
   ko: {
@@ -47,7 +50,8 @@ const CONTENT = {
       recovery: '회수 진행률',
       completed: '처리 완료율',
       pendingMeta: '처리 대기',
-      returnRateMeta: '출하 모수 필요',
+      returnRateMeta: '출하 횟수 누적 필요',
+      returnRateBaseMeta: (count: number) => `출하 ${count.toLocaleString('ko-KR')}건 기준`,
       recoveryMeta: '회수/입고 진행',
       completedMeta: '완료 건수 기준',
     },
@@ -86,7 +90,8 @@ const CONTENT = {
       recovery: 'RECOVERY RATE',
       completed: 'COMPLETION RATE',
       pendingMeta: 'AWAITING',
-      returnRateMeta: 'SHIPMENT BASE NEEDED',
+      returnRateMeta: 'SHIPMENT COUNT NEEDED',
+      returnRateBaseMeta: (count: number) => `${count.toLocaleString('en-US')} shipments base`,
       recoveryMeta: 'IN TRANSIT/RECEIVED',
       completedMeta: 'COMPLETED RECORDS',
     },
@@ -135,24 +140,29 @@ const tabs = computed(() => [
 
 const metrics = computed(() => {
   const all = returns.value
+  const totalReturns = totalReturnCount.value || all.length
+  const totalShipments = totalShipmentCount.value
   const inTransit = all.filter(
     (item) => item.returnStatus === 'IN_TRANSIT' || item.returnStatus === 'RECEIVED',
   ).length
   const completed = all.filter((item) => item.returnStatus === 'COMPLETED').length
-  const recoveryRate = all.length > 0 ? Math.round((inTransit / all.length) * 100) : 0
-  const completedRate = all.length > 0 ? Math.round((completed / all.length) * 100) : 0
+  const returnRate = totalShipments > 0 ? Math.round((totalReturns / totalShipments) * 100) : null
+  const recoveryRate = totalReturns > 0 ? Math.round((inTransit / totalReturns) * 100) : 0
+  const completedRate = totalReturns > 0 ? Math.round((completed / totalReturns) * 100) : 0
 
   return [
     {
       label: content.value.metrics.total,
-      value: String(all.length),
+      value: String(totalReturns),
       meta: content.value.metrics.pendingMeta,
       tone: 'nominal',
     },
     {
       label: content.value.metrics.returnRate,
-      value: '-',
-      meta: content.value.metrics.returnRateMeta,
+      value: returnRate === null ? '-' : `${returnRate}%`,
+      meta: returnRate === null
+        ? content.value.metrics.returnRateMeta
+        : content.value.metrics.returnRateBaseMeta(totalShipments),
       tone: 'warning',
     },
     {
@@ -273,8 +283,16 @@ async function fetchReturns() {
   errorMessage.value = ''
 
   try {
-    const response = await getReturnRequests({ page: 0, size: 50 })
+    const [response, shipmentResponse] = await Promise.all([
+      getReturnRequests({ page: 0, size: 50 }),
+      getShipments({ page: 0, size: 1 }).catch((error) => {
+        console.error('Failed to load shipment base count:', error)
+        return null
+      }),
+    ])
     returns.value = response.content
+    totalReturnCount.value = response.totalElements ?? response.content.length
+    totalShipmentCount.value = shipmentResponse?.totalElements ?? 0
 
     if (selectedReturn.value) {
       const updated = returns.value.find((item) => item.publicId === selectedReturn.value?.publicId)
@@ -285,6 +303,8 @@ async function fetchReturns() {
   } catch (error) {
     console.error('Failed to load returns:', error)
     returns.value = []
+    totalReturnCount.value = 0
+    totalShipmentCount.value = 0
     errorMessage.value = content.value.loadFail
   } finally {
     isLoading.value = false
