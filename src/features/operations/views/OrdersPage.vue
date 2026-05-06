@@ -2569,7 +2569,7 @@ function downloadOrdersCsv() {
       order.itemLabel,
       order.qtyLabel,
       formatThousandAmount(order.totalAmount),
-      formatDateTime(order.orderedAt),
+      formatDate(order.orderedAt),
       formatDate(order.expectedDueDate),
       order.kind === 'PO'
         ? poStatusText(order.status as PoStatus)
@@ -2827,7 +2827,7 @@ onBeforeUnmount(() => header.clearActions())
                 <span>{{ order.itemLabel }}</span>
                 <span>{{ order.qtyLabel }}</span>
                 <span>{{ formatThousandAmount(order.totalAmount) }}</span>
-                <span>{{ formatDateTime(order.orderedAt) }}</span>
+                <span>{{ formatDate(order.orderedAt) }}</span>
                 <span>{{ formatDate(order.expectedDueDate) }}</span>
                 <span>
                   <span :class="['page-status-chip', orderStatusTone(order.status)]">
