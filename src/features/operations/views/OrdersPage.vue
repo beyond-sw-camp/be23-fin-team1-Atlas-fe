@@ -266,6 +266,8 @@ const copy = computed(() =>
         orderCountSummary: (count: number, amount: string) => `${count}건 / ${amount}`,
         selectedOrderFallback: '선택한 발주의 상세 정보를 확인합니다.',
         selectedSubOrderFallback: '선택한 서브발주의 상세 정보를 확인합니다.',
+        previousPage: '이전',
+        nextPage: '다음',
         columns: ['발주번호', '거래처', '협력사 상태', '품목', '수량', '총금액(KRW)', '발주일', '예상 납기일', '상태', '작업'],
         directionOptions: [
           { key: 'ALL' as const, label: '전체' },
@@ -475,6 +477,8 @@ const copy = computed(() =>
         orderCountSummary: (count: number, amount: string) => `${count} orders / ${amount}`,
         selectedOrderFallback: 'Review the selected order detail.',
         selectedSubOrderFallback: 'Review the selected sub order detail.',
+        previousPage: 'Previous',
+        nextPage: 'Next',
         columns: ['Document No.', 'Counterparty', 'Supplier Status', 'Item', 'Qty', 'Total Amount', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
         directionOptions: [
           { key: 'ALL' as const, label: 'All' },
@@ -587,6 +591,8 @@ const loading = ref(false)
 const errorMessage = ref('')
 const search = ref('')
 const activeTabKey = ref<OrderTabKey>('ALL')
+const ORDER_TABLE_PAGE_SIZE = 20
+const orderTablePage = ref(0)
 
 const orderDetailModalOpen = ref(false)
 const detailLoading = ref(false)
@@ -993,6 +999,38 @@ const filteredOrders = computed(() => {
     return matchesDirection && matchesStatus && matchesQuery
   })
 })
+
+const orderTableTotalPages = computed(() =>
+  Math.max(Math.ceil(filteredOrders.value.length / ORDER_TABLE_PAGE_SIZE), 1),
+)
+
+const pagedOrders = computed(() => {
+  const start = orderTablePage.value * ORDER_TABLE_PAGE_SIZE
+  return filteredOrders.value.slice(start, start + ORDER_TABLE_PAGE_SIZE)
+})
+
+const canMoveOrderTablePrevious = computed(() => orderTablePage.value > 0 && !loading.value)
+const canMoveOrderTableNext = computed(() =>
+  !loading.value && orderTablePage.value < orderTableTotalPages.value - 1,
+)
+
+watch([search, activeTabKey, directionFilter], () => {
+  orderTablePage.value = 0
+})
+
+watch(orderTableTotalPages, (totalPages) => {
+  if (orderTablePage.value >= totalPages) {
+    orderTablePage.value = totalPages - 1
+  }
+})
+
+function moveOrderTablePage(offset: number) {
+  const nextPage = Math.min(
+    Math.max(orderTablePage.value + offset, 0),
+    orderTableTotalPages.value - 1,
+  )
+  orderTablePage.value = nextPage
+}
 
 const queueEntries = computed<OrderQueueEntry[]>(() => {
   const pendingOrders = actor.isSupplierOrganization.value
@@ -2828,7 +2866,7 @@ onBeforeUnmount(() => header.clearActions())
 
             <template v-else>
               <div
-                v-for="order in filteredOrders"
+                v-for="order in pagedOrders"
                 :key="`${order.kind}-${order.id}`"
                 class="page-table__row"
               >
@@ -2869,6 +2907,28 @@ onBeforeUnmount(() => header.clearActions())
               </div>
             </template>
           </div>
+
+          <nav v-if="orderTableTotalPages > 1" class="risk-rules-pagination orders-page__pagination" aria-label="order table pagination">
+            <button
+              class="page-button page-button--secondary risk-rules-pagination__button"
+              type="button"
+              :disabled="!canMoveOrderTablePrevious"
+              @click="moveOrderTablePage(-1)"
+            >
+              {{ copy.previousPage }}
+            </button>
+            <span class="risk-rules-pagination__status">
+              {{ orderTablePage + 1 }} / {{ orderTableTotalPages }}
+            </span>
+            <button
+              class="page-button page-button--secondary risk-rules-pagination__button"
+              type="button"
+              :disabled="!canMoveOrderTableNext"
+              @click="moveOrderTablePage(1)"
+            >
+              {{ copy.nextPage }}
+            </button>
+          </nav>
         </article>
       </div>
 
