@@ -463,9 +463,14 @@ const hasTargetTypeChartData = computed(() => {
   return targetTypeDonutChartSeries.value.some((value) => value > 0)
 })
 
+// 도넛 중앙 합계는 실제 정산 합계라서 반품 음수까지 포함해서 계산합니다.
+// 도넛 조각은 Math.abs()로 그리지만, 합계는 원본 amount를 그대로 더해야 합니다.
 const targetTypeAmountTotal = computed(() => {
-  return targetTypeDonutChartSeries.value.reduce((sum, value) => sum + value, 0)
+  return targetTypeChartPoints.value.reduce((sum, point) => {
+    return sum + Number(point.amount ?? 0)
+  }, 0)
 })
+
 
 const targetTypeDonutChartOptions = computed(() => {
   return {
