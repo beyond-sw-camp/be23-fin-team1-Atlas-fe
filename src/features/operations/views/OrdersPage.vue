@@ -177,13 +177,15 @@ const copy = computed(() =>
         itemSearchPlaceholder: '품목명 또는 품목코드를 입력하세요.',
         uncategorized: '미분류',
         selectItem: '품목 선택',
-        emptyItems: '표시할 품목이 없습니다.',
+        emptyItems: '조건에 맞는 외부 등록 품목이 없습니다.',
         itemCapability: '품목 capability',
         itemCode: '품목 코드',
         itemName: '품목명',
         supplier: '협력사',
         unit: '유닛',
         unitPrice: '단가',
+        unitPricePerUnit: '단가',
+        remainingQty: '남은 수량',
         leadTime: '리드타임',
         partialConfirmation: '부분 확정',
         supplyType: '품목 타입',
@@ -388,13 +390,15 @@ const copy = computed(() =>
         itemSearchPlaceholder: 'Enter item name or item code.',
         uncategorized: 'Uncategorized',
         selectItem: 'Select Item',
-        emptyItems: 'No items to display.',
+        emptyItems: '조건에 맞는 외부 등록 품목이 없습니다.',
         itemCapability: 'Item Capability',
         itemCode: 'Item Code',
         itemName: 'Item Name',
         supplier: 'Supplier',
         unit: 'Unit',
         unitPrice: 'Unit Price',
+        unitPricePerUnit: '단가',
+        remainingQty: '남은 수량',
         leadTime: 'Lead Time',
         partialConfirmation: 'Partial Confirmation',
         supplyType: 'Supply Type',
@@ -781,6 +785,7 @@ const filteredSelectableItems = computed(() => {
 
   return createForm.value.itemOptions
     .filter((item) => createForm.value.searchResultPublicIds.includes(item.publicId))
+    .filter((item) => !isOwnRegisteredItem(item))
     .filter((item) => {
       const matchesCategory =
         !selectedCategoryPublicId ||
@@ -1708,6 +1713,23 @@ function unitPriceOf(item: ItemResponseDto | null | undefined) {
   return itemWithPrice?.unitPrice ?? null
 }
 
+function isOwnRegisteredItem(item: ItemResponseDto | null | undefined) {
+  if (!item || !actor.organizationPublicId.value) return false
+  return item.supplierOrganizationPublicId === actor.organizationPublicId.value
+}
+
+function itemUnitPriceLabel(item: ItemResponseDto | null | undefined) {
+  const unitPrice = unitPriceOf(item)
+  if (unitPrice == null) return '-'
+  return `${formatPlainAmount(unitPrice)} / ${item?.unit ?? '-'}`
+}
+
+function itemRemainingQtyLabel(item: ItemResponseDto | null | undefined) {
+  const availableQty = availableQtyOf(item)
+  if (availableQty == null) return '-'
+  return `${formatNumber(availableQty)} ${item?.unit ?? ''}`.trim()
+}
+
 function leadTimeDaysOf(item: ItemResponseDto | null | undefined) {
   const itemWithCapability = item as (ItemResponseDto & { leadTimeDays?: number | null }) | null | undefined
   return itemWithCapability?.leadTimeDays ?? null
@@ -1723,6 +1745,7 @@ function partialConfirmationAllowedOf(item: ItemResponseDto | null | undefined) 
 }
 
 function availableQtyOf(item: any) {
+  if (!item) return null
   return item.capability?.availableQty ?? item.availableQty ?? null
 }
 
@@ -1785,6 +1808,7 @@ const createSearchItemResults = computed(() => {
 
   createForm.value.itemOptions
     .filter((item) => createForm.value.searchResultPublicIds.includes(item.publicId))
+    .filter((item) => !isOwnRegisteredItem(item))
     .forEach((item) => byPublicId.set(item.publicId, item))
 
   return Array.from(byPublicId.values()).sort((a, b) => {
@@ -3095,7 +3119,13 @@ onBeforeUnmount(() => header.clearActions())
                 <span v-else class="material-symbols-outlined">inventory_2</span>
               </span>
               <span>{{ item.itemCode }}</span>
-              <span>{{ itemDisplayName(item.itemName, item.itemCode) }}</span>
+              <span class="orders-page__item-picker-main">
+                <strong>{{ itemDisplayName(item.itemName, item.itemCode) }}</strong>
+                <small>
+                  {{ copy.unitPricePerUnit }} {{ itemUnitPriceLabel(item) }} ·
+                  {{ copy.remainingQty }} {{ itemRemainingQtyLabel(item) }}
+                </small>
+              </span>
               <span>{{ item.categoryName || copy.uncategorized }}</span>
               <span>{{ supplierDisplayName(item.supplierName) }}</span>
               <span>{{ item.unit }}</span>

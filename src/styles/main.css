@@ -1133,7 +1133,7 @@ select:not(.app-language-select select):focus {
 
 .orders-page__item-picker-row {
   display: grid;
-  grid-template-columns: 52px 140px minmax(180px, 1.4fr) minmax(160px, 1fr) 80px 88px 88px;
+  grid-template-columns: 52px 132px minmax(220px, 1.5fr) minmax(132px, 0.8fr) minmax(96px, 0.7fr) 64px 88px 88px;
   align-items: center;
   gap: 12px;
   min-height: 54px;
@@ -1150,6 +1150,28 @@ select:not(.app-language-select select):focus {
 .orders-page__item-picker-row .page-button {
   width: 100%;
   min-height: 38px;
+}
+
+.orders-page__item-picker-row .orders-page__item-picker-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  white-space: normal;
+}
+
+.orders-page__item-picker-main strong,
+.orders-page__item-picker-main small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orders-page__item-picker-main small {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--on-surface-variant, #5d666c);
 }
 
 .orders-page__item-thumb {
