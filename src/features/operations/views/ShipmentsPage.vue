@@ -66,6 +66,12 @@ const CONTENT = {
     etaTitle: '도착 예정 시각',
     etaProjectionTitle: '도착 예정 변경 이력',
     order: '승인 발주',
+    orderIdentity: '주문 식별 정보',
+    sourceType: '출하 유형',
+    sourcePublicId: '기준 주문 ID',
+    purchaseOrderId: '상위 발주 ID',
+    subPurchaseOrderId: '하위 발주 ID',
+    shipmentItems: '출하 품목',
     originNode: '출발 창고',
     destinationNode: '도착 창고',
     currentNode: '현재 위치',
@@ -154,6 +160,12 @@ const CONTENT = {
     etaTitle: 'Arrival Estimate',
     etaProjectionTitle: 'Arrival Estimate History',
     order: 'Accepted Order',
+    orderIdentity: 'Order Identity',
+    sourceType: 'Shipment Type',
+    sourcePublicId: 'Source Order ID',
+    purchaseOrderId: 'Purchase Order ID',
+    subPurchaseOrderId: 'Sub Order ID',
+    shipmentItems: 'Shipment Items',
     originNode: 'Origin Warehouse',
     destinationNode: 'Destination Warehouse',
     currentNode: 'Current Location',
@@ -486,6 +498,16 @@ function formatShipmentStatus(status?: ShipmentStatus | string | null) {
     CANCELLED: { ko: '취소', en: 'Cancelled' },
   }
   return labels[status]?.[preferences.language] ?? status
+}
+
+function formatShipmentSourceType(value?: string | null) {
+  const labels: Record<string, { ko: string; en: string }> = {
+    ORDER: { ko: '정상 출하', en: 'Order shipment' },
+    RETURN: { ko: '반품 출하', en: 'Return shipment' },
+    EXCHANGE: { ko: '교환 출하', en: 'Exchange shipment' },
+  }
+
+  return labels[value ?? '']?.[preferences.language] ?? value ?? '-'
 }
 
 function formatCheckpointType(value?: string | null) {
@@ -1383,6 +1405,25 @@ onMounted(() => {
             </span>
           </div>
 
+          <div class="shipment-order-summary">
+            <div>
+              <span>{{ content.sourceType }}</span>
+              <strong>{{ formatShipmentSourceType(selectedShipmentDetail.sourceType) }}</strong>
+            </div>
+            <div>
+              <span>{{ content.sourcePublicId }}</span>
+              <strong>{{ selectedShipmentDetail.sourcePublicId || selectedShipmentDetail.purchaseOrderPublicId || selectedShipmentDetail.subPurchaseOrderPublicId || '-' }}</strong>
+            </div>
+            <div>
+              <span>{{ content.purchaseOrderId }}</span>
+              <strong>{{ selectedShipmentDetail.purchaseOrderPublicId || '-' }}</strong>
+            </div>
+            <div>
+              <span>{{ content.subPurchaseOrderId }}</span>
+              <strong>{{ selectedShipmentDetail.subPurchaseOrderPublicId || '-' }}</strong>
+            </div>
+          </div>
+
           <div class="shipment-info-grid">
             <div>
               <span>{{ content.carrierName }}</span>
@@ -1418,6 +1459,26 @@ onMounted(() => {
             <strong>{{ formatNodeDisplay(selectedShipmentDetail.originNodeName, selectedShipmentDetail.originNodeCode, selectedShipmentDetail.originNodePublicId) }}</strong>
             <span>→</span>
             <strong>{{ formatNodeDisplay(selectedShipmentDetail.destinationNodeName, selectedShipmentDetail.destinationNodeCode, selectedShipmentDetail.destinationNodePublicId) }}</strong>
+          </div>
+
+          <div v-if="selectedShipmentDetail.shipmentLines?.length" class="shipment-detail-lines">
+            <div class="shipment-detail-lines__head">
+              <span>{{ content.shipmentItems }}</span>
+              <strong>{{ selectedShipmentDetail.shipmentLines.length }}</strong>
+            </div>
+            <div class="shipment-detail-line-list">
+              <div
+                v-for="line in selectedShipmentDetail.shipmentLines"
+                :key="line.publicId"
+                class="shipment-detail-line"
+              >
+                <div>
+                  <strong>{{ line.itemName }}</strong>
+                  <span>{{ line.itemCode }}</span>
+                </div>
+                <em>{{ line.quantity }}</em>
+              </div>
+            </div>
           </div>
 
           <div class="shipment-field shipment-field--wide shipment-option-editor">
@@ -2640,6 +2701,41 @@ onMounted(() => {
   grid-column: 1 / -1;
 }
 
+.shipment-order-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.shipment-order-summary > div {
+  min-width: 0;
+  border: 1px solid var(--ship-border);
+  border-radius: 0;
+  padding: 12px 14px;
+  background: #f8fafc;
+}
+
+.shipment-order-summary span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--ship-faint);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.shipment-order-summary strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ship-text);
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .shipment-detail-modal .stl-card__head {
   display: flex;
   align-items: flex-start;
@@ -2769,6 +2865,87 @@ onMounted(() => {
   font-weight: 900;
 }
 
+.shipment-detail-lines {
+  margin-top: 14px;
+  border: 1px solid var(--ship-border);
+  border-radius: 0;
+  padding: 14px;
+  background: #fff;
+}
+
+.shipment-detail-lines__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+  color: var(--ship-faint);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.shipment-detail-lines__head strong {
+  color: var(--ship-text);
+  font-size: 0.95rem;
+}
+
+.shipment-detail-line-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.shipment-detail-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--ship-border);
+  border-radius: 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+}
+
+.shipment-detail-line div {
+  min-width: 0;
+}
+
+.shipment-detail-line strong,
+.shipment-detail-line span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shipment-detail-line strong {
+  color: var(--ship-text);
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.shipment-detail-line span {
+  margin-top: 3px;
+  color: var(--ship-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.shipment-detail-line em {
+  flex: 0 0 auto;
+  min-width: 54px;
+  border: 1px solid var(--ship-border);
+  border-radius: 0;
+  padding: 6px 8px;
+  background: #fff;
+  color: var(--ship-text);
+  font-style: normal;
+  font-weight: 900;
+  text-align: center;
+}
+
 .shipment-detail-modal .shipment-option-row--readonly {
   gap: 8px;
   margin-top: 12px;
@@ -2839,7 +3016,9 @@ onMounted(() => {
   .shipment-work-board,
   .shipment-detail-shell,
   .shipment-form-grid,
-  .shipment-info-grid {
+  .shipment-info-grid,
+  .shipment-order-summary,
+  .shipment-detail-line-list {
     grid-template-columns: 1fr;
   }
 
