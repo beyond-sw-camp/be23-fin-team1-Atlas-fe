@@ -24,6 +24,7 @@ import {
 import {
   createCertificateType,
   getCertificateTypes,
+  updateCertificateType,
   type CertificateTypeResponseDto,
   type CreateCertificateTypeRequestDto,
 } from '../../../services/certificate'
@@ -184,15 +185,73 @@ const certificateTypesLoading = ref(false)
 const certificateTypeSubmitting = ref(false)
 const certificateTypeError = ref('')
 const certificateTypeSuccess = ref('')
+const selectedCertificateTypePublicId = ref('')
+const certificateTypeStatusUpdating = ref(false)
 
 const certificateTypeForm = reactive<CreateCertificateTypeRequestDto>({
   certificateCode: '',
   certificateName: '',
   issuerName: '',
-  scopeType: 'GENERAL',
+  scopeType: 'SUPPLIER_COMMON',
   requiredYn: false,
   activeYn: true,
 })
+
+const certificateScopeOptions = [
+  {
+    value: 'SUPPLIER_COMMON',
+    ko: '협력사 전체 인증',
+    en: 'Supplier Common',
+    descriptionKo: '협력사 조직 전체에 적용',
+    descriptionEn: 'Applies to the supplier organization',
+  },
+  {
+    value: 'ITEM_SPECIFIC',
+    ko: '품목별 인증',
+    en: 'Item Specific',
+    descriptionKo: '특정 품목에만 적용',
+    descriptionEn: 'Applies only to selected items',
+  },
+  {
+    value: 'BOTH',
+    ko: '공통/품목 모두',
+    en: 'Both',
+    descriptionKo: '협력사 전체 또는 품목별 인증으로 사용',
+    descriptionEn: 'Can be used for common or item-specific certificates',
+  },
+] as const
+
+const legacyCertificateScopeLabels: Record<string, { ko: string; en: string; descriptionKo: string; descriptionEn: string }> = {
+  QUALITY: {
+    ko: '품질',
+    en: 'Quality',
+    descriptionKo: '기존 품질 인증 분류',
+    descriptionEn: 'Legacy quality certificate scope',
+  },
+  SUSTAINABILITY: {
+    ko: '지속가능성',
+    en: 'Sustainability',
+    descriptionKo: '기존 지속가능성 인증 분류',
+    descriptionEn: 'Legacy sustainability certificate scope',
+  },
+  LOGISTICS: {
+    ko: '물류',
+    en: 'Logistics',
+    descriptionKo: '기존 물류 인증 분류',
+    descriptionEn: 'Legacy logistics certificate scope',
+  },
+}
+
+const recommendedCertificateTypes = [
+  { code: 'HACCP', nameKo: 'HACCP 인증', nameEn: 'HACCP Certificate', scope: 'SUPPLIER_COMMON', categoryKo: '식품 안전', categoryEn: 'Food Safety' },
+  { code: 'ISO-9001', nameKo: '품질경영시스템', nameEn: 'Quality Management System', scope: 'SUPPLIER_COMMON', categoryKo: '품질', categoryEn: 'Quality' },
+  { code: 'ISO-14001', nameKo: '환경경영시스템', nameEn: 'Environmental Management System', scope: 'SUPPLIER_COMMON', categoryKo: 'ESG 환경', categoryEn: 'ESG Environment' },
+  { code: 'ISO-45001', nameKo: '안전보건경영시스템', nameEn: 'Occupational Health and Safety', scope: 'SUPPLIER_COMMON', categoryKo: 'ESG 사회/안전', categoryEn: 'ESG Social / Safety' },
+  { code: 'ORIGIN-CERT', nameKo: '원산지 증명', nameEn: 'Certificate of Origin', scope: 'ITEM_SPECIFIC', categoryKo: '컴플라이언스', categoryEn: 'Compliance' },
+  { code: 'ECO-FRIENDLY', nameKo: '친환경 인증', nameEn: 'Eco-Friendly Certificate', scope: 'ITEM_SPECIFIC', categoryKo: 'ESG 환경', categoryEn: 'ESG Environment' },
+  { code: 'ORGANIC', nameKo: '유기농 인증', nameEn: 'Organic Certificate', scope: 'ITEM_SPECIFIC', categoryKo: '식품/환경', categoryEn: 'Food / Environment' },
+  { code: 'ESG-RATING', nameKo: 'ESG 평가서', nameEn: 'ESG Rating Report', scope: 'SUPPLIER_COMMON', categoryKo: 'ESG 종합', categoryEn: 'ESG General' },
+] as const
 
 const categoryCopy = computed(() =>
   preferences.language === 'ko'
@@ -249,20 +308,32 @@ const certificateTypeCopy = computed(() =>
         formEyebrow: 'TYPE EDITOR',
         formTitle: '인증 분류 생성',
         formDescription: '플랫폼 관리자가 인증서 분류와 기본 발급 기관을 등록합니다.',
+        detailEyebrow: 'TYPE DETAIL',
+        detailTitle: '인증 분류 상세',
+        detailDescription: '왼쪽에서 인증 분류를 선택하면 기본 정보와 활성 상태를 확인할 수 있습니다.',
+        chooseType: '왼쪽에서 인증 분류를 선택해 주세요.',
+        recommendationTitle: 'ESG/인증 추천 종류',
+        recommendationDescription: '초기 마스터에 넣기 좋은 인증 분류입니다.',
         codeLabel: '인증 코드',
         nameLabel: '인증명',
         issuerLabel: '발급 기관',
         scopeLabel: '인증 범위',
+        categoryLabel: '분류',
         requiredLabel: '필수 인증',
         activeLabel: '활성 상태',
+        deactivateLabel: '비활성화',
+        activateLabel: '활성화',
+        statusUpdateLabel: '처리 중...',
         submitLabel: '인증 분류 등록',
         submittingLabel: '등록 중...',
         empty: '등록된 인증 분류가 없습니다.',
-        columns: ['코드', '인증명', '발급 기관', '범위', '필수', '상태'],
         yes: '예',
         no: '아니오',
         active: '활성',
         inactive: '비활성',
+        statusUpdateFailed: '인증 분류 상태 변경에 실패했습니다.',
+        activateSuccess: '인증 분류가 활성화되었습니다.',
+        deactivateSuccess: '인증 분류가 비활성화되었습니다.',
       }
     : {
         listEyebrow: 'CERTIFICATE MASTER',
@@ -271,20 +342,32 @@ const certificateTypeCopy = computed(() =>
         formEyebrow: 'TYPE EDITOR',
         formTitle: 'Create Certificate Type',
         formDescription: 'Platform admins manage certificate classification and default issuer metadata.',
+        detailEyebrow: 'TYPE DETAIL',
+        detailTitle: 'Certificate Type Detail',
+        detailDescription: 'Choose a certificate type from the list to review metadata and active status.',
+        chooseType: 'Please choose a certificate type from the list.',
+        recommendationTitle: 'ESG / Certificate Starter Set',
+        recommendationDescription: 'Recommended certificate types for the initial master data.',
         codeLabel: 'Certificate Code',
         nameLabel: 'Certificate Name',
         issuerLabel: 'Issuer',
         scopeLabel: 'Scope',
+        categoryLabel: 'Category',
         requiredLabel: 'Required',
         activeLabel: 'Active',
+        deactivateLabel: 'Deactivate',
+        activateLabel: 'Activate',
+        statusUpdateLabel: 'Updating...',
         submitLabel: 'Register Type',
         submittingLabel: 'Registering...',
         empty: 'No certificate types registered.',
-        columns: ['Code', 'Name', 'Issuer', 'Scope', 'Required', 'Status'],
         yes: 'Yes',
         no: 'No',
         active: 'Active',
         inactive: 'Inactive',
+        statusUpdateFailed: 'Failed to update certificate type status.',
+        activateSuccess: 'Certificate type activated.',
+        deactivateSuccess: 'Certificate type deactivated.',
       },
 )
 
@@ -384,6 +467,67 @@ const selectedParentLabel = computed(() =>
 )
 
 const nextCategoryLevel = computed(() => (selectedCategoryNode.value ? selectedCategoryNode.value.level + 1 : 1))
+
+const selectedCertificateType = computed(
+  () => certificateTypes.value.find((type) => type.publicId === selectedCertificateTypePublicId.value) ?? null,
+)
+
+const activeCertificateTypeCount = computed(
+  () => certificateTypes.value.filter((type) => type.activeYn !== false).length,
+)
+
+function formatCertificateTypeName(type: CertificateTypeResponseDto) {
+  return type.certificateName || type.name || '-'
+}
+
+function getCertificateScopeOption(scopeType?: string) {
+  return certificateScopeOptions.find((option) => option.value === scopeType)
+}
+
+function formatCertificateScope(scopeType?: string) {
+  if (!scopeType) return '-'
+
+  const option = getCertificateScopeOption(scopeType)
+  const legacyLabel = legacyCertificateScopeLabels[scopeType]
+
+  if (!option && legacyLabel) {
+    return preferences.language === 'ko' ? legacyLabel.ko : legacyLabel.en
+  }
+
+  if (!option) return scopeType
+
+  return preferences.language === 'ko' ? option.ko : option.en
+}
+
+function formatCertificateScopeDescription(scopeType?: string) {
+  const option = getCertificateScopeOption(scopeType)
+  const legacyLabel = scopeType ? legacyCertificateScopeLabels[scopeType] : undefined
+
+  if (!option && legacyLabel) {
+    return preferences.language === 'ko' ? legacyLabel.descriptionKo : legacyLabel.descriptionEn
+  }
+
+  if (!option) return scopeType || '-'
+
+  return preferences.language === 'ko' ? option.descriptionKo : option.descriptionEn
+}
+
+function getRecommendedCertificateName(type: (typeof recommendedCertificateTypes)[number]) {
+  return preferences.language === 'ko' ? type.nameKo : type.nameEn
+}
+
+function getRecommendedCertificateCategory(type: (typeof recommendedCertificateTypes)[number]) {
+  return preferences.language === 'ko' ? type.categoryKo : type.categoryEn
+}
+
+function selectRecommendedCertificateType(type: (typeof recommendedCertificateTypes)[number]) {
+  certificateTypeForm.certificateCode = type.code
+  certificateTypeForm.certificateName = getRecommendedCertificateName(type)
+  certificateTypeForm.scopeType = type.scope
+  certificateTypeForm.issuerName = type.code.startsWith('ISO') ? 'ISO' : ''
+  certificateTypeForm.requiredYn = ['HACCP', 'ISO-9001'].includes(type.code)
+  certificateTypeForm.activeYn = true
+}
 
 function collectDescendantCategoryIds(categoryPublicId: string) {
   const descendants = new Set<string>()
@@ -710,7 +854,7 @@ function resetCertificateTypeForm() {
   certificateTypeForm.certificateCode = ''
   certificateTypeForm.certificateName = ''
   certificateTypeForm.issuerName = ''
-  certificateTypeForm.scopeType = 'GENERAL'
+  certificateTypeForm.scopeType = 'SUPPLIER_COMMON'
   certificateTypeForm.requiredYn = false
   certificateTypeForm.activeYn = true
 }
@@ -730,7 +874,7 @@ async function submitCertificateType() {
   try {
     certificateTypeSubmitting.value = true
 
-    await createCertificateType({
+    const savedType = await createCertificateType({
       certificateCode: certificateTypeForm.certificateCode.trim(),
       certificateName: certificateTypeForm.certificateName.trim(),
       issuerName: certificateTypeForm.issuerName?.trim() || undefined,
@@ -746,6 +890,7 @@ async function submitCertificateType() {
 
     resetCertificateTypeForm()
     await loadCertificateTypes()
+    selectedCertificateTypePublicId.value = savedType.publicId
   } catch (error: any) {
     certificateTypeError.value =
       error?.payload?.message ||
@@ -755,6 +900,41 @@ async function submitCertificateType() {
         : 'Failed to create certificate type.')
   } finally {
     certificateTypeSubmitting.value = false
+  }
+}
+
+async function submitCertificateTypeStatusUpdate(activeYn: boolean) {
+  const targetType = selectedCertificateType.value
+  if (!targetType) return
+
+  certificateTypeError.value = ''
+  certificateTypeSuccess.value = ''
+
+  try {
+    certificateTypeStatusUpdating.value = true
+
+    const updated = await updateCertificateType(targetType.publicId, {
+      certificateName: formatCertificateTypeName(targetType),
+      issuerName: targetType.issuerName || undefined,
+      scopeType: targetType.scopeType,
+      requiredYn: targetType.requiredYn,
+      activeYn,
+    })
+
+    certificateTypes.value = certificateTypes.value.map((type) =>
+      type.publicId === updated.publicId ? updated : type,
+    )
+
+    certificateTypeSuccess.value = activeYn
+      ? certificateTypeCopy.value.activateSuccess
+      : certificateTypeCopy.value.deactivateSuccess
+  } catch (error: any) {
+    certificateTypeError.value =
+      error?.payload?.message ||
+      error?.message ||
+      certificateTypeCopy.value.statusUpdateFailed
+  } finally {
+    certificateTypeStatusUpdating.value = false
   }
 }
 
@@ -807,6 +987,15 @@ watch(selectedCategoryPublicId, (categoryPublicId) => {
   }
 
   expandCategoryAncestors(categoryPublicId)
+})
+
+watch(certificateTypes, (types) => {
+  if (
+    selectedCertificateTypePublicId.value &&
+    !types.some((type) => type.publicId === selectedCertificateTypePublicId.value)
+  ) {
+    selectedCertificateTypePublicId.value = ''
+  }
 })
 async function submitOrganization() {
   // 이전 에러와 성공 문구를 먼저 비웁니다.
@@ -1412,7 +1601,7 @@ if (!selectedOrganizationPublicId.value) {
               <h3>{{ certificateTypeCopy.listTitle }}</h3>
               <p class="settings-page__copy">{{ certificateTypeCopy.listDescription }}</p>
             </div>
-            <span class="page-panel__chip">{{ certificateTypes.length }}</span>
+            <span class="page-panel__chip">{{ activeCertificateTypeCount }} / {{ certificateTypes.length }}</span>
           </div>
 
           <div v-if="certificateTypesLoading && !certificateTypes.length" class="page-table__empty">
@@ -1423,32 +1612,57 @@ if (!selectedOrganizationPublicId.value) {
             {{ certificateTypeCopy.empty }}
           </div>
 
-          <div v-else class="page-table settings-certificate-types__table">
-            <div class="page-table__row page-table__row--head">
-              <span v-for="column in certificateTypeCopy.columns" :key="column">{{ column }}</span>
-            </div>
-
-            <div
+          <div v-else class="settings-certificate-types__list">
+            <button
               v-for="certificateType in certificateTypes"
               :key="certificateType.publicId"
-              class="page-table__row"
+              :class="[
+                'settings-certificate-types__item',
+                { 'is-active': selectedCertificateTypePublicId === certificateType.publicId },
+              ]"
+              type="button"
+              @click="selectedCertificateTypePublicId = certificateType.publicId"
             >
-              <span>{{ certificateType.certificateCode || '-' }}</span>
-              <strong>{{ certificateType.certificateName || certificateType.name || '-' }}</strong>
-              <span>{{ certificateType.issuerName || '-' }}</span>
-              <span>{{ certificateType.scopeType || 'GENERAL' }}</span>
-              <span>{{ certificateType.requiredYn ? certificateTypeCopy.yes : certificateTypeCopy.no }}</span>
-              <span>{{ certificateType.activeYn === false ? certificateTypeCopy.inactive : certificateTypeCopy.active }}</span>
+              <span class="settings-certificate-types__item-meta">
+                {{ formatCertificateScope(certificateType.scopeType) }} ·
+                {{ certificateType.activeYn === false ? certificateTypeCopy.inactive : certificateTypeCopy.active }}
+              </span>
+              <strong>{{ formatCertificateTypeName(certificateType) }}</strong>
+              <span class="settings-certificate-types__item-code">{{ certificateType.certificateCode || '-' }}</span>
+            </button>
+          </div>
+
+          <div class="settings-certificate-types__recommendations">
+            <div class="page-panel__head">
+              <div>
+                <div class="page-panel__eyebrow">ESG PRESET</div>
+                <h3>{{ certificateTypeCopy.recommendationTitle }}</h3>
+                <p class="settings-page__copy">{{ certificateTypeCopy.recommendationDescription }}</p>
+              </div>
             </div>
+
+            <button
+              v-for="type in recommendedCertificateTypes"
+              :key="type.code"
+              class="settings-certificate-types__preset"
+              type="button"
+              @click="selectRecommendedCertificateType(type)"
+            >
+              <span>
+                <strong>{{ type.code }}</strong>
+                <em>{{ getRecommendedCertificateCategory(type) }}</em>
+              </span>
+              <span>{{ getRecommendedCertificateName(type) }}</span>
+            </button>
           </div>
         </article>
 
         <article class="page-panel">
           <div class="page-panel__head">
             <div>
-              <div class="page-panel__eyebrow">{{ certificateTypeCopy.formEyebrow }}</div>
-              <h3>{{ certificateTypeCopy.formTitle }}</h3>
-              <p class="settings-page__copy">{{ certificateTypeCopy.formDescription }}</p>
+              <div class="page-panel__eyebrow">{{ certificateTypeCopy.detailEyebrow }}</div>
+              <h3>{{ certificateTypeCopy.detailTitle }}</h3>
+              <p class="settings-page__copy">{{ certificateTypeCopy.detailDescription }}</p>
             </div>
           </div>
 
@@ -1459,6 +1673,91 @@ if (!selectedOrganizationPublicId.value) {
           <div v-if="certificateTypeSuccess" class="login-hint">
             {{ certificateTypeSuccess }}
           </div>
+
+          <div v-if="!selectedCertificateType" class="page-feed">
+            <div class="page-feed__item">
+              <span class="page-feed__label">{{ certificateTypeCopy.detailTitle }}</span>
+              <strong class="page-feed__text">{{ certificateTypeCopy.chooseType }}</strong>
+            </div>
+          </div>
+
+          <template v-else>
+            <div class="settings-certificate-types__detail-hero">
+              <span class="material-symbols-outlined">workspace_premium</span>
+              <div>
+                <span>
+                  {{ formatCertificateScope(selectedCertificateType.scopeType) }} ·
+                  {{ selectedCertificateType.activeYn === false ? certificateTypeCopy.inactive : certificateTypeCopy.active }}
+                </span>
+                <strong>{{ formatCertificateTypeName(selectedCertificateType) }}</strong>
+              </div>
+            </div>
+
+            <div class="settings-certificate-types__detail-list">
+              <div>
+                <span>{{ certificateTypeCopy.codeLabel }}</span>
+                <strong>{{ selectedCertificateType.certificateCode || '-' }}</strong>
+              </div>
+              <div>
+                <span>{{ certificateTypeCopy.nameLabel }}</span>
+                <strong>{{ formatCertificateTypeName(selectedCertificateType) }}</strong>
+              </div>
+              <div>
+                <span>{{ certificateTypeCopy.issuerLabel }}</span>
+                <strong>{{ selectedCertificateType.issuerName || '-' }}</strong>
+              </div>
+              <div>
+                <span>{{ certificateTypeCopy.scopeLabel }}</span>
+                <strong>{{ formatCertificateScope(selectedCertificateType.scopeType) }}</strong>
+              </div>
+              <div>
+                <span>{{ preferences.language === 'ko' ? '범위 설명' : 'Scope Description' }}</span>
+                <strong>{{ formatCertificateScopeDescription(selectedCertificateType.scopeType) }}</strong>
+              </div>
+              <div>
+                <span>{{ certificateTypeCopy.requiredLabel }}</span>
+                <strong>{{ selectedCertificateType.requiredYn ? certificateTypeCopy.yes : certificateTypeCopy.no }}</strong>
+              </div>
+            </div>
+
+            <div class="settings-certificate-types__detail-actions">
+              <button
+                v-if="selectedCertificateType.activeYn === false"
+                class="page-button page-button--primary"
+                type="button"
+                :disabled="certificateTypeStatusUpdating"
+                @click="submitCertificateTypeStatusUpdate(true)"
+              >
+                {{
+                  certificateTypeStatusUpdating
+                    ? certificateTypeCopy.statusUpdateLabel
+                    : certificateTypeCopy.activateLabel
+                }}
+              </button>
+              <button
+                v-else
+                class="page-button page-button--danger"
+                type="button"
+                :disabled="certificateTypeStatusUpdating"
+                @click="submitCertificateTypeStatusUpdate(false)"
+              >
+                {{
+                  certificateTypeStatusUpdating
+                    ? certificateTypeCopy.statusUpdateLabel
+                    : certificateTypeCopy.deactivateLabel
+                }}
+              </button>
+            </div>
+          </template>
+
+          <div class="settings-certificate-types__create">
+            <div class="page-panel__head">
+              <div>
+                <div class="page-panel__eyebrow">{{ certificateTypeCopy.formEyebrow }}</div>
+                <h3>{{ certificateTypeCopy.formTitle }}</h3>
+                <p class="settings-page__copy">{{ certificateTypeCopy.formDescription }}</p>
+              </div>
+            </div>
 
           <div class="settings-form">
             <label>
@@ -1479,10 +1778,13 @@ if (!selectedOrganizationPublicId.value) {
             <label>
               <span>{{ certificateTypeCopy.scopeLabel }}</span>
               <select v-model="certificateTypeForm.scopeType">
-                <option value="GENERAL">GENERAL</option>
-                <option value="QUALITY">QUALITY</option>
-                <option value="SAFETY">SAFETY</option>
-                <option value="ENVIRONMENT">ENVIRONMENT</option>
+                <option
+                  v-for="scope in certificateScopeOptions"
+                  :key="scope.value"
+                  :value="scope.value"
+                >
+                  {{ preferences.language === 'ko' ? scope.ko : scope.en }}
+                </option>
               </select>
             </label>
 
@@ -1511,6 +1813,7 @@ if (!selectedOrganizationPublicId.value) {
               }}
             </button>
           </div>
+          </div>
         </article>
       </div>
     </section>
@@ -1520,10 +1823,6 @@ if (!selectedOrganizationPublicId.value) {
 <style scoped>
 .settings-page__grid--certificate-types {
   align-items: start;
-}
-
-.settings-certificate-types__table .page-table__row {
-  grid-template-columns: 1fr 1.4fr 1.2fr 1fr 0.8fr 0.8fr;
 }
 
 .settings-certificate-types__toggles {
@@ -1552,13 +1851,155 @@ if (!selectedOrganizationPublicId.value) {
   font-weight: 700;
 }
 
-@media (max-width: 720px) {
-  .settings-certificate-types__table .page-table__row {
-    min-width: 720px;
-  }
+.settings-certificate-types__list,
+.settings-certificate-types__recommendations {
+  display: grid;
+  gap: 12px;
+}
 
+.settings-certificate-types__item,
+.settings-certificate-types__preset {
+  width: 100%;
+  border: 1px solid transparent;
+  background: var(--color-surface-container-lowest);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.settings-certificate-types__item {
+  display: grid;
+  gap: 8px;
+  min-height: 92px;
+  padding: 18px 20px;
+}
+
+.settings-certificate-types__item.is-active {
+  border-color: var(--color-outline);
+  background: var(--color-surface-container-high);
+}
+
+.settings-certificate-types__item-meta,
+.settings-certificate-types__item-code,
+.settings-certificate-types__preset em {
+  color: var(--color-on-surface-variant);
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.settings-certificate-types__item strong {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.settings-certificate-types__recommendations,
+.settings-certificate-types__create {
+  margin-top: 24px;
+  border-top: 1px solid var(--color-surface-container-high);
+  padding-top: 24px;
+}
+
+.settings-certificate-types__preset {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.55fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 56px;
+  padding: 12px 14px;
+}
+
+.settings-certificate-types__preset:hover,
+.settings-certificate-types__item:hover {
+  border-color: var(--color-outline);
+}
+
+.settings-certificate-types__preset span {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-certificate-types__detail-hero {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+  border: 1px solid var(--color-surface-container-high);
+  background: var(--color-surface-container-lowest);
+  padding: 20px;
+}
+
+.settings-certificate-types__detail-hero > .material-symbols-outlined {
+  display: grid;
+  width: 112px;
+  height: 112px;
+  place-items: center;
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
+  font-size: 3rem;
+}
+
+.settings-certificate-types__detail-hero div {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-certificate-types__detail-hero span {
+  color: var(--color-on-surface-variant);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.settings-certificate-types__detail-hero strong {
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  line-height: 1.08;
+}
+
+.settings-certificate-types__detail-list {
+  display: grid;
+  margin-top: 20px;
+}
+
+.settings-certificate-types__detail-list > div {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 16px;
+  border-bottom: 1px solid var(--color-surface-container-high);
+  padding: 16px 0;
+}
+
+.settings-certificate-types__detail-list span {
+  color: var(--color-on-surface-variant);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.settings-certificate-types__detail-list strong {
+  justify-self: end;
+  text-align: right;
+}
+
+.settings-certificate-types__detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 28px;
+}
+
+@media (max-width: 720px) {
   .settings-certificate-types__toggles {
     grid-template-columns: 1fr;
+  }
+
+  .settings-certificate-types__preset,
+  .settings-certificate-types__detail-hero,
+  .settings-certificate-types__detail-list > div {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-certificate-types__detail-list strong {
+    justify-self: start;
+    text-align: left;
   }
 }
 </style>

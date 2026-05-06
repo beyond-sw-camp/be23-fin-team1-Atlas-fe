@@ -31,6 +31,14 @@ export interface CreateCertificateTypeRequestDto {
   issuerName?: string
 }
 
+export interface UpdateCertificateTypeRequestDto {
+  certificateName?: string
+  scopeType?: string
+  requiredYn?: boolean
+  activeYn?: boolean
+  issuerName?: string
+}
+
 export interface SupplierCertificateResponseDto {
   publicId: string
   supplierPublicId: string
@@ -121,5 +129,11 @@ export async function getCertificateTypes(): Promise<CertificateTypeResponseDto[
 /* ── 인증 유형 마스터 신규 등록 ── */
 export async function createCertificateType(data: CreateCertificateTypeRequestDto): Promise<CertificateTypeResponseDto> {
   const response = await apiClient.post<CertificateTypeResponseDto>('/api/supply/certificate-types', data)
+  return response.data
+}
+
+/* ── 인증 유형 마스터 수정 ── */
+export async function updateCertificateType(publicId: string, data: UpdateCertificateTypeRequestDto): Promise<CertificateTypeResponseDto> {
+  const response = await apiClient.put<CertificateTypeResponseDto>(`/api/supply/certificate-types/${publicId}`, data)
   return response.data
 }
