@@ -592,7 +592,7 @@ onMounted(() => {
 
 .inventory-page__status-chip {
   min-width: 64px;
-  min-height: 32px;
+  min-height: 26px;
   padding: 0 12px;
   font-size: 0.86rem;
 }
