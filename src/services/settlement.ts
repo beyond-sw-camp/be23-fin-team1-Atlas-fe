@@ -261,3 +261,30 @@ export async function getSettlementStatistics(
 
   return response.data
 }
+
+// 정산 엑셀을 현재 화면 언어 기준으로 다운로드합니다.
+// 정산 엑셀을 현재 화면 언어와 선택 기간 기준으로 다운로드합니다.
+export async function downloadSettlementExcel(
+  language: 'ko' | 'en',
+  startDate?: string,
+  endDate?: string,
+): Promise<Blob> {
+  const response = await apiClient.get<Blob>(
+    '/api/supply/settlements/export/excel',
+    {
+      responseType: 'blob',
+      params: {
+        language,
+        startDate,
+        endDate,
+      },
+      headers: {
+        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      },
+    },
+  )
+
+  return response.data
+}
+
+

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
+  downloadSettlementExcel,
   getSettlement,
   getSettlements,
   getSettlementStatistics,
@@ -73,6 +74,8 @@ const CONTENT = {
     actions: {
       refresh: '새로고침',
       registerBudget: '예산 등록',
+      exportExcel: '엑셀 내보내기',
+      exportingExcel: '내보내는 중...',
       cancel: '취소',
       saveBudget: '예산 저장',
       saving: '저장 중...',
@@ -173,6 +176,8 @@ const CONTENT = {
       refresh: 'Refresh',
       registerBudget: 'Register Budget',
       cancel: 'Cancel',
+      exportExcel: 'Export Excel',
+      exportingExcel: 'Exporting...',
       saveBudget: 'Save Budget',
       saving: 'Saving...',
     },
@@ -270,6 +275,14 @@ const returnOptions = ref<ReturnRequestResponseDto[]>([])
 
 const isListLoading = ref(false)
 const isDetailLoading = ref(false)
+// 정산 엑셀 다운로드 중인지 표시합니다.
+const isExcelDownloading = ref(false)
+// 엑셀 내보내기에 사용할 시작일입니다.
+const excelStartDate = ref('')
+
+// 엑셀 내보내기에 사용할 종료일입니다.
+const excelEndDate = ref('')
+
 const isSupplierOptionsLoading = ref(false)
 const isShipmentOptionsLoading = ref(false)
 const isReturnOptionsLoading = ref(false)
@@ -786,6 +799,57 @@ async function fetchSettlementStatistics() {
   }
 }
 
+async function handleDownloadSettlementExcel() {
+  // 이미 다운로드 중이면 중복 클릭을 막습니다.
+  if (isExcelDownloading.value) {
+    return
+  }
+
+  isExcelDownloading.value = true
+  listErrorMessage.value = ''
+
+  try {
+    // 현재 언어 설정을 백엔드에 넘겨서 엑셀 문구도 화면 언어와 맞춥니다.
+   const blob = await downloadSettlementExcel(
+  preferences.language,
+  excelStartDate.value || undefined,
+  excelEndDate.value || undefined,
+)
+
+
+
+    // 백엔드에서 받은 파일 데이터를 브라우저가 열 수 있는 임시 URL로 바꿉니다.
+    const url = window.URL.createObjectURL(blob)
+
+    // 실제 다운로드를 실행할 a 태그를 임시로 만듭니다.
+    const link = document.createElement('a')
+
+    link.href = url
+    link.download = `settlements-${new Date().toISOString().slice(0, 10)}.xlsx`
+
+    // 브라우저 다운로드를 실행합니다.
+    document.body.appendChild(link)
+    link.click()
+
+    // 임시로 만든 태그와 URL을 정리합니다.
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (err: any) {
+    console.error('Failed to download settlement excel:', err)
+
+    listErrorMessage.value =
+      err?.payload?.message ||
+      err?.response?.data?.message ||
+      err?.message ||
+      (preferences.language === 'ko'
+        ? '정산 엑셀 파일을 내려받지 못했습니다.'
+        : 'Failed to download settlement Excel file.')
+  } finally {
+    isExcelDownloading.value = false
+  }
+}
+
+
 async function refreshSettlementPage() {
   await Promise.all([
     fetchSettlements(),
@@ -834,6 +898,27 @@ onMounted(() => {
       <div class="stl-page__actions">
         <button class="stl-btn stl-btn--ghost" type="button" @click="refreshSettlementPage">
           {{ content.actions.refresh }}
+        </button>
+        <input
+  v-model="excelStartDate"
+  class="stl-input stl-date-input"
+  type="date"
+/>
+
+<input
+  v-model="excelEndDate"
+  class="stl-input stl-date-input"
+  type="date"
+/>
+
+
+        <button
+          class="stl-btn stl-btn--ghost"
+          type="button"
+          :disabled="isExcelDownloading"
+          @click="handleDownloadSettlementExcel"
+        >
+          {{ isExcelDownloading ? content.actions.exportingExcel : content.actions.exportExcel }}
         </button>
 
         <button class="stl-btn stl-btn--primary" type="button" @click="openBudgetModal">
@@ -1891,6 +1976,14 @@ onMounted(() => {
   font-size: 0.8rem;
   font-weight: 700;
 }
+.stl-date-input {
+  width: 140px;
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 
 @keyframes spin {
   to {
