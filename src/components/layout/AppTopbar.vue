@@ -67,12 +67,6 @@ const shouldShowSearchPanel = computed(() => {
   return true
 })
 
-function handleLanguageChange(event: Event) {
-  const target = event.target as HTMLSelectElement | null
-  if (!target) return
-  preferences.setLanguage(target.value === 'en' ? 'en' : 'ko')
-}
-
 function toggleTheme() {
   preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
 }
@@ -425,19 +419,6 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
           </template>
         </div>
       </div>
-
-      <!-- 언어 선택은 검색창 오른쪽에 둡니다. -->
-      <label class="app-language-select app-language-select--desktop">
-        <select
-          id="app-language-desktop"
-          name="app-language-desktop"
-          :value="preferences.language"
-          @change="handleLanguageChange"
-        >
-          <option value="ko">KO</option>
-          <option value="en">EN</option>
-        </select>
-      </label>
 
          <!-- 남은 시간과 로그인 연장은 바깥 박스 하나로만 묶습니다. -->
       <div v-if="session.isAuthenticated" class="app-session-controls app-session-controls--desktop">

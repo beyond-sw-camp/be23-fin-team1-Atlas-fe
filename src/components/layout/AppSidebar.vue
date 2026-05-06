@@ -35,12 +35,6 @@ function toggleTheme() {
   preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
 }
 
-function handleLanguageChange(event: Event) {
-  const target = event.target as HTMLSelectElement | null
-  if (!target) return
-  preferences.setLanguage(target.value === 'en' ? 'en' : 'ko')
-}
-
 function handleSidebarNavigate(navigate: () => void) {
   navigate()
   ui.closeMobileSidebar()
@@ -216,17 +210,6 @@ onBeforeUnmount(() => {
       <button class="app-icon-button" type="button" @click="navigation.openSettings">
         <span class="material-symbols-outlined">settings</span>
       </button>
-      <label class="app-language-select app-language-select--sidebar">
-        <select
-          id="app-language-sidebar"
-          name="app-language-sidebar"
-          :value="preferences.language"
-          @change="handleLanguageChange"
-        >
-          <option value="ko">KO</option>
-          <option value="en">EN</option>
-        </select>
-      </label>
     </div>
   </aside>
 </template>
