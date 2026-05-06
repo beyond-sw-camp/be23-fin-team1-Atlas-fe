@@ -5715,7 +5715,7 @@ select:not(.app-language-select select):focus {
 }
 
 .notifications-page__table .page-table__row {
-  grid-template-columns: 160px 112px minmax(240px, 1fr) 90px 150px;
+  grid-template-columns: 160px 72px minmax(240px, 1fr) 72px 150px;
 }
 
 .notifications-page__table .page-table__row.is-unread {
