@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
@@ -30,11 +30,13 @@ import {
   type OrderDashboardSummaryResponseDto,
   type PoStatus,
   type PurchaseOrderDetailResponseDto,
+  type PurchaseOrderItemResponseDto,
   type SupplierStatus,
 } from '../../../services/purchaseOrder'
 import {
   confirmSubPurchaseOrderItem,
   createSubPurchaseOrder,
+  createSubPurchaseOrdersBatch,
   getReceivedSubPurchaseOrders,
   getSentSubPurchaseOrders,
   getSubPurchaseOrder,
@@ -91,6 +93,7 @@ type OrderQueueEntry = {
 
 type CreateOrderLineForm = {
   id: number
+  parentPoItemPublicId: string
   selectedItemPublicId: string
   selectedItemName: string
   selectedSupplierPublicId: string
@@ -142,6 +145,12 @@ const copy = computed(() =>
         createOrder: '신규 발주',
         queueTitle: '확인 대기함',
         queueEmpty: '확인 대기 건이 없습니다.',
+        parentOrderSelect: '상위 발주 선택',
+        mainOrderMode: '메인 발주',
+        selectParentOrder: '선택하면 서브발주로 연결되고, 선택하지 않으면 메인 발주로 등록됩니다.',
+        parentOrderItem: '상위 발주 품목',
+        selectParentOrderItem: '연결할 상위 발주 품목을 선택하세요.',
+
         valueTitle: '카테고리별 금액',
         valueEmpty: '표시할 카테고리 금액이 없습니다.',
         counterpartyTitle: '주요 거래처',
@@ -295,6 +304,7 @@ const copy = computed(() =>
         },
         messages: {
           loadOrdersFail: '주문 정보를 불러오지 못했습니다.',
+          duplicateSubOrderMapping: '같은 상위 발주 품목과 하위 품목 조합은 중복 등록할 수 없습니다.',
           selectAtLeastOne: '검색 결과에서 발주할 품목을 1개 이상 선택하세요.',
           invalidOrderQty: '발주 수량은 0보다 커야 합니다.',
           invalidItemSupplierMapping: '품목과 협력사 매핑이 올바르지 않습니다.',
@@ -339,6 +349,11 @@ const copy = computed(() =>
     : {
         pageEyebrow: 'Supply Operations / Purchase Orders',
         pageTitle: 'Purchase Orders',
+        parentOrderSelect: 'Parent Order',
+        mainOrderMode: 'Main Order',
+        selectParentOrder: 'Selecting a parent order creates linked sub orders. Leaving it empty creates a main order.',
+        parentOrderItem: 'Parent Order Item',
+        selectParentOrderItem: 'Select the parent order item to link.',
         export: 'Export',
         refresh: 'Refresh',
         createOrder: 'New Order',
@@ -497,6 +512,7 @@ const copy = computed(() =>
         },
         messages: {
           loadOrdersFail: 'Failed to load orders.',
+          duplicateSubOrderMapping: 'The same parent-order-item and child-item mapping cannot be duplicated.',
           selectAtLeastOne: 'Select at least one item from the search results.',
           invalidOrderQty: 'Order quantity must be greater than 0.',
           invalidItemSupplierMapping: 'The item and supplier mapping is invalid.',
@@ -626,6 +642,7 @@ let editLineSeed = 1
 function createEmptyOrderLine(item: ItemResponseDto | null = null): CreateOrderLineForm {
   return {
     id: createLineSeed++,
+    parentPoItemPublicId: '',
     selectedItemPublicId: item?.publicId ?? '',
     selectedItemName: item?.itemName ?? '',
     selectedSupplierPublicId: item?.supplierPublicId ?? '',
@@ -641,6 +658,28 @@ function createEmptyEditNewLine(): EditNewOrderLine {
     orderedQty: null,
   }
 }
+
+
+const createForm = ref({
+  parentPoPublicId: '',
+  categoryLevel1PublicId: '',
+  categoryLevel2PublicId: '',
+  categoryLevel3PublicId: '',
+  itemKeyword: '',
+  itemOptions: [] as ItemResponseDto[],
+  searchResultPublicIds: [] as string[],
+  detailItemPublicId: '',
+  searchLoading: false,
+  lines: [] as CreateOrderLineForm[],
+})
+
+const selectedCreateCategoryPublicId = computed(
+  () =>
+    createForm.value.categoryLevel3PublicId ||
+    createForm.value.categoryLevel2PublicId ||
+    createForm.value.categoryLevel1PublicId ||
+    undefined,
+)
 
 const filteredSelectableItems = computed(() => {
   const keyword = createForm.value.itemKeyword.trim().toLowerCase()
@@ -664,17 +703,69 @@ const filteredSelectableItems = computed(() => {
     })
 })
 
-const createForm = ref({
-  categoryLevel1PublicId: '',
-  categoryLevel2PublicId: '',
-  categoryLevel3PublicId: '',
-  itemKeyword: '',
-  itemOptions: [] as ItemResponseDto[],
-  searchResultPublicIds: [] as string[],
-  detailItemPublicId: '',
-  searchLoading: false,
-  lines: [] as CreateOrderLineForm[],
+const routeParentPoPublicId = computed(() => {
+  const value = route.query.parentPoPublicId
+  return typeof value === 'string' ? value : ''
 })
+
+const isSubOrderCreateMode = computed(() => !!createForm.value.parentPoPublicId)
+
+const creatableParentOrders = computed(() =>
+  actor.isSupplierOrganization.value
+    ? purchaseOrders.value.filter((order) =>
+        ['PARTIALLY_CONFIRMED', 'CONFIRMED'].includes(order.poStatus),
+      )
+    : [],
+)
+
+const selectedCreateParentOrder = computed(
+  () =>
+    creatableParentOrders.value.find(
+      (order) => order.poPublicId === createForm.value.parentPoPublicId,
+    ) ?? null,
+)
+
+const selectedCreateParentOrderItems = computed<PurchaseOrderItemResponseDto[]>(() =>
+  selectedCreateParentOrder.value?.items.filter(
+    (item) => item.itemStatus !== 'DELETED' && item.itemStatus !== 'CANCELLED',
+  ) ?? [],
+)
+
+function parentOrderLabel(order: PurchaseOrderDetailResponseDto) {
+  return `${order.poNumber} / ${organizationDisplayName(order.buyerOrganizationPublicId)} / ${formatDate(order.orderedAt)}`
+}
+
+function parentOrderItemLabel(item: PurchaseOrderItemResponseDto) {
+  return `${item.itemCode} / ${item.itemName} / ${formatNumber(item.confirmedQty ?? item.orderedQty)} ${item.unit}`
+}
+
+function handleCreateParentOrderChange() {
+  const availableParentItemIds = new Set(
+    selectedCreateParentOrderItems.value.map((item) => item.poItemPublicId),
+  )
+
+  createForm.value.lines = createForm.value.lines.map((line) => ({
+    ...line,
+    parentPoItemPublicId: availableParentItemIds.has(line.parentPoItemPublicId)
+      ? line.parentPoItemPublicId
+      : '',
+    arrivalLogisticsNodePublicId: isSubOrderCreateMode.value
+      ? ''
+      : line.arrivalLogisticsNodePublicId,
+  }))
+}
+
+watch(
+  () => routeParentPoPublicId.value,
+  (parentPoPublicId) => {
+    if (!isCreatePage.value) return
+    createForm.value.parentPoPublicId = parentPoPublicId
+    handleCreateParentOrderChange()
+  },
+  { immediate: true },
+)
+
+
 const selectableSuppliers = computed(() =>
   supplierOptions.value.filter((supplier) => !!supplierPublicIdOf(supplier)),
 )
@@ -840,14 +931,14 @@ const categoryRows = computed(() => {
   if (actor.isSupplierOrganization.value) {
     sentSubOrders.value.forEach((subOrder) => {
       ;(subOrder.items ?? []).forEach((item) => {
-        const categoryName = itemMap.value[item.itemPublicId]?.categoryName ?? '미분류'
+        const categoryName = itemCategoryPathOf(item.itemPublicId)
         totals.set(categoryName, (totals.get(categoryName) ?? 0) + toNumber(item.lineAmount))
       })
     })
   } else {
     purchaseOrders.value.forEach((order) => {
       order.items.forEach((item) => {
-        const categoryName = itemMap.value[item.itemPublicId]?.categoryName ?? '미분류'
+        const categoryName = itemCategoryPathOf(item.itemPublicId)
         totals.set(categoryName, (totals.get(categoryName) ?? 0) + toNumber(item.lineAmount))
       })
     })
@@ -1028,6 +1119,13 @@ function formatDateTime(value: string | null | undefined) {
   return new Date(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')
 }
 
+function openSubOrderDetailPage(subPoPublicId: string) {
+  router.push({
+    name: 'operationDetail',
+    params: { kind: 'sub-orders', publicId: subPoPublicId },
+  })
+}
+
 function supplierStatusText(value: SupplierStatus) {
   return copy.value.supplierStatuses[value] ?? value
 }
@@ -1124,20 +1222,20 @@ async function loadOrganizationLookup() {
 }
 
 async function loadItemLookup(orders: PurchaseOrderDetailResponseDto[]) {
-  const missingItemIds = Array.from(
-    new Set(orders.flatMap((order) => order.items.map((item) => item.itemPublicId))),
-  ).filter((itemPublicId) => !itemMap.value[itemPublicId])
+  await loadItemLookupByItemIds(
+    orders.flatMap((order) => order.items.map((item) => item.itemPublicId)),
+  )
+}
+
+async function loadItemLookupByItemIds(itemPublicIds: string[]) {
+  const missingItemIds = Array.from(new Set(itemPublicIds)).filter(
+    (itemPublicId) => !!itemPublicId && !itemMap.value[itemPublicId],
+  )
 
   if (!missingItemIds.length) return
 
   const loadedItems = await Promise.all(
-    missingItemIds.map(async (itemPublicId) => {
-      try {
-        return await getItem(itemPublicId)
-      } catch {
-        return null
-      }
-    }),
+    missingItemIds.map((itemPublicId) => getItem(itemPublicId).catch(() => null)),
   )
 
   const nextMap = { ...itemMap.value }
@@ -1146,6 +1244,7 @@ async function loadItemLookup(orders: PurchaseOrderDetailResponseDto[]) {
   })
   itemMap.value = nextMap
 }
+
 
 async function loadPurchaseOrders() {
   const response = await getPurchaseOrders({
@@ -1182,10 +1281,17 @@ async function loadReceivedSubOrders() {
     receivedSubOrders.value = [...response.content].sort(
       (a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime(),
     )
+
+    await loadItemLookupByItemIds(
+      receivedSubOrders.value.flatMap((subOrder) =>
+        (subOrder.items ?? []).map((item) => item.itemPublicId),
+      ),
+    )
   } catch {
     receivedSubOrders.value = []
   }
 }
+
 
 async function loadSentSubOrders() {
   if (!actor.isSupplierOrganization.value && !actor.isAdminRole.value) {
@@ -1198,10 +1304,17 @@ async function loadSentSubOrders() {
     sentSubOrders.value = [...response.content].sort(
       (a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime(),
     )
+
+    await loadItemLookupByItemIds(
+      sentSubOrders.value.flatMap((subOrder) =>
+        (subOrder.items ?? []).map((item) => item.itemPublicId),
+      ),
+    )
   } catch {
     sentSubOrders.value = []
   }
 }
+
 
 async function loadParentSubOrders(poPublicId: string) {
   if (
@@ -1268,13 +1381,6 @@ const createThirdCategories = computed(() =>
 )
 
 
-const selectedCreateCategoryPublicId = computed(
-  () =>
-    createForm.value.categoryLevel3PublicId ||
-    createForm.value.categoryLevel2PublicId ||
-    createForm.value.categoryLevel1PublicId ||
-    undefined,
-)
 
 async function loadDashboardSummary() {
   if (!actor.isBuyerOrganization.value && !actor.isSupplierOrganization.value) {
@@ -1311,6 +1417,7 @@ function resetCreateOrderForm() {
   createErrorMessage.value = ''
 
   createForm.value = {
+    parentPoPublicId: '',
     categoryLevel1PublicId: '',
     categoryLevel2PublicId: '',
     categoryLevel3PublicId: '',
@@ -1323,13 +1430,46 @@ function resetCreateOrderForm() {
   }
 }
 
-function openCreateOrderModal() {
-  resetCreateOrderForm()
-  if (!isCreatePage.value) {
-    router.push({ name: 'orderCreate' })
+function categoryPathOf(categoryPublicId: string | null | undefined) {
+  if (!categoryPublicId) return copy.value.uncategorized
+
+  const categoriesById = new Map(categoryOptions.value.map((category) => [category.publicId, category]))
+  const names: string[] = []
+  let current = categoriesById.get(categoryPublicId)
+
+  while (current) {
+    names.unshift(current.categoryName)
+    current = current.parentCategoryPublicId
+      ? categoriesById.get(current.parentCategoryPublicId)
+      : undefined
   }
+
+  return names.length ? names.join(' > ') : copy.value.uncategorized
+}
+
+function itemCategoryPathOf(itemPublicId: string) {
+  return categoryPathOf(itemMap.value[itemPublicId]?.itemCategoryPublicId)
+}
+
+
+
+function openCreateOrderModal(parentPoPublicId = '') {
+  resetCreateOrderForm()
+  createForm.value.parentPoPublicId = parentPoPublicId
+
+  const nextRoute = parentPoPublicId
+    ? { name: 'orderCreate' as const, query: { parentPoPublicId } }
+    : { name: 'orderCreate' as const }
+
+  if (!isCreatePage.value) {
+    router.push(nextRoute)
+  } else {
+    router.replace(nextRoute)
+  }
+
   void searchItemsForCreateOrder()
 }
+
 
 function closeCreateOrderModal() {
   createModalOpen.value = false
@@ -1343,16 +1483,34 @@ function validateCreateOrderForm() {
     return copy.value.messages.selectAtLeastOne
   }
 
+  const duplicateSubOrderKeys = new Set<string>()
+
   for (const line of createForm.value.lines) {
+    if (isSubOrderCreateMode.value && !line.parentPoItemPublicId) {
+      return copy.value.selectParentOrderItem
+    }
     if (!line.selectedItemName) return copy.value.selectItemName
     if (!line.selectedSupplierPublicId) return copy.value.selectSupplier
-    if (!line.arrivalLogisticsNodePublicId) return copy.value.selectArrivalNode
+    if (!isSubOrderCreateMode.value && !line.arrivalLogisticsNodePublicId) {
+      return copy.value.selectArrivalNode
+    }
     if (!line.orderedQty || line.orderedQty <= 0) return copy.value.messages.invalidOrderQty
-    if (!resolveSelectedItemPublicId(line)) return copy.value.messages.invalidItemSupplierMapping
+
+    const selectedItemPublicId = resolveSelectedItemPublicId(line)
+    if (!selectedItemPublicId) return copy.value.messages.invalidItemSupplierMapping
+
+    if (isSubOrderCreateMode.value) {
+      const key = `${line.selectedSupplierPublicId}::${line.parentPoItemPublicId}::${selectedItemPublicId}`
+      if (duplicateSubOrderKeys.has(key)) {
+        return copy.value.messages.duplicateSubOrderMapping
+      }
+      duplicateSubOrderKeys.add(key)
+    }
   }
 
   return ''
 }
+
 
 function unitPriceOf(item: ItemResponseDto | null | undefined) {
   const itemWithPrice = item as (ItemResponseDto & { unitPrice?: number | null }) | null | undefined
@@ -1482,26 +1640,26 @@ async function searchItemsForCreateOrder() {
       size: 100,
     })
 
+    const detailedItems = await Promise.all(
+      response.content.map((item) =>
+        getItem(item.publicId).catch(() => item),
+      ),
+    )
+
     const nextOptions = new Map(createForm.value.itemOptions.map((item) => [item.publicId, item]))
 
-    response.content.forEach((item) => {
+    detailedItems.forEach((item) => {
       nextOptions.set(item.publicId, item)
     })
 
     createForm.value.itemOptions = Array.from(nextOptions.values())
-    createForm.value.searchResultPublicIds = response.content.map((item) => item.publicId)
+    createForm.value.searchResultPublicIds = detailedItems.map((item) => item.publicId)
   } catch (error) {
     createForm.value.searchResultPublicIds = []
     createErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.itemSearchFail)
   } finally {
     createForm.value.searchLoading = false
   }
-}
-
-function itemNameOptionsOf() {
-  return Array.from(new Set(createForm.value.itemOptions.map((item) => item.itemName))).sort(
-    (a, b) => a.localeCompare(b, 'ko-KR'),
-  )
 }
 
 function supplierOptionsOf(line: CreateOrderLineForm) {
@@ -1518,6 +1676,13 @@ function supplierOptionsOf(line: CreateOrderLineForm) {
     }))
     .sort((a, b) => (a.supplierName ?? '').localeCompare(b.supplierName ?? '', 'ko-KR'))
 }
+
+function itemNameOptionsOf() {
+  return Array.from(new Set(createForm.value.itemOptions.map((item) => item.itemName))).sort(
+    (a, b) => a.localeCompare(b, 'ko-KR'),
+  )
+}
+
 
 function handleCreateLineSupplierChange(line: CreateOrderLineForm) {
   const supplierItem = supplierOptionsOf(line).find(
@@ -1574,23 +1739,42 @@ async function submitCreateOrder() {
     createLoading.value = true
     createErrorMessage.value = ''
 
-    await createPurchaseOrdersBatch({
-      lines: createForm.value.lines.map((line) => ({
-        supplierPublicId: line.selectedSupplierPublicId,
-        itemPublicId: resolveSelectedItemPublicId(line),
-        orderedQty: Number(line.orderedQty),
-        arrivalLogisticsNodePublicId: line.arrivalLogisticsNodePublicId,
-      })),
-    })
+    if (!isSubOrderCreateMode.value) {
+      await createPurchaseOrdersBatch({
+        lines: createForm.value.lines.map((line) => ({
+          supplierPublicId: line.selectedSupplierPublicId,
+          itemPublicId: resolveSelectedItemPublicId(line),
+          orderedQty: Number(line.orderedQty),
+          arrivalLogisticsNodePublicId: line.arrivalLogisticsNodePublicId,
+        })),
+      })
+    } else {
+      await createSubPurchaseOrdersBatch({
+        parentPoPublicId: createForm.value.parentPoPublicId,
+        lines: createForm.value.lines.map((line) => ({
+          supplierPublicId: line.selectedSupplierPublicId,
+          parentPoItemPublicId: line.parentPoItemPublicId,
+          itemPublicId: resolveSelectedItemPublicId(line),
+          orderedQty: Number(line.orderedQty),
+          arrivalLogisticsNodePublicId: line.arrivalLogisticsNodePublicId,
+        })),
+      })
+    }
 
     closeCreateOrderModal()
     await loadOrderDashboard()
   } catch (error) {
-    createErrorMessage.value = normalizeErrorMessage(error, copy.value.messages.createFail)
+    createErrorMessage.value = normalizeErrorMessage(
+      error,
+      isSubOrderCreateMode.value
+        ? copy.value.messages.subOrderCreateFail
+        : copy.value.messages.createFail,
+    )
   } finally {
     createLoading.value = false
   }
 }
+
 
 async function openOrderDetail(order: PurchaseOrderDetailResponseDto) {
   try {
@@ -1914,6 +2098,10 @@ async function openEditOrderModal() {
   }
 }
 
+const canOpenCreateOrder = computed(
+  () => actor.canCreatePurchaseOrder.value || actor.isSupplierOrganization.value,
+)
+
 function closeEditOrderModal() {
   editOrderModalOpen.value = false
   editOrderLoading.value = false
@@ -2058,8 +2246,7 @@ function resetSubOrderForm(order: PurchaseOrderDetailResponseDto) {
 
 function openCreateSubOrderModal() {
   if (!selectedOrder.value) return
-  resetSubOrderForm(selectedOrder.value)
-  subOrderModalOpen.value = true
+  openCreateOrderModal(selectedOrder.value.poPublicId)
 }
 
 function closeCreateSubOrderModal() {
@@ -2315,8 +2502,8 @@ onBeforeUnmount(() => header.clearActions())
         <button
           class="page-button page-button--primary"
           type="button"
-          :disabled="!actor.canCreatePurchaseOrder"
-          @click="openCreateOrderModal"
+          :disabled="!canOpenCreateOrder"
+          @click="openCreateOrderModal()"
         >
           {{ copy.createOrder }}
         </button>
@@ -2523,7 +2710,7 @@ onBeforeUnmount(() => header.clearActions())
                     @click="
                       order.kind === 'PO'
                         ? openOrderDetailPage(order.id)
-                        : openSubOrderDetail(order.id, 'ISSUED')
+                        : openSubOrderDetailPage(order.id)
                     "
                   >
                     {{ copy.detail }}
@@ -2549,6 +2736,37 @@ onBeforeUnmount(() => header.clearActions())
     @update:model-value="(value) => { if (!value) closeCreateOrderModal() }"
   >
     <div class="orders-page__form orders-page__create-modal-body">
+
+      <section v-if="actor.isSupplierOrganization" class="orders-page__detail-section">
+      
+
+        <div class="orders-page__section-head">
+          <strong>{{ copy.parentOrderSelect }}</strong>
+          <span class="page-panel__chip">
+            {{ isSubOrderCreateMode ? copy.createSubOrderTitle : copy.createTitle }}
+          </span>
+        </div>
+
+        <label class="orders-page__form-field orders-page__form-field--wide">
+          <span>{{ copy.parentOrderSelect }}</span>
+          <select
+            v-model="createForm.parentPoPublicId"
+            :disabled="createLoading"
+            @change="handleCreateParentOrderChange"
+          >
+            <option value="">{{ copy.mainOrderMode }}</option>
+            <option
+              v-for="order in creatableParentOrders"
+              :key="order.poPublicId"
+              :value="order.poPublicId"
+            >
+              {{ parentOrderLabel(order) }}
+            </option>
+          </select>
+          <small class="orders-page__sub-text">{{ copy.selectParentOrder }}</small>
+        </label>
+      </section>
+
       <section class="orders-page__detail-section">
         <div class="orders-page__section-head">
           <strong>{{ copy.itemSearch }}</strong>
@@ -2748,6 +2966,19 @@ onBeforeUnmount(() => header.clearActions())
             </div>
 
             <div class="orders-page__line-grid">
+              <label v-if="isSubOrderCreateMode" class="orders-page__form-field">
+                <span>{{ copy.parentOrderItem }}</span>
+                <select v-model="line.parentPoItemPublicId">
+                  <option value="">{{ copy.selectParentOrderItem }}</option>
+                  <option
+                    v-for="item in selectedCreateParentOrderItems"
+                    :key="item.poItemPublicId"
+                    :value="item.poItemPublicId"
+                  >
+                    {{ parentOrderItemLabel(item) }}
+                  </option>
+                </select>
+              </label>
               <label class="orders-page__form-field">
                 <span>{{ copy.itemName }}</span>
                 <select
@@ -2822,7 +3053,9 @@ onBeforeUnmount(() => header.clearActions())
                     {{ node.nodeName }} / {{ node.nodeType }}
                   </option>
                 </select>
-              </label>    
+              </label>
+
+
             </div>
 
             <div v-if="selectedCreateLineItem(line)" class="orders-page__item-preview">
@@ -2836,10 +3069,6 @@ onBeforeUnmount(() => header.clearActions())
                 <div>
                   <span>{{ copy.category }}</span>
                   <strong>{{ selectedCreateLineItem(line)?.categoryName }}</strong>
-                </div>
-                <div>
-                  <span>{{ copy.supplierCandidates }}</span>
-                  <strong>{{ copy.supplierCandidatesCount(matchingSupplierCount(line)) }}</strong>
                 </div>
                 <div>
                   <span>{{ copy.unit }}</span>
