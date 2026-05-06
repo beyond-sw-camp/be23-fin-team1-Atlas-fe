@@ -5,13 +5,11 @@ import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
   downloadSettlementExcel,
-  getSettlement,
   getSettlements,
   getSettlementStatistics,
   saveSettlementBudget,
   type SettlementCurrency,
   type SettlementListResponseDto,
-  type SettlementResponseDto,
   type SettlementStatisticsResponseDto,
   type SettlementTargetType,
 } from '../../../services/settlement'
@@ -20,14 +18,6 @@ import {
   type SupplierListResponseDto,
   type SupplierResponseDto,
 } from '../../../services/supplier'
-import {
-  getReturnRequests,
-  type ReturnRequestResponseDto,
-} from '../../../services/return'
-import {
-  getShipments,
-  type ShipmentListResponseDto as ShipmentOptionDto,
-} from '../../../services/shipment'
 
 const preferences = useAtlasPreferencesStore()
 const route = useRoute()
@@ -264,7 +254,6 @@ const activeInsightChartView = ref<SettlementInsightChartView>('targetTypeAmount
 const monthlyBudgetRange = ref<MonthlyBudgetRange>('ALL')
 
 const settlements = ref<SettlementListResponseDto[]>([])
-const selectedSettlement = ref<SettlementResponseDto | null>(null)
 
 const settlementStatistics = ref<SettlementStatisticsResponseDto | null>(null)
 const isStatisticsLoading = ref(false)
@@ -272,11 +261,8 @@ const statisticsErrorMessage = ref('')
 const statisticsYear = ref(new Date().getFullYear())
 
 const supplierOptions = ref<SupplierResponseDto[]>([])
-const shipmentOptions = ref<ShipmentOptionDto[]>([])
-const returnOptions = ref<ReturnRequestResponseDto[]>([])
 
 const isListLoading = ref(false)
-const isDetailLoading = ref(false)
 // 정산 엑셀 다운로드 중인지 표시합니다.
 const isExcelDownloading = ref(false)
 // 엑셀 내보내기에 사용할 시작일입니다.
@@ -286,11 +272,8 @@ const excelStartDate = ref('')
 const excelEndDate = ref('')
 
 const isSupplierOptionsLoading = ref(false)
-const isShipmentOptionsLoading = ref(false)
-const isReturnOptionsLoading = ref(false)
 
 const listErrorMessage = ref('')
-const detailErrorMessage = ref('')
 
 const isBudgetModalOpen = ref(false)
 const isBudgetCreatePage = computed(() => route.name === 'settlementBudgetCreate')
@@ -688,11 +671,6 @@ function formatDate(value?: string | null) {
   return value.length >= 16 ? value.substring(0, 16).replace('T', ' ') : value
 }
 
-function formatDateRange(startDate?: string | null, endDate?: string | null) {
-  if (!startDate && !endDate) return '-'
-  return `${startDate ?? '-'} ~ ${endDate ?? '-'}`
-}
-
 function formatAmount(value?: number | null, currency?: string | null) {
   if (value == null) return '-'
   return `${Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US')}${currency ? ` ${currency}` : ''}`
@@ -724,24 +702,6 @@ function getSupplierLabel(publicId: string, organizationPublicId?: string | null
   return `${supplier.supplierName} (${supplier.supplierCode})`
 }
 
-function getTargetLabel(targetType: SettlementTargetType, targetPublicId: string) {
-  if (targetType === 'RETURN') {
-    const target = returnOptions.value.find((item) => item.publicId === targetPublicId)
-    return target ? `${target.returnNumber} / ${target.returnType}` : targetPublicId
-  }
-
-  if (targetType === 'ORDER') {
-    return targetPublicId
-  }
-
-  if (targetType === 'SHIPMENT') {
-    const target = shipmentOptions.value.find((item) => item.publicId === targetPublicId)
-    return target ? `${target.shipmentNumber} / ${target.carrierName}` : targetPublicId
-  }
-
-  return targetPublicId
-}
-
 async function loadSupplierOptions() {
   isSupplierOptionsLoading.value = true
 
@@ -756,44 +716,6 @@ async function loadSupplierOptions() {
     supplierOptions.value = []
   } finally {
     isSupplierOptionsLoading.value = false
-  }
-}
-
-async function loadShipmentOptions() {
-  isShipmentOptionsLoading.value = true
-
-  try {
-    const response = await getShipments({
-      page: 0,
-      size: 100,
-      sort: 'id,desc',
-    })
-
-    shipmentOptions.value = response.content ?? []
-  } catch (err) {
-    console.error('Failed to load shipments:', err)
-    shipmentOptions.value = []
-  } finally {
-    isShipmentOptionsLoading.value = false
-  }
-}
-
-async function loadReturnOptions() {
-  isReturnOptionsLoading.value = true
-
-  try {
-    const response = await getReturnRequests({
-      page: 0,
-      size: 100,
-      returnStatus: 'COMPLETED',
-    })
-
-    returnOptions.value = response.content ?? []
-  } catch (err) {
-    console.error('Failed to load returns:', err)
-    returnOptions.value = []
-  } finally {
-    isReturnOptionsLoading.value = false
   }
 }
 
@@ -891,26 +813,9 @@ async function refreshSettlementPage() {
   ])
 }
 
-async function handleSettlementSelect(settlementPublicId: string) {
-  isDetailLoading.value = true
-  detailErrorMessage.value = ''
-
-  try {
-    selectedSettlement.value = await getSettlement(settlementPublicId)
-  } catch (err: any) {
-    console.error('Failed to fetch settlement detail:', err)
-    selectedSettlement.value = null
-    detailErrorMessage.value = err?.message ?? 'Failed to load settlement detail.'
-  } finally {
-    isDetailLoading.value = false
-  }
-}
-
 onMounted(() => {
   refreshSettlementPage()
   loadSupplierOptions()
-  loadShipmentOptions()
-  loadReturnOptions()
 
   if (isBudgetCreatePage.value) {
     resetBudgetForm()
@@ -1254,8 +1159,6 @@ onMounted(() => {
                 v-for="settlement in settlements"
                 :key="settlement.publicId"
                 class="stl-table__row"
-                :class="{ 'stl-table__row--active': selectedSettlement?.publicId === settlement.publicId }"
-                @click="handleSettlementSelect(settlement.publicId)"
               >
                 <td class="stl-table__id">{{ settlement.id }}</td>
                 <td>{{ getSupplierLabel(settlement.supplierPublicId, settlement.supplierOrganizationPublicId) }}</td>
@@ -1281,120 +1184,6 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
-      </article>
-
-      <article class="stl-card stl-card--detail">
-        <div class="stl-card__head">
-          <div>
-            <span class="stl-card__eyebrow">{{ content.detailEyebrow }}</span>
-            <h3 class="stl-card__title">{{ content.detailTitle }}</h3>
-          </div>
-        </div>
-
-        <div v-if="isDetailLoading" class="stl-empty">
-          <div class="stl-spinner"></div>
-          {{ content.loadingDetail }}
-        </div>
-
-        <div v-else-if="detailErrorMessage" class="stl-empty stl-empty--error">
-          {{ detailErrorMessage }}
-        </div>
-
-        <div v-else-if="!selectedSettlement" class="stl-empty stl-empty--hint">
-          {{ content.emptyDetail }}
-        </div>
-
-        <template v-else>
-          <div class="stl-detail-grid">
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.id }}</span>
-              <span class="stl-detail-item__val">{{ selectedSettlement.id }}</span>
-            </div>
-
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.amount }}</span>
-              <span class="stl-detail-item__val stl-detail-item__val--amount">
-                {{ formatAmount(selectedSettlement.amount, selectedSettlement.currencyCode) }}
-              </span>
-            </div>
-
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.supplier }}</span>
-              <span class="stl-detail-item__val">
-                {{ getSupplierLabel(selectedSettlement.supplierPublicId, selectedSettlement.supplierOrganizationPublicId) }}
-              </span>
-            </div>
-
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.targetType }}</span>
-              <span class="stl-detail-item__val">
-                {{ formatTargetType(selectedSettlement.targetType) }}
-              </span>
-            </div>
-
-            <div class="stl-detail-item stl-detail-item--wide">
-              <span class="stl-detail-item__label">{{ content.fields.targetSelection }}</span>
-              <span class="stl-detail-item__val">
-                {{ getTargetLabel(selectedSettlement.targetType, selectedSettlement.targetPublicId) }}
-              </span>
-            </div>
-
-            <div class="stl-detail-item stl-detail-item--wide">
-              <span class="stl-detail-item__label">{{ content.fields.period }}</span>
-              <span class="stl-detail-item__val">
-                {{ formatDateRange(selectedSettlement.settlementPeriodStart, selectedSettlement.settlementPeriodEnd) }}
-              </span>
-            </div>
-
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.createdAt }}</span>
-              <span class="stl-detail-item__val">{{ formatDate(selectedSettlement.createdAt) }}</span>
-            </div>
-
-            <div class="stl-detail-item">
-              <span class="stl-detail-item__label">{{ content.fields.updatedAt }}</span>
-              <span class="stl-detail-item__val">{{ formatDate(selectedSettlement.updatedAt) }}</span>
-            </div>
-          </div>
-
-          <div class="stl-subcard">
-            <div class="stl-subcard__head">
-              <div>
-                <span class="stl-card__eyebrow">{{ content.itemEyebrow }}</span>
-                <h4 class="stl-subcard__title">{{ content.itemTitle }}</h4>
-              </div>
-              <span class="stl-chip stl-chip--sm">{{ selectedSettlement.details.length }}</span>
-            </div>
-
-            <div v-if="selectedSettlement.details.length === 0" class="stl-empty stl-empty--sm">
-              {{ content.emptyDetails }}
-            </div>
-
-            <div v-else class="stl-table-wrap">
-              <table class="stl-table stl-table--sm">
-                <thead>
-                  <tr>
-                    <th>{{ content.fields.poItemId }}</th>
-                    <th>{{ content.fields.itemId }}</th>
-                    <th>{{ content.fields.qty }}</th>
-                    <th>{{ content.fields.unitPrice }}</th>
-                    <th>{{ content.fields.detailAmount }}</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  <tr v-for="item in selectedSettlement.details" :key="item.publicId">
-                    <td>{{ item.poItemId }}</td>
-                    <td>{{ item.itemId }}</td>
-                    <td>{{ Number(item.qty).toLocaleString() }}</td>
-                    <td>{{ Number(item.unitPrice).toLocaleString() }}</td>
-                    <td class="stl-table__amount">{{ Number(item.amount).toLocaleString() }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </template>
       </article>
     </section>
   </section>
@@ -1772,7 +1561,7 @@ onMounted(() => {
 
 .stl-main-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(420px, 0.85fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -1831,10 +1620,6 @@ onMounted(() => {
 
 .stl-table__row:hover td {
   background: rgb(var(--surface-container-rgb, 235 238 239) / 0.46);
-}
-
-.stl-table__row--active td {
-  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.72);
 }
 
 .stl-table__id {
@@ -1904,69 +1689,12 @@ onMounted(() => {
   animation: spin 0.7s linear infinite;
 }
 
-.stl-detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  overflow: hidden;
-  margin-bottom: 16px;
-  border: 1px solid var(--stl-border);
-  border-radius: 0;
-  background: var(--stl-border);
-  gap: 1px;
-}
-
-.stl-detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  background: var(--stl-card);
-}
-
-.stl-detail-item--wide {
-  grid-column: span 2;
-}
-
-.stl-detail-item__label,
 .stl-field__label {
   color: var(--stl-text-muted);
   font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.stl-detail-item__val {
-  color: var(--stl-text-primary);
-  font-size: 0.82rem;
-  font-weight: 800;
-  word-break: break-all;
-}
-
-.stl-detail-item__val--amount {
-  font-size: 1rem;
-}
-
-.stl-subcard {
-  overflow: hidden;
-  border: 1px solid var(--stl-border);
-  border-radius: 0;
-}
-
-.stl-subcard__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 14px;
-  background: #fafafa;
-  border-bottom: 1px solid var(--stl-border);
-}
-
-.stl-subcard__title {
-  margin: 0;
-  font-size: 0.85rem;
-  font-weight: 900;
 }
 
 .stl-form-grid {
@@ -2110,13 +1838,8 @@ onMounted(() => {
     max-width: 100%;
   }
 
-  .stl-form-grid,
-  .stl-detail-grid {
+  .stl-form-grid {
     grid-template-columns: 1fr;
-  }
-
-  .stl-detail-item--wide {
-    grid-column: auto;
   }
 
   .stl-chart-total {
@@ -2131,15 +1854,6 @@ onMounted(() => {
 
   .stl-empty--hint {
     min-height: 180px;
-  }
-
-  .stl-detail-item {
-    min-width: 0;
-  }
-
-  .stl-detail-item__val {
-    overflow-wrap: anywhere;
-    word-break: break-word;
   }
 
   .stl-table-wrap {
@@ -2190,15 +1904,5 @@ onMounted(() => {
     line-height: 1.15;
   }
 
-  .stl-subcard .stl-table {
-    table-layout: fixed;
-  }
-
-  .stl-subcard .stl-table th:nth-child(1),
-  .stl-subcard .stl-table td:nth-child(1),
-  .stl-subcard .stl-table th:nth-child(2),
-  .stl-subcard .stl-table td:nth-child(2) {
-    display: none;
-  }
 }
 </style>
