@@ -38,7 +38,8 @@ const CONTENT = {
     retry: '다시 불러오기',
     total: '전체 알림',
     unread: '미읽음',
-    pageCount: '현재 페이지',
+    topAlertType: '가장 많은 알림',
+    topAlertCount: (count: number) => `${count.toLocaleString('ko-KR')}건`,
     columns: ['수신 시각', '유형', '내용', '상태', '작업'],
     tabs: [
       { key: 'ALL', label: '전체' },
@@ -76,7 +77,8 @@ const CONTENT = {
     retry: 'Retry',
     total: 'Total',
     unread: 'Unread',
-    pageCount: 'This Page',
+    topAlertType: 'Top Alert Type',
+    topAlertCount: (count: number) => `${count.toLocaleString('en-US')} alerts`,
     columns: ['Received', 'Type', 'Content', 'Status', 'Action'],
     tabs: [
       { key: 'ALL', label: 'ALL' },
@@ -100,6 +102,22 @@ const notifications = computed(() => notificationStore.notifications)
 const currentPageLabel = computed(() => notificationStore.currentPage + 1)
 const totalPagesLabel = computed(() => Math.max(notificationStore.totalPages, 1))
 
+const topNotificationDomain = computed(() => {
+  const counts = notifications.value.reduce((acc, notification) => {
+    const key = notification.domainType || 'SYSTEM'
+    acc.set(key, (acc.get(key) ?? 0) + 1)
+    return acc
+  }, new Map<string, number>())
+
+  const [domainType, count] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? []
+  if (!domainType || !count) return null
+
+  return {
+    label: formatDomainType(domainType),
+    count,
+  }
+})
+
 const metrics = computed(() => [
   {
     label: content.value.total,
@@ -112,9 +130,9 @@ const metrics = computed(() => [
     meta: '',
   },
   {
-    label: content.value.pageCount,
-    value: notifications.value.length.toLocaleString(),
-    meta: '',
+    label: content.value.topAlertType,
+    value: topNotificationDomain.value?.label ?? '-',
+    meta: topNotificationDomain.value ? content.value.topAlertCount(topNotificationDomain.value.count) : '',
   },
 ])
 
