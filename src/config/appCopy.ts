@@ -128,6 +128,10 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     ko: { label: '인증서', description: '인증서 유효성 및 갱신 관리', pageSubtitle: '인증 유형, 만료일, 협력사 상태 추적' },
     en: { label: 'Certificates', description: 'Certificate validity and renewal control', pageSubtitle: 'Track certificate type, expiry, and supplier status' },
   },
+  certificateReview: {
+    ko: { label: '인증서 심사', description: '심사 요청 인증서 승인/반려', pageSubtitle: 'REVIEW_REQUESTED 인증서를 검토하고 승인 또는 반려합니다.' },
+    en: { label: 'Certificate Review', description: 'Approve or reject certificate review requests', pageSubtitle: 'Review REVIEW_REQUESTED certificates and decide approval status.' },
+  },
   shipmentOps: {
     ko: { label: '리스크 이벤트', description: 'supplier_issue / shipment_delayed', pageSubtitle: '이벤트 기반 물류 지연 대응과 오케스트레이션' },
     en: { label: 'Risk Events', description: 'supplier_issue / shipment_delayed', pageSubtitle: 'Event-driven delay response and orchestration' },

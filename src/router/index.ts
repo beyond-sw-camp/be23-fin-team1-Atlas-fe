@@ -26,6 +26,7 @@ import DocumentsPage from '../features/response/views/DocumentsPage.vue'
 import RecommendationsPage from '../features/response/views/RecommendationsPage.vue'
 import StructuredPage from '../features/shared/components/StructuredPage.vue'
 import AuditPage from '../features/system/views/AuditPage.vue'
+import CertificateReviewPage from '../features/system/views/CertificateReviewPage.vue'
 import DesignSystemPage from '../features/system/views/DesignSystemPage.vue'
 import NotificationsPage from '../features/system/views/NotificationsPage.vue'
 import SettingsPage from '../features/system/views/SettingsPage.vue'
@@ -79,6 +80,7 @@ const pageRoutes = [
   { path: 'audit', alias: ['audit-trail'], name: 'auditTrail', component: AuditPage, meta: { hidePageHead: true } },
   { path: 'collaboration', name: 'collaboration', component: StructuredPage, props: { page: governancePageDefinitions.collaboration } },
   { path: 'notifications', alias: ['notifications-center'], name: 'notificationsCenter', component: NotificationsPage, meta: { hidePageHead: true } },
+  { path: 'certificate-review', name: 'certificateReview', component: CertificateReviewPage, meta: { hidePageHead: true } },
   { path: 'risk-rules', name: 'riskRules', component: RiskRulesPage, meta: { hidePageHead: true } },
   { path: 'settings', name: 'settings', component: SettingsPage, meta: { hidePageHead: true } },
   { path: 'profile', name: 'profile', component: ProfilePage },
@@ -125,7 +127,7 @@ router.beforeEach((to) => {
     }
   }
 
-  if (targetPage === 'auditTrail' && (organization !== 'admin' || storedRole !== 'ADMIN')) {
+  if ((targetPage === 'auditTrail' || targetPage === 'certificateReview') && (organization !== 'admin' || storedRole !== 'ADMIN')) {
     return {
       name: DEFAULT_PAGE,
       query: to.query,

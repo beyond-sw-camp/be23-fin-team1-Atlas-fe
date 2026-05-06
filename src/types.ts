@@ -17,6 +17,7 @@ export type NavKey =
   | 'logisticsNodes'
   | 'returns'
   | 'certificateWatch'
+  | 'certificateReview'
   | 'shipmentOps'
   | 'recoveryTracking'
   | 'documents'
