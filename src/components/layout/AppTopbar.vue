@@ -331,10 +331,6 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
       >
         <span class="material-symbols-outlined">notifications</span>
       </button>
-      <span class="app-topbar__badge app-topbar__badge--neutral">CONTROL TERMINAL</span>
-      <span v-if="notificationStore.unreadCount > 0" class="app-topbar__badge app-topbar__badge--warn">
-        {{ notificationStore.unreadCount }} ALERTS
-      </span>
     </div>
 
     <div class="app-topbar__actions">

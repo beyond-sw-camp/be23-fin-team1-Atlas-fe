@@ -121,7 +121,7 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     },
   },
   returns: {
-    ko: { label: '반품 (Returns)', description: '반품 요청 및 처리 관리', pageSubtitle: '요청, 승인, 회수, 입고 상태와 이력 추적' },
+    ko: { label: '반품', description: '반품 요청 및 처리 관리', pageSubtitle: '요청, 승인, 회수, 입고 상태와 이력 추적' },
     en: { label: 'Returns', description: 'Return request and processing management', pageSubtitle: 'Track requested, approved, in-transit, and completed status' },
   },
   certificateWatch: {

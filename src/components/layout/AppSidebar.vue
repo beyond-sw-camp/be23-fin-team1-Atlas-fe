@@ -50,6 +50,22 @@ function formatNotificationBadge(count: number) {
   return count > 99 ? '99+' : String(count)
 }
 
+function getNumericBadgeTone(count: number) {
+  if (count <= 0) return ''
+  if (count <= 10) return 'info'
+  if (count <= 20) return 'warn'
+  return 'crit'
+}
+
+function getStaticBadgeTone(item: SidebarBadgeItem) {
+  const count = Number(item.badge)
+  if (Number.isFinite(count)) {
+    return getNumericBadgeTone(count)
+  }
+
+  return item.badgeTone
+}
+
 function getSidebarBadge(item: SidebarBadgeItem) {
   if (item.key === 'notificationsCenter') {
     return formatNotificationBadge(notificationStore.unreadCount)
@@ -64,14 +80,14 @@ function getSidebarBadge(item: SidebarBadgeItem) {
 
 function getSidebarBadgeTone(item: SidebarBadgeItem) {
   if (item.key === 'notificationsCenter') {
-    return 'crit'
+    return getNumericBadgeTone(notificationStore.unreadCount)
   }
 
   if (sidebarBadges.isDynamicBadgeKey(item.key)) {
     return sidebarBadges.getBadgeTone(item.key)
   }
 
-  return item.badgeTone
+  return getStaticBadgeTone(item)
 }
 
 function buildSidebarUserName() {
