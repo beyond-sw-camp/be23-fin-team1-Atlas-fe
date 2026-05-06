@@ -4,6 +4,7 @@ import type { SpringPage } from '../types'
 export type SettlementStatus = 'PENDING' | 'APPROVED' | 'CANCELLED'
 
 export type SettlementTargetType =
+  | 'ORDER'
   | 'SHIPMENT'
   | 'RETURN'
   | 'DELIVERY_EXCEPTION'
@@ -186,34 +187,32 @@ export interface SettlementStatisticsResponseDto {
   targetTypeAmounts: SettlementChartPointDto[]
 
   // 운영 상태 카드/차트용 발주 전체 건수입니다.
-purchaseOrderCount: number
+  purchaseOrderCount: number
 
-// 아직 처리 중인 발주 건수입니다.
-pendingPurchaseOrderCount: number
+  // 아직 처리 중인 발주 건수입니다.
+  pendingPurchaseOrderCount: number
 
-// 현재 배송중인 건수입니다.
-inTransitShipmentCount: number
+  // 현재 배송중인 건수입니다.
+  inTransitShipmentCount: number
 
-// 배송 지연 건수입니다.
-delayedShipmentCount: number
+  // 배송 지연 건수입니다.
+  delayedShipmentCount: number
 
-// 아직 완료되지 않은 반품 진행 건수입니다.
-returnInProgressCount: number
+  // 아직 완료되지 않은 반품 진행 건수입니다.
+  returnInProgressCount: number
 
-// 운영 상태 막대 차트에 바로 넣을 데이터입니다.
-operationStatusCounts: SettlementChartPointDto[]
-
+  // 운영 상태 막대 차트에 바로 넣을 데이터입니다.
+  operationStatusCounts: SettlementChartPointDto[]
 
   payableAmountThisYear: number
-payableAmountThisMonth: number
-receivableAmountThisYear: number
-receivableAmountThisMonth: number
-currentMonthBudgetAmount: number
-currentMonthRemainingBudgetAmount: number
-currentMonthBudgetUsageRate: number
-currentMonthBudgetStatus: BudgetUsageStatus
-monthlyBudgetUsages: SettlementBudgetUsageDto[]
-
+  payableAmountThisMonth: number
+  receivableAmountThisYear: number
+  receivableAmountThisMonth: number
+  currentMonthBudgetAmount: number
+  currentMonthRemainingBudgetAmount: number
+  currentMonthBudgetUsageRate: number
+  currentMonthBudgetStatus: BudgetUsageStatus
+  monthlyBudgetUsages: SettlementBudgetUsageDto[]
 }
 
 export interface SettlementBudgetRequestDto {
@@ -286,5 +285,3 @@ export async function downloadSettlementExcel(
 
   return response.data
 }
-
-

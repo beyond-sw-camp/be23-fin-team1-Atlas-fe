@@ -6,6 +6,7 @@ import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import ShipmentKoreaMap from '../components/ShipmentKoreaMap.vue'
 import {
   arriveShipment,
+  cancelShipment,
   createDeliveryException,
   createShipment,
   getCreatableShipmentOrders,
@@ -50,11 +51,11 @@ const CONTENT = {
     mapTitle: '진행 중 출하 지도',
     mapEyebrow: 'READY / 배송중 / 지연',
     activeListTitle: '진행 중 출하',
-    boardTitle: '출하 작업 보드',
-    boardEyebrow: 'OPERATION QUEUE',
-    readyBoard: '배송 시작 대기',
-    arrivalBoard: '도착 확인 대기',
-    delayBoard: '지연 확인',
+    boardTitle: '출하 목록',
+    boardEyebrow: 'SHIPMENT LIST',
+    allBoard: '전체건',
+    readyBoard: '준비완료',
+    cancelledBoard: '취소건',
     boardEmpty: '대상 출하가 없습니다.',
     manageShipment: '관리 열기',
     detailTitle: '출하 상세',
@@ -97,6 +98,7 @@ const CONTENT = {
     saveDetail: '저장',
     startShipment: '배송중 처리',
     arriveShipment: '도착완료 처리',
+    cancelShipment: '출하 취소',
     openTrack: '위치 등록',
     closeTrack: '위치 닫기',
     submitTrack: '위치 저장',
@@ -127,6 +129,7 @@ const CONTENT = {
     createFail: '출하 생성에 실패했습니다.',
     updateFail: '출하 수정에 실패했습니다.',
     statusFail: '출하 상태 변경에 실패했습니다.',
+    cancelFail: '출하 취소에 실패했습니다.',
     trackFail: '위치 등록에 실패했습니다.',
     exceptionFail: '배송 예외 등록에 실패했습니다.',
     requiredException: '예외 유형, 심각도, 감지 시각은 필수입니다.',
@@ -144,11 +147,11 @@ const CONTENT = {
     mapTitle: 'Active Shipment Map',
     mapEyebrow: 'READY / IN TRANSIT / DELAYED',
     activeListTitle: 'Active Shipments',
-    boardTitle: 'Shipment Work Board',
-    boardEyebrow: 'OPERATION QUEUE',
-    readyBoard: 'Ready To Start',
-    arrivalBoard: 'Arrival Confirmation',
-    delayBoard: 'Delayed Review',
+    boardTitle: 'Shipment List',
+    boardEyebrow: 'SHIPMENT LIST',
+    allBoard: 'All',
+    readyBoard: 'Ready',
+    cancelledBoard: 'Cancelled',
     boardEmpty: 'No shipments.',
     manageShipment: 'Open Management',
     detailTitle: 'Shipment Detail',
@@ -191,6 +194,7 @@ const CONTENT = {
     saveDetail: 'SAVE',
     startShipment: 'START DELIVERY',
     arriveShipment: 'CONFIRM ARRIVAL',
+    cancelShipment: 'CANCEL SHIPMENT',
     openTrack: 'ADD LOCATION',
     closeTrack: 'CLOSE LOCATION',
     submitTrack: 'SAVE LOCATION',
@@ -221,6 +225,7 @@ const CONTENT = {
     createFail: 'Failed to create shipment.',
     updateFail: 'Failed to update shipment.',
     statusFail: 'Failed to change shipment status.',
+    cancelFail: 'Failed to cancel shipment.',
     trackFail: 'Failed to register location.',
     exceptionFail: 'Failed to create delivery exception.',
     requiredException: 'Exception type, severity, and detected time are required.',
@@ -291,6 +296,8 @@ const selectedShipmentEta = ref<ShipmentEtaResponseDto | null>(null)
 const selectedShipmentHistories = ref<ShipmentStatusHistoryResponseDto[]>([])
 const etaProjections = ref<EtaProjectionResponseDto[]>([])
 const deliveryExceptions = ref<DeliveryExceptionResponseDto[]>([])
+type ShipmentBoardFilter = 'ALL' | 'READY' | 'CANCELLED'
+const activeBoardFilter = ref<ShipmentBoardFilter>('ALL')
 
 const isCreateModalOpen = ref(false)
 const isCreatePage = computed(() => route.name === 'shipmentCreate')
@@ -356,9 +363,30 @@ const activeShipmentCount = computed(() => displayMapShipments.value.length)
 const readyShipmentCount = computed(() => displayShipments.value.filter((shipment) => shipment.status === 'READY').length)
 const inTransitShipmentCount = computed(() => displayShipments.value.filter((shipment) => shipment.status === 'IN_TRANSIT').length)
 const delayedShipmentCount = computed(() => displayShipments.value.filter((shipment) => shipment.status === 'DELAYED').length)
-const readyWorkShipments = computed(() => displayShipments.value.filter((shipment) => shipment.status === 'READY').slice(0, 6))
-const arrivalWorkShipments = computed(() => displayShipments.value.filter((shipment) => shipment.status === 'IN_TRANSIT').slice(0, 6))
-const delayedWorkShipments = computed(() => displayShipments.value.filter((shipment) => shipment.status === 'DELAYED').slice(0, 6))
+const boardFilterOptions = computed(() => [
+  {
+    value: 'ALL' as ShipmentBoardFilter,
+    label: content.value.allBoard,
+    count: displayShipments.value.length,
+  },
+  {
+    value: 'READY' as ShipmentBoardFilter,
+    label: content.value.readyBoard,
+    count: displayShipments.value.filter((shipment) => shipment.status === 'READY').length,
+  },
+  {
+    value: 'CANCELLED' as ShipmentBoardFilter,
+    label: content.value.cancelledBoard,
+    count: displayShipments.value.filter((shipment) => shipment.status === 'CANCELLED').length,
+  },
+])
+const filteredBoardShipments = computed(() => {
+  if (activeBoardFilter.value === 'ALL') {
+    return displayShipments.value
+  }
+
+  return displayShipments.value.filter((shipment) => shipment.status === activeBoardFilter.value)
+})
 const selectedShipmentPublicId = computed(() => selectedShipmentDetail.value?.publicId ?? selectedShipment.value?.publicId ?? null)
 const departureTimeOptions = Array.from({ length: 48 }, (_, index) => {
   const hour = String(Math.floor(index / 2)).padStart(2, '0')
@@ -444,13 +472,13 @@ const trackNodeOptions = computed(() => {
   )
 })
 
-const canUpdateDepartureEta = computed(() => selectedShipmentDetail.value?.status === 'READY')
-const canStartSelectedShipment = computed(() => selectedShipmentDetail.value?.status === 'READY')
-const canArriveSelectedShipment = computed(() =>
-  selectedShipmentDetail.value?.status === 'IN_TRANSIT' || selectedShipmentDetail.value?.status === 'DELAYED',
-)
-const canTrackSelectedShipment = computed(() =>
-  selectedShipmentDetail.value?.status === 'IN_TRANSIT' || selectedShipmentDetail.value?.status === 'DELAYED',
+const canUpdateDepartureEta = computed(() => selectedShipmentDetail.value?.canUpdate === true)
+const canStartSelectedShipment = computed(() => selectedShipmentDetail.value?.canStart === true)
+const canCancelSelectedShipment = computed(() => selectedShipmentDetail.value?.canCancel === true)
+const canArriveSelectedShipment = computed(() => selectedShipmentDetail.value?.canArrive === true)
+const canTrackSelectedShipment = computed(() => selectedShipmentDetail.value?.canTrack === true)
+const canRegisterExceptionSelectedShipment = computed(() =>
+  selectedShipmentDetail.value?.canRegisterException === true,
 )
 
 function nullableText(value?: string | null) {
@@ -941,6 +969,25 @@ async function handleArriveShipment() {
   }
 }
 
+async function handleCancelShipment() {
+  if (!selectedShipmentDetail.value) return
+
+  statusErrorMessage.value = ''
+  isStatusSubmitting.value = true
+
+  try {
+    const updated = await cancelShipment(selectedShipmentDetail.value.publicId)
+    selectedShipmentDetail.value = updated
+    fillUpdateForm(updated)
+    await Promise.all([reloadSelectedShipment(), refreshShipments()])
+  } catch (error: any) {
+    console.error('Failed to cancel shipment:', error)
+    statusErrorMessage.value = error?.message ?? content.value.cancelFail
+  } finally {
+    isStatusSubmitting.value = false
+  }
+}
+
 function resetTrackForm() {
   trackForm.value = {
     nodePublicId: '',
@@ -1321,63 +1368,50 @@ onMounted(() => {
 
       <div v-if="isShipmentListLoading" class="page-table__empty">{{ content.loading }}</div>
       <div v-else-if="shipmentErrorMessage" class="page-table__empty">{{ shipmentErrorMessage }}</div>
-      <div v-else class="shipment-work-board">
-        <section class="shipment-work-column">
-          <header>
-            <span>{{ content.readyBoard }}</span>
-            <strong>{{ readyWorkShipments.length }}</strong>
-          </header>
+      <div v-else class="shipment-work-board shipment-work-board--list">
+        <div class="shipment-board-tabs">
           <button
-            v-for="shipment in readyWorkShipments"
+            v-for="option in boardFilterOptions"
+            :key="option.value"
+            class="shipment-board-tab"
+            :class="{ 'is-active': activeBoardFilter === option.value }"
+            type="button"
+            @click="activeBoardFilter = option.value"
+          >
+            <span>{{ option.label }}</span>
+            <strong>{{ option.count }}</strong>
+          </button>
+        </div>
+
+        <div class="shipment-board-list">
+          <button
+            v-for="shipment in filteredBoardShipments"
             :key="shipment.publicId"
-            class="shipment-work-card"
+            class="shipment-work-card shipment-work-card--row"
+            :class="{
+              'shipment-work-card--danger': shipment.status === 'DELAYED',
+              'shipment-work-card--cancelled': shipment.status === 'CANCELLED',
+            }"
             type="button"
             @click="openShipmentDetailPage(shipment)"
           >
-            <span>{{ formatShortShipmentNumber(shipment.shipmentNumber) }}</span>
-            <strong>{{ formatNodeDisplay(shipment.originNodeName, shipment.originNodeCode, shipment.originNodePublicId) }}</strong>
+            <div>
+              <span>{{ formatShortShipmentNumber(shipment.shipmentNumber) }}</span>
+              <strong>
+                {{ formatNodeDisplay(shipment.originNodeName, shipment.originNodeCode, shipment.originNodePublicId) }}
+                →
+                {{ formatNodeDisplay(shipment.destinationNodeName, shipment.destinationNodeCode, shipment.destinationNodePublicId) }}
+              </strong>
+            </div>
             <small>{{ content.departureEta }}: {{ formatDate(shipment.departureEta) }}</small>
-          </button>
-          <div v-if="readyWorkShipments.length === 0" class="shipment-work-empty">{{ content.boardEmpty }}</div>
-        </section>
-
-        <section class="shipment-work-column">
-          <header>
-            <span>{{ content.arrivalBoard }}</span>
-            <strong>{{ arrivalWorkShipments.length }}</strong>
-          </header>
-          <button
-            v-for="shipment in arrivalWorkShipments"
-            :key="shipment.publicId"
-            class="shipment-work-card"
-            type="button"
-            @click="openShipmentDetailPage(shipment)"
-          >
-            <span>{{ formatShortShipmentNumber(shipment.shipmentNumber) }}</span>
-            <strong>{{ formatNodeDisplay(shipment.destinationNodeName, shipment.destinationNodeCode, shipment.destinationNodePublicId) }}</strong>
             <small>{{ content.arrivalEta }}: {{ formatDate(shipment.arrivalEta) }}</small>
+            <span class="shipment-status-pill" :class="`is-${shipment.status.toLowerCase()}`">
+              {{ formatShipmentStatus(shipment.status) }}
+            </span>
           </button>
-          <div v-if="arrivalWorkShipments.length === 0" class="shipment-work-empty">{{ content.boardEmpty }}</div>
-        </section>
 
-        <section class="shipment-work-column">
-          <header>
-            <span>{{ content.delayBoard }}</span>
-            <strong>{{ delayedWorkShipments.length }}</strong>
-          </header>
-          <button
-            v-for="shipment in delayedWorkShipments"
-            :key="shipment.publicId"
-            class="shipment-work-card shipment-work-card--danger"
-            type="button"
-            @click="openShipmentDetailPage(shipment)"
-          >
-            <span>{{ formatShortShipmentNumber(shipment.shipmentNumber) }}</span>
-            <strong>{{ formatNodeDisplay(shipment.currentNodeName, shipment.currentNodeCode, shipment.currentNodePublicId) }}</strong>
-            <small>{{ content.manageShipment }}</small>
-          </button>
-          <div v-if="delayedWorkShipments.length === 0" class="shipment-work-empty">{{ content.boardEmpty }}</div>
-        </section>
+          <div v-if="filteredBoardShipments.length === 0" class="shipment-work-empty">{{ content.boardEmpty }}</div>
+        </div>
       </div>
     </article>
 
@@ -1531,6 +1565,15 @@ onMounted(() => {
               >
                 {{ content.arriveShipment }}
               </button>
+              <button
+                v-if="canCancelSelectedShipment"
+                class="page-button page-button--secondary shipment-danger-button"
+                type="button"
+                :disabled="isStatusSubmitting"
+                @click="handleCancelShipment"
+              >
+                {{ content.cancelShipment }}
+              </button>
             </div>
             <div>
               <button
@@ -1542,7 +1585,7 @@ onMounted(() => {
                 {{ isTrackPanelOpen ? content.closeTrack : content.openTrack }}
               </button>
               <button
-                v-if="selectedShipmentDetail.status !== 'ARRIVED' && selectedShipmentDetail.status !== 'CANCELLED'"
+                v-if="canRegisterExceptionSelectedShipment"
                 class="page-button page-button--secondary"
                 type="button"
                 @click="isExceptionPanelOpen = !isExceptionPanelOpen"
@@ -1554,7 +1597,7 @@ onMounted(() => {
           <div v-if="statusErrorMessage" class="shipment-error">{{ statusErrorMessage }}</div>
         </article>
 
-        <article class="stl-card shipment-detail-card">
+        <article v-if="canUpdateDepartureEta" class="stl-card shipment-detail-card">
           <div class="stl-card__head">
             <div>
               <div class="page-panel__eyebrow">{{ content.etaTitle }}</div>
@@ -1584,7 +1627,6 @@ onMounted(() => {
               <h3>{{ content.updateTitle }}</h3>
             </div>
           </div>
-          <p v-if="!canUpdateDepartureEta" class="shipment-notice">{{ content.readyOnlyUpdate }}</p>
           <div class="shipment-form-grid">
             <label class="shipment-field">
               <span>{{ content.departureEta }}</span>
@@ -1625,7 +1667,7 @@ onMounted(() => {
           </div>
         </article>
 
-        <article v-if="isTrackPanelOpen" class="stl-card shipment-detail-card">
+        <article v-if="isTrackPanelOpen && canTrackSelectedShipment" class="stl-card shipment-detail-card">
           <div class="stl-card__head"><h3>{{ content.trackTitle }}</h3></div>
           <div class="shipment-form-grid">
             <label class="shipment-field">
@@ -1670,7 +1712,7 @@ onMounted(() => {
           </div>
         </article>
 
-        <article v-if="isExceptionPanelOpen" class="stl-card shipment-detail-card">
+        <article v-if="isExceptionPanelOpen && canRegisterExceptionSelectedShipment" class="stl-card shipment-detail-card">
           <div class="stl-card__head"><h3>{{ content.exceptionTitle }}</h3></div>
           <div class="shipment-form-grid">
             <div class="shipment-field shipment-field--wide">
@@ -1753,9 +1795,10 @@ onMounted(() => {
           {{ content.cancelDetail }}
         </button>
         <button
+          v-if="canUpdateDepartureEta"
           class="page-button page-button--primary"
           type="button"
-          :disabled="isUpdateSubmitting || !canUpdateDepartureEta"
+          :disabled="isUpdateSubmitting"
           @click="handleUpdateShipmentSubmit"
         >
           {{ isUpdateSubmitting ? content.loading : content.saveDetail }}
@@ -2306,6 +2349,17 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+.shipment-danger-button {
+  border-color: #fecaca;
+  color: #b91c1c;
+  background: #fff7f7;
+}
+
+.shipment-danger-button:hover {
+  border-color: #ef4444;
+  background: #fff1f2;
+}
+
 .shipment-pagination {
   display: flex;
   justify-content: flex-end;
@@ -2318,6 +2372,61 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+}
+
+.shipment-work-board--list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.shipment-board-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.shipment-board-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  border: 1px solid var(--ship-border);
+  border-radius: 0;
+  padding: 9px 13px;
+  background: #fff;
+  color: var(--ship-muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.shipment-board-tab strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 22px;
+  padding: 0 7px;
+  background: #f1f5f9;
+  color: var(--ship-text);
+  font-size: 0.75rem;
+}
+
+.shipment-board-tab.is-active {
+  border-color: #111827;
+  background: #111827;
+  color: #fff;
+}
+
+.shipment-board-tab.is-active strong {
+  background: rgb(255 255 255 / 0.16);
+  color: #fff;
+}
+
+.shipment-board-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .shipment-work-column {
@@ -2363,6 +2472,27 @@ onMounted(() => {
 
 .shipment-work-card:hover {
   background: rgb(var(--surface-container-rgb, 235 238 239) / 0.48);
+}
+
+.shipment-work-card--row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) minmax(140px, 0.72fr) minmax(140px, 0.72fr) max-content;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.shipment-work-card--row > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.shipment-work-card--cancelled {
+  border-left-color: #94a3b8;
+  background: #f8fafc;
+  opacity: 0.78;
 }
 
 .shipment-work-card--danger:hover {
@@ -3038,6 +3168,10 @@ onMounted(() => {
 
   .shipment-create-spec-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shipment-work-card--row {
+    grid-template-columns: 1fr;
   }
 }
 </style>
