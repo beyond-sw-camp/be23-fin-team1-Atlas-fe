@@ -948,7 +948,7 @@ select:not(.app-language-select select):focus {
 }
 
 .app-sidebar .app-nav-item__label {
-  font-size: 0.74rem;
+  font-size: 0.8rem;
 }
 
 .app-context__value {
@@ -1541,7 +1541,7 @@ select:not(.app-language-select select):focus {
 
 .app-nav-group__label {
   padding: 8px 18px 10px;
-  font-size: 0.58rem;
+  font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
