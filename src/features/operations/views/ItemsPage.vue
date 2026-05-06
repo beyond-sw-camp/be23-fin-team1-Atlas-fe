@@ -641,60 +641,27 @@ function isPositiveNumber(value: unknown) {
 }
 
 function validateCreateForm() {
-  if (!createForm.value.itemCategoryPublicId) {
-    return preferences.language === 'ko'
-      ? '카테고리를 선택해 주세요.'
-      : 'Select a category.'
-  }
+  const isKo = preferences.language === 'ko'
 
-  if (!createForm.value.itemName.trim()) {
-    return preferences.language === 'ko'
-      ? '품목명을 입력해 주세요.'
-      : 'Enter item name.'
-  }
+  if (!createForm.value.itemCategoryPublicId) return isKo ? '카테고리를 선택해 주세요.' : 'Select a category.'
+  if (!createForm.value.itemName.trim()) return isKo ? '품목명을 입력해 주세요.' : 'Enter item name.'
+  if (!createForm.value.spec.trim()) return isKo ? '규격을 입력해 주세요.' : 'Enter spec.'
+  if (!isPositiveNumber(createForm.value.unitPrice)) return isKo ? '단가는 0보다 커야 합니다.' : 'Unit price must be greater than 0.'
+  if (!isNonNegativeNumber(createForm.value.shelfLifeDays)) return isKo ? '유통기한을 입력해 주세요.' : 'Enter shelf life days.'
+  if (!createForm.value.originLogisticsNodePublicId) return isKo ? '출발 물류거점을 선택해 주세요.' : 'Select origin logistics node.'
 
-  if (!createForm.value.spec.trim()) {
-    return preferences.language === 'ko'
-      ? '규격을 입력해 주세요.'
-      : 'Enter spec.'
-  }
-
-  if (!isNonNegativeNumber(createForm.value.shelfLifeDays)) {
-    return preferences.language === 'ko'
-      ? '보관 가능 일수는 0 이상이어야 합니다.'
-      : 'Shelf life must be 0 or more.'
-  }
-
-  if (!isNonNegativeNumber(createForm.value.leadTimeDays)) {
-    return preferences.language === 'ko'
-      ? '리드타임은 0 이상이어야 합니다.'
-      : 'Lead time must be 0 or more.'
-  }
-
-  if (!isPositiveNumber(createForm.value.monthlyCapacity)) {
-    return preferences.language === 'ko'
-      ? '월 공급 가능 수량은 0보다 커야 합니다.'
-      : 'Monthly capacity must be greater than 0.'
-  }
-
-  if (!isPositiveNumber(createForm.value.availableQty)) {
-    return preferences.language === 'ko'
-      ? '현재 가용 수량은 0보다 커야 합니다.'
-      : 'Available quantity must be greater than 0.'
-  }
-
-  if (!isPositiveNumber(createForm.value.moq)) {
-    return preferences.language === 'ko'
-      ? '최소 발주 수량은 0보다 커야 합니다.'
-      : 'MOQ must be greater than 0.'
-  }
-
-  if (!createForm.value.originLogisticsNodePublicId) {
-    return '출발 물류거점을 선택해 주세요.'
+  if (!isNonNegativeNumber(createForm.value.leadTimeDays)) return isKo ? '리드타임을 입력해 주세요.' : 'Enter lead time.'
+  if (!isPositiveNumber(createForm.value.monthlyCapacity)) return isKo ? '월간 생산 가능량을 입력해 주세요.' : 'Enter monthly capacity.'
+  if (!isPositiveNumber(createForm.value.availableQty)) return isKo ? '주문 가능 수량을 입력해 주세요.' : 'Enter available quantity.'
+  if (!isPositiveNumber(createForm.value.moq)) return isKo ? '최소 주문 수량을 입력해 주세요.' : 'Enter minimum order quantity.'
+  if (!createForm.value.qualityGrade) return isKo ? '품질 등급을 선택해 주세요.' : 'Select quality grade.'
+  if (typeof createForm.value.partialConfirmationAllowed !== 'boolean') {
+    return isKo ? '부분 확정 허용 여부를 선택해 주세요.' : 'Select partial confirmation option.'
   }
 
   return ''
 }
+
 
 // 품목 마스터 등록 payload
 function buildCreateItemPayload(): CreateItemRequestDto {
@@ -729,20 +696,18 @@ function buildCapabilityPayload(itemPublicId: string): CreateSupplierItemCapabil
 // 백엔드 API가 분리되어 있어서, 공급 역량만 실패하면 모달을 재시도 상태로 유지합니다.
 async function submitCreateItem() {
   const validationMessage = validateCreateForm()
-
   if (validationMessage) {
     createErrorMessage.value = validationMessage
     return
   }
 
+  let createdItem: ItemResponseDto | null = null
+
   try {
     createLoading.value = true
     createErrorMessage.value = ''
 
-    const createdItem =
-      createdItemForCapability.value ?? (await createItem(buildCreateItemPayload()))
-
-    createdItemForCapability.value = createdItem
+    createdItem = await createItem(buildCreateItemPayload())
 
     await createSupplierItemCapability(
       createdItem.supplierPublicId,
@@ -753,36 +718,25 @@ async function submitCreateItem() {
     await fetchItems()
     closeCreateModal()
   } catch (error: any) {
-    if (createdItemForCapability.value) {
+    if (createdItem) {
       try {
+        await deleteItem(createdItem.publicId)
         await fetchItems()
       } catch {
-        // 목록 재조회 실패는 재시도 안내를 막지 않도록 무시합니다.
+        // capability 실패 후 마스터 삭제까지 실패하면 서버/DB 정리가 필요함
       }
-
-      const baseMessage =
-        error.message ??
-        (preferences.language === 'ko'
-          ? '공급 역량 등록에 실패했습니다.'
-          : 'Failed to create capability.')
-
-      createErrorMessage.value =
-        preferences.language === 'ko'
-          ? `${baseMessage} 품목 마스터는 이미 등록되었습니다. 값을 확인한 뒤 다시 등록을 누르면 공급 역량만 재시도합니다.`
-          : `${baseMessage} Item master already exists. Submit again to retry capability only.`
-
-      return
     }
 
     createErrorMessage.value =
       error.message ??
       (preferences.language === 'ko'
-        ? '품목 등록에 실패했습니다.'
-        : 'Failed to create item.')
+        ? '품목 기본 정보와 공급 역량을 모두 입력해야 등록할 수 있습니다.'
+        : 'Item master and capability are both required.')
   } finally {
     createLoading.value = false
   }
 }
+
 
 const itemTabs = computed<{ key: ItemTabKey; label: string }[]>(() => [
   { key: 'ALL', label: copy.value.tabs.all },
@@ -1384,7 +1338,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>MONTHLY CAPACITY</span>
+          <span>월간 생산량</span>
           <input v-model.number="createForm.monthlyCapacity" type="number" min="0.01" step="0.01" />
         </label>
 
@@ -1394,12 +1348,12 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>MOQ</span>
+          <span>최소 주문 수량</span>
           <input v-model.number="createForm.moq" type="number" min="0.01" step="0.01" />
         </label>
 
         <label class="items-page__field">
-          <span>QUALITY GRADE</span>
+          <span>품목 품질</span>
           <select v-model="createForm.qualityGrade">
             <option value="">{{ copy.options.none }}</option>
             <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
@@ -1409,7 +1363,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>PARTIAL CONFIRMATION</span>
+          <span>발주 수량 부분 확정</span>
           <select v-model="createForm.partialConfirmationAllowed">
             <option :value="true">{{ copy.options.allowed }}</option>
             <option :value="false">{{ copy.options.disallowed }}</option>
