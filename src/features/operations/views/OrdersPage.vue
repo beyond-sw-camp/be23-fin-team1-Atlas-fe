@@ -189,6 +189,7 @@ const copy = computed(() =>
         supplyType: '품목 타입',
         monthlyCapacity: '월간 생산량',
         minimumOrderQty: '최소 주문 수량',
+        availableQty: '주문 가능 수량',
         spec: '규격',
         shelfLife: '보관기한',
         days: '일',
@@ -397,6 +398,7 @@ const copy = computed(() =>
         supplyType: 'Supply Type',
         monthlyCapacity: 'Monthly Capacity',
         minimumOrderQty: 'Minimum Order Qty',
+        availableQty: 'Available Qty',
         spec: 'Spec',
         shelfLife: 'Shelf Life',
         days: 'days',
@@ -567,6 +569,7 @@ const DIRECTION_OPTIONS = computed(() => copy.value.directionOptions)
 const TAB_OPTIONS = computed(() => copy.value.tabOptions)
 
 const purchaseOrders = ref<PurchaseOrderDetailResponseDto[]>([])
+const issuedPurchaseOrders = ref<PurchaseOrderDetailResponseDto[]>([])
 const receivedSubOrders = ref<SubPurchaseOrderResponseDto[]>([])
 const sentSubOrders = ref<SubPurchaseOrderResponseDto[]>([])
 const parentSubOrders = ref<SubPurchaseOrderResponseDto[]>([])
@@ -590,7 +593,28 @@ const detailLoading = ref(false)
 const detailActionLoading = ref(false)
 const detailErrorMessage = ref('')
 const detailSuccessMessage = ref('')
-const selectedOrder = ref<PurchaseOrderDetailResponseDto | null>(null)
+const emptySelectedOrder = (): PurchaseOrderDetailResponseDto => ({
+  poPublicId: '',
+  poNumber: '',
+  buyerOrganizationPublicId: '',
+  supplierPublicId: '',
+  supplierCode: '',
+  supplierName: '',
+  supplierStatus: 'ACTIVE',
+  poStatus: 'CREATED',
+  orderedAt: '',
+  totalAmount: 0,
+  currencyCode: 'KRW',
+  createdAt: '',
+  updatedAt: '',
+  memo: null,
+  createdByUserPublicId: '',
+  items: [],
+})
+
+const hasSelectedOrder = ref(false)
+const selectedOrder = ref<PurchaseOrderDetailResponseDto>(emptySelectedOrder())
+
 
 const selectedParentCategoryId = ref('')
 const selectedMiddleCategoryId = ref('')
@@ -629,7 +653,27 @@ const subOrderDetailLoading = ref(false)
 const subOrderActionLoading = ref(false)
 const subOrderDetailErrorMessage = ref('')
 const subOrderSuccessMessage = ref('')
-const selectedSubOrder = ref<SubPurchaseOrderResponseDto | null>(null)
+const emptySelectedSubOrder = (): SubPurchaseOrderResponseDto => ({
+  subPoPublicId: '',
+  subPoNumber: '',
+  parentPoPublicId: '',
+  parentPoNumber: '',
+  issuerSupplierPublicId: '',
+  issuerSupplierName: '',
+  supplierPublicId: '',
+  supplierCode: '',
+  supplierName: '',
+  supplierStatus: 'ACTIVE',
+  totalAmount: 0,
+  subPoStatus: 'CREATED',
+  orderedAt: '',
+  createdByUserPublicId: '',
+  items: [],
+})
+
+const hasSelectedSubOrder = ref(false)
+const selectedSubOrder = ref<SubPurchaseOrderResponseDto>(emptySelectedSubOrder())
+
 const selectedSubOrderDirection = ref<'ISSUED' | 'RECEIVED' | null>(null)
 
 const editOrderModalOpen = ref(false)
@@ -820,7 +864,8 @@ const downstreamSupplierOptions = computed(() =>
 
 const issuedTotalAmount = computed(() =>
   actor.isSupplierOrganization.value
-    ? sentSubOrders.value.reduce((sum, subOrder) => sum + toNumber(subOrder.totalAmount), 0)
+    ? issuedPurchaseOrders.value.reduce((sum, order) => sum + toNumber(order.totalAmount), 0) +
+      sentSubOrders.value.reduce((sum, subOrder) => sum + toNumber(subOrder.totalAmount), 0)
     : purchaseOrders.value.reduce((sum, order) => sum + toNumber(order.totalAmount), 0),
 )
 
@@ -856,15 +901,15 @@ function getExpectedDueDate(items: Array<{ expectedDueDate: string | null }>) {
 }
 
 const selectedOrderExpectedDueDate = computed(() =>
-  getExpectedDueDate(selectedOrder.value?.items ?? []),
+  getExpectedDueDate(selectedOrder.value.items),
 )
 
 const selectedSubOrderExpectedDueDate = computed(() =>
-  getExpectedDueDate(selectedSubOrder.value?.items ?? []),
+  getExpectedDueDate(selectedSubOrder.value.items ?? []),
 )
 
 const orderRows = computed<OrderDisplayRow[]>(() => {
-  const poRows = purchaseOrders.value.map((order) => ({
+  const receivedPoRows = purchaseOrders.value.map((order) => ({
     id: order.poPublicId,
     kind: 'PO' as const,
     direction: actor.isSupplierOrganization.value ? ('RECEIVED' as const) : ('ISSUED' as const),
@@ -882,6 +927,24 @@ const orderRows = computed<OrderDisplayRow[]>(() => {
     status: order.poStatus,
   }))
 
+  const issuedPoRows = actor.isSupplierOrganization.value
+    ? issuedPurchaseOrders.value.map((order) => ({
+        id: order.poPublicId,
+        kind: 'PO' as const,
+        direction: 'ISSUED' as const,
+        number: order.poNumber,
+        counterpartyName: order.supplierName,
+        supplierStatus: order.supplierStatus,
+        itemLabel: getOrderItemLabel(order),
+        qtyLabel: getOrderQtyLabel(order),
+        totalAmount: toNumber(order.totalAmount),
+        currencyCode: order.currencyCode,
+        orderedAt: order.orderedAt,
+        expectedDueDate: getExpectedDueDate(order.items),
+        status: order.poStatus,
+      }))
+    : []
+
   const subPoRows = actor.isSupplierOrganization.value
     ? sentSubOrders.value.map((subOrder) => ({
         id: subOrder.subPoPublicId,
@@ -892,7 +955,7 @@ const orderRows = computed<OrderDisplayRow[]>(() => {
         supplierStatus: subOrder.supplierStatus,
         itemLabel:
           (subOrder.items?.length ?? 0) > 1
-            ? `${subOrder.items?.[0].itemName ?? '-'} 외 ${(subOrder.items?.length ?? 1) - 1}건`
+            ? `${subOrder.items?.[0].itemName ?? '-'} ${copy.value.moreItems((subOrder.items?.length ?? 1) - 1)}`
             : subOrder.items?.[0].itemName ?? '-',
         qtyLabel: formatNumber(
           (subOrder.items ?? []).reduce((sum, item) => sum + toNumber(item.orderedQty), 0),
@@ -904,7 +967,7 @@ const orderRows = computed<OrderDisplayRow[]>(() => {
       }))
     : []
 
-  return [...poRows, ...subPoRows].sort(
+  return [...receivedPoRows, ...issuedPoRows, ...subPoRows].sort(
     (a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime(),
   )
 })
@@ -1031,7 +1094,7 @@ const topCounterpartyRows = computed(() => {
 })
 
 const selectedOrderDescription = computed(() =>
-  selectedOrder.value
+  hasSelectedOrder.value
     ? `${selectedOrder.value.poNumber} / ${selectedOrder.value.supplierName}`
     : copy.value.selectedOrderFallback,
 )
@@ -1290,27 +1353,46 @@ async function loadItemLookupByItemIds(itemPublicIds: string[]) {
 
 
 async function loadPurchaseOrders() {
-  const response = await getPurchaseOrders({
-    viewType: actor.ordersViewType.value,
-    page: 0,
-    size: 100,
-  })
+  const loadDetails = async (viewType: 'BUYER' | 'SUPPLIER') => {
+    const response = await getPurchaseOrders({
+      viewType,
+      page: 0,
+      size: 100,
+    })
 
-  const details = await Promise.all(
-    response.content.map(async (summary) => {
-      try {
-        return await getPurchaseOrder(summary.poPublicId)
-      } catch {
-        return null
-      }
-    }),
-  )
+    const details = await Promise.all(
+      response.content.map(async (summary) => {
+        try {
+          return await getPurchaseOrder(summary.poPublicId)
+        } catch {
+          return null
+        }
+      }),
+    )
 
-  purchaseOrders.value = details
-    .filter((order): order is PurchaseOrderDetailResponseDto => !!order)
-    .sort((a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime())
+    return details
+      .filter((order): order is PurchaseOrderDetailResponseDto => !!order)
+      .sort((a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime())
+  }
 
-  await loadItemLookup(purchaseOrders.value)
+  if (actor.isSupplierOrganization.value) {
+    const [receivedOrders, issuedOrders] = await Promise.all([
+      loadDetails('SUPPLIER'),
+      loadDetails('BUYER'),
+    ])
+
+    purchaseOrders.value = receivedOrders
+    issuedPurchaseOrders.value = issuedOrders
+
+    await loadItemLookup([...receivedOrders, ...issuedOrders])
+    return
+  }
+
+  const orders = await loadDetails('BUYER')
+  purchaseOrders.value = orders
+  issuedPurchaseOrders.value = []
+
+  await loadItemLookup(orders)
 }
 
 async function loadReceivedSubOrders() {
@@ -1447,6 +1529,7 @@ async function loadOrderDashboard() {
     ])
   } catch (error) {
     purchaseOrders.value = []
+    issuedPurchaseOrders.value = []
     receivedSubOrders.value = []
     sentSubOrders.value = []
     dashboardSummary.value = emptyDashboardSummary()
@@ -1826,11 +1909,13 @@ async function openOrderDetail(order: PurchaseOrderDetailResponseDto) {
     detailLoading.value = true
     detailErrorMessage.value = ''
     detailSuccessMessage.value = ''
-    selectedOrder.value = null
+    hasSelectedOrder.value = false
+    selectedOrder.value = emptySelectedOrder()
     parentSubOrders.value = []
 
     const detail = await getPurchaseOrder(order.poPublicId)
     selectedOrder.value = detail
+    hasSelectedOrder.value = true
 
     await loadItemLookup([detail])
     await loadParentSubOrders(detail.poPublicId)
@@ -1876,7 +1961,8 @@ function closeOrderDetailModal() {
   confirmMode.value = false
   confirmErrorMessage.value = ''
   confirmLines.value = []
-  selectedOrder.value = null
+  hasSelectedOrder.value = false
+  selectedOrder.value = emptySelectedOrder()
   parentSubOrders.value = []
 }
 
@@ -2133,6 +2219,7 @@ async function openEditOrderModal() {
 
     const detail = await getPurchaseOrder(selectedOrder.value.poPublicId)
     selectedOrder.value = detail
+    hasSelectedOrder.value = true
 
     await loadEditableSupplierItems(detail.supplierPublicId)
     resetEditOrderForm(detail)
@@ -2374,11 +2461,13 @@ async function openSubOrderDetail(
     subOrderDetailLoading.value = true
     subOrderDetailErrorMessage.value = ''
     subOrderSuccessMessage.value = ''
-    selectedSubOrder.value = null
+    hasSelectedSubOrder.value = false
+    selectedSubOrder.value = emptySelectedSubOrder()
     selectedSubOrderDirection.value = direction ?? inferSubOrderDirection(subPoPublicId)
 
     const detail = await getSubPurchaseOrder(subPoPublicId)
     selectedSubOrder.value = detail
+    hasSelectedSubOrder.value = true
   } catch (error) {
     subOrderDetailErrorMessage.value = normalizeErrorMessage(
       error,
@@ -2395,7 +2484,8 @@ function closeSubOrderDetailModal() {
   subOrderActionLoading.value = false
   subOrderDetailErrorMessage.value = ''
   subOrderSuccessMessage.value = ''
-  selectedSubOrder.value = null
+  hasSelectedSubOrder.value = false
+  selectedSubOrder.value = emptySelectedSubOrder()
   selectedSubOrderDirection.value = null
 }
 
@@ -2969,6 +3059,10 @@ onBeforeUnmount(() => header.clearActions())
                 <strong>{{ formatNumber(monthlyCapacityOf(item)) }}</strong>
               </span>
               <span>
+                주문 가능 수량 (재고)
+                <strong>{{ formatNumber(availableQtyOf(item)) }}</strong>
+              </span>
+              <span>
                 최소 주문 수량
                 <strong>{{ formatNumber(moqOf(item)) }}</strong>
               </span>
@@ -3146,6 +3240,10 @@ onBeforeUnmount(() => header.clearActions())
                   <strong>{{ formatNumber(monthlyCapacityOf(selectedCreateLineItem(line))) }}</strong>
                 </div>
                 <div>
+                  <span>{{ copy.availableQty }}</span>
+                  <strong>{{ formatNumber(availableQtyOf(selectedCreateLineItem(line))) }}</strong>
+                </div>
+                <div>
                   <span>{{ copy.minimumOrderQty }}</span>
                   <strong>{{ formatNumber(moqOf(selectedCreateLineItem(line))) }}</strong>
                 </div>
@@ -3196,7 +3294,7 @@ onBeforeUnmount(() => header.clearActions())
     <div v-if="detailLoading" class="orders-page__empty">{{ copy.loadingDetail }}</div>
     <p v-else-if="detailErrorMessage" class="orders-page__error">{{ detailErrorMessage }}</p>
 
-    <div v-else-if="selectedOrder" class="orders-page__detail-stack">
+    <div v-else-if="hasSelectedOrder" class="orders-page__detail-stack">
       <section class="orders-page__detail-section">
         <div class="orders-page__section-head">
           <strong>{{ copy.basicInfo }}</strong>
@@ -3579,7 +3677,7 @@ onBeforeUnmount(() => header.clearActions())
     size="lg"
     @close="closeCreateSubOrderModal"
   >
-    <div v-if="selectedOrder" class="orders-page__form">
+    <div v-if="hasSelectedOrder" class="orders-page__form">
       <div class="orders-page__form-grid">
         <label class="orders-page__form-field">
           <span>{{ copy.baseOrder }}</span>
@@ -3665,7 +3763,7 @@ onBeforeUnmount(() => header.clearActions())
       {{ subOrderDetailErrorMessage }}
     </p>
 
-    <div v-else-if="selectedSubOrder" class="orders-page__detail-stack">
+    <div v-else-if="hasSelectedSubOrder" class="orders-page__detail-stack">
       <section class="orders-page__detail-section">
         <div class="orders-page__section-head">
           <strong>{{ copy.basicInfo }}</strong>
