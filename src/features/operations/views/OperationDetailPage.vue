@@ -552,6 +552,97 @@ const inventoryRows = computed(() => [
   ['ITEM-000312', 'PCB ASSY B-100', 'EA', '210', '200', '10', 'NORMAL', '-'],
 ])
 
+const itemInformationRows = computed(() => {
+  const item = data.value
+  if (!item || kind.value !== 'items') return []
+
+  return [
+    [t('품목 코드', 'Item Code'), item.itemCode],
+    [t('품목명', 'Item Name'), item.itemName],
+    [t('카테고리', 'Category'), item.categoryName],
+    [t('단위', 'Unit'), item.unit],
+    [t('상태', 'Status'), displayItemStatus(item.status)],
+    [t('공급 유형', 'Supply Type'), item.supplyType],
+    [t('규격', 'Spec'), item.spec ?? item.specification],
+    [t('단가', 'Unit Price'), formatAmount(item.unitPrice, 'KRW')],
+    [t('유통기한', 'Shelf Life'), item.shelfLifeDays ? `${formatNumber(item.shelfLifeDays)}${t('일', ' days')}` : '-'],
+    [t('출발 물류거점', 'Origin Node'), item.originLogisticsNodeName ?? item.originLogisticsNodePublicId],
+    [t('리드타임', 'Lead Time'), item.leadTimeDays ? `${formatNumber(item.leadTimeDays)}${t('일', ' days')}` : '-'],
+    [t('월간 생산량', 'Monthly Capacity'), item.monthlyCapacity],
+    [t('현재 가용 수량', 'Available Qty'), item.availableQty],
+    [t('최소 발주 수량', 'MOQ'), item.moq],
+    [t('품질 등급', 'Quality Grade'), qualityGradeText(item.qualityGrade)],
+    [t('부분 확정', 'Partial Confirm'), item.partialConfirmationAllowed === false ? t('불가', 'Not Allowed') : t('가능', 'Allowed')],
+    [t('대표 미디어', 'Primary Media'), item.primaryMediaFilePublicId],
+    [t('최종 수정', 'Updated At'), formatDate(item.updatedAt)],
+  ].map(([label, value]) => ({ label: String(label), value: display(value) }))
+})
+
+const itemHistoryRows = computed(() => {
+  if (kind.value !== 'items') return []
+  const item = data.value
+  const rows: Array<{
+    id: string
+    time: string
+    event: string
+    qty: string
+    ref: string
+    status: string
+    note: string
+  }> = []
+
+  if (item) {
+    rows.push({
+      id: 'item-created',
+      time: formatDate(item.createdAt),
+      event: t('품목 등록', 'Item Registered'),
+      qty: display(item.availableQty),
+      ref: display(item.itemCode),
+      status: displayItemStatus(item.status),
+      note: display(item.categoryName),
+    })
+  }
+
+  const linkedOrders = Array.isArray(related.value.linkedOrders) ? related.value.linkedOrders : []
+  linkedOrders.slice(0, 4).forEach((order: any, index: number) => {
+    rows.push({
+      id: order.poItemPublicId ?? order.poPublicId ?? `linked-order-${index}`,
+      time: formatDate(order.orderedAt ?? order.expectedDueDate),
+      event: t('발주 유입', 'Purchase Order Received'),
+      qty: formatNumber(order.orderedQty),
+      ref: display(order.poNumber ?? order.poPublicId),
+      status: display(order.poStatus ?? order.itemStatus),
+      note: order.expectedDueDate ? `${t('납기', 'Due')} ${display(order.expectedDueDate)}` : '-',
+    })
+  })
+
+  if (item?.updatedAt && item.updatedAt !== item.createdAt) {
+    rows.push({
+      id: 'item-updated',
+      time: formatDate(item.updatedAt),
+      event: t('품목 정보 수정', 'Item Updated'),
+      qty: display(item.availableQty),
+      ref: display(item.itemCode),
+      status: displayItemStatus(item.status),
+      note: t('기본 정보 또는 공급 역량 변경', 'Basic info or capability changed'),
+    })
+  }
+
+  if (itemMediaFiles.value.length > 0) {
+    rows.push({
+      id: 'item-media',
+      time: formatDate(item?.updatedAt),
+      event: t('미디어 등록', 'Media Attached'),
+      qty: `${itemMediaFiles.value.length}`,
+      ref: display(item?.primaryMediaFilePublicId),
+      status: t('활성', 'Active'),
+      note: t('대표 이미지/동영상 연결', 'Primary image/video linked'),
+    })
+  }
+
+  return rows
+})
+
 function openConfirmOrderModal() {
   confirmErrorMessage.value = ''
 
@@ -975,6 +1066,15 @@ function section(title: string, rows: [string, unknown][]): DetailSection {
 function display(value: unknown) {
   if (value === null || value === undefined || value === '') return '-'
   return String(value)
+}
+
+function displayItemStatus(value: unknown) {
+  const statusValue = String(value || '').toUpperCase()
+  if (preferences.language !== 'ko') return display(value)
+  if (statusValue === 'ACTIVE') return '활성'
+  if (statusValue === 'DEACTIVE') return '비활성'
+  if (statusValue === 'DELETE') return '삭제'
+  return display(value)
 }
 
 function formatNumber(value: unknown) {
@@ -1473,7 +1573,6 @@ watch(
         <h1 class="terminal-page__title">{{ title }}</h1>
       </div>
       <div class="operation-detail-page__actions">
-        <span v-if="status" :class="['operation-detail-page__status', `is-${statusTone}`]">{{ status }}</span>
         <button class="page-button page-button--secondary" type="button" @click="goBack">{{ detailCopy.backToList }}</button>
       </div>
     </header>
@@ -1746,7 +1845,45 @@ watch(
                 </button>
               </div>
             </article>
-            <article class="operation-detail-page__domain-card"><h3>{{ kind === 'items' ? 'ITEM DETAIL' : 'INVENTORY STATUS' }}</h3><table class="operation-detail-page__domain-table"><thead><tr><th>ITEM CODE</th><th>ITEM NAME</th><th>UOM</th><th>CURRENT STOCK</th><th>SAFETY STOCK</th><th>SHORTAGE QTY</th><th>STATUS</th><th>AFFECTED POs</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="row[0]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table></article>
+            <article v-if="kind === 'items'" class="operation-detail-page__domain-card">
+              <h3>{{ t('물품 상세정보', 'ITEM INFORMATION') }}</h3>
+              <dl class="operation-detail-page__item-info-grid">
+                <div
+                  v-for="row in itemInformationRows"
+                  :key="row.label"
+                  class="operation-detail-page__item-info-cell"
+                >
+                  <dt>{{ row.label }}</dt>
+                  <dd>{{ row.value }}</dd>
+                </div>
+              </dl>
+            </article>
+            <article class="operation-detail-page__domain-card">
+              <h3>{{ kind === 'items' ? t('품목 히스토리', 'ITEM HISTORY') : 'INVENTORY STATUS' }}</h3>
+              <table v-if="kind === 'items'" class="operation-detail-page__domain-table">
+                <thead>
+                  <tr>
+                    <th>{{ t('시각', 'TIME') }}</th>
+                    <th>{{ t('이벤트', 'EVENT') }}</th>
+                    <th>{{ t('수량', 'QTY') }}</th>
+                    <th>{{ t('연결 문서', 'REFERENCE') }}</th>
+                    <th>{{ t('상태', 'STATUS') }}</th>
+                    <th>{{ t('메모', 'NOTE') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in itemHistoryRows" :key="row.id">
+                    <td>{{ row.time }}</td>
+                    <td>{{ row.event }}</td>
+                    <td>{{ row.qty }}</td>
+                    <td>{{ row.ref }}</td>
+                    <td>{{ row.status }}</td>
+                    <td>{{ row.note }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <table v-else class="operation-detail-page__domain-table"><thead><tr><th>ITEM CODE</th><th>ITEM NAME</th><th>UOM</th><th>CURRENT STOCK</th><th>SAFETY STOCK</th><th>SHORTAGE QTY</th><th>STATUS</th><th>AFFECTED POs</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="row[0]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
+            </article>
             <article class="operation-detail-page__domain-card"><h3>DEMAND vs SAFETY STOCK</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>Forecast demand</strong></div></article>
             <div v-if="kind === 'items'" class="operation-detail-page__item-edit-actions">
               <button
@@ -2861,6 +2998,42 @@ watch(
   border-bottom: 1px solid var(--detail-border);
 }
 
+.operation-detail-page__item-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--detail-border);
+  background: var(--detail-surface-plain);
+}
+
+.operation-detail-page__item-info-cell {
+  display: grid;
+  gap: 6px;
+  min-height: 64px;
+  padding: 10px 12px;
+  border-right: 1px solid var(--detail-border);
+  border-bottom: 1px solid var(--detail-border);
+}
+
+.operation-detail-page__item-info-cell:nth-child(3n) {
+  border-right: 0;
+}
+
+.operation-detail-page__item-info-cell dt {
+  color: var(--detail-muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.operation-detail-page__item-info-cell dd {
+  margin: 0;
+  color: var(--on-surface, #2d3435);
+  font-size: 0.86rem;
+  font-weight: 840;
+  word-break: break-word;
+}
+
 .operation-detail-page__domain-table {
   width: 100%;
   border-collapse: collapse;
@@ -3215,6 +3388,7 @@ watch(
   .operation-detail-page__doc-hero dl,
   .operation-detail-page__shipment-hero dl,
   .operation-detail-page__supplier-head dl,
+  .operation-detail-page__item-info-grid,
   .operation-detail-page__metric-row,
   .operation-detail-page__kv-grid.is-two-col {
     grid-template-columns: 1fr;
@@ -3222,7 +3396,8 @@ watch(
 
   .operation-detail-page__doc-hero dl > div,
   .operation-detail-page__shipment-hero dl > div,
-  .operation-detail-page__supplier-head dl > div {
+  .operation-detail-page__supplier-head dl > div,
+  .operation-detail-page__item-info-cell {
     border-right: 0;
     border-bottom: 1px solid var(--detail-border);
   }
