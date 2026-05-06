@@ -4,9 +4,14 @@ import { BaseModal } from '../../shared'
 import {
   getReturnHistories,
   updateReturnStatus,
+  inspectReturnItem,
   type ReturnRequestResponseDto,
   type ReturnStatusHistoryResponseDto,
+  type QcStatus,
+  type QcGrade,
+  type DisposalReason,
 } from '../../../services/return'
+import { uploadAttachment } from '../../../services/file'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 
 const props = defineProps<{
@@ -27,6 +32,16 @@ const isLoading = ref(false)
 const isUpdating = ref(false)
 const reasonText = ref('')
 const expandedHistoryIds = ref<Set<number>>(new Set())
+
+// QC 검수 관련
+const qcResults = ref<Record<number, { qcStatus: QcStatus; qcGrade: QcGrade; action: 'RESTOCK' | 'DISPOSE'; description: string }>>({})
+const isInspecting = ref(false)
+
+// 폐기 증빙 관련
+const disposalReason = ref<DisposalReason>('DAMAGED')
+const disposalProofFile = ref<File | null>(null)
+const disposalProofUploaded = ref(false)
+const isUploadingProof = ref(false)
 
 const myOrgPublicId = window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
 
@@ -55,6 +70,9 @@ const canChangeStatus = computed(() => {
 
   // IN_TRANSIT / RECEIVED: 대상조직(공급사)
   if (st === 'IN_TRANSIT' || st === 'RECEIVED') return isTargetOrg.value
+
+  // INSPECTING: 대상조직(공급사)이 검수 결과 입력
+  if (st === 'INSPECTING') return isTargetOrg.value
 
   // RESHIPPED (EXCHANGE 전용): 요청조직이 수령확인
   if (st === 'RESHIPPED' && rt === 'EXCHANGE') return isRequestOrg.value
@@ -85,6 +103,7 @@ const content = computed(() => {
         actReject: '반려',
         actTransit: '회수 중 처리',
         actReceive: '입고 완료 처리',
+        actInspect: '검수 시작',
         actComplete: '처리 완료',
         actReship: '교체품 출하',
         actConfirmExchange: '교체품 수령 확인',
@@ -101,6 +120,31 @@ const content = computed(() => {
         detail: '상세 사유',
         viewReason: '사유 보기',
         hideReason: '사유 닫기',
+        // QC 검수
+        qcTitle: 'QC 검수 결과 입력',
+        qcStatus: '검수 결과',
+        qcGrade: '등급',
+        qcAction: '처리',
+        qcDesc: '비고',
+        qcSubmit: '검수 결과 저장',
+        qcPass: '합격',
+        qcFail: '불합격',
+        qcGradeA: 'A급 (정상)',
+        qcGradeB: 'B급 (수선필요)',
+        qcGradeDef: '불량 (파손)',
+        qcRestock: '재입고',
+        qcDispose: '폐기',
+        // 폐기 증빙
+        disposalTitle: '폐기 증빙',
+        disposalReason: '폐기 사유',
+        disposalReasonExpired: '유통기한 만료',
+        disposalReasonDamaged: '파손',
+        disposalReasonContaminated: '오염',
+        disposalReasonOther: '기타',
+        disposalProof: '증빙 사진',
+        disposalUpload: '사진 업로드',
+        disposalUploaded: '업로드 완료',
+        disposalRequired: '폐기 증빙 사진을 첨부해야 폐기 처리가 가능합니다.',
       }
     : {
         title: 'Return Audit Trail',
@@ -120,6 +164,7 @@ const content = computed(() => {
         actReject: 'Reject',
         actTransit: 'In Transit',
         actReceive: 'Receive',
+        actInspect: 'Start Inspection',
         actComplete: 'Complete',
         actReship: 'Ship Replacement',
         actConfirmExchange: 'Confirm Receipt',
@@ -136,6 +181,31 @@ const content = computed(() => {
         detail: 'Detail',
         viewReason: 'View Reason',
         hideReason: 'Hide Reason',
+        // QC
+        qcTitle: 'QC Inspection Results',
+        qcStatus: 'Result',
+        qcGrade: 'Grade',
+        qcAction: 'Action',
+        qcDesc: 'Note',
+        qcSubmit: 'Save Inspection',
+        qcPass: 'Pass',
+        qcFail: 'Fail',
+        qcGradeA: 'A (Normal)',
+        qcGradeB: 'B (Refurb)',
+        qcGradeDef: 'Defective',
+        qcRestock: 'Restock',
+        qcDispose: 'Dispose',
+        // Disposal
+        disposalTitle: 'Disposal Proof',
+        disposalReason: 'Reason',
+        disposalReasonExpired: 'Expired',
+        disposalReasonDamaged: 'Damaged',
+        disposalReasonContaminated: 'Contaminated',
+        disposalReasonOther: 'Other',
+        disposalProof: 'Proof Photo',
+        disposalUpload: 'Upload Photo',
+        disposalUploaded: 'Uploaded',
+        disposalRequired: 'Disposal proof photo is required to proceed.',
       }
 })
 
@@ -169,6 +239,7 @@ function formatStatus(status?: string): string {
     REJECTED: '반려됨',
     IN_TRANSIT: '회수 중',
     RECEIVED: '입고 완료',
+    INSPECTING: '검수 중',
     RESHIPPED: '교체품 발송',
     DISPOSED: '폐기 완료',
     COMPLETED: '처리 완료',
@@ -216,6 +287,8 @@ function getStatusTone(status: string): string {
     case 'IN_TRANSIT':
     case 'RECEIVED':
       return 'info'
+    case 'INSPECTING':
+      return 'warning'
     default:
       return ''
   }
@@ -259,7 +332,7 @@ watch(
 )
 
 async function doUpdateStatus(
-  nextStatus: 'APPROVED' | 'REJECTED' | 'IN_TRANSIT' | 'RECEIVED' | 'RESHIPPED' | 'DISPOSED' | 'COMPLETED',
+  nextStatus: 'APPROVED' | 'REJECTED' | 'IN_TRANSIT' | 'RECEIVED' | 'INSPECTING' | 'RESHIPPED' | 'DISPOSED' | 'COMPLETED',
 ) {
   if (!props.targetReturn) return
 
@@ -284,6 +357,88 @@ async function doUpdateStatus(
     await dialog.alert(error.message || 'Status update failed.')
   } finally {
     isUpdating.value = false
+  }
+}
+
+/** QC 검수 결과 제출 */
+async function handleQcSubmit() {
+  if (!props.targetReturn) return
+
+  const items = props.targetReturn.items
+  const results = qcResults.value
+
+  // 모든 품목에 대해 QC 결과가 입력되었는지 확인
+  const missingItems = items.filter(item => !results[item.id])
+  if (missingItems.length > 0) {
+    await dialog.alert(
+      props.language === 'ko'
+        ? '모든 품목의 검수 결과를 입력해주세요.'
+        : 'Please enter inspection results for all items.',
+    )
+    return
+  }
+
+  try {
+    isInspecting.value = true
+    for (const item of items) {
+      const result = results[item.id]
+      if (!result) continue
+      await inspectReturnItem(props.targetReturn.publicId, item.id, {
+        qcStatus: result.qcStatus,
+        qcGrade: result.qcGrade,
+        action: result.action,
+        description: result.description || undefined,
+      })
+    }
+    await dialog.alert(
+      props.language === 'ko' ? '검수 결과가 저장되었습니다.' : 'Inspection results saved.',
+    )
+    emit('statusChanged')
+  } catch (error: any) {
+    await dialog.alert(error.message || 'Failed to save inspection results.')
+  } finally {
+    isInspecting.value = false
+  }
+}
+
+/** QC 결과 초기화 */
+function initQcResults() {
+  if (!props.targetReturn) return
+  const results: typeof qcResults.value = {}
+  for (const item of props.targetReturn.items) {
+    results[item.id] = {
+      qcStatus: item.qcStatus || 'PENDING',
+      qcGrade: item.qcGrade || 'A',
+      action: 'RESTOCK',
+      description: '',
+    }
+  }
+  qcResults.value = results
+}
+
+/** 폐기 증빙 사진 업로드 */
+async function handleDisposalProofUpload() {
+  if (!disposalProofFile.value || !props.targetReturn) return
+
+  try {
+    isUploadingProof.value = true
+    await uploadAttachment(disposalProofFile.value, 'RETURN_DISPOSAL', props.targetReturn.publicId)
+    disposalProofUploaded.value = true
+    await dialog.alert(
+      props.language === 'ko' ? '폐기 증빙 사진이 업로드되었습니다.' : 'Disposal proof photo uploaded.',
+    )
+  } catch (error: any) {
+    await dialog.alert(error.message || 'Failed to upload disposal proof.')
+  } finally {
+    isUploadingProof.value = false
+  }
+}
+
+function onDisposalFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (input.files && input.files[0]) {
+    disposalProofFile.value = input.files[0]
+    disposalProofUploaded.value = false
   }
 }
 </script>
@@ -444,8 +599,14 @@ async function doUpdateStatus(
 
           <!-- APPROVED: 유형별 분기 -->
           <template v-if="targetReturn.returnStatus === 'APPROVED'">
-            <!-- DISPOSAL: 폐기 처리 -->
-            <button v-if="resType === 'DISPOSAL'" class="btn btn-reject" type="button" :disabled="isUpdating" @click="doUpdateStatus('DISPOSED')">
+            <!-- DISPOSAL: 폐기 처리 (증빙 첨부 필수) -->
+            <button
+              v-if="resType === 'DISPOSAL'"
+              class="btn btn-reject"
+              type="button"
+              :disabled="isUpdating || !disposalProofUploaded"
+              @click="doUpdateStatus('DISPOSED')"
+            >
               {{ content.actDispose }}
             </button>
             <!-- RETURN / EXCHANGE: 회수 시작 -->
@@ -461,8 +622,15 @@ async function doUpdateStatus(
             </button>
           </template>
 
-          <!-- RECEIVED: 유형별 분기 -->
+          <!-- RECEIVED: 검수 시작 (RETURN / EXCHANGE) -->
           <template v-if="targetReturn.returnStatus === 'RECEIVED'">
+            <button class="btn btn-primary" type="button" :disabled="isUpdating" @click="doUpdateStatus('INSPECTING'); initQcResults()">
+              {{ content.actInspect }}
+            </button>
+          </template>
+
+          <!-- INSPECTING: QC 검수 완료 후 분기 -->
+          <template v-if="targetReturn.returnStatus === 'INSPECTING'">
             <!-- EXCHANGE: 교체품 출하 -->
             <button v-if="resType === 'EXCHANGE'" class="btn btn-primary" type="button" :disabled="isUpdating" @click="doUpdateStatus('RESHIPPED')">
               {{ content.actReship }}
@@ -486,6 +654,86 @@ async function doUpdateStatus(
               {{ content.actConfirmDisposal }}
             </button>
           </template>
+        </div>
+      </div>
+
+      <!-- QC 검수 결과 입력 (INSPECTING 상태일 때만 표시) -->
+      <div
+        v-if="targetReturn.returnStatus === 'INSPECTING' && canChangeStatus"
+        class="info-card"
+      >
+        <div class="info-card__eyebrow">{{ content.qcTitle }}</div>
+        <div v-for="item in targetReturn.items" :key="'qc-' + item.id" class="qc-item">
+          <div class="qc-item__name">{{ item.itemName || shortId(item.itemPublicId) }} ({{ item.returnQty }} {{ item.unit }})</div>
+          <div class="qc-item__fields" v-if="qcResults[item.id]">
+            <label class="qc-field">
+              <span>{{ content.qcStatus }}</span>
+              <select v-model="qcResults[item.id].qcStatus">
+                <option value="PASS">{{ content.qcPass }}</option>
+                <option value="FAIL">{{ content.qcFail }}</option>
+              </select>
+            </label>
+            <label class="qc-field">
+              <span>{{ content.qcGrade }}</span>
+              <select v-model="qcResults[item.id].qcGrade">
+                <option value="A">{{ content.qcGradeA }}</option>
+                <option value="B">{{ content.qcGradeB }}</option>
+                <option value="DEFECTIVE">{{ content.qcGradeDef }}</option>
+              </select>
+            </label>
+            <label class="qc-field">
+              <span>{{ content.qcAction }}</span>
+              <select v-model="qcResults[item.id].action">
+                <option value="RESTOCK">{{ content.qcRestock }}</option>
+                <option value="DISPOSE">{{ content.qcDispose }}</option>
+              </select>
+            </label>
+            <label class="qc-field qc-field--wide">
+              <span>{{ content.qcDesc }}</span>
+              <input v-model="qcResults[item.id].description" type="text" placeholder="..." />
+            </label>
+          </div>
+        </div>
+        <div class="qc-actions">
+          <button class="btn btn-primary" type="button" :disabled="isInspecting" @click="handleQcSubmit">
+            {{ content.qcSubmit }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 폐기 증빙 (DISPOSAL + APPROVED 상태일 때 표시) -->
+      <div
+        v-if="targetReturn.returnStatus === 'APPROVED' && resType === 'DISPOSAL' && canChangeStatus"
+        class="info-card"
+      >
+        <div class="info-card__eyebrow">{{ content.disposalTitle }}</div>
+        <div class="disposal-form">
+          <label class="disposal-field">
+            <span>{{ content.disposalReason }}</span>
+            <select v-model="disposalReason">
+              <option value="EXPIRED">{{ content.disposalReasonExpired }}</option>
+              <option value="DAMAGED">{{ content.disposalReasonDamaged }}</option>
+              <option value="CONTAMINATED">{{ content.disposalReasonContaminated }}</option>
+              <option value="OTHER">{{ content.disposalReasonOther }}</option>
+            </select>
+          </label>
+          <label class="disposal-field">
+            <span>{{ content.disposalProof }}</span>
+            <div class="disposal-upload-row">
+              <input type="file" accept="image/*" @change="onDisposalFileChange" />
+              <button
+                class="btn btn-primary"
+                type="button"
+                :disabled="!disposalProofFile || isUploadingProof || disposalProofUploaded"
+                @click="handleDisposalProofUpload"
+              >
+                {{ disposalProofUploaded ? content.disposalUploaded : content.disposalUpload }}
+              </button>
+            </div>
+          </label>
+          <p v-if="!disposalProofUploaded" class="disposal-required">
+            {{ content.disposalRequired }}
+          </p>
         </div>
       </div>
 
@@ -745,5 +993,117 @@ async function doUpdateStatus(
 .return-timeline-modal__footer {
   display: flex;
   justify-content: flex-end;
+}
+
+/* QC 검수 UI */
+.qc-item {
+  border: 1px solid var(--color-surface-container-high);
+  background: var(--color-surface-container);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.qc-item__name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  margin-bottom: 8px;
+}
+
+.qc-item__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.qc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.qc-field span {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
+}
+
+.qc-field select,
+.qc-field input {
+  border: 1px solid var(--color-surface-container-high);
+  background: var(--color-surface-container-lowest);
+  color: var(--color-on-surface);
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  outline: none;
+}
+
+.qc-field select:focus,
+.qc-field input:focus {
+  border-color: var(--color-primary);
+}
+
+.qc-field--wide {
+  grid-column: 1 / -1;
+}
+
+.qc-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* 폐기 증빙 UI */
+.disposal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.disposal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.disposal-field span {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
+}
+
+.disposal-field select {
+  border: 1px solid var(--color-surface-container-high);
+  background: var(--color-surface-container-lowest);
+  color: var(--color-on-surface);
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  outline: none;
+}
+
+.disposal-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.disposal-upload-row input[type="file"] {
+  font-size: 0.8rem;
+  color: var(--color-on-surface-variant);
+}
+
+.disposal-required {
+  margin: 0;
+  padding: 6px 8px;
+  background: rgba(245, 158, 11, 0.1);
+  border-left: 3px solid #f59e0b;
+  font-size: 0.75rem;
+  color: #f59e0b;
 }
 </style>

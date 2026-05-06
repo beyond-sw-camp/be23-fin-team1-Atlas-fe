@@ -15,6 +15,7 @@ export interface ItemInventoryResponseDto {
   remainingQty: number
   reservedQty: number
   availableQty: number
+  defectiveQty: number
   status: InventoryStatus
   memo: string | null
   logisticsNodePublicId: string

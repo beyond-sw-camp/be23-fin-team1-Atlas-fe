@@ -104,6 +104,7 @@ apiClient.interceptors.request.use(
     // 사용자 식별 헤더는 control / file / supply 요청에만 붙입니다.
     if (isSupplyRequest || isControlRequest || isFileRequest) {
       applyHeaderIfPresent(config, 'X-User-Public-Id', userPublicId)
+      applyHeaderIfPresent(config, 'X-Public-Id', userPublicId) // 일부 컨트롤러가 X-Public-Id로 받음
     }
 
     // 조직/권한 헤더는 supply 요청에만 붙입니다.
