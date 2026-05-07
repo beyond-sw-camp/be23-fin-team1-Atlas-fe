@@ -2092,19 +2092,8 @@ watch(
                 </div>
               </div>
 
-              <!-- 사원 목록 -->
+        <!-- 사원 목록 -->
               <div v-else-if="activeMemberSubTab === 'list'" class="member-list-block">
-                <div class="member-list-actions">
-                  <button
-                    class="page-button page-button--secondary"
-                    type="button"
-                    :disabled="isLoadingMembers"
-                    @click="loadMembers"
-                  >
-                    {{ copy.memberListRefresh }}
-                  </button>
-                </div>
-
                 <div v-if="isLoadingMembers" class="login-hint">
                   {{ copy.memberListLoading }}
                 </div>
@@ -2113,8 +2102,8 @@ watch(
                   {{ copy.memberListEmpty }}
                 </div>
 
-                <div v-else class="member-list-table">
-                  <div class="member-list-table__row member-list-table__row--head">
+                <div v-else class="member-create-table">
+                  <div class="member-create-table__head">
                     <span>{{ preferences.language === 'ko' ? '이름' : 'Name' }}</span>
                     <span>{{ preferences.language === 'ko' ? '이메일' : 'Email' }}</span>
                     <span>{{ preferences.language === 'ko' ? '연락처' : 'Phone' }}</span>
@@ -2127,7 +2116,7 @@ watch(
                   <div
                     v-for="member in memberRows"
                     :key="member.userPublicId"
-                    class="member-list-table__row"
+                    class="member-create-table__row member-list-row"
                   >
                     <strong>{{ member.lastName }}{{ member.firstName }}</strong>
                     <span>{{ member.email }}</span>
@@ -2367,12 +2356,8 @@ watch(
   align-items: center;
 }
 
-
 .member-create-table {
-  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
-  border-radius: 0;
-  overflow: hidden;
-  background: #fff;
+  width: 100%;
 }
 
 .member-create-table__head,
@@ -2381,12 +2366,12 @@ watch(
   grid-template-columns: 0.8fr 0.8fr 1.4fr 1.1fr 0.9fr 1.2fr 72px;
   gap: 8px;
   align-items: center;
-  padding: 8px 12px;
+  padding: 6px 0;
 }
 
 .member-create-table__head {
-  background: rgb(var(--surface-container-high-rgb, 228 233 234) / 0.85);
-  border-bottom: 0.5px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
+  border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
+  margin-bottom: 4px;
 }
 
 .member-create-table__head span {
@@ -2397,8 +2382,7 @@ watch(
 }
 
 .member-create-table__row {
-  border-bottom: 0.5px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
-  background: #fff;
+  border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.15);
 }
 
 .member-create-table__row:last-of-type {
@@ -2410,18 +2394,16 @@ watch(
 .member-create-table__row .page-button {
   height: 30px !important;
   min-height: unset !important;
-  line-height: 30px !important;
-  padding: 0 8px !important;
-  border-radius: 0 !important;
-  box-sizing: border-box;
-  cursor: pointer;
-  color: var(--on-surface, #111827);
-  font-size: 12px;
   width: 100%;
+  font-size: 12px;
+  padding: 0 8px;
+  border-radius: 0;
   border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
   background: #fff;
   appearance: none;
   -webkit-appearance: none;
+  box-sizing: border-box;
+  line-height: 30px !important;
 }
 
 .member-create-table__row .page-button {
@@ -2432,9 +2414,8 @@ watch(
 
 .member-create-table__feedback {
   grid-column: 1 / -1;
-  padding: 6px 12px;
+  padding: 5px 0;
   font-size: 12px;
-  border-top: 0.5px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2442,12 +2423,10 @@ watch(
 
 .member-create-table__feedback--success {
   color: var(--on-surface-variant, #596061);
-  background: rgb(var(--surface-container-low-rgb, 244 247 248) / 0.8);
 }
 
 .member-create-table__feedback--error {
   color: var(--error, #b3261e);
-  background: rgb(var(--error-container-rgb, 249 222 220) / 0.4);
 }
 
 /* 엑셀 업로드 */
@@ -2462,37 +2441,25 @@ watch(
   gap: 12px;
 }
 
-.member-list-actions {
-  display: flex;
-  justify-content: flex-end;
+.member-list-row {
+  grid-template-columns: 1fr 1.5fr 1fr 0.8fr 1fr 0.9fr 0.7fr;
+  font-size: 13px;
+  padding: 8px 0;
 }
 
-.member-list-table {
-  display: grid;
-  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
-  overflow-x: auto;
+.member-list-row strong {
+  color: var(--on-surface, #111827);
+  font-weight: 700;
 }
 
-.member-list-table__row {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr 1fr 1fr 1fr 0.8fr 0.8fr;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.22);
-  font-size: 0.82rem;
-  min-width: 600px;
-}
-
-.member-list-table__row:last-child {
-  border-bottom: 0;
-}
-
-.member-list-table__row--head {
-  background: rgb(var(--surface-container-high-rgb, 228 233 234) / 0.85);
+.member-list-row span {
   color: var(--on-surface-variant, #596061);
-  font-weight: 900;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
 
 @media (max-width: 720px) {
   .member-create-table__head {
