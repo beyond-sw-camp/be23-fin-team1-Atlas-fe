@@ -563,8 +563,8 @@ onBeforeUnmount(() => header.clearActions())
             <span class="page-panel__chip">{{ filteredNodes.length }}</span>
           </div>
 
-          <div class="page-table terminal-page__table logistics-data-table">
-            <div class="page-table__row page-table__row--head logistics-table logistics-table--head">
+             <div class="logistics-data-table">
+             <div class="logistics-table logistics-table--head">
               <span v-for="column in content.columns" :key="column">{{ column }}</span>
             </div>
 
@@ -581,10 +581,10 @@ onBeforeUnmount(() => header.clearActions())
             </div>
 
             <div
-              v-for="node in filteredNodes"
-              :key="node.publicId"
-              class="page-table__row logistics-table logistics-table--body"
-            >
+                  v-for="node in filteredNodes"
+                  :key="node.publicId"
+                  class="logistics-table logistics-table--body"
+                >
               <span class="logistics-code-cell">
                 <strong>{{ node.nodeCode }}</strong>
                 <small>{{ formatDate(node.updatedAt) }}</small>
@@ -901,7 +901,7 @@ onBeforeUnmount(() => header.clearActions())
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  align-items: center;
+  align-items: flex-end;  /* center → flex-end */
   margin-bottom: 16px;
 }
 
@@ -964,41 +964,33 @@ onBeforeUnmount(() => header.clearActions())
   font-weight: 900;
 }
 
-.logistics-page .page-table {
-  overflow: hidden;
-  border: 1px solid var(--log-border);
-  border-radius: 0;
-  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.8);
-}
 
 .logistics-data-table {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  border: 0 !important;
-  background: transparent !important;
 }
-
-.logistics-page .page-table__row {
-  border: 1px solid var(--log-border);
-  border-radius: 0;
-  border-top: 0;
-  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.92);
-  color: var(--log-muted);
-}
-
-.logistics-page .page-table__row:last-child {
-  border-bottom: 1px solid var(--log-border);
-}
-
-.logistics-page .page-table__row--head {
-  border: 0;
-  border-radius: 0;
-  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.66);
+.logistics-table--head {
+  border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
+  margin-bottom: 4px;
   color: var(--log-faint);
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.06em;
+}
+
+.logistics-table--body {
+  min-height: 56px;
+  border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.15);
+  box-shadow: none;
+  transition: background 50ms ease;
+}
+
+.logistics-table--body:last-of-type {
+  border-bottom: 0;
+}
+
+.logistics-table--body:hover {
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.42);
 }
 
 .logistics-table {
@@ -1128,6 +1120,16 @@ onBeforeUnmount(() => header.clearActions())
   font-weight: 800;
 }
 
+.logistics-filter-card .logistics-search input {
+  min-height: 36px;
+  height: 36px;
+  padding: 0 12px;
+}
+
+.logistics-pagination .page-button {
+  min-height: 36px;
+}
+
 @container atlas-page-table (max-width: 1240px) {
   .logistics-table {
     grid-template-columns:
@@ -1158,11 +1160,6 @@ onBeforeUnmount(() => header.clearActions())
 @media (max-width: 960px) {
   .logistics-kpi-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .logistics-filter-card {
-    align-items: stretch;
-    flex-direction: column;
   }
 
   .logistics-address-row {
