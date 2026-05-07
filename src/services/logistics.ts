@@ -52,6 +52,7 @@ export interface LogisticsNodeHistoryResponseDto {
   memo?: string | null
   recordedAt: string
   processedByUserPublicId?: string | null
+  processedByUserName?: string | null
 }
 
 export interface GetLogisticsNodesParams {
