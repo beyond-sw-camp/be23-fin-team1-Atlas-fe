@@ -7,7 +7,6 @@ import { BaseModal } from '../../shared'
 import CertificateTypeCreateModal from './CertificateTypeCreateModal.vue'
 import { getCertificateTypes } from '../../../services/certificate'
 import { getSuppliers, getMySupplier, type SupplierListResponseDto } from '../../../services/supplier'
-import { uploadAttachment } from '../../../services/file'
 import type { CreateSupplierCertificateRequestDto, CertificateTypeResponseDto } from '../../../services/certificate'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasSessionStore } from '../../../stores/session'
@@ -19,7 +18,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  submit: [supplierPublicId: string, data: CreateSupplierCertificateRequestDto]
+  submit: [supplierPublicId: string, data: CreateSupplierCertificateRequestDto, file: File]
 }>()
 
 const session = useAtlasSessionStore()
@@ -33,6 +32,8 @@ const form = ref<CreateSupplierCertificateRequestDto>({
   issuerName: '',
   attachmentPublicId: ''
 })
+const issuedAtDate = ref<Date | null>(null)
+const expiredAtDate = ref<Date | null>(null)
 
 const supplierId = ref('')
 const certificateTypes = ref<CertificateTypeResponseDto[]>([])
@@ -154,7 +155,28 @@ const content = computed(() => {
 })
 
 const selectedFile = ref<File | null>(null)
-const isUploading = ref(false)
+const isSubmitting = ref(false)
+const datepickerTimeConfig = { enableTimePicker: false }
+const datepickerFormats = {
+  input: 'yyyy. MM. dd.',
+  preview: 'yyyy. MM. dd.',
+}
+
+function formatDateForApi(date: Date | null) {
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDateForDisplay(date: Date | null) {
+  if (!date) return '연도. 월. 일.'
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}. ${month}. ${day}.`
+}
 
 function handleFileChange(event: Event) {
   const target = event.target as HTMLInputElement
@@ -174,7 +196,10 @@ async function handleSubmit() {
     await dialog.alert(props.language === 'ko' ? '인증 유형을 선택해주세요.' : 'Please select a certificate type.')
     return
   }
-  if (!form.value.issuedAt || !form.value.expiredAt) {
+  const issuedAt = formatDateForApi(issuedAtDate.value)
+  const expiredAt = formatDateForApi(expiredAtDate.value)
+
+  if (!issuedAt || !expiredAt) {
     await dialog.alert(props.language === 'ko' ? '발급일과 만료일을 입력해주세요.' : 'Please enter issued and expiry dates.')
     return
   }
@@ -184,27 +209,20 @@ async function handleSubmit() {
     return
   }
   
-  try {
-    isUploading.value = true
-    // 백엔드 가이드: refType="SUPPLIER_CERTIFICATE", refPublicId=supplierId 사용
-    const uploadRes = await uploadAttachment(selectedFile.value, 'SUPPLIER_CERTIFICATE', supplierId.value)
-    form.value.attachmentPublicId = uploadRes.attachmentPublicId
-  } catch (error) {
-    console.error('File upload failed', error)
-    await dialog.alert(props.language === 'ko' ? '파일 업로드에 실패했습니다.' : 'File upload failed.')
-    isUploading.value = false
-    return
+  const payload: any = {
+    ...form.value,
+    issuedAt,
+    expiredAt,
   }
-  
-  const payload: any = { ...form.value }
   if (!payload.attachmentPublicId) delete payload.attachmentPublicId
   if (!payload.certificateNo) delete payload.certificateNo
   if (!payload.issuerName) delete payload.issuerName
   if (!payload.issuedAt) delete payload.issuedAt
   if (!payload.expiredAt) delete payload.expiredAt
   
-  emit('submit', supplierId.value, payload)
-  isUploading.value = false
+  isSubmitting.value = true
+  emit('submit', supplierId.value, payload, selectedFile.value)
+  isSubmitting.value = false
 }
 </script>
 
@@ -292,36 +310,46 @@ async function handleSubmit() {
           <label>
             <span>{{ content.issueDate }}</span>
             <VueDatePicker
-              v-model="form.issuedAt"
+              v-model="issuedAtDate"
               class="cert-create-modal__datepicker"
-              model-type="yyyy-MM-dd"
-              format="yyyy. MM. dd."
-              placeholder="연도. 월. 일."
               :locale="ko"
+              :formats="datepickerFormats"
+              :time-config="datepickerTimeConfig"
               auto-apply
-              :enable-time-picker="false"
               :clearable="false"
               :teleport="false"
               required
-            />
+            >
+              <template #trigger>
+                <button class="cert-create-modal__date-trigger" type="button">
+                  <span :class="{ 'is-placeholder': !issuedAtDate }">{{ formatDateForDisplay(issuedAtDate) }}</span>
+                  <span class="material-symbols-outlined">calendar_month</span>
+                </button>
+              </template>
+            </VueDatePicker>
           </label>
         </div>
         <div class="terminal-form-group">
           <label>
             <span>{{ content.expDate }}</span>
             <VueDatePicker
-              v-model="form.expiredAt"
+              v-model="expiredAtDate"
               class="cert-create-modal__datepicker"
-              model-type="yyyy-MM-dd"
-              format="yyyy. MM. dd."
-              placeholder="연도. 월. 일."
               :locale="ko"
+              :formats="datepickerFormats"
+              :time-config="datepickerTimeConfig"
               auto-apply
-              :enable-time-picker="false"
               :clearable="false"
               :teleport="false"
               required
-            />
+            >
+              <template #trigger>
+                <button class="cert-create-modal__date-trigger" type="button">
+                  <span :class="{ 'is-placeholder': !expiredAtDate }">{{ formatDateForDisplay(expiredAtDate) }}</span>
+                  <span class="material-symbols-outlined">calendar_month</span>
+                </button>
+              </template>
+            </VueDatePicker>
           </label>
         </div>
       </div>
@@ -342,11 +370,11 @@ async function handleSubmit() {
       </section>
 
       <div class="terminal-form-actions">
-        <button class="page-button page-button--secondary" type="button" @click="emit('close')" :disabled="isUploading">
+        <button class="page-button page-button--secondary" type="button" @click="emit('close')" :disabled="isSubmitting">
           {{ content.cancel }}
         </button>
-        <button class="page-button page-button--primary" type="submit" :disabled="isUploading">
-          {{ isUploading ? (props.language === 'ko' ? '업로드 중...' : 'Uploading...') : content.submit }}
+        <button class="page-button page-button--primary" type="submit" :disabled="isSubmitting">
+          {{ isSubmitting ? (props.language === 'ko' ? '등록 중...' : 'Submitting...') : content.submit }}
         </button>
       </div>
     </form>
@@ -487,6 +515,39 @@ async function handleSubmit() {
   inset-inline-start: auto;
   right: 0;
   color: var(--color-on-surface, #2f3435);
+}
+
+.cert-create-modal__date-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 2px solid var(--color-surface-container-high);
+  background: transparent;
+  color: var(--color-on-surface);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.cert-create-modal__date-trigger:focus-visible {
+  outline: none;
+  border-bottom-color: var(--color-primary);
+}
+
+.cert-create-modal__date-trigger .is-placeholder {
+  color: var(--color-on-surface-variant, #919191);
+}
+
+.cert-create-modal__date-trigger .material-symbols-outlined {
+  color: var(--color-on-surface, #2f3435);
+  font-size: 1.2rem;
 }
 
 .cert-create-modal__datepicker :deep(.dp__clear_icon) {
