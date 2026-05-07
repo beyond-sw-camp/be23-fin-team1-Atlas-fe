@@ -717,7 +717,6 @@ const itemInformationMetrics = computed(() => {
 const itemInformationGroups = computed(() => {
   const item = data.value
   if (!item || kind.value !== 'items') return []
-  const primaryMediaFile = itemMediaFiles.value.find((file) => file.publicId === item.primaryMediaFilePublicId) ?? itemMediaFiles.value[0]
 
   return [
     {
@@ -738,85 +737,14 @@ const itemInformationGroups = computed(() => {
         [t('상태', 'Status'), displayItemStatus(item.status)],
       ],
     },
-    {
-      title: t('미디어 / 시스템', 'Media / System'),
-      rows: [
-        [t('대표 미디어', 'Primary Media'), primaryMediaFile?.originalFileName ?? (item.primaryMediaFilePublicId ? '대표 미디어 있음' : '-')],
-        [t('첨부 묶음', 'Attachment'), item.mediaAttachmentPublicId ? '첨부 묶음 있음' : '-'],
-        [t('등록일', 'Created At'), formatDate(item.createdAt)],
-        [t('최종 수정', 'Updated At'), formatDate(item.updatedAt)],
-      ],
-    },
   ].map((group) => ({
     title: group.title,
-    rows: group.rows.map(([label, value]) => ({ label: String(label), value: display(value) })),
+    rows: group.rows.map(([label, value]) => ({
+      label: String(label),
+      value: display(value),
+      role: String(label) === t('상태', 'Status') ? 'status' : 'text',
+    })),
   }))
-})
-
-const itemHistoryRows = computed(() => {
-  if (kind.value !== 'items') return []
-  const item = data.value
-  const rows: Array<{
-    id: string
-    time: string
-    event: string
-    qty: string
-    ref: string
-    status: string
-    note: string
-  }> = []
-
-  if (item) {
-    rows.push({
-      id: 'item-created',
-      time: formatDate(item.createdAt),
-      event: t('품목 등록', 'Item Registered'),
-      qty: display(item.availableQty),
-      ref: display(item.itemCode),
-      status: displayItemStatus(item.status),
-      note: display(item.categoryName),
-    })
-  }
-
-  const linkedOrders = Array.isArray(related.value.linkedOrders) ? related.value.linkedOrders : []
-  linkedOrders.slice(0, 4).forEach((order: any, index: number) => {
-    rows.push({
-      id: order.poItemPublicId ?? order.poPublicId ?? `linked-order-${index}`,
-      time: formatDate(order.orderedAt ?? order.expectedDueDate),
-      event: t('발주 유입', 'Purchase Order Received'),
-      qty: formatNumber(order.orderedQty),
-      ref: display(order.poNumber ?? '발주 문서'),
-      status: display(order.poStatus ?? order.itemStatus),
-      note: order.expectedDueDate ? `${t('납기', 'Due')} ${display(order.expectedDueDate)}` : '-',
-    })
-  })
-
-  if (item?.updatedAt && item.updatedAt !== item.createdAt) {
-    rows.push({
-      id: 'item-updated',
-      time: formatDate(item.updatedAt),
-      event: t('품목 정보 수정', 'Item Updated'),
-      qty: display(item.availableQty),
-      ref: display(item.itemCode),
-      status: displayItemStatus(item.status),
-      note: t('기본 정보 또는 공급 역량 변경', 'Basic info or capability changed'),
-    })
-  }
-
-  if (itemMediaFiles.value.length > 0) {
-    const primaryMediaFile = itemMediaFiles.value.find((file) => file.publicId === item?.primaryMediaFilePublicId) ?? itemMediaFiles.value[0]
-    rows.push({
-      id: 'item-media',
-      time: formatDate(item?.updatedAt),
-      event: t('미디어 등록', 'Media Attached'),
-      qty: `${itemMediaFiles.value.length}`,
-      ref: display(primaryMediaFile?.originalFileName ?? (item?.primaryMediaFilePublicId ? '대표 미디어 있음' : '-')),
-      status: t('활성', 'Active'),
-      note: t('대표 이미지/동영상 연결', 'Primary image/video linked'),
-    })
-  }
-
-  return rows
 })
 
 function openConfirmOrderModal() {
@@ -2729,42 +2657,27 @@ watch(
                 </div>
                 <div class="operation-detail-page__item-info-sections">
                   <section v-for="group in itemInformationGroups" :key="group.title">
-                    <h4>{{ group.title }}</h4>
                     <dl>
                       <div v-for="row in group.rows" :key="row.label">
                         <dt>{{ row.label }}</dt>
-                        <dd>{{ row.value }}</dd>
+                        <dd>
+                          <span
+                            v-if="row.role === 'status'"
+                            class="operation-detail-page__item-info-status-chip"
+                          >
+                            {{ row.value }}
+                          </span>
+                          <template v-else>{{ row.value }}</template>
+                        </dd>
                       </div>
                     </dl>
                   </section>
                 </div>
               </template>
             </article>
-            <article class="operation-detail-page__domain-card">
-              <h3>{{ kind === 'items' ? t('품목 히스토리', 'ITEM HISTORY') : '재고 상태' }}</h3>
-              <table v-if="kind === 'items'" class="operation-detail-page__domain-table operation-detail-page__item-history-table">
-                <thead>
-                  <tr>
-                    <th>{{ t('시각', 'TIME') }}</th>
-                    <th>{{ t('이벤트', 'EVENT') }}</th>
-                    <th>{{ t('수량', 'QTY') }}</th>
-                    <th>{{ t('연결 문서', 'REFERENCE') }}</th>
-                    <th>{{ t('상태', 'STATUS') }}</th>
-                    <th>{{ t('메모', 'NOTE') }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in itemHistoryRows" :key="row.id">
-                    <td :data-label="t('시각', 'TIME')">{{ row.time }}</td>
-                    <td :data-label="t('이벤트', 'EVENT')">{{ row.event }}</td>
-                    <td :data-label="t('수량', 'QTY')">{{ row.qty }}</td>
-                    <td :data-label="t('연결 문서', 'REFERENCE')">{{ row.ref }}</td>
-                    <td :data-label="t('상태', 'STATUS')">{{ row.status }}</td>
-                    <td :data-label="t('메모', 'NOTE')">{{ row.note }}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <table v-else class="operation-detail-page__domain-table"><thead><tr><th>품목 코드</th><th>품목명</th><th>단위</th><th>잔여 수량</th><th>예약 수량</th><th>주문 가능</th><th>상태</th><th>유통기한</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="`${row[0]}-${row[7]}`"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
+            <article v-if="kind !== 'items'" class="operation-detail-page__domain-card">
+              <h3>재고 상태</h3>
+              <table class="operation-detail-page__domain-table"><thead><tr><th>품목 코드</th><th>품목명</th><th>단위</th><th>잔여 수량</th><th>예약 수량</th><th>주문 가능</th><th>상태</th><th>유통기한</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="`${row[0]}-${row[7]}`"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
             </article>
             <article class="operation-detail-page__domain-card"><h3>수요 대비 안전재고</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>예측 수요</strong></div></article>
           </section>
@@ -3358,8 +3271,14 @@ watch(
 
 .operation-detail-page__item-media-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: 180px;
+  grid-template-columns: none;
   gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  overscroll-behavior-x: contain;
 }
 
 .operation-detail-page__item-media {
@@ -4101,17 +4020,14 @@ watch(
 
 .operation-detail-page__item-info-sections {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
 .operation-detail-page__item-info-sections section {
   display: grid;
   align-content: start;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--detail-border);
-  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.72);
+  gap: 8px;
 }
 
 .operation-detail-page__item-info-sections h4 {
@@ -4121,17 +4037,21 @@ watch(
 
 .operation-detail-page__item-info-sections dl {
   display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   margin: 0;
+  border: 1px solid var(--detail-border);
+  border-right: 0;
+  background: var(--detail-surface-plain);
 }
 
 .operation-detail-page__item-info-sections dl > div {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  gap: 10px;
-  min-height: 34px;
-  padding: 8px 0;
-  border-top: 1px solid var(--detail-border);
+  grid-template-columns: 1fr;
+  gap: 6px;
+  min-height: 82px;
+  padding: 12px;
+  border-right: 1px solid var(--detail-border);
 }
 
 .operation-detail-page__item-info-sections dd {
@@ -4140,6 +4060,20 @@ watch(
   font-size: 0.78rem;
   font-weight: 820;
   word-break: break-word;
+}
+
+.operation-detail-page__item-info-status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 4px 10px;
+  color: var(--success, #2d7d46);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  border: 1px solid rgb(45 125 70 / 0.42);
+  background: rgb(45 125 70 / 0.08);
 }
 
 .operation-detail-page__domain-table {
@@ -4863,16 +4797,19 @@ watch(
   }
 
   .operation-detail-page__item-media-grid {
-    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+    grid-auto-columns: 160px;
   }
 
   .operation-detail-page__item-info-card {
     gap: 10px;
   }
 
-  .operation-detail-page__item-info-hero,
-  .operation-detail-page__item-info-sections section {
+  .operation-detail-page__item-info-hero {
     padding: 12px;
+  }
+
+  .operation-detail-page__item-info-sections dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .operation-detail-page__item-info-metrics {
@@ -4965,11 +4902,26 @@ watch(
   }
 
   .operation-detail-page__item-media-grid {
-    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    grid-auto-columns: 144px;
   }
 
   .operation-detail-page__item-media {
     grid-template-rows: 104px auto;
+  }
+
+  .operation-detail-page__item-info-sections dl {
+    grid-template-columns: 1fr;
+    border-right: 1px solid var(--detail-border);
+  }
+
+  .operation-detail-page__item-info-sections dl > div,
+  .operation-detail-page__item-info-sections dl > div:nth-child(2n) {
+    border-right: 0;
+    border-bottom: 1px solid var(--detail-border);
+  }
+
+  .operation-detail-page__item-info-sections dl > div:last-child {
+    border-bottom: 0;
   }
 
   .operation-detail-page__item-info-main {
@@ -5002,57 +4954,6 @@ watch(
 
   .operation-detail-page__item-info-sections dd {
     overflow-wrap: anywhere;
-  }
-
-  .operation-detail-page__item-history-table,
-  .operation-detail-page__item-history-table thead,
-  .operation-detail-page__item-history-table tbody,
-  .operation-detail-page__item-history-table tr,
-  .operation-detail-page__item-history-table th,
-  .operation-detail-page__item-history-table td {
-    display: block;
-  }
-
-  .operation-detail-page__item-history-table {
-    background: transparent;
-  }
-
-  .operation-detail-page__item-history-table thead {
-    display: none;
-  }
-
-  .operation-detail-page__item-history-table tbody {
-    display: grid;
-    gap: 10px;
-  }
-
-  .operation-detail-page__item-history-table tr {
-    border: 1px solid var(--detail-border);
-    background: var(--detail-surface-plain);
-  }
-
-  .operation-detail-page__item-history-table td {
-    display: grid;
-    grid-template-columns: 88px minmax(0, 1fr);
-    gap: 10px;
-    padding: 9px 10px;
-    border: 0;
-    border-bottom: 1px solid var(--detail-border);
-    overflow-wrap: anywhere;
-    word-break: normal;
-  }
-
-  .operation-detail-page__item-history-table td::before {
-    content: attr(data-label);
-    color: var(--detail-muted);
-    font-size: 0.66rem;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .operation-detail-page__item-history-table td:last-child {
-    border-bottom: 0;
   }
 
   .operation-detail-page__timeline::before {
