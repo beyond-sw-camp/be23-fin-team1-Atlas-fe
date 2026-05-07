@@ -1935,87 +1935,65 @@ watch(
                   {{ copy.memberSubTabList }}
                 </button>
               </div>
-
-              <!-- 직접 등록 -->
+<!-- 직접 등록 -->
               <div v-if="activeMemberSubTab === 'add'" class="member-add-block">
                 <div v-if="createMemberRows.length === 0" class="login-hint">
                   {{ copy.addMemberRowButton }} 버튼을 눌러 등록할 사원을 입력하세요.
                 </div>
 
-                <div v-else class="member-create-list">
+                <!-- 직접 등록 테이블 -->
+                <div v-else class="member-create-table">
+                  <div class="member-create-table__head">
+                    <span>{{ preferences.language === 'ko' ? '성 *' : 'Last Name *' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '이름 *' : 'First Name *' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '이메일 *' : 'Email *' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '연락처 *' : 'Phone *' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '직급' : 'Job Title' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '부서 *' : 'Department *' }}</span>
+                    <span></span>
+                  </div>
+
                   <div
                     v-for="row in createMemberRows"
                     :key="row.rowId"
-                    class="member-create-card"
+                    class="member-create-table__row"
                   >
-                    <div class="member-create-card__fields">
-                      <label class="member-create-card__field">
-                        <span>{{ preferences.language === 'ko' ? '성 *' : 'Last Name *' }}</span>
-                        <input v-model="row.lastName" type="text" />
-                      </label>
-
-                      <label class="member-create-card__field">
-                        <span>{{ preferences.language === 'ko' ? '이름 *' : 'First Name *' }}</span>
-                        <input v-model="row.firstName" type="text" />
-                      </label>
-
-                      <label class="member-create-card__field">
-                        <span>{{ preferences.language === 'ko' ? '중간 이름' : 'Middle Name' }}</span>
-                        <input v-model="row.middleName" type="text" />
-                      </label>
-
-                      <label class="member-create-card__field">
-                        <span>{{ preferences.language === 'ko' ? '이메일 *' : 'Email *' }}</span>
-                        <input v-model="row.email" type="email" />
-                      </label>
-
-                      <label class="member-create-card__field">
-                        <span>{{ preferences.language === 'ko' ? '연락처 *' : 'Phone *' }}</span>
-                        <input v-model="row.phone" type="text" />
-                      </label>
-
-                      <label class="member-create-card__field">
-                        <span>{{ preferences.language === 'ko' ? '직급' : 'Job Title' }}</span>
-                        <input v-model="row.jobTitle" type="text" />
-                      </label>
-
-                      <label class="member-create-card__field member-create-card__field--wide">
-                        <span>{{ preferences.language === 'ko' ? '부서 *' : 'Department *' }}</span>
-                        <select v-model="row.departmentPublicId">
-                          <option value="">{{ preferences.language === 'ko' ? '부서 선택' : 'Select Department' }}</option>
-                          <option
-                            v-for="dept in departmentOptions"
-                            :key="dept.departmentPublicId"
-                            :value="dept.departmentPublicId"
-                          >
-                            {{ dept.departmentName }} ({{ dept.departmentCode }})
-                          </option>
-                        </select>
-                      </label>
-                    </div>
-
-                    <div class="member-create-card__footer">
-                      <div v-if="row.success" class="member-create-card__result member-create-card__result--success">
-                        <span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span>
-                        <span>{{ copy.memberRegisterComplete }}</span>
-                        <span>{{ copy.loginId }}: <strong>{{ row.loginId }}</strong></span>
-                        <span>{{ copy.temporaryPassword }}: <strong>{{ row.temporaryPassword }}</strong></span>
-                      </div>
-
-                      <div v-else-if="row.errorMessage" class="member-create-card__result member-create-card__result--error">
-                        {{ row.errorMessage }}
-                      </div>
-
-                      <div v-else style="flex: 1;" />
-
-                      <button
-                        class="page-button page-button--secondary"
-                        type="button"
-                        :disabled="isCreatingMembers"
-                        @click="removeCreateMemberRow(row.rowId)"
+                    <input v-model="row.lastName" type="text" :placeholder="preferences.language === 'ko' ? '성' : 'Last'" />
+                    <input v-model="row.firstName" type="text" :placeholder="preferences.language === 'ko' ? '이름' : 'First'" />
+                    <input v-model="row.email" type="email" placeholder="email@example.com" />
+                    <input v-model="row.phone" type="text" placeholder="010-0000-0000" />
+                    <input v-model="row.jobTitle" type="text" />
+                    <select v-model="row.departmentPublicId">
+                      <option value="">{{ preferences.language === 'ko' ? '부서 선택' : 'Select' }}</option>
+                      <option
+                        v-for="dept in departmentOptions"
+                        :key="dept.departmentPublicId"
+                        :value="dept.departmentPublicId"
                       >
-                        {{ copy.removeMemberRowButton }}
-                      </button>
+                        {{ dept.departmentName }}
+                      </option>
+                    </select>
+                    <button
+                      class="page-button page-button--secondary"
+                      type="button"
+                      :disabled="isCreatingMembers"
+                      @click="removeCreateMemberRow(row.rowId)"
+                    >
+                      {{ copy.removeMemberRowButton }}
+                    </button>
+
+                    <div
+                      v-if="row.success || row.errorMessage"
+                      class="member-create-table__feedback"
+                      :class="row.success ? 'member-create-table__feedback--success' : 'member-create-table__feedback--error'"
+                    >
+                      <template v-if="row.success">
+                        <span class="material-symbols-outlined" style="font-size: 15px;">check_circle</span>
+                        {{ copy.memberRegisterComplete }} —
+                        {{ copy.loginId }}: <strong>{{ row.loginId }}</strong> /
+                        {{ copy.temporaryPassword }}: <strong>{{ row.temporaryPassword }}</strong>
+                      </template>
+                      <template v-else>{{ row.errorMessage }}</template>
                     </div>
                   </div>
                 </div>
@@ -2041,6 +2019,8 @@ watch(
                   </button>
                 </div>
               </div>
+
+          
 
               <!-- 엑셀 업로드 -->
               <div v-else-if="activeMemberSubTab === 'excel'" class="member-excel-block">
@@ -2387,66 +2367,87 @@ watch(
   align-items: center;
 }
 
-.member-create-list {
+
+.member-create-table {
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
+  border-radius: 0;
+  overflow: hidden;
+  background: #fff;
+}
+
+.member-create-table__head,
+.member-create-table__row {
   display: grid;
-  gap: 12px;
-}
-
-.member-create-card {
-  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
-  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.72);
-  padding: 16px;
-  display: grid;
-  gap: 14px;
-}
-
-.member-create-card__fields {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.member-create-card__field {
-  display: grid;
-  gap: 4px;
-}
-
-.member-create-card__field span {
-  color: var(--on-surface-variant, #596061);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.member-create-card__field input,
-.member-create-card__field select {
-  width: 100%;
-}
-
-.member-create-card__field--wide {
-  grid-column: 1 / -1;
-}
-
-.member-create-card__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.member-create-card__result {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  grid-template-columns: 0.8fr 0.8fr 1.4fr 1.1fr 0.9fr 1.2fr 72px;
   gap: 8px;
-  font-size: 0.82rem;
+  align-items: center;
+  padding: 8px 12px;
 }
 
-.member-create-card__result--success {
+.member-create-table__head {
+  background: rgb(var(--surface-container-high-rgb, 228 233 234) / 0.85);
+  border-bottom: 0.5px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
+}
+
+.member-create-table__head span {
+  font-size: 11px;
+  font-weight: 700;
   color: var(--on-surface-variant, #596061);
+  letter-spacing: 0.04em;
 }
 
-.member-create-card__result--error {
+.member-create-table__row {
+  border-bottom: 0.5px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
+  background: #fff;
+}
+
+.member-create-table__row:last-of-type {
+  border-bottom: 0;
+}
+
+.member-create-table__row input,
+.member-create-table__row select,
+.member-create-table__row .page-button {
+  height: 30px !important;
+  min-height: unset !important;
+  line-height: 30px !important;
+  padding: 0 8px !important;
+  border-radius: 0 !important;
+  box-sizing: border-box;
+  cursor: pointer;
+  color: var(--on-surface, #111827);
+  font-size: 12px;
+  width: 100%;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
+  background: #fff;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.member-create-table__row .page-button {
+  padding: 0;
+  cursor: pointer;
+  color: var(--on-surface, #111827);
+}
+
+.member-create-table__feedback {
+  grid-column: 1 / -1;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-top: 0.5px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.member-create-table__feedback--success {
+  color: var(--on-surface-variant, #596061);
+  background: rgb(var(--surface-container-low-rgb, 244 247 248) / 0.8);
+}
+
+.member-create-table__feedback--error {
   color: var(--error, #b3261e);
+  background: rgb(var(--error-container-rgb, 249 222 220) / 0.4);
 }
 
 /* 엑셀 업로드 */
@@ -2493,6 +2494,21 @@ watch(
   font-weight: 900;
 }
 
+@media (max-width: 720px) {
+  .member-create-table__head {
+    display: none;
+  }
+
+  .member-create-table__row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .member-create-table__row input:nth-child(3),
+  .member-create-table__row input:nth-child(4),
+  .member-create-table__row select {
+    grid-column: 1 / -1;
+  }
+}
 @media (max-width: 720px) {
   .organization-management-head {
     display: grid;
