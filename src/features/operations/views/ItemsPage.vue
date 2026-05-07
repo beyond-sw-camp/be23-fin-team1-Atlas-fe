@@ -1551,6 +1551,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
             </select>
             <select
               v-model="createCategoryLevel2PublicId"
+              :class="{ 'is-mobile-visible': createCategoryLevel1PublicId }"
               :disabled="!!createdItemForCapability || !createCategoryLevel1PublicId"
               @change="handleCreateSecondCategoryChange"
             >
@@ -1565,6 +1566,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
             </select>
             <select
               v-model="createCategoryLevel3PublicId"
+              :class="{ 'is-mobile-visible': createCategoryLevel2PublicId }"
               :disabled="!!createdItemForCapability || !createCategoryLevel2PublicId"
               @change="handleCreateThirdCategoryChange"
             >
@@ -2301,7 +2303,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   }
 
   .items-page__create-host--page {
-    padding: 12px 16px 24px;
+    padding: 12px 10px 24px;
   }
 
   .items-page__create-host--page .items-page__create-form,
@@ -2309,10 +2311,27 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
     grid-template-columns: 1fr;
   }
 
+  .items-page__create-host--page :deep(.base-modal__surface--page .base-modal__header),
+  .items-page__create-host--page :deep(.base-modal__surface--page .base-modal__body) {
+    width: 100%;
+  }
+
+  .items-page__create-host--page .items-page__create-section {
+    padding: 18px;
+  }
+
   .items-page__category-cascade {
-    grid-template-columns: repeat(3, minmax(180px, 1fr));
-    overflow-x: auto;
-    padding-bottom: 4px;
+    grid-template-columns: 1fr;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .items-page__category-cascade select:not(:first-child) {
+    display: none;
+  }
+
+  .items-page__category-cascade select.is-mobile-visible {
+    display: block;
   }
 
   .items-page__create-host--page .items-page__create-section--master,
