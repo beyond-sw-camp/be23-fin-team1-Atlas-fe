@@ -224,7 +224,7 @@ onBeforeUnmount(() => header.clearActions())
               </button>
             </span>
           </div>
-          <div v-if="!isLoading && filteredCertificates.length === 0" class="certificate-review-page__empty">
+          <div v-if="!isLoading && filteredCertificates.length === 0" class="terminal-page__table-message">
             {{ content.noRows }}
           </div>
         </div>
@@ -320,20 +320,6 @@ onBeforeUnmount(() => header.clearActions())
   min-height: 44px;
   padding: 0 14px;
   font-size: 0.85rem;
-}
-
-.certificate-review-page__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 96px;
-  margin-top: 16px;
-  padding: 24px 16px;
-  border: 1px dashed var(--color-outline-variant);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
-  font-weight: 800;
-  text-align: center;
 }
 
 .certificate-review-page__detail {
