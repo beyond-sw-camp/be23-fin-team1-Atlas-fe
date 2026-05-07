@@ -4333,7 +4333,9 @@ select:not(.app-language-select select):focus {
   }
 
   .risk-rules-table--topics .risk-rules-table__row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: max-content max-content;
+    justify-content: start;
+    gap: 10px 8px;
   }
 
   .risk-rules-table__row--head {
@@ -4356,6 +4358,10 @@ select:not(.app-language-select select):focus {
   .risk-rules-table--topics .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(3),
   .risk-rules-table--topics .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(4) {
     display: none;
+  }
+
+  .risk-rules-table--topics .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(1) {
+    grid-column: 1 / -1;
   }
 
   .risk-rules-chip--topic {
