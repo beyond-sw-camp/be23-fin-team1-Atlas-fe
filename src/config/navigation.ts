@@ -220,6 +220,7 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '송장, BOL, OCR 검증과 문서 상태 추적',
     section: 'response',
     organizations: ['mainBuyer', 'supplier', 'admin'],
+    hidden: true,
   },
   {
     key: 'recommendations',

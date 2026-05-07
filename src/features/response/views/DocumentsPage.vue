@@ -2,6 +2,19 @@
 import { computed, onBeforeUnmount, ref, watchEffect } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+import type { SupplierCertificateResponseDto } from '../../../services/certificate'
+
+const props = withDefaults(defineProps<{
+  embedded?: boolean
+  certificate?: SupplierCertificateResponseDto | null
+}>(), {
+  embedded: false,
+  certificate: null,
+})
+
+const emit = defineEmits<{
+  back: []
+}>()
 
 const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
@@ -50,6 +63,11 @@ const CONTENT = {
 }
 
 const content = computed(() => CONTENT.ko)
+const pageTitle = computed(() => props.certificate ? '인증서 문서 관리' : content.value.title)
+const directoryText = computed(() => {
+  if (!props.certificate) return '루트 / 물류 / 2024년 송장'
+  return `인증서 / ${props.certificate.supplierName || '협력사'} / ${props.certificate.certificateNo}`
+})
 const search = ref('')
 const activeTab = ref(0)
 const activeFileIndex = ref(0)
@@ -96,26 +114,35 @@ watchEffect(() => {
     activeFileIndex.value = 0
   }
 
-  header.setActions([
-    { key: 'documents-upload', label: '업로드 파일', tone: 'primary' },
-    { key: 'documents-export', label: '데이터 내보내기', tone: 'secondary' },
-  ])
+  if (!props.embedded) {
+    header.setActions([
+      { key: 'documents-upload', label: '업로드 파일', tone: 'primary' },
+      { key: 'documents-export', label: '데이터 내보내기', tone: 'secondary' },
+    ])
+  }
 })
 
 onBeforeUnmount(() => {
-  header.clearActions()
+  if (!props.embedded) {
+    header.clearActions()
+  }
 })
 </script>
 
 <template>
-  <section class="app-screen documents-page">
+  <section :class="['app-screen documents-page', { 'documents-page--embedded': embedded }]">
     <header class="documents-page__header">
       <div>
-        <h2 class="documents-page__title">{{ content.title }}</h2>
+        <div v-if="embedded" class="terminal-page__eyebrow">인증서 / 문서 관리</div>
+        <h2 class="documents-page__title">{{ pageTitle }}</h2>
+        <p v-if="certificate" class="documents-page__subtitle">
+          {{ certificate.certificateNo }} · {{ certificate.certificateType?.name || certificate.certificateType?.certificateName || '인증서' }}
+        </p>
       </div>
       <div class="design-trigger-row">
+        <button v-if="embedded" class="page-button page-button--secondary" type="button" @click="emit('back')">목록으로</button>
         <button class="page-button page-button--primary" type="button">{{ '업로드 파일' }}</button>
-        <button class="page-button page-button--secondary" type="button">{{ '배치 내보내기' }}</button>
+        <button v-if="!embedded" class="page-button page-button--secondary" type="button">{{ '배치 내보내기' }}</button>
       </div>
     </header>
 
@@ -145,7 +172,7 @@ onBeforeUnmount(() => {
       <article class="page-panel documents-page__list-panel">
         <div class="documents-page__directory">
           <span class="page-panel__eyebrow">현재 경로</span>
-          <strong>루트 / 물류 / 2024년 송장</strong>
+          <strong>{{ directoryText }}</strong>
         </div>
         <div class="page-panel__eyebrow">{{ content.currentDocument }}</div>
         <div class="documents-file-list">
