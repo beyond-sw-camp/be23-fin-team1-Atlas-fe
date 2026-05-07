@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasDialogStore } from '../../../stores/dialog'
@@ -101,6 +101,7 @@ const dialog = useAtlasDialogStore()
 const preferences = useAtlasPreferencesStore()
 const actor = useActorScope()
 const router = useRouter()
+const route = useRoute()
 
 const copy = computed(() => ({
         eyebrow: '공급망 운영 / 품목 관리',
@@ -335,6 +336,7 @@ const createModalOpen = ref(false)
 
 const createLoading = ref(false)
 const createErrorMessage = ref('')
+const isCreatePage = computed(() => route.name === 'itemCreate')
 const createdItemForCapability = ref<ItemResponseDto | null>(null)
 const createMediaFiles = ref<File[]>([])
 const createMediaPreviews = ref<Array<{ url: string; name: string; kind: 'image' | 'video' }>>([])
@@ -685,7 +687,13 @@ function openCreateModal() {
   if (!actor.canManageItems.value) return
 
   resetCreateForm()
-  createModalOpen.value = true
+  createModalOpen.value = false
+
+  if (!isCreatePage.value) {
+    router.push({ name: 'itemCreate' })
+  } else {
+    router.replace({ name: 'itemCreate' })
+  }
 
   if (!categories.value.length) {
     void loadItemCategories()
@@ -696,6 +704,10 @@ function closeCreateModal() {
   createModalOpen.value = false
   createLoading.value = false
   resetCreateForm()
+
+  if (isCreatePage.value) {
+    router.push({ name: 'items' })
+  }
 }
 
 function isNonNegativeNumber(value: unknown) {
@@ -906,6 +918,10 @@ function closeItemDetail() {
 onMounted(() => {
   void fetchItems()
   void loadItemCategories()
+
+  if (isCreatePage.value) {
+    resetCreateForm()
+  }
 })
 
 // 앱 상단 헤더 버튼과 페이지 버튼을 둘 다 연결합니다.
@@ -1035,7 +1051,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 </script>
 
 <template>
-  <section class="app-screen terminal-page items-page">
+  <section v-if="!isCreatePage" class="app-screen terminal-page items-page">
     <header class="terminal-page__header">
       <div>
         <div class="terminal-page__eyebrow">{{ copy.eyebrow }}</div>
@@ -1392,18 +1408,22 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       
   </BaseModal>
 
+  <div :class="['items-page__create-host', { 'items-page__create-host--page': isCreatePage }]">
   <BaseModal
-    v-model="createModalOpen"
+    :model-value="isCreatePage || createModalOpen"
     :title="copy.createTitle"
+    :presentation="isCreatePage ? 'page' : 'modal'"
     size="lg"
-    @close="closeCreateModal"
+    hide-dividers
+    :hide-close-button="isCreatePage"
+    @update:model-value="(value) => { if (!value) closeCreateModal() }"
   >
-    <div class="items-page__form">
+    <div class="items-page__form items-page__create-form">
       <p v-if="createdItemForCapability" class="items-page__notice">
         {{ copy.retryNotice }}
       </p>
 
-      <section class="items-page__form-section">
+      <section class="items-page__form-section items-page__create-section items-page__create-section--master">
         <div class="items-page__section-title">{{ copy.createMasterSection }}</div>
 
         <label class="items-page__field">
@@ -1501,7 +1521,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 
       </section>
 
-      <section class="items-page__form-section">
+      <section class="items-page__form-section items-page__create-section items-page__create-section--capability">
         <div class="items-page__section-title">{{ copy.createCapabilitySection }}</div>
 
         <label class="items-page__field">
@@ -1561,6 +1581,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       </div>
     </div>
   </BaseModal>
+  </div>
 
   <BaseModal
   v-model="capabilityEditModalOpen"
@@ -1936,10 +1957,117 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   gap: 8px;
 }
 
+.items-page__create-host--page {
+  display: grid;
+  gap: 18px;
+  padding: 20px 28px 28px;
+}
+
+.items-page__create-host--page :deep(.base-modal-page) {
+  padding: 0;
+}
+
+.items-page__create-host--page :deep(.base-modal__surface--page) {
+  border: 0;
+  background: transparent;
+}
+
+.items-page__create-host--page :deep(.base-modal__surface--page .base-modal__header),
+.items-page__create-host--page :deep(.base-modal__surface--page .base-modal__body) {
+  width: min(100%, 1280px);
+  margin-inline: auto;
+  padding-inline: 0;
+}
+
+.items-page__create-host--page :deep(.base-modal__surface--page .base-modal__header) {
+  padding-block: 0 24px !important;
+}
+
+.items-page__create-host--page :deep(.base-modal__heading h2) {
+  margin: 0;
+  font-size: clamp(1.55rem, 2vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.items-page__create-host--page .items-page__create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+  gap: 24px;
+  max-height: none;
+  overflow: visible;
+}
+
+.items-page__create-host--page .items-page__create-section {
+  margin: 0;
+  padding: 24px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 71 71 71) / 0.2);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.78);
+}
+
+.theme-dark .items-page__create-host--page .items-page__create-section {
+  border-color: transparent;
+  background: rgb(var(--surface-container-rgb, 31 31 31) / 0.82);
+}
+
+.items-page__create-host--page .items-page__create-section--master {
+  grid-column: 1;
+}
+
+.items-page__create-host--page .items-page__create-section--capability {
+  grid-column: 2;
+  align-self: start;
+  position: sticky;
+  top: 24px;
+}
+
+.items-page__create-host--page .items-page__notice,
+.items-page__create-host--page .items-page__error,
+.items-page__create-host--page .items-page__actions {
+  grid-column: 1 / -1;
+}
+
+.items-page__create-host--page .items-page__field input,
+.items-page__create-host--page .items-page__field select,
+.items-page__create-host--page .items-page__field textarea {
+  min-height: 46px;
+  padding: 10px 12px;
+  color: #111;
+  background: #fff;
+  border-color: rgb(var(--outline-variant-rgb, 71 71 71) / 0.26);
+  border-bottom-width: 2px;
+}
+
+.items-page__create-host--page .items-page__field input:focus,
+.items-page__create-host--page .items-page__field select:focus,
+.items-page__create-host--page .items-page__field textarea:focus {
+  border-color: rgb(var(--outline-rgb, 17 17 17) / 0.72);
+}
+
 @media (max-width: 960px) {
   .items-page__detail-grid,
   .items-page__form-section {
     grid-template-columns: 1fr;
+  }
+
+  .items-page__create-host--page {
+    padding: 12px 16px 24px;
+  }
+
+  .items-page__create-host--page .items-page__create-form {
+    grid-template-columns: 1fr;
+  }
+
+  .items-page__create-host--page .items-page__create-section--master,
+  .items-page__create-host--page .items-page__create-section--capability,
+  .items-page__create-host--page .items-page__notice,
+  .items-page__create-host--page .items-page__error,
+  .items-page__create-host--page .items-page__actions {
+    grid-column: 1;
+  }
+
+  .items-page__create-host--page .items-page__create-section--capability {
+    position: static;
   }
 
   .items-page__field--full {

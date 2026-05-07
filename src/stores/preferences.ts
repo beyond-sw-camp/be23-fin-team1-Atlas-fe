@@ -42,6 +42,7 @@ const OPERATION_DETAIL_PAGE_KEYS: Record<string, PageKey> = {
 
 const ROUTE_PAGE_KEY_OVERRIDES: Record<string, PageKey> = {
   orderCreate: 'ordersDesk',
+  itemCreate: 'items',
   shipmentCreate: 'shipments',
   settlementBudgetCreate: 'settlements',
   returnCreate: 'returns',
