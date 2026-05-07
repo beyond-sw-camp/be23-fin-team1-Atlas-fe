@@ -365,11 +365,17 @@ const targetTypeDonutChartOptions = computed(() => {
       toolbar: { show: false },
     },
     dataLabels: {
-      style: {
-        fontFamily: 'Pretendard, "Segoe UI", sans-serif',
-        fontWeight: 900,
-      },
-    },
+  style: {
+    fontFamily: 'Pretendard, "Segoe UI", sans-serif',
+    fontWeight: 900,
+    colors: ['#ffffff', '#ffffff', '#ffffff'],  // 도넛 조각 위 → 흰색
+  },
+  dropShadow: {
+    enabled: true,
+    blur: 2,
+    opacity: 0.4,
+  },
+},
     legend: {
       position: 'bottom',
       fontSize: '12px',
@@ -443,25 +449,33 @@ const settlementFlowAmountChartOptions = computed(() => {
       toolbar: { show: false },
       fontFamily: 'Pretendard, "Segoe UI", sans-serif',
     },
-    colors: ['#334155'],
+    colors: ['#94a3b8'],
     plotOptions: {
       bar: {
         horizontal: true,
         borderRadius: 0,
         barHeight: '48%',
+        dataLabels: {
+          position: 'top',  // ← 막대 바깥 오른쪽 끝에 배치
+        },
       },
     },
     dataLabels: {
       enabled: true,
       formatter: formatWonAmount,
+      offsetX: 8,  // ← 막대 끝에서 살짝 더 오른쪽으로
       style: {
         fontSize: '11px',
         fontWeight: 900,
+        colors: ['#334155'],  // ← 항상 어두운 색 (배경이 흰색이므로)
+      },
+      background: {
+        enabled: false,
       },
     },
     xaxis: {
       min: 0,
-      max: settlementFlowAmountMax.value,
+      max: settlementFlowAmountMax.value * 1.25,  // ← 레이블 공간 확보용 여백
       categories: [content.value.stats.payableExpected, content.value.stats.receivableExpected, content.value.stats.netFlow],
       labels: {
         formatter: (value: number) => Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US'),
@@ -1649,6 +1663,7 @@ onMounted(() => {
 .stl-chart-card :deep(.apexcharts-legend-text),
 .stl-chart-card :deep(.apexcharts-datalabel-label),
 .stl-chart-card :deep(.apexcharts-datalabel-value) {
+  /* fill, color 제거 — 차트 옵션에서 각각 제어 */
   font-family: Pretendard, "Segoe UI", sans-serif !important;
 }
 
