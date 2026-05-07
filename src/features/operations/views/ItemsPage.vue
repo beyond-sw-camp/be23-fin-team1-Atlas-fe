@@ -2346,6 +2346,10 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
     position: static;
   }
 
+  .items-page__create-host--page .items-page__actions {
+    margin-top: 20px;
+  }
+
   .items-page__field--full {
     grid-column: auto;
   }
