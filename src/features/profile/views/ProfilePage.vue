@@ -1642,21 +1642,6 @@ onBeforeUnmount(() => {
               </label>
             </div>
 
-            <div class="page-feed" style="margin-top: 12px;">
-              <div class="page-feed__item">
-                <span class="page-feed__label">
-                  {{ '로그인 ID' }}
-                </span>
-                <strong class="page-feed__text">{{ userDetail.loginId }}</strong>
-              </div>
-
-              <div class="page-feed__item">
-                <span class="page-feed__label">
-                  {{ '권한' }}
-                </span>
-                <strong class="page-feed__text">{{ currentRoleLabel }}</strong>
-              </div>
-            </div>
             </div>
           </div>
         </article>
