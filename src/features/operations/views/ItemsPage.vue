@@ -348,6 +348,9 @@ const createdItemForCapability = ref<ItemResponseDto | null>(null)
 const createMediaFiles = ref<File[]>([])
 const createMediaPreviews = ref<CreateMediaPreview[]>([])
 const createMediaDragIndex = ref<number | null>(null)
+const createCategoryLevel1PublicId = ref('')
+const createCategoryLevel2PublicId = ref('')
+const createCategoryLevel3PublicId = ref('')
 
 const dashboardSummary = ref<ItemDashboardSummaryResponseDto | null>(null)
 const linkedOrders = ref<ItemLinkedPurchaseOrderResponseDto[]>([])
@@ -582,6 +585,55 @@ const leafCategoryOptions = computed(() =>
   categoryOptions.value,
 )
 
+const createRootCategoryOptions = computed(() =>
+  categories.value
+    .filter((category) => !category.parentCategoryPublicId || category.categoryLevel === 1)
+    .sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder ||
+        a.categoryName.localeCompare(b.categoryName, 'ko-KR'),
+    ),
+)
+
+const createSecondCategoryOptions = computed(() =>
+  categories.value
+    .filter((category) => category.parentCategoryPublicId === createCategoryLevel1PublicId.value)
+    .sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder ||
+        a.categoryName.localeCompare(b.categoryName, 'ko-KR'),
+    ),
+)
+
+const createThirdCategoryOptions = computed(() =>
+  categories.value
+    .filter((category) => category.parentCategoryPublicId === createCategoryLevel2PublicId.value)
+    .sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder ||
+        a.categoryName.localeCompare(b.categoryName, 'ko-KR'),
+    ),
+)
+
+function handleCreateRootCategoryChange() {
+  createCategoryLevel2PublicId.value = ''
+  createCategoryLevel3PublicId.value = ''
+  createForm.value.itemCategoryPublicId = createCategoryLevel1PublicId.value
+}
+
+function handleCreateSecondCategoryChange() {
+  createCategoryLevel3PublicId.value = ''
+  createForm.value.itemCategoryPublicId =
+    createCategoryLevel2PublicId.value || createCategoryLevel1PublicId.value
+}
+
+function handleCreateThirdCategoryChange() {
+  createForm.value.itemCategoryPublicId =
+    createCategoryLevel3PublicId.value ||
+    createCategoryLevel2PublicId.value ||
+    createCategoryLevel1PublicId.value
+}
+
 
 function qualityGradeText(value: SupplierItemQualityGrade | null | undefined) {
   if (!value) return '-'
@@ -721,6 +773,9 @@ async function loadItemCategories() {
 function resetCreateForm() {
   createErrorMessage.value = ''
   createdItemForCapability.value = null
+  createCategoryLevel1PublicId.value = ''
+  createCategoryLevel2PublicId.value = ''
+  createCategoryLevel3PublicId.value = ''
   createMediaFiles.value = []
   revokeCreateMediaPreviews()
   createForm.value = {
@@ -1477,23 +1532,54 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       <section class="items-page__form-section items-page__create-section items-page__create-section--master">
         <div class="items-page__section-title">{{ copy.createMasterSection }}</div>
 
-        <label class="items-page__field items-page__field--full">
+        <div class="items-page__field items-page__field--full">
           <span>카테고리 <b class="items-page__required">*</b></span>
-          <select
-            v-model="createForm.itemCategoryPublicId"
-            :disabled="!!createdItemForCapability"
-          >
-            <option value="">{{ itemCategoryPlaceholder }}</option>
-            <option
-              v-for="category in leafCategoryOptions"
-              :key="category.publicId"
-              :value="category.publicId"
+          <div class="items-page__category-cascade">
+            <select
+              v-model="createCategoryLevel1PublicId"
+              :disabled="!!createdItemForCapability"
+              @change="handleCreateRootCategoryChange"
             >
-              {{ category.label }}
-            </option>
-          </select>
+              <option value="">1차 카테고리</option>
+              <option
+                v-for="category in createRootCategoryOptions"
+                :key="category.publicId"
+                :value="category.publicId"
+              >
+                {{ category.categoryName }}
+              </option>
+            </select>
+            <select
+              v-model="createCategoryLevel2PublicId"
+              :disabled="!!createdItemForCapability || !createCategoryLevel1PublicId"
+              @change="handleCreateSecondCategoryChange"
+            >
+              <option value="">2차 카테고리</option>
+              <option
+                v-for="category in createSecondCategoryOptions"
+                :key="category.publicId"
+                :value="category.publicId"
+              >
+                {{ category.categoryName }}
+              </option>
+            </select>
+            <select
+              v-model="createCategoryLevel3PublicId"
+              :disabled="!!createdItemForCapability || !createCategoryLevel2PublicId"
+              @change="handleCreateThirdCategoryChange"
+            >
+              <option value="">3차 카테고리</option>
+              <option
+                v-for="category in createThirdCategoryOptions"
+                :key="category.publicId"
+                :value="category.publicId"
+              >
+                {{ category.categoryName }}
+              </option>
+            </select>
+          </div>
           <small class="items-page__hint">{{ itemCategoryHint }}</small>
-        </label>
+        </div>
 
         <label class="items-page__field">
           <span>품목명 <b class="items-page__required">*</b></span>
@@ -1546,6 +1632,44 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
           </select>
         </label>
 
+        <label class="items-page__field">
+          <span>리드타임 <b class="items-page__required">*</b></span>
+          <input v-model.number="createForm.leadTimeDays" type="number" min="0" />
+        </label>
+
+        <label class="items-page__field">
+          <span>월간 생산량 <b class="items-page__required">*</b></span>
+          <input v-model.number="createForm.monthlyCapacity" type="number" min="1" step="1" />
+        </label>
+
+        <label class="items-page__field">
+          <span>{{ createForm.supplyType === 'MAKE_TO_ORDER' ? '생산 가능 수량' : '주문 가능 수량' }} <b class="items-page__required">*</b></span>
+          <input v-model.number="createForm.availableQty" type="number" min="1" step="1" />
+        </label>
+
+        <label class="items-page__field">
+          <span>최소 주문 수량 <b class="items-page__required">*</b></span>
+          <input v-model.number="createForm.moq" type="number" min="1" step="1" />
+        </label>
+
+        <label class="items-page__field">
+          <span>품질 <b class="items-page__required">*</b></span>
+          <select v-model="createForm.qualityGrade">
+            <option value="">{{ copy.options.none }}</option>
+            <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
+              {{ qualityGradeText(grade) }}
+            </option>
+          </select>
+        </label>
+
+        <label class="items-page__field">
+          <span>발주 수량 부분 확정 <b class="items-page__required">*</b></span>
+          <select v-model="createForm.partialConfirmationAllowed">
+            <option :value="true">{{ copy.options.allowed }}</option>
+            <option :value="false">{{ copy.options.disallowed }}</option>
+          </select>
+        </label>
+
         <div class="items-page__field items-page__field--full">
           <span>{{ copy.mediaUploadTitle }}</span>
           <input
@@ -1593,49 +1717,6 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
             </button>
           </div>
         </div>
-
-      </section>
-
-      <section class="items-page__form-section items-page__create-section items-page__create-section--capability">
-        <div class="items-page__section-title">{{ copy.createCapabilitySection }}</div>
-
-        <label class="items-page__field">
-          <span>리드타임 <b class="items-page__required">*</b></span>
-          <input v-model.number="createForm.leadTimeDays" type="number" min="0" />
-        </label>
-
-        <label class="items-page__field">
-          <span>월간 생산량 <b class="items-page__required">*</b></span>
-          <input v-model.number="createForm.monthlyCapacity" type="number" min="1" step="1" />
-        </label>
-
-        <label class="items-page__field">
-          <span>{{ createForm.supplyType === 'MAKE_TO_ORDER' ? '생산 가능 수량' : '주문 가능 수량' }} <b class="items-page__required">*</b></span>
-          <input v-model.number="createForm.availableQty" type="number" min="1" step="1" />
-        </label>
-
-        <label class="items-page__field">
-          <span>최소 주문 수량 <b class="items-page__required">*</b></span>
-          <input v-model.number="createForm.moq" type="number" min="1" step="1" />
-        </label>
-
-        <label class="items-page__field">
-          <span>품질 <b class="items-page__required">*</b></span>
-          <select v-model="createForm.qualityGrade">
-            <option value="">{{ copy.options.none }}</option>
-            <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
-              {{ qualityGradeText(grade) }}
-            </option>
-          </select>
-        </label>
-
-        <label class="items-page__field">
-          <span>발주 수량 부분 확정 <b class="items-page__required">*</b></span>
-          <select v-model="createForm.partialConfirmationAllowed">
-            <option :value="true">{{ copy.options.allowed }}</option>
-            <option :value="false">{{ copy.options.disallowed }}</option>
-          </select>
-        </label>
 
       </section>
 
@@ -1854,6 +1935,16 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   gap: 10px;
 }
 
+.items-page__preview-grid {
+  display: flex;
+  gap: 12px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+  scroll-snap-type: x proximity;
+}
+
 .items-page__media-input {
   position: absolute;
   width: 1px;
@@ -1928,6 +2019,8 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 
 .items-page__preview-tile {
   cursor: grab;
+  flex: 0 0 160px;
+  scroll-snap-align: start;
 }
 
 .items-page__preview-tile:active {
@@ -2144,14 +2237,15 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 }
 
 .items-page__create-host--page .items-page__create-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
-  gap: 24px;
+  display: block;
   max-height: none;
   overflow: visible;
 }
 
 .items-page__create-host--page .items-page__create-section {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
   margin: 0;
   padding: 24px;
   border: 1px solid rgb(var(--outline-variant-rgb, 71 71 71) / 0.2);
@@ -2164,14 +2258,11 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 }
 
 .items-page__create-host--page .items-page__create-section--master {
-  grid-column: 1;
+  grid-column: 1 / -1;
 }
 
 .items-page__create-host--page .items-page__create-section--capability {
-  grid-column: 2;
-  align-self: start;
-  position: sticky;
-  top: 24px;
+  grid-column: 1 / -1;
 }
 
 .items-page__create-host--page .items-page__notice,
@@ -2197,6 +2288,12 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   border-color: rgb(var(--outline-rgb, 17 17 17) / 0.72);
 }
 
+.items-page__category-cascade {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
 @media (max-width: 960px) {
   .items-page__detail-grid,
   .items-page__form-section {
@@ -2207,8 +2304,15 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
     padding: 12px 16px 24px;
   }
 
-  .items-page__create-host--page .items-page__create-form {
+  .items-page__create-host--page .items-page__create-form,
+  .items-page__create-host--page .items-page__create-section {
     grid-template-columns: 1fr;
+  }
+
+  .items-page__category-cascade {
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 4px;
   }
 
   .items-page__create-host--page .items-page__create-section--master,
