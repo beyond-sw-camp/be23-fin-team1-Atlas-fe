@@ -596,7 +596,9 @@ async function submitProfileUpdate() {
       email: profileForm.email.trim(),
       phone: profileForm.phone,
       jobTitle: profileForm.jobTitle.trim() || undefined,
-      departmentPublicId: profileForm.departmentPublicId || undefined,
+      departmentPublicId: canEditProfileDepartment.value
+        ? profileForm.departmentPublicId || undefined
+        : undefined,
     })
 
     // 저장 후 화면 데이터도 새 값으로 바꿉니다.
@@ -812,6 +814,7 @@ const canOpenProfileImageViewer = computed(() => Boolean(userDetail.value?.profi
 const isAdmin = computed(() => myInfo.value?.role === 'ADMIN')
 const isOrgAdmin = computed(() => myInfo.value?.role === 'ORG_ADMIN')
 const isUser = computed(() => myInfo.value?.role === 'USER')
+const canEditProfileDepartment = computed(() => !isAdmin.value)
 
 // 로그인 이력 카드는 최근 5개만 미리 보여줍니다.
 const visibleLoginHistories = computed(() => {
@@ -1613,7 +1616,7 @@ onBeforeUnmount(() => {
             </label>
 
             <div class="profile-work-fields">
-              <label>
+              <label v-if="canEditProfileDepartment">
                 <span>{{ '부서' }}</span>
                 <select v-model="profileForm.departmentPublicId">
                   <option value="">
