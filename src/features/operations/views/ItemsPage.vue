@@ -2271,6 +2271,10 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   grid-column: 1 / -1;
 }
 
+.items-page__create-host--page .items-page__actions {
+  margin-top: 20px;
+}
+
 .items-page__create-host--page .items-page__field input,
 .items-page__create-host--page .items-page__field select,
 .items-page__create-host--page .items-page__field textarea {
