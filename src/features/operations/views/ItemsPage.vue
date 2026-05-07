@@ -1530,8 +1530,6 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       </p>
 
       <section class="items-page__form-section items-page__create-section items-page__create-section--master">
-        <div class="items-page__section-title">{{ copy.createMasterSection }}</div>
-
         <div class="items-page__field items-page__field--full">
           <span>카테고리 <b class="items-page__required">*</b></span>
           <div class="items-page__category-cascade">
