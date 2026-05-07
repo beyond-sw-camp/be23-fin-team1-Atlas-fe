@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
+import '@vuepic/vue-datepicker/dist/main.css'
+import { ko } from 'date-fns/locale/ko'
 import { BaseModal } from '../../shared'
 import CertificateTypeCreateModal from './CertificateTypeCreateModal.vue'
 import { getCertificateTypes } from '../../../services/certificate'
@@ -65,6 +68,9 @@ async function loadTypes() {
     const types = await getCertificateTypes()
     if (types && types.length > 0) {
       certificateTypes.value = types
+      if (!form.value.certificateTypePublicId) {
+        form.value.certificateTypePublicId = types[0].publicId
+      }
     }
   } catch (error) {
     console.error('Failed to load certificate types', error)
@@ -126,6 +132,8 @@ const content = computed(() => {
         issuer: '발급 기관 (자동입력)',
         issueDate: '발급일',
         expDate: '만료일',
+        file: '인증서 파일 (PDF 필수)',
+        typeAdd: '신규 유형 추가',
         cancel: '취소',
         submit: '등록 요청'
       }
@@ -139,6 +147,7 @@ const content = computed(() => {
         issueDate: 'Issued Date',
         expDate: 'Expiry Date',
         file: 'Certificate File (PDF required)',
+        typeAdd: 'Add Type',
         cancel: 'CANCEL',
         submit: 'REQUEST'
       }
@@ -204,11 +213,20 @@ async function handleSubmit() {
     :model-value="isOpen"
     :title="content.title"
     :description="content.desc"
-    size="md"
+    size="lg"
+    modal-class="cert-create-modal"
+    hide-dividers
+    hide-close-button
     @update:model-value="emit('close')"
   >
     <form @submit.prevent="handleSubmit" class="cert-create-modal__form">
-      <div class="terminal-form-group" v-if="session.organizationType !== 'SUPPLIER'">
+      <section class="cert-create-modal__section">
+        <div class="cert-create-modal__section-head">
+          <span>01</span>
+          <strong>인증 대상</strong>
+        </div>
+
+        <div class="terminal-form-group" v-if="session.organizationType !== 'SUPPLIER'">
         <label>
           <span>{{ content.supplier }}</span>
           <select v-model="supplierId" required>
@@ -221,12 +239,12 @@ async function handleSubmit() {
       </div>
 
       <div class="terminal-form-row">
-        <div class="terminal-form-group" style="flex: 1;">
+        <div class="terminal-form-group">
           <label>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="cert-create-modal__label-row">
               <span>{{ content.certType }}</span>
-              <button v-if="session.userRole === 'ADMIN'" type="button" @click="isTypeModalOpen = true" style="background:none; border:none; color:var(--color-primary); cursor:pointer; font-size:0.75rem; text-decoration:underline;">
-                + 신규 추가
+              <button v-if="session.userRole === 'ADMIN'" type="button" class="cert-create-modal__inline-action" @click="isTypeModalOpen = true">
+                {{ content.typeAdd }}
               </button>
             </div>
             <select v-model="form.certificateTypePublicId" required>
@@ -235,7 +253,7 @@ async function handleSubmit() {
             </select>
           </label>
         </div>
-        <div class="terminal-form-group" style="flex: 1;">
+        <div class="terminal-form-group">
           <label>
             <span>{{ content.certNo }}</span>
             <input
@@ -248,8 +266,15 @@ async function handleSubmit() {
           </label>
         </div>
       </div>
+      </section>
 
-      <div class="terminal-form-group">
+      <section class="cert-create-modal__section">
+        <div class="cert-create-modal__section-head">
+          <span>02</span>
+          <strong>발급 정보</strong>
+        </div>
+
+        <div class="terminal-form-group">
         <label>
           <span>{{ content.issuer }}</span>
           <input
@@ -263,26 +288,58 @@ async function handleSubmit() {
       </div>
 
       <div class="terminal-form-row">
-        <div class="terminal-form-group" style="flex: 1;">
+        <div class="terminal-form-group">
           <label>
             <span>{{ content.issueDate }}</span>
-            <input v-model="form.issuedAt" type="date" required />
+            <VueDatePicker
+              v-model="form.issuedAt"
+              class="cert-create-modal__datepicker"
+              model-type="yyyy-MM-dd"
+              format="yyyy. MM. dd."
+              placeholder="연도. 월. 일."
+              :locale="ko"
+              auto-apply
+              :enable-time-picker="false"
+              :clearable="false"
+              :teleport="false"
+              required
+            />
           </label>
         </div>
-        <div class="terminal-form-group" style="flex: 1;">
+        <div class="terminal-form-group">
           <label>
             <span>{{ content.expDate }}</span>
-            <input v-model="form.expiredAt" type="date" required />
+            <VueDatePicker
+              v-model="form.expiredAt"
+              class="cert-create-modal__datepicker"
+              model-type="yyyy-MM-dd"
+              format="yyyy. MM. dd."
+              placeholder="연도. 월. 일."
+              :locale="ko"
+              auto-apply
+              :enable-time-picker="false"
+              :clearable="false"
+              :teleport="false"
+              required
+            />
           </label>
         </div>
       </div>
+      </section>
 
-      <div class="terminal-form-group">
-        <label>
-          <span>{{ props.language === 'ko' ? '인증서 파일 (PDF 필수)' : 'Certificate File (PDF required)' }}</span>
+      <section class="cert-create-modal__section">
+        <div class="cert-create-modal__section-head">
+          <span>03</span>
+          <strong>파일 첨부</strong>
+        </div>
+
+        <label class="cert-create-modal__file">
           <input type="file" accept="application/pdf" @change="handleFileChange" required />
+          <span class="material-symbols-outlined">upload_file</span>
+          <strong>{{ selectedFile?.name || content.file }}</strong>
+          <em>PDF 파일만 등록 가능</em>
         </label>
-      </div>
+      </section>
 
       <div class="terminal-form-actions">
         <button class="page-button page-button--secondary" type="button" @click="emit('close')" :disabled="isUploading">
@@ -307,8 +364,53 @@ async function handleSubmit() {
 .cert-create-modal__form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-top: 16px;
+  gap: 14px;
+}
+
+.cert-create-modal__section {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.78);
+}
+
+.cert-create-modal__section-head,
+.cert-create-modal__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cert-create-modal__section-head span {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.36);
+  color: var(--on-surface-variant, #596061);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.cert-create-modal__section-head strong {
+  margin-right: auto;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.cert-create-modal__inline-action {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--primary, #5e5e5e);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .terminal-form-group label {
@@ -334,6 +436,7 @@ async function handleSubmit() {
   border: none;
   outline: none;
   border-bottom: 2px solid var(--color-surface-container-high);
+  min-height: 42px;
   padding: 8px 0;
   transition: border-color 0.2s;
 }
@@ -348,6 +451,97 @@ async function handleSubmit() {
   border-bottom-color: var(--color-primary);
 }
 
+.cert-create-modal__datepicker {
+  width: 100%;
+}
+
+.cert-create-modal__datepicker :deep(.dp__main) {
+  font-family: inherit;
+}
+
+.cert-create-modal__datepicker :deep(.dp__input_wrap) {
+  width: 100%;
+}
+
+.cert-create-modal__datepicker :deep(.dp__input) {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 32px 8px 0;
+  border: 0;
+  border-bottom: 2px solid var(--color-surface-container-high);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-on-surface);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cert-create-modal__datepicker :deep(.dp__input:focus) {
+  border-bottom-color: var(--color-primary);
+  box-shadow: none;
+}
+
+.cert-create-modal__datepicker :deep(.dp__input_icon) {
+  inset-inline-start: auto;
+  right: 0;
+  color: var(--color-on-surface, #2f3435);
+}
+
+.cert-create-modal__datepicker :deep(.dp__clear_icon) {
+  display: none;
+}
+
+.cert-create-modal__datepicker :deep(.dp__menu) {
+  border: 1px solid rgb(var(--outline-rgb, 117 124 125) / 0.38);
+  border-radius: 0;
+  background: var(--surface-container-lowest, #fff);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.16);
+  font-family: inherit;
+}
+
+.cert-create-modal__datepicker :deep(.dp__month_year_row),
+.cert-create-modal__datepicker :deep(.dp__calendar_header) {
+  color: var(--on-surface, #2f3435);
+  font-weight: 900;
+}
+
+.cert-create-modal__datepicker :deep(.dp__calendar_header_separator) {
+  background: rgb(var(--outline-variant-rgb, 172 179 180) / 0.42);
+}
+
+.cert-create-modal__datepicker :deep(.dp__cell_inner) {
+  border-radius: 0;
+  color: var(--on-surface, #2f3435);
+  font-weight: 800;
+}
+
+.cert-create-modal__datepicker :deep(.dp__cell_inner:hover) {
+  background: rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
+}
+
+.cert-create-modal__datepicker :deep(.dp__active_date),
+.cert-create-modal__datepicker :deep(.dp__today) {
+  border-color: var(--primary, #5e5e5e);
+  background: var(--primary, #5e5e5e);
+  color: var(--on-primary, #fff);
+}
+
+.cert-create-modal__datepicker :deep(.dp__action_row) {
+  border-top: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.32);
+}
+
+.cert-create-modal__datepicker :deep(.dp__action_button) {
+  border-radius: 0;
+  font-family: inherit;
+  font-weight: 900;
+}
+
+.cert-create-modal__datepicker :deep(.dp__button_bottom) {
+  display: none;
+}
+
 .cert-create-modal__readonly-input {
   color: var(--color-on-surface-variant) !important;
   border-bottom-style: dashed !important;
@@ -356,8 +550,48 @@ async function handleSubmit() {
 }
 
 .terminal-form-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+.cert-create-modal__file {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 126px;
+  padding: 20px;
+  border: 1px dashed rgb(var(--outline-rgb, 117 124 125) / 0.5);
+  background: var(--surface-container-lowest, #fff);
+  color: var(--on-surface, #2f3435);
+  text-align: center;
+  cursor: pointer;
+}
+
+.cert-create-modal__file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.cert-create-modal__file .material-symbols-outlined {
+  font-size: 2rem;
+  color: var(--on-surface-variant, #596061);
+}
+
+.cert-create-modal__file strong {
+  font-size: 0.92rem;
+  font-weight: 900;
+  word-break: break-all;
+}
+
+.cert-create-modal__file em {
+  color: var(--on-surface-variant, #596061);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .terminal-form-actions {
@@ -365,5 +599,11 @@ async function handleSubmit() {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 24px;
+}
+
+@media (max-width: 720px) {
+  .terminal-form-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

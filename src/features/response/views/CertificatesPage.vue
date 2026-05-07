@@ -1,25 +1,20 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
-import { useRouter } from 'vue-router'
-import { BaseModal, useModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasSessionStore } from '../../../stores/session'
 import { 
   getAllCertificates, getExpiringCertificates, 
-  approveCertificate, rejectCertificate, createSupplierCertificate,
-  getCertificateHistories,
+  createSupplierCertificate,
   type SupplierCertificateResponseDto,
   type CreateSupplierCertificateRequestDto,
-  type CertificateHistoryResponseDto
 } from '../../../services/certificate'
 import CertificateCreateModal from '../components/CertificateCreateModal.vue'
-import { getAttachment } from '../../../services/file'
+import DocumentsPage from './DocumentsPage.vue'
 
 const header = useAtlasHeaderStore()
 const dialog = useAtlasDialogStore()
 const session = useAtlasSessionStore()
-const router = useRouter()
 
 const CONTENT = {
   ko: {
@@ -35,10 +30,8 @@ const CONTENT = {
     tabs: ['전체', '심사 요청', '승인', '만료', '반려', '철회'],
     searchPlaceholder: '협력사명, 인증 번호 검색...',
     tableTitle: '전체 인증서 이력',
-    exportLabel: '내보내기',
     createLabel: '인증서 등록',
     columns: ['인증서 번호', '협력사', '인증 유형', '발급 기관', '발급일', '만료일', '남은 일수', '상태', '상세'],
-    timelineTitle: '인증서 심사 추적 이력',
     detailLabel: '상세보기'
   },
 }
@@ -64,20 +57,13 @@ const content = computed(() => CONTENT.ko)
 
 // API States
 const certs = ref<SupplierCertificateResponseDto[]>([])
-const certHistories = ref<CertificateHistoryResponseDto[]>([])
 const expiringCount = ref<number>(0)
 const search = ref('')
 const activeTab = ref<string>('전체')
 
 // Modals
-const { isOpen: traceOpen, payload: selectedCert, open: openTrace, close: closeTrace } = useModal<SupplierCertificateResponseDto>(false)
 const isCreateModalOpen = ref(false)
-
-import { getSuppliers } from '../../../services/supplier'
-
-// ... existing imports ...
-
-// ... (find where `certs.value = fetchedCerts` happens and update)
+const selectedCertificateForDocuments = ref<SupplierCertificateResponseDto | null>(null)
 async function fetchCertificates() {
   try {
     const res = await getAllCertificates()
@@ -168,52 +154,8 @@ function formatDate(dateStr: string) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-const traceTitle = computed(() => {
-  if (!selectedCert.value) return content.value.timelineTitle
-  return `${selectedCert.value.certificateNo} 추적`
-})
-
 async function handleCertSelect(cert: SupplierCertificateResponseDto) {
-  router.push({
-    name: 'operationDetail',
-    params: {
-      kind: 'certificates',
-      publicId: cert.publicId,
-    },
-  })
-}
-
-async function handleApprove() {
-  if (!selectedCert.value) return
-  if (!(await dialog.confirm('해당 인증서를 승인하시겠습니까?'))) return
-
-  try {
-    await approveCertificate(selectedCert.value.publicId)
-    await dialog.alert('승인되었습니다.')
-    await fetchCertificates()
-    // refresh history
-    certHistories.value = await getCertificateHistories(selectedCert.value.publicId)
-    // update local payload reference status
-    selectedCert.value.certificateStatus = 'APPROVED'
-  } catch (err: any) {
-    await dialog.alert('승인에 실패했습니다: ' + err.message)
-  }
-}
-
-async function handleReject() {
-  if (!selectedCert.value) return
-  const reason = await dialog.prompt('반려 사유를 입력해주세요.')
-  if (reason === null) return
-
-  try {
-    await rejectCertificate(selectedCert.value.publicId, reason)
-    await dialog.alert('반려되었습니다.')
-    await fetchCertificates()
-    certHistories.value = await getCertificateHistories(selectedCert.value.publicId)
-    selectedCert.value.certificateStatus = 'REJECTED'
-  } catch (err: any) {
-    await dialog.alert('반려에 실패했습니다: ' + err.message)
-  }
+  selectedCertificateForDocuments.value = cert
 }
 
 async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupplierCertificateRequestDto) {
@@ -228,49 +170,31 @@ async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupp
   }
 }
 
-async function handleDownloadPdf(attachmentPublicId: string | undefined) {
-  if (!attachmentPublicId) {
-    await dialog.alert('첨부된 파일이 없습니다.')
-    return
-  }
-  try {
-    const data = await getAttachment(attachmentPublicId)
-    if (data.files && data.files.length > 0) {
-      // 첫 번째 파일의 경로를 새 창에서 열기
-      const fileUrl = data.files[0].fileUrl || (data.files[0] as any).filePath
-      if (fileUrl) {
-        window.open(fileUrl, '_blank')
-      } else {
-        throw new Error('File URL not found')
-      }
-    } else {
-      await dialog.alert('파일을 찾을 수 없습니다.')
-    }
-  } catch (err) {
-    console.error('Download failed:', err)
-    await dialog.alert('다운로드 중 오류가 발생했습니다.')
-  }
-}
-
 watchEffect(() => {
-  activeTab.value = content.value.tabs[0]
-  header.setActions([
-    { key: 'cert-export', label: content.value.exportLabel, tone: 'secondary' },
-  ])
+  if (!content.value.tabs.includes(activeTab.value)) {
+    activeTab.value = content.value.tabs[0]
+  }
+  header.setActions([])
 })
 
 onBeforeUnmount(() => header.clearActions())
 </script>
 
 <template>
-  <section class="app-screen terminal-page">
+  <DocumentsPage
+    v-if="selectedCertificateForDocuments"
+    embedded
+    :certificate="selectedCertificateForDocuments"
+    @back="selectedCertificateForDocuments = null"
+  />
+
+  <section v-else class="app-screen terminal-page">
     <header class="terminal-page__header">
       <div>
         <div class="terminal-page__eyebrow">{{ content.eyebrow }}</div>
         <h2 class="terminal-page__title">{{ content.title }}</h2>
       </div>
       <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button">{{ content.exportLabel }}</button>
         <button v-if="session.userRole !== 'ADMIN'" class="page-button page-button--primary" type="button" @click="isCreateModalOpen = true">
           {{ content.createLabel }}
         </button>
@@ -352,59 +276,6 @@ onBeforeUnmount(() => header.clearActions())
     @submit="handleCreateCertSubmit" 
   />
 
-  <!-- Trace Timeline Modal -->
-  <BaseModal
-    v-model="traceOpen"
-    :title="traceTitle"
-    :description="'인증서의 심사, 승인, 반려 이력을 조회합니다.'"
-    size="lg"
-    @close="closeTrace"
-  >
-    <div v-if="selectedCert" style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--color-surface-container-high);">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <span style="font-size: 0.75rem; font-weight: bold; color: var(--color-on-surface-variant); letter-spacing: 0.05em;">인증서 파일</span>
-        <button v-if="selectedCert.attachmentPublicId" class="page-button page-button--secondary" style="padding: 4px 12px; font-size: 0.75rem;" @click="handleDownloadPdf(selectedCert.attachmentPublicId)">
-          PDF 보기
-        </button>
-        <span v-else style="color: var(--color-on-surface-variant); font-size: 0.875rem;">첨부파일 없음</span>
-      </div>
-    </div>
-
-    <div class="page-table is-trace-cols" style="margin-top: 16px;">
-      <div class="page-table__row page-table__row--head">
-        <span>{{ '일시' }}</span>
-        <span>{{ '상태' }}</span>
-        <span>{{ '상세 사유' }}</span>
-      </div>
-      <div v-for="hist in certHistories" :key="hist.publicId" class="page-table__row">
-        <span>{{ formatDate(hist.recordedAt) }}</span>
-        <span>
-          <span :class="{'text-warning': hist.afterStatus === 'REVIEW_REQUESTED', 'text-nominal': hist.afterStatus === 'APPROVED', 'text-critical': hist.afterStatus === 'REJECTED' || hist.afterStatus === 'REVOKED'}">
-            {{ certStatusText(hist.afterStatus) }}
-          </span>
-        </span>
-        <span>{{ hist.reason || '-' }}</span>
-      </div>
-      <div v-if="certHistories.length === 0" style="padding: 16px; text-align: center; color: var(--color-on-surface-variant); grid-column: 1 / -1;">
-        표시할 이력이 없습니다.
-      </div>
-    </div>
-    
-    <!-- Admin Review Actions -->
-    <div v-if="session.userRole === 'ADMIN' && selectedCert && selectedCert.certificateStatus === 'REVIEW_REQUESTED'" style="margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--color-surface-container-high); display: flex; flex-direction: column; gap: 16px;">
-      <div>
-        <div style="font-size: 0.75rem; color: var(--color-warning); margin-bottom: 8px;">관리자 검토 작업</div>
-        <div style="display: flex; gap: 8px;">
-          <button class="page-button page-button--secondary" style="border-color: var(--color-nominal)" type="button" @click="handleApprove">
-            승인
-          </button>
-          <button class="page-button page-button--secondary" style="border-color: var(--color-critical)" type="button" @click="handleReject">
-            반려
-          </button>
-        </div>
-      </div>
-    </div>
-  </BaseModal>
 </template>
 
 <style scoped>
