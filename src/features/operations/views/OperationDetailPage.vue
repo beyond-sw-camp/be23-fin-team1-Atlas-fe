@@ -4467,7 +4467,7 @@ watch(
 
 .operation-detail-page__bottom-actions--start {
   display: flex;
-  justify-content: flex-start;
+  justify-content: flex-end;
 }
 
 .operation-detail-page__recommendation {
