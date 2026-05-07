@@ -1463,6 +1463,8 @@ select:not(.app-language-select select):focus {
   background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.86);
   backdrop-filter: blur(20px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .theme-dark .app-sidebar {
@@ -1680,6 +1682,7 @@ select:not(.app-language-select select):focus {
   min-height: 100vh;
   margin-left: 280px;
   padding-top: 64px;
+  overscroll-behavior: contain;
 }
 
 .app-main__head {

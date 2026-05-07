@@ -27,13 +27,14 @@ import {
 import {
   getInventory,
   getItemInventories,
-  getRecentNodeInventories,
+  getNodeInventories,
   updateInventory,
 } from '../../../services/inventory'
 import {
   activateLogisticsNode,
   deactivateLogisticsNode,
   getLogisticsNode,
+  getLogisticsNodeHistories,
   updateLogisticsNode,
   type LogisticsNodeCapacityStatus,
 } from '../../../services/logistics'
@@ -64,6 +65,7 @@ import {
   uploadItemMedia,
   type ItemMediaFile,
 } from '../../../services/itemMedia'
+import LogisticsNodeLocationMap from '../components/LogisticsNodeLocationMap.vue'
 
 
 
@@ -849,7 +851,6 @@ const heroMetrics = computed<DetailMetric[]>(() => {
   if (kind.value === 'logistics-nodes') {
     return [
       { label: '거점 코드', value: display(item.nodeCode) },
-      { label: '유형', value: display(item.nodeType) },
       { label: '가용 상태', value: displayLogisticsCapacityStatus(item.capacityStatus), tone: statusTone.value },
       { label: '운영 여부', value: displayLogisticsActiveStatus(item.active), tone: item.active ? 'success' : 'critical' },
     ]
@@ -1042,10 +1043,9 @@ const sections = computed<DetailSection[]>(() => {
       section('거점 정보', [
         ['거점 코드', item.nodeCode],
         ['거점명', item.nodeName],
-        ['유형', item.nodeType],
         ['가용 상태', displayLogisticsCapacityStatus(item.capacityStatus)],
-        ['주소', item.address],
         ['운영 여부', displayLogisticsActiveStatus(item.active)],
+        ['주소', item.address],
       ]),
     ]
   }
@@ -1078,16 +1078,37 @@ const sections = computed<DetailSection[]>(() => {
   ]
 })
 
+const storedInventoryRows = computed(() => {
+  const inventories = Array.isArray(related.value.nodeInventories) ? related.value.nodeInventories : []
+  const grouped = new Map<string, { itemPublicId: string; itemName: string; quantity: number }>()
+
+  inventories.forEach((row: any) => {
+    const key = row.itemPublicId ?? row.itemCode ?? row.itemName
+    if (!key) return
+
+    const current = grouped.get(key) ?? {
+      itemPublicId: key,
+      itemName: row.itemName ?? row.itemCode ?? '-',
+      quantity: 0,
+    }
+
+    current.quantity += Number(row.remainingQty ?? 0)
+    grouped.set(key, current)
+  })
+
+  return Array.from(grouped.values()).filter((row) => row.quantity > 0)
+})
+
 const lineItems = computed(() => {
   const item = data.value
   if (!item) return []
+  if (kind.value === 'logistics-nodes') return storedInventoryRows.value
   if (Array.isArray(item.items)) return item.items
   if (Array.isArray(item.details)) return item.details
   if (Array.isArray(item.returnItems)) return item.returnItems
   if (Array.isArray(related.value.histories)) return related.value.histories
   if (Array.isArray(related.value.linkedOrders)) return related.value.linkedOrders
   if (Array.isArray(related.value.capabilities)) return related.value.capabilities
-  if (Array.isArray(related.value.recentInventories)) return related.value.recentInventories
   return []
 })
 
@@ -1098,7 +1119,7 @@ const lineColumns = computed(() => {
   if (kind.value === 'settlements') return ['품목 ID', '수량', '단가', '금액', '상태']
   if (kind.value === 'items') return ['발주번호', '거래처', '수량', '상태', '납기']
   if (kind.value === 'suppliers') return ['품목', '등급', '리드타임', '가용 수량', '상태']
-  if (kind.value === 'logistics-nodes') return ['품목', '남은 수량', '예약 수량', '상태', '유통기한']
+  if (kind.value === 'logistics-nodes') return ['품목', '수량']
   if (kind.value === 'certificates') {
     return ['일시', '이전 상태', '변경 상태', '사유']
   }
@@ -1106,6 +1127,22 @@ const lineColumns = computed(() => {
 })
 
 const detailRows = computed(() => sections.value.flatMap((item) => item.rows))
+
+const chipLabels = new Set(['상태', '정산 상태', '인증 상태', '가용 상태', '운영 여부', '운영 상태', '위험도'])
+
+function shouldRenderChip(label: string, value?: string) {
+  if (chipLabels.has(label)) return true
+  return /^(활성|비활성|가득 참|사용 가능|비어 있음|높음|보통|낮음)$/.test(String(value ?? ''))
+}
+
+function chipTone(value?: string, fallback: DetailMetric['tone'] = 'neutral') {
+  const text = String(value ?? '').toUpperCase()
+
+  if (/(REJECT|CANCEL|DELAY|EXPIRED|SUSPEND|TERMINAT|FAILED|SHORTAGE|비활성|높음)/.test(text)) return 'critical'
+  if (/(PENDING|READY|WARNING|PARTIAL|OPEN|CREATED|가득 참|보통)/.test(text)) return 'warning'
+  if (/(APPROVED|CONFIRMED|COMPLETE|ARRIVED|ACTIVE|VALID|SAFE|활성|사용 가능|낮음)/.test(text)) return 'success'
+  return fallback ?? 'neutral'
+}
 
 const aiImpactRows = computed(() => {
   if (kind.value === 'orders') {
@@ -1151,12 +1188,70 @@ const aiChecklist = computed(() => [
 
 const historyRows = computed(() => {
   const rows = Array.isArray(related.value.histories) ? related.value.histories : []
-  if (rows.length > 0) return rows.slice(0, 4)
+  if (rows.length > 0) return sortHistoryRows(rows).slice(0, 4)
+
+  if (kind.value === 'logistics-nodes' && data.value) {
+    const createdAt = data.value.createdAt ?? data.value.updatedAt
+    const updatedAt = data.value.updatedAt ?? data.value.createdAt
+    const capacityStatus = displayLogisticsCapacityStatus(data.value.capacityStatus)
+    const activeStatus = displayLogisticsActiveStatus(data.value.active)
+
+    return sortHistoryRows([
+      {
+        createdAt,
+        changeType: '거점 생성',
+        processedByUserPublicId: '-',
+        memo: `${formatDate(createdAt)}에 물류거점 생성`,
+      },
+      {
+        createdAt: updatedAt,
+        changeType: '가용 상태',
+        processedByUserPublicId: '-',
+        memo: `가용 상태가 ${capacityStatus}(으)로 설정됨`,
+      },
+      {
+        createdAt: updatedAt,
+        changeType: '운영 여부',
+        processedByUserPublicId: '-',
+        memo: activeStatus === '활성' ? '물류거점 활성화' : '물류거점 비활성화',
+      },
+    ])
+  }
 
   return [
     { createdAt: data.value?.updatedAt ?? data.value?.createdAt, statusCode: status.value || 'REVIEW', processedByUserPublicId: '-', memo: aiSummary.value },
   ]
 })
+
+function sortHistoryRows(rows: any[]) {
+  return [...rows].sort((first, second) => {
+    const firstTime = historyRowTime(first)
+    const secondTime = historyRowTime(second)
+    return secondTime - firstTime
+  })
+}
+
+function historyRowTime(row: any) {
+  const raw = row?.createdAt ?? row?.recordedAt ?? row?.updatedAt
+  const time = raw ? new Date(raw).getTime() : 0
+  return Number.isNaN(time) ? 0 : time
+}
+
+function historyChangeLabel(row: any) {
+  if (kind.value === 'logistics-nodes') {
+    return row.changeType ?? row.actionType ?? '변경사항'
+  }
+
+  return displayStatus(row.statusCode ?? row.returnStatus ?? row.status ?? status.value)
+}
+
+function historyDescription(row: any) {
+  if (kind.value === 'logistics-nodes') {
+    return row.memo ?? row.description ?? '물류거점 정보 변경'
+  }
+
+  return row.memo ?? row.description ?? aiSummary.value
+}
 
 function section(title: string, rows: [string, unknown][]): DetailSection {
   return {
@@ -1388,11 +1483,8 @@ function lineCell(row: any, index: number) {
   }
   if (kind.value === 'logistics-nodes') {
     return [
-      row.itemName ?? row.itemCode,
-      formatNumber(row.remainingQty),
-      formatNumber(row.reservedQty),
-      displayStatus(row.status),
-      row.expirationDate,
+      row.itemName ?? '-',
+      formatNumber(row.quantity),
     ][index]
   }
   if (kind.value === 'certificates') {
@@ -2069,12 +2161,13 @@ async function fetchDetail() {
       data.value = detail as Record<string, any>
       related.value = { capabilities }
     } else if (kind.value === 'logistics-nodes') {
-      const [detail, recentInventories] = await Promise.all([
+      const [detail, nodeInventories, histories] = await Promise.all([
         getLogisticsNode(publicId.value),
-        getRecentNodeInventories(publicId.value).catch(() => []),
+        getNodeInventories(publicId.value).catch(() => []),
+        getLogisticsNodeHistories(publicId.value).catch(() => []),
       ])
       data.value = detail as Record<string, any>
-      related.value = { recentInventories }
+      related.value = { nodeInventories, histories }
     } else if (kind.value === 'settlements') {
       data.value = await getSettlement(publicId.value)
     } else if (kind.value === 'certificates') {
@@ -2704,10 +2797,16 @@ watch(
     </template>
 
     <template v-else-if="data">
-      <section class="operation-detail-page__summary-strip">
+      <section
+        class="operation-detail-page__summary-strip"
+        :style="{ gridTemplateColumns: `repeat(${heroMetrics.length}, minmax(0, 1fr))` }"
+      >
         <article v-for="metric in heroMetrics" :key="metric.label" class="operation-detail-page__summary-cell">
           <span>{{ metric.label }}</span>
-          <strong>{{ metric.value }}</strong>
+          <strong v-if="!metric.tone">{{ metric.value }}</strong>
+          <span v-else :class="['operation-detail-page__state-chip', `is-${chipTone(metric.value, metric.tone)}`]">
+            {{ metric.value }}
+          </span>
           <small v-if="metric.meta">{{ metric.meta }}</small>
         </article>
       </section>
@@ -2733,10 +2832,26 @@ watch(
             <h2>{{ sections[0]?.title ?? detailCopy.common.basicInfo }}</h2>
             <dl class="operation-detail-page__definition-grid">
               <template v-for="row in detailRows" :key="row.label">
-                <dt>{{ row.label }}</dt>
-                <dd>{{ row.value }}</dd>
+                <dt :class="{ 'is-wide-label': kind === 'logistics-nodes' && row.label === '주소' }">{{ row.label }}</dt>
+                <dd :class="{ 'is-wide-value': kind === 'logistics-nodes' && row.label === '주소' }">
+                  <span
+                    v-if="shouldRenderChip(row.label, row.value)"
+                    :class="['operation-detail-page__state-chip', `is-${chipTone(row.value)}`]"
+                  >
+                    {{ row.value }}
+                  </span>
+                  <template v-else>{{ row.value }}</template>
+                </dd>
               </template>
             </dl>
+            <LogisticsNodeLocationMap
+              v-if="kind === 'logistics-nodes'"
+              :latitude="data.latitude"
+              :longitude="data.longitude"
+              :node-name="display(data.nodeName)"
+              :node-code="display(data.nodeCode)"
+              :address="display(data.address)"
+            />
           </article>
 
           <article v-if="kind === 'certificates'" class="operation-detail-page__block operation-detail-page__certificate-files">
@@ -2767,10 +2882,15 @@ watch(
 
           <article class="operation-detail-page__block">
             <div class="operation-detail-page__block-head">
-              <h2>{{ detailCopy.common.detailItems }}</h2>
+              <h2>{{ kind === 'logistics-nodes' ? t('배치 물품', 'Stored Items') : detailCopy.common.detailItems }}</h2>
               <span>{{ detailCopy.common.totalCount(lineItems.length) }}</span>
             </div>
-            <div v-if="lineItems.length === 0" class="page-table__empty">{{ detailCopy.common.emptyDetailRows }}</div>
+            <div
+              v-if="lineItems.length === 0"
+              :class="['page-table__empty', { 'operation-detail-page__empty--lower': kind === 'logistics-nodes' }]"
+            >
+              {{ kind === 'logistics-nodes' ? t('배치된 물품이 없습니다.', 'No stored items.') : detailCopy.common.emptyDetailRows }}
+            </div>
             <div v-else class="page-table-wrap">
               <table class="operation-detail-page__table">
                 <thead>
@@ -2797,7 +2917,7 @@ watch(
               <thead>
                 <tr>
                   <th>{{ detailCopy.common.dateTime }}</th>
-                  <th>{{ detailCopy.common.step }}</th>
+                  <th>{{ kind === 'logistics-nodes' ? '변경사항' : detailCopy.common.step }}</th>
                   <th>{{ detailCopy.common.processor }}</th>
                   <th>{{ detailCopy.common.description }}</th>
                 </tr>
@@ -2805,9 +2925,22 @@ watch(
               <tbody>
                 <tr v-for="(row, rowIndex) in historyRows" :key="rowKey(row, rowIndex)">
                   <td>{{ formatDate(row.createdAt ?? row.recordedAt ?? row.updatedAt) }}</td>
-                  <td>{{ displayStatus(row.statusCode ?? row.returnStatus ?? row.status ?? status) }}</td>
+                  <td>
+                    <template v-if="kind === 'logistics-nodes'">
+                      {{ historyChangeLabel(row) }}
+                    </template>
+                    <span
+                      v-else
+                      :class="[
+                        'operation-detail-page__state-chip',
+                        `is-${chipTone(historyChangeLabel(row))}`,
+                      ]"
+                    >
+                      {{ historyChangeLabel(row) }}
+                    </span>
+                  </td>
                   <td>{{ formatActor(row.processedByUserPublicId ?? row.createdBy) }}</td>
-                  <td>{{ row.memo ?? row.description ?? aiSummary }}</td>
+                  <td>{{ historyDescription(row) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -2866,12 +2999,21 @@ watch(
                 <p>AI 분석</p>
                 <h2>{{ detailCopy.common.aiAnalysis }}</h2>
               </div>
-              <span :class="['operation-detail-page__ai-status', `is-${statusTone}`]">{{ displayStatus(status || 'REVIEW') }}</span>
+              <span :class="['operation-detail-page__state-chip', `is-${chipTone(displayStatus(status || 'REVIEW'), statusTone)}`]">
+                {{ displayStatus(status || 'REVIEW') }}
+              </span>
             </div>
 
             <div class="operation-detail-page__risk-summary">
               <span>{{ detailCopy.order.risk }}</span>
-              <strong>{{ statusTone === 'critical' ? '높음' : statusTone === 'success' ? '낮음' : '보통' }}</strong>
+              <strong
+                :class="[
+                  'operation-detail-page__state-chip',
+                  `is-${chipTone(statusTone === 'critical' ? '높음' : statusTone === 'success' ? '낮음' : '보통')}`,
+                ]"
+              >
+                {{ statusTone === 'critical' ? '높음' : statusTone === 'success' ? '낮음' : '보통' }}
+              </strong>
               <p>{{ aiSummary }}</p>
             </div>
 
@@ -2880,7 +3022,7 @@ watch(
               <div class="operation-detail-page__impact-grid">
                 <div v-for="[label, level, description] in aiImpactRows" :key="label" class="operation-detail-page__impact-card">
                   <span>{{ label }}</span>
-                  <strong :class="`is-${riskClass(level)}`">{{ level }}</strong>
+                  <strong :class="['operation-detail-page__state-chip', `is-${chipTone(level)}`]">{{ level }}</strong>
                   <small>{{ description }}</small>
                 </div>
               </div>
@@ -2892,7 +3034,15 @@ watch(
                 <tbody>
                   <tr v-for="[label, value] in recommendationRows" :key="label">
                     <th>{{ label }}</th>
-                    <td>{{ value }}</td>
+                    <td>
+                      <span
+                        v-if="shouldRenderChip(label, value)"
+                        :class="['operation-detail-page__state-chip', `is-${chipTone(value)}`]"
+                      >
+                        {{ value }}
+                      </span>
+                      <template v-else>{{ value }}</template>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -3188,6 +3338,50 @@ watch(
 .operation-detail-page__status.is-success,
 .operation-detail-page__ai-status.is-success,
 .operation-detail-page__impact-card strong.is-low {
+  color: var(--success, #2d7d46);
+}
+
+.operation-detail-page__state-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 26px;
+  border: 1px solid var(--detail-border);
+  border-radius: 0;
+  padding: 4px 10px;
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.55);
+  color: var(--on-surface, #2d3435);
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.operation-detail-page__summary-cell .operation-detail-page__state-chip,
+.operation-detail-page__risk-summary .operation-detail-page__state-chip,
+.operation-detail-page__impact-card .operation-detail-page__state-chip {
+  color: var(--on-surface, #2d3435);
+  font-size: 0.76rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.operation-detail-page__state-chip.is-critical {
+  border-color: rgb(var(--error-rgb, 159 64 61) / 0.28);
+  background: rgb(var(--error-rgb, 159 64 61) / 0.1);
+  color: var(--error, #9f403d);
+}
+
+.operation-detail-page__state-chip.is-warning {
+  border-color: rgb(194 122 22 / 0.28);
+  background: rgb(194 122 22 / 0.1);
+  color: #a15f0d;
+}
+
+.operation-detail-page__state-chip.is-success {
+  border-color: rgb(45 125 70 / 0.24);
+  background: rgb(45 125 70 / 0.1);
   color: var(--success, #2d7d46);
 }
 
@@ -3591,6 +3785,16 @@ watch(
   font-size: 0.84rem;
   font-weight: 800;
   word-break: break-word;
+}
+
+.operation-detail-page__definition-grid dd.is-wide-value {
+  grid-column: span 3;
+}
+
+.operation-detail-page__empty--lower {
+  margin-top: 8px;
+  padding-top: 18px;
+  padding-bottom: 12px;
 }
 
 .operation-detail-page__table,
