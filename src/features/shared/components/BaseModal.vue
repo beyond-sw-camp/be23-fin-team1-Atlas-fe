@@ -92,9 +92,6 @@ onBeforeUnmount(() => {
         :style="props.hideDividers ? { borderBottom: '0', paddingBottom: '16px' } : undefined"
       >
         <div class="base-modal__heading">
-          <span v-if="!props.hideEyebrow && !isPagePresentation" class="base-modal__eyebrow">
-            {{ resolveDefaultCopy('Modal', preferences.language) }}
-          </span>
           <h2>{{ resolveDefaultCopy(title, preferences.language) }}</h2>
           <p v-if="description">{{ resolveDefaultCopy(description, preferences.language) }}</p>
         </div>
@@ -149,9 +146,6 @@ onBeforeUnmount(() => {
   :style="props.hideDividers ? { borderBottom: '0', paddingBottom: '16px' } : undefined"
 >
           <div class="base-modal__heading">
-          <span v-if="!props.hideEyebrow" class="base-modal__eyebrow">
-  {{ resolveDefaultCopy('Modal', preferences.language) }}
-</span>
             <h2>{{ resolveDefaultCopy(title, preferences.language) }}</h2>
             <p v-if="description">{{ resolveDefaultCopy(description, preferences.language) }}</p>
           </div>

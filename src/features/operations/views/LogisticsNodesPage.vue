@@ -66,7 +66,6 @@ const CONTENT = {
     loading: '창고 목록을 불러오는 중입니다.',
     errorFallback: '창고 목록을 불러오지 못했습니다.',
     columns: ['창고 코드', '창고명', '주소', '창고 상태', '활성 상태', '관리'],
-    refreshLabel: '새로고침',
     createLabel: '창고 등록',
     addressSearchLabel: '주소 검색',
     addressSearchLoadingLabel: '검색창 여는 중...',
@@ -120,7 +119,6 @@ const CONTENT = {
     loading: 'Loading warehouses...',
     errorFallback: 'Failed to load warehouses.',
     columns: ['Code', 'Name', 'Address', 'Capacity', 'Active', 'Action'],
-    refreshLabel: 'REFRESH',
     createLabel: 'ADD WAREHOUSE',
     addressSearchLabel: 'SEARCH ADDRESS',
     addressSearchLoadingLabel: 'OPENING...',
@@ -368,19 +366,6 @@ function formatCapacityStatus(status: LogisticsNodeCapacityStatus) {
   return content.value.statusLabels[status] ?? status
 }
 
-function formatDate(value: string) {
-  if (!value) return '-'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date)
-}
-
 async function fetchLogisticsNodes() {
   isLoading.value = true
   errorMessage.value = ''
@@ -438,7 +423,6 @@ function goToNextPage() {
 
 watchEffect(() => {
   header.setActions([
-    { key: 'logistics-refresh', label: content.value.refreshLabel, tone: 'secondary' },
     { key: 'logistics-create', label: content.value.createLabel, tone: 'primary' },
   ])
 })
@@ -455,9 +439,6 @@ onBeforeUnmount(() => header.clearActions())
         <h2 class="terminal-page__title">{{ content.title }}</h2>
       </div>
       <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button" @click="fetchLogisticsNodes">
-          {{ content.refreshLabel }}
-        </button>
         <button class="page-button page-button--primary" type="button" @click="handleOpenCreateModal">
         {{ content.createLabel }}
         </button>
@@ -525,33 +506,8 @@ onBeforeUnmount(() => header.clearActions())
       <div class="terminal-page__main">
         <section class="logistics-filter-card">
           <label class="logistics-search">
-            <span>검색</span>
             <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
           </label>
-
-          <div class="logistics-pagination">
-            <button
-              class="page-button page-button--secondary"
-              type="button"
-              :disabled="currentPage === 0 || isLoading"
-              @click="goToPreviousPage"
-            >
-              {{ content.previous }}
-            </button>
-
-            <span>
-              {{ currentPage + 1 }} / {{ totalPages || 1 }}
-            </span>
-
-            <button
-              class="page-button page-button--secondary"
-              type="button"
-              :disabled="totalPages === 0 || currentPage >= totalPages - 1 || isLoading"
-              @click="goToNextPage"
-            >
-              {{ content.next }}
-            </button>
-          </div>
         </section>
 
         <article class="logistics-card">
@@ -587,7 +543,6 @@ onBeforeUnmount(() => header.clearActions())
                 >
               <span class="logistics-code-cell">
                 <strong>{{ node.nodeCode }}</strong>
-                <small>{{ formatDate(node.updatedAt) }}</small>
               </span>
               <span class="logistics-name-cell">
                 <strong>{{ node.nodeName }}</strong>
@@ -612,6 +567,32 @@ onBeforeUnmount(() => header.clearActions())
                   {{ content.detail }}
                 </button>
               </span>
+            </div>
+          </div>
+
+          <div class="logistics-table-footer">
+            <div class="logistics-pagination">
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                :disabled="currentPage === 0 || isLoading"
+                @click="goToPreviousPage"
+              >
+                {{ content.previous }}
+              </button>
+
+              <span>
+                {{ currentPage + 1 }} / {{ totalPages || 1 }}
+              </span>
+
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                :disabled="totalPages === 0 || currentPage >= totalPages - 1 || isLoading"
+                @click="goToNextPage"
+              >
+                {{ content.next }}
+              </button>
             </div>
           </div>
         </article>
@@ -748,6 +729,10 @@ onBeforeUnmount(() => header.clearActions())
 
 .logistics-page .terminal-page__content {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.logistics-page .terminal-page__main {
+  min-width: 0;
 }
 
 .logistics-page .terminal-page__title {
@@ -901,25 +886,23 @@ onBeforeUnmount(() => header.clearActions())
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  align-items: flex-end;  /* center → flex-end */
+  align-items: center;
+  min-width: 0;
   margin-bottom: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .logistics-search {
   display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.logistics-search span {
-  color: var(--log-faint);
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
+  min-width: 0;
 }
 
 .logistics-search input {
+  box-sizing: border-box;
   width: 100%;
   border: 1px solid var(--log-border);
   border-radius: 0;
@@ -964,11 +947,23 @@ onBeforeUnmount(() => header.clearActions())
   font-weight: 900;
 }
 
-
 .logistics-data-table {
+  container-type: inline-size;
+  container-name: atlas-page-table;
   display: flex;
   flex-direction: column;
+  max-width: 100%;
+  overflow: visible;
 }
+
+.logistics-table-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
+}
+
 .logistics-table--head {
   border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
   margin-bottom: 4px;
@@ -996,15 +991,22 @@ onBeforeUnmount(() => header.clearActions())
 .logistics-table {
   display: grid;
   grid-template-columns:
-    minmax(120px, 0.8fr)
-    minmax(160px, 1fr)
-    minmax(280px, 1.8fr)
-    minmax(100px, 0.7fr)
-    minmax(90px, 0.6fr)
-    minmax(64px, 0.22fr);
-  gap: 14px;
+    minmax(124px, 148px)
+    minmax(132px, 0.58fr)
+    minmax(220px, 1fr)
+    78px
+    64px
+    64px;
+  column-gap: 18px;
+  row-gap: 14px;
   align-items: center;
   padding: 14px 16px;
+}
+
+.logistics-table > span:nth-child(4),
+.logistics-table > span:nth-child(5),
+.logistics-table > span:nth-child(6) {
+  justify-self: start;
 }
 
 .logistics-table--body {
@@ -1017,7 +1019,6 @@ onBeforeUnmount(() => header.clearActions())
   background: rgb(var(--surface-container-rgb, 235 238 239) / 0.42);
 }
 
-.logistics-code-cell,
 .logistics-name-cell {
   display: flex;
   min-width: 0;
@@ -1025,16 +1026,15 @@ onBeforeUnmount(() => header.clearActions())
   gap: 4px;
 }
 
+.logistics-code-cell {
+  min-width: 0;
+}
+
 .logistics-code-cell strong {
   color: var(--log-text);
   font-size: 0.9rem;
   font-weight: 900;
-}
-
-.logistics-code-cell small {
-  color: var(--log-faint);
-  font-size: 0.72rem;
-  font-weight: 800;
+  white-space: nowrap;
 }
 
 .logistics-name-cell strong {
@@ -1047,9 +1047,12 @@ onBeforeUnmount(() => header.clearActions())
 }
 
 .logistics-address-cell {
+  overflow: hidden;
   color: var(--log-muted);
   font-size: 0.84rem;
   line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .logistics-status-pill,
@@ -1113,6 +1116,16 @@ onBeforeUnmount(() => header.clearActions())
   width: 100%;
 }
 
+.logistics-address-row input {
+  min-width: 0;
+}
+
+.logistics-address-row .page-button {
+  flex: 0 0 104px;
+  min-width: 104px;
+  white-space: nowrap;
+}
+
 .logistics-error {
   margin-top: 14px;
   color: var(--color-critical);
@@ -1130,28 +1143,46 @@ onBeforeUnmount(() => header.clearActions())
   min-height: 36px;
 }
 
-@container atlas-page-table (max-width: 1240px) {
+@container atlas-page-table (max-width: 980px) {
   .logistics-table {
     grid-template-columns:
-      minmax(132px, 0.74fr)
-      minmax(112px, 0.62fr)
+      minmax(124px, 144px)
+      minmax(128px, 0.62fr)
       minmax(180px, 1fr)
-      minmax(84px, 0.42fr)
-      minmax(74px, 0.36fr)
+      78px
       64px !important;
+  }
+
+  .logistics-table > span:nth-child(5):not(:last-child) {
+    display: none !important;
   }
 }
 
-@container atlas-page-table (max-width: 1040px) {
+@container atlas-page-table (max-width: 820px) {
   .logistics-table {
     grid-template-columns:
-      minmax(132px, 0.82fr)
-      minmax(96px, 0.58fr)
-      minmax(150px, 1fr)
-      minmax(76px, 0.36fr)
+      minmax(118px, 140px)
+      minmax(124px, 0.7fr)
+      minmax(160px, 1fr)
       64px !important;
   }
 
+  .logistics-table > span:nth-child(4):not(:last-child),
+  .logistics-table > span:nth-child(5):not(:last-child) {
+    display: none !important;
+  }
+}
+
+@container atlas-page-table (max-width: 640px) {
+  .logistics-table {
+    grid-template-columns:
+      minmax(108px, 132px)
+      minmax(132px, 1fr)
+      64px !important;
+  }
+
+  .logistics-table > span:nth-child(3):not(:last-child),
+  .logistics-table > span:nth-child(4):not(:last-child),
   .logistics-table > span:nth-child(5):not(:last-child) {
     display: none !important;
   }
@@ -1166,5 +1197,33 @@ onBeforeUnmount(() => header.clearActions())
     align-items: stretch;
     flex-direction: column;
   }
+}
+
+@media (max-width: 720px) {
+  .logistics-page {
+    padding: 24px 18px;
+  }
+
+  .logistics-filter-card {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .logistics-search {
+    width: 100%;
+  }
+
+  .logistics-pagination {
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .logistics-card {
+    max-width: 100%;
+    overflow: hidden;
+    padding: 18px;
+  }
+
 }
 </style>

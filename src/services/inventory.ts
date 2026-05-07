@@ -97,3 +97,9 @@ export async function getRecentNodeInventories(nodePublicId: string) {
   return response.data
 }
 
+export async function getNodeInventories(nodePublicId: string) {
+  const response = await apiClient.get<ItemInventoryResponseDto[]>(
+    `/api/supply/logistics-nodes/${nodePublicId}/inventories`,
+  )
+  return response.data
+}
