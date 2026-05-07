@@ -66,14 +66,18 @@ function confirm() {
     <template #footer>
       <button
         v-if="current?.kind !== 'alert'"
-        class="page-button page-button--secondary"
+        class="page-button page-button--secondary app-dialog-host__button"
         type="button"
         @click="close"
       >
         {{ cancelLabel }}
       </button>
       <button
-        :class="['page-button', current?.tone === 'danger' ? 'page-button--danger' : 'page-button--primary']"
+        :class="[
+          'page-button',
+          'app-dialog-host__button',
+          current?.tone === 'danger' ? 'page-button--danger' : 'page-button--primary',
+        ]"
         type="button"
         @click="confirm"
       >

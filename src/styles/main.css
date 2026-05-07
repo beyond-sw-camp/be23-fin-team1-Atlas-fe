@@ -113,6 +113,13 @@ select:not(.app-language-select select):focus {
   z-index: 1400;
 }
 
+.app-dialog-host-modal .app-dialog-host__button {
+  width: 64px;
+  min-height: 48px;
+  margin-top: 0;
+  padding: 0 16px;
+}
+
 .base-modal__backdrop {
   position: absolute;
   inset: 0;

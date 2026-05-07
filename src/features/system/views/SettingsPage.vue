@@ -1053,9 +1053,8 @@ watch(
       void loadCertificateTypes()
     }
 
-    // 사용자 탭에 들어가면 조직 드롭다운 목록을 읽습니다.
-    // 이미 읽은 뒤면 또 부르지 않게 길이로 한 번 막습니다.
-    if (tab === 'users' && !organizationOptions.value.length) {
+    // 사용자 탭에 들어갈 때마다 조직 드롭다운 목록을 새로 읽습니다.
+    if (tab === 'users') {
       void loadOrganizationOptions()
     }
   },
