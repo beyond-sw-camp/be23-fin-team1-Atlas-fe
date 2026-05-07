@@ -4796,6 +4796,12 @@ select:not(.app-language-select select):focus {
   gap: 8px;
 }
 
+.settings-form__name-group {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.42fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
 .profile-name-fields {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4966,6 +4972,10 @@ select:not(.app-language-select select):focus {
 }
 
 @media (max-width: 720px) {
+  .settings-form__name-group {
+    grid-template-columns: 1fr;
+  }
+
   .phone-field {
     grid-template-columns: 1fr;
   }

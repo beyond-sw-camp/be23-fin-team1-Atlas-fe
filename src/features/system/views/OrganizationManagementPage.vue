@@ -1590,20 +1590,17 @@ watch(
                 <input v-model="organizationCreateForm.addressDetail" type="text" />
               </label>
 
-              <label>
-                <span>{{ copy.zipCode }}</span>
-                <input v-model="organizationCreateForm.zipCode" type="text" />
-              </label>
+              <div class="organization-create-form__contact-name">
+                <label>
+                  <span>{{ copy.contactLastName }} <b class="required-mark">*</b></span>
+                  <input v-model="organizationCreateForm.contactLastName" type="text" />
+                </label>
 
-              <label>
-                <span>{{ copy.contactFirstName }} <b class="required-mark">*</b></span>
-                <input v-model="organizationCreateForm.contactFirstName" type="text" />
-              </label>
-
-              <label>
-                <span>{{ copy.contactLastName }} <b class="required-mark">*</b></span>
-                <input v-model="organizationCreateForm.contactLastName" type="text" />
-              </label>
+                <label>
+                  <span>{{ copy.contactFirstName }} <b class="required-mark">*</b></span>
+                  <input v-model="organizationCreateForm.contactFirstName" type="text" />
+                </label>
+              </div>
 
               <label>
                 <span>{{ copy.contactEmail }} <b class="required-mark">*</b></span>
@@ -2314,6 +2311,12 @@ watch(
   min-width: 120px;
 }
 
+.organization-create-form__contact-name {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.42fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
 .organization-danger-actions {
   display: flex;
   justify-content: flex-end;
@@ -2481,6 +2484,10 @@ watch(
 
   .organization-entity-card {
     grid-template-columns: 70px minmax(0, 1fr);
+  }
+
+  .organization-create-form__contact-name {
+    grid-template-columns: 1fr;
   }
 
   .organization-entity-card__image {

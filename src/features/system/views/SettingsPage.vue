@@ -1301,7 +1301,7 @@ if (!selectedOrganizationPublicId.value) {
     const response = await createInitialOrgAdmin(selectedOrganizationPublicId.value, {
 
       firstName: initialOrgAdminForm.firstName,
-      middleName: initialOrgAdminForm.middleName,
+      middleName: undefined,
       lastName: initialOrgAdminForm.lastName,
       email: initialOrgAdminForm.email,
       phone: initialOrgAdminForm.phone,
@@ -1359,7 +1359,7 @@ if (!selectedOrganizationPublicId.value) {
 
           <div class="settings-form">
             <label>
-  <span>{{ '대상 조직' }}</span>
+  <span>{{ '대상 조직' }} <b class="required-mark">*</b></span>
 
   <select v-model="selectedOrganizationPublicId">
     <option value="">
@@ -1381,28 +1381,25 @@ if (!selectedOrganizationPublicId.value) {
 </label>
 
 
-            <label>
-              <span>{{ '이름' }}</span>
-              <input v-model="initialOrgAdminForm.firstName" type="text" />
-            </label>
+            <div class="settings-form__name-group">
+              <label>
+                <span>{{ '성' }} <b class="required-mark">*</b></span>
+                <input v-model="initialOrgAdminForm.lastName" type="text" />
+              </label>
+
+              <label>
+                <span>{{ '이름' }} <b class="required-mark">*</b></span>
+                <input v-model="initialOrgAdminForm.firstName" type="text" />
+              </label>
+            </div>
 
             <label>
-              <span>{{ '중간이름 (선택)' }}</span>
-              <input v-model="initialOrgAdminForm.middleName" type="text" />
-            </label>
-
-            <label>
-              <span>{{ '성' }}</span>
-              <input v-model="initialOrgAdminForm.lastName" type="text" />
-            </label>
-
-            <label>
-              <span>{{ '이메일' }}</span>
+              <span>{{ '이메일' }} <b class="required-mark">*</b></span>
               <input v-model="initialOrgAdminForm.email" type="email" />
             </label>
 
             <label>
-              <span>{{ '연락처' }}</span>
+              <span>{{ '연락처' }} <b class="required-mark">*</b></span>
               <PhoneField
                 v-model="initialOrgAdminForm.phone"
                 v-model:valid="initialOrgAdminPhoneValid"
