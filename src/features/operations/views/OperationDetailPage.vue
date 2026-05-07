@@ -1865,6 +1865,17 @@ function closeLogisticsEditModal() {
   logisticsEditErrorMessage.value = ''
 }
 
+async function refreshLogisticsNodeHistories() {
+  if (kind.value !== 'logistics-nodes' || !publicId.value) return
+
+  const histories = await getLogisticsNodeHistories(publicId.value).catch(() => related.value.histories ?? [])
+  related.value = {
+    ...related.value,
+    histories,
+  }
+  historyPage.value = 1
+}
+
 async function submitLogisticsEdit() {
   if (!data.value) return
 
@@ -1880,7 +1891,7 @@ async function submitLogisticsEdit() {
     logisticsEditLoading.value = true
     logisticsEditErrorMessage.value = ''
 
-    await updateLogisticsNode(publicId.value, {
+    data.value = await updateLogisticsNode(publicId.value, {
       nodeName,
       nodeType: 'WAREHOUSE',
       baseAddress,
@@ -1888,7 +1899,7 @@ async function submitLogisticsEdit() {
       capacityStatus: logisticsEditForm.value.capacityStatus,
     })
 
-    await fetchDetail()
+    await refreshLogisticsNodeHistories()
     closeLogisticsEditModal()
   } catch (error: any) {
     logisticsEditErrorMessage.value = error?.message ?? t('물류거점 수정에 실패했습니다.', 'Failed to edit logistics node.')
@@ -1907,6 +1918,7 @@ async function toggleLogisticsNodeActive() {
     data.value = data.value.active
       ? await deactivateLogisticsNode(publicId.value)
       : await activateLogisticsNode(publicId.value)
+    await refreshLogisticsNodeHistories()
   } catch (error: any) {
     errorMessage.value = error?.message ?? t('활성 상태 변경에 실패했습니다.', 'Failed to update active status.')
   } finally {
