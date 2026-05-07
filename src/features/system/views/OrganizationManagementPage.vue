@@ -19,8 +19,14 @@ import {
 import { createSupplier } from '../../../services/supplier'
 import {
   createInitialOrgAdmin,
+  createOrganizationUser,
+  getDepartments,
+  getUsers,
+  type CreateOrganizationUserPayload,
+  type DepartmentOption,
   uploadOrganizationUsersExcel,
   type OrganizationUserExcelUploadResponse,
+  type UserListItem,
 } from '../../../services/user'
 
 import { uploadAttachment } from '../../../services/file'
@@ -30,8 +36,20 @@ import { useAtlasPreferencesStore } from '../../../stores/preferences'
 
 const route = useRoute()
 
+// 화면에서 여러 사원을 한 번에 입력할 때 사용하는 행 데이터입니다.
+type CreateMemberRow = CreateOrganizationUserPayload & {
+  rowId: string
+  loginId?: string
+  temporaryPassword?: string
+  success?: boolean
+  errorMessage?: string
+}
+
 // 조직관리 내부 탭 종류입니다.
 type OrganizationManagementTabKey = 'organization' | 'members'
+
+// 사원관리 탭 내부 서브탭입니다.
+type MemberSubTabKey = 'add' | 'excel' | 'list'
 
 // 오른쪽 패널이 상세보기인지 신규 생성인지 구분합니다.
 type OrganizationPanelMode = 'detail' | 'create'
@@ -82,6 +100,9 @@ const canDeleteOrganization = computed(() => actor.isAdminRole.value)
 // 조직관리 페이지 안에서 현재 어떤 탭을 보고 있는지 저장합니다.
 const activeTab = ref<OrganizationManagementTabKey>('organization')
 
+// 사원관리 탭 내부 서브탭입니다.
+const activeMemberSubTab = ref<MemberSubTabKey>('add')
+
 // 플랫폼 관리자는 오른쪽 패널에서 상세보기와 생성 폼을 번갈아 봅니다.
 const organizationPanelMode = ref<OrganizationPanelMode>('detail')
 
@@ -112,7 +133,6 @@ const canMoveOrganizationListPrev = computed(() => organizationListPage.value > 
 const canMoveOrganizationListNext = computed(() => {
   return organizationListPage.value + 1 < organizationListTotalPages.value
 })
-
 
 // 현재 선택한 조직의 내부 ID 입니다.
 const selectedOrganizationId = ref<number | null>(null)
@@ -174,6 +194,30 @@ const memberUploadSuccess = ref('')
 // 사원 업로드 결과입니다.
 const memberUploadResult = ref<OrganizationUserExcelUploadResponse | null>(null)
 
+// 현재 조직에 등록된 사원 목록입니다.
+const memberRows = ref<UserListItem[]>([])
+
+// 사원 목록을 불러오는 중인지 표시합니다.
+const isLoadingMembers = ref(false)
+
+// 화면에서 직접 등록할 사원 입력 행 목록입니다.
+const createMemberRows = ref<CreateMemberRow[]>([])
+
+// 직접 입력한 사원을 등록하는 중인지 표시합니다.
+const isCreatingMembers = ref(false)
+
+// 사원 등록 시 선택할 부서 목록입니다.
+const departmentOptions = ref<DepartmentOption[]>([])
+
+// 현재 사원관리 탭에서 관리할 조직 publicId입니다.
+const currentManagedOrganizationPublicId = computed(() => {
+  if (isOrgAdminManager.value) {
+    return actor.organizationPublicId.value
+  }
+
+  return selectedOrganizationDetail.value?.organizationPublicId ?? ''
+})
+
 // 조직 수정 폼입니다.
 const organizationForm = reactive({
   organizationName: '',
@@ -190,10 +234,9 @@ const organizationForm = reactive({
   address: '',
   addressDetail: '',
   zipCode: '',
-
 })
 
-// 신규 조직 생성 폼입니다. 설정 페이지에 있던 생성 흐름을 조직관리 안으로 옮겼습니다.
+// 신규 조직 생성 폼입니다.
 const organizationCreateForm = reactive<OrganizationCreateForm>({
   organizationType: 'SUPPLIER',
   organizationName: '',
@@ -208,7 +251,6 @@ const organizationCreateForm = reactive<OrganizationCreateForm>({
   address: '',
   addressDetail: '',
   zipCode: '',
-
 })
 
 // 신규 조직 생성 버튼을 중복 클릭하지 못하게 막기 위한 로딩 상태입니다.
@@ -232,7 +274,7 @@ const copy = computed(() =>
         readOnlyDescription: '플랫폼 관리자는 조직 정보를 조회만 할 수 있습니다.',
         detailTitle: '조직 상세',
         memberTitle: '사원관리',
-        memberDescription: '조직 대표자는 엑셀 파일로 자기 조직 사원을 일괄 등록할 수 있습니다.',
+        memberDescription: '사원을 직접 등록하거나 엑셀 파일로 일괄 등록할 수 있습니다.',
         noPermission: '조직관리 권한이 없습니다.',
         loadingList: '조직 목록을 불러오는 중입니다...',
         loadingDetail: '조직 정보를 불러오는 중입니다...',
@@ -253,6 +295,9 @@ const copy = computed(() =>
         supplierType: '협력사',
         organizationTab: '조직',
         membersTab: '사원관리',
+        memberSubTabAdd: '직접 등록',
+        memberSubTabExcel: '엑셀 업로드',
+        memberSubTabList: '사원 목록',
         memberExcelFile: '사원 엑셀 파일',
         uploadHint:
           '엑셀 첫 줄 헤더는 firstName, middleName, lastName, email, phone, jobTitle, departmentPublicId 순서여야 합니다.',
@@ -312,7 +357,16 @@ const copy = computed(() =>
         address: '주소',
         addressDetail: '상세주소',
         zipCode: '우편번호',
-
+        addMemberRowButton: '+ 사원 추가',
+        submitMembersButton: '등록하기',
+        submittingMembersButton: '등록 중...',
+        removeMemberRowButton: '삭제',
+        memberRegisterComplete: '등록 완료',
+        memberRegisterValidation: '성, 이름, 이메일, 연락처, 부서는 필수입니다.',
+        memberRegisterFailed: '사원 등록에 실패했습니다.',
+        memberListEmpty: '등록된 사원이 없습니다.',
+        memberListLoading: '사원 목록을 불러오는 중입니다.',
+        memberListRefresh: '새로고침',
         paginationTotal: (count: number) => `총 ${count}개`,
       }
     : {
@@ -324,7 +378,7 @@ const copy = computed(() =>
         readOnlyDescription: 'Platform admins can view organization information only.',
         detailTitle: 'Organization Detail',
         memberTitle: 'Member Management',
-        memberDescription: 'Organization owners can upload member excel files for their own organization.',
+        memberDescription: 'Register members directly or upload an Excel file.',
         noPermission: 'You do not have permission to manage organizations.',
         loadingList: 'Loading organizations...',
         loadingDetail: 'Loading organization detail...',
@@ -345,6 +399,9 @@ const copy = computed(() =>
         supplierType: 'Supplier',
         organizationTab: 'Organization',
         membersTab: 'Members',
+        memberSubTabAdd: 'Add Members',
+        memberSubTabExcel: 'Excel Upload',
+        memberSubTabList: 'Member List',
         memberExcelFile: 'Member Excel File',
         uploadHint:
           'The first excel header row must be firstName, middleName, lastName, email, phone, jobTitle, departmentPublicId.',
@@ -409,7 +466,16 @@ const copy = computed(() =>
         address: 'Address',
         addressDetail: 'Address Detail',
         zipCode: 'Zip Code',
-
+        addMemberRowButton: '+ Add Member',
+        submitMembersButton: 'Register',
+        submittingMembersButton: 'Registering...',
+        removeMemberRowButton: 'Remove',
+        memberRegisterComplete: 'Registered',
+        memberRegisterValidation: 'Last name, first name, email, phone, and department are required.',
+        memberRegisterFailed: 'Failed to register member.',
+        memberListEmpty: 'No members found.',
+        memberListLoading: 'Loading members...',
+        memberListRefresh: 'Refresh',
         paginationTotal: (count: number) => `Total ${count}`,
       },
 )
@@ -429,6 +495,112 @@ function hasOrganizationId(row: OrganizationListItem) {
   return typeof row.organizationId === 'number' && Number.isFinite(row.organizationId)
 }
 
+// 현재 조직의 사원 목록을 불러옵니다.
+async function loadMembers() {
+  const organizationPublicId = currentManagedOrganizationPublicId.value
+
+  if (!organizationPublicId) {
+    memberRows.value = []
+    return
+  }
+
+  try {
+    isLoadingMembers.value = true
+
+    const response = await getUsers({
+      organizationPublicId,
+      page: 0,
+      size: 100,
+    })
+
+    memberRows.value = response.content
+  } finally {
+    isLoadingMembers.value = false
+  }
+}
+
+// 사원 등록 폼에서 사용할 활성 부서 목록을 불러옵니다.
+async function loadDepartmentOptions() {
+  departmentOptions.value = await getDepartments()
+}
+
+// 직접 등록할 사원 입력 행을 하나 추가합니다.
+function addCreateMemberRow() {
+  createMemberRows.value.push({
+    rowId: crypto.randomUUID(),
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    jobTitle: '',
+    departmentPublicId: '',
+  })
+}
+
+// 직접 등록 입력 행을 제거합니다.
+function removeCreateMemberRow(rowId: string) {
+  createMemberRows.value = createMemberRows.value.filter((row) => row.rowId !== rowId)
+}
+
+// 입력된 사원들을 기존 사원 생성 API에 순서대로 등록합니다.
+async function submitCreateMembers() {
+  if (createMemberRows.value.length === 0) {
+    return
+  }
+
+  isCreatingMembers.value = true
+
+  try {
+    for (const row of createMemberRows.value) {
+      row.success = false
+      row.errorMessage = ''
+      row.loginId = ''
+      row.temporaryPassword = ''
+
+      if (
+        !row.firstName.trim() ||
+        !row.lastName.trim() ||
+        !row.email.trim() ||
+        !row.phone.trim() ||
+        !row.departmentPublicId
+      ) {
+        row.errorMessage = copy.value.memberRegisterValidation
+        continue
+      }
+
+      try {
+        const result = await createOrganizationUser({
+          firstName: row.firstName.trim(),
+          middleName: row.middleName?.trim() || '',
+          lastName: row.lastName.trim(),
+          email: row.email.trim(),
+          phone: row.phone.trim(),
+          jobTitle: row.jobTitle?.trim() || '',
+          departmentPublicId: row.departmentPublicId,
+        })
+
+        row.success = true
+        row.loginId = result.loginId
+        row.temporaryPassword = result.temporaryPassword
+      } catch (error: any) {
+        row.errorMessage =
+          error?.payload?.message ||
+          error?.message ||
+          copy.value.memberRegisterFailed
+      }
+    }
+
+    await loadMembers()
+
+    if (selectedOrganizationDetail.value) {
+      selectedOrganizationDetail.value.memberCount = memberRows.value.length
+    }
+  } finally {
+    isCreatingMembers.value = false
+  }
+}
+
 // 현재 row가 진짜 선택된 row인지 안전하게 확인합니다.
 function isSelectedRow(row: OrganizationListItem) {
   return (
@@ -442,24 +614,19 @@ function isSelectedRow(row: OrganizationListItem) {
 function formatCount(value?: number | null) {
   return value ?? 0
 }
-function getRouteOrganizationId() {
-  // 통합검색에서 넘어온 organizationId query를 읽습니다.
-  const rawValue = route.query.organizationId
 
-  // query가 배열로 올 수도 있어서 첫 값만 사용합니다.
+function getRouteOrganizationId() {
+  const rawValue = route.query.organizationId
   const normalizedValue = Array.isArray(rawValue) ? rawValue[0] : rawValue
 
-  // 값이 없으면 자동 선택할 조직이 없는 상태입니다.
   if (!normalizedValue) {
     return null
   }
 
   const organizationId = Number(normalizedValue)
 
-  // 숫자로 바꿀 수 없는 값이면 무시합니다.
   return Number.isFinite(organizationId) ? organizationId : null
 }
-
 
 // 타입 코드를 화면용 텍스트로 바꿉니다.
 function formatOrganizationType(value?: string) {
@@ -572,16 +739,13 @@ async function handleOrganizationImageSelected(event: Event) {
   const input = event.target as HTMLInputElement | null
   const file = input?.files?.[0]
 
-  // 선택된 조직이나 파일이 없으면 아무것도 하지 않습니다.
   if (!file || !selectedOrganizationDetail.value?.organizationPublicId) {
     if (input) input.value = ''
     return
   }
 
-  // 이미지만 업로드할 수 있게 막습니다.
   if (!file.type.startsWith('image/')) {
-    pageError.value =
-      '이미지 파일만 업로드할 수 있습니다.'
+    pageError.value = '이미지 파일만 업로드할 수 있습니다.'
 
     if (input) input.value = ''
     return
@@ -591,7 +755,6 @@ async function handleOrganizationImageSelected(event: Event) {
     isUploadingOrganizationImage.value = true
     resetMessages()
 
-    // 조직 이미지는 ORGANIZATION refType으로 파일 서비스에 올립니다.
     const uploadResponse = await uploadAttachment(
       file,
       'ORGANIZATION',
@@ -605,7 +768,6 @@ async function handleOrganizationImageSelected(event: Event) {
       throw new Error('Invalid organization image upload response')
     }
 
-    // 업로드된 첨부 publicId와 썸네일 경로를 조직 정보에 저장합니다.
     const saved = await updateOrganization(selectedOrganizationDetail.value.organizationId, {
       organizationName: organizationForm.organizationName.trim(),
       organizationEnglishName: organizationForm.organizationEnglishName.trim(),
@@ -621,7 +783,6 @@ async function handleOrganizationImageSelected(event: Event) {
       address: organizationForm.address.trim() || null,
       addressDetail: organizationForm.addressDetail.trim() || null,
       zipCode: organizationForm.zipCode.trim() || null,
-
     })
 
     selectedOrganizationDetail.value = saved
@@ -637,12 +798,10 @@ async function handleOrganizationImageSelected(event: Event) {
         : row,
     )
 
-    pageSuccess.value =
-      '조직 이미지가 수정되었습니다.'
+    pageSuccess.value = '조직 이미지가 수정되었습니다.'
   } catch (error: any) {
     pageError.value =
-      error?.payload?.message ||
-      ('조직 이미지 업로드에 실패했습니다.')
+      error?.payload?.message || '조직 이미지 업로드에 실패했습니다.'
   } finally {
     isUploadingOrganizationImage.value = false
 
@@ -669,8 +828,6 @@ function syncOrganizationForm(detail: OrganizationDetailResponse) {
   organizationForm.addressDetail = detail.addressDetail ?? ''
   organizationForm.zipCode = detail.zipCode ?? ''
 
-
-  // 기존 연락처가 있으면 처음에는 유효한 값으로 둡니다.
   organizationPhoneValid.value = Boolean(detail.contactPhone)
 }
 
@@ -707,7 +864,6 @@ function resetCreateOrganizationForm() {
   organizationCreateForm.address = ''
   organizationCreateForm.addressDetail = ''
   organizationCreateForm.zipCode = ''
-
 }
 
 // 생성 버튼을 누르면 오른쪽 상세 패널 자리에 생성 폼을 엽니다.
@@ -757,7 +913,6 @@ async function submitOrganizationCreate() {
     !organizationCreateForm.contactEmail.trim() ||
     !organizationCreateForm.contactPhone.trim() ||
     !organizationCreateForm.address.trim()
-
   ) {
     organizationCreateError.value = copy.value.validationRequired
     return
@@ -792,7 +947,6 @@ async function submitOrganizationCreate() {
       address: organizationCreateForm.address.trim(),
       addressDetail: organizationCreateForm.addressDetail.trim() || null,
       zipCode: organizationCreateForm.zipCode.trim() || null,
-
     })
 
     const orgAdminResponse = await createInitialOrgAdmin(response.organizationPublicId, {
@@ -803,8 +957,6 @@ async function submitOrganizationCreate() {
       phone: organizationCreateForm.contactPhone.trim(),
       jobTitle: '조직 관리자',
     })
-
-
 
     let supplierCreateFailed = false
 
@@ -843,7 +995,6 @@ async function submitOrganizationCreate() {
     pageSuccess.value = supplierCreateFailed
       ? `${copy.value.createSupplierWarning} (${createdCredentialMessage})`
       : `${copy.value.createSuccess} (${createdCredentialMessage})`
-
   } catch (error: any) {
     console.error('Failed to create organization:', error)
 
@@ -856,7 +1007,6 @@ async function submitOrganizationCreate() {
   }
 }
 
-// 플랫폼 관리자가 보는 조직 목록을 읽습니다.
 // 플랫폼 관리자가 보는 조직 목록을 8개씩 페이징해서 불러옵니다.
 async function loadOrganizationList(page = organizationListPage.value) {
   try {
@@ -864,18 +1014,14 @@ async function loadOrganizationList(page = organizationListPage.value) {
     pageError.value = ''
     pageSuccess.value = ''
 
-    // 백엔드 페이지는 0부터 시작하므로 현재 page 값을 그대로 보냅니다.
     const response = await getOrganizations({
-  page,
-  size: ORGANIZATION_LIST_PAGE_SIZE,
-  status: 'ACTIVE',
-})
+      page,
+      size: ORGANIZATION_LIST_PAGE_SIZE,
+      status: 'ACTIVE',
+    })
 
-
-    // 현재 페이지에 보여줄 조직 목록입니다.
     organizationRows.value = response.content
 
-    // 백엔드가 알려준 현재 페이지와 전체 페이지 정보를 저장합니다.
     organizationListPage.value = response.number ?? page
     organizationListTotalElements.value = response.totalElements ?? 0
     organizationListTotalPages.value = response.totalPages ?? 0
@@ -895,7 +1041,6 @@ function moveOrganizationListPage(nextPage: number) {
 
   void loadOrganizationList(nextPage)
 }
-
 
 // 조직 내부 ID 기준으로 상세 API를 호출합니다.
 async function loadOrganizationDetailById(organizationId: number) {
@@ -968,7 +1113,6 @@ async function loadPage() {
   if (isAdminManager.value) {
     await loadOrganizationList()
 
-    // 통합검색에서 조직 ID를 넘겨준 경우, 목록 로딩 후 바로 상세를 엽니다.
     const routeOrganizationId = getRouteOrganizationId()
 
     if (routeOrganizationId !== null) {
@@ -1096,7 +1240,6 @@ async function submitOrganizationStatusUpdate(nextStatus: OrganizationStatus) {
 
   resetMessages()
 
-  // 상태별 확인 문구를 다르게 보여줍니다.
   const confirmMessage =
     nextStatus === 'ACTIVE'
       ? copy.value.activateConfirm
@@ -1111,13 +1254,11 @@ async function submitOrganizationStatusUpdate(nextStatus: OrganizationStatus) {
   try {
     isUpdatingOrganizationStatus.value = true
 
-    // 백엔드 조직 상태 변경 API를 호출합니다.
     const saved = await updateOrganizationStatus(
       selectedOrganizationDetail.value.organizationId,
       { status: nextStatus },
     )
 
-    // 삭제 상태가 되면 기본 목록에서 숨기고 상세 패널도 닫습니다.
     if (nextStatus === 'DELETE') {
       organizationRows.value = organizationRows.value.filter(
         (row) => !(hasOrganizationId(row) && row.organizationId === saved.organizationId),
@@ -1173,7 +1314,6 @@ async function handleMemberExcelUpload(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
 
-  // 파일이 없으면 아무것도 하지 않습니다.
   if (!file) {
     return
   }
@@ -1190,6 +1330,12 @@ async function handleMemberExcelUpload(event: Event) {
       preferences.language === 'ko'
         ? `업로드가 완료되었습니다. 성공 ${result.successCount}건 / 실패 ${result.failCount}건`
         : `Upload completed. Success ${result.successCount} / Fail ${result.failCount}`
+
+    await loadMembers()
+
+    if (selectedOrganizationDetail.value) {
+      selectedOrganizationDetail.value.memberCount = memberRows.value.length
+    }
   } catch (error: any) {
     memberUploadError.value =
       error?.payload?.message ||
@@ -1204,12 +1350,12 @@ async function handleMemberExcelUpload(event: Event) {
 // 페이지가 열리면 바로 데이터를 읽습니다.
 onMounted(() => {
   void loadPage()
+  void loadDepartmentOptions()
 })
 
 watch(
   () => route.query.organizationId,
   async () => {
-    // 이미 조직관리 페이지에 있는 상태에서 다른 조직 검색 결과를 누르면 상세만 다시 바꿉니다.
     if (!isAdminManager.value) {
       return
     }
@@ -1222,6 +1368,25 @@ watch(
   },
 )
 
+// 사원관리 탭에 들어오면 현재 조직 사원 목록을 불러옵니다.
+watch(
+  activeTab,
+  (nextTab) => {
+    if (nextTab === 'members') {
+      void loadMembers()
+    }
+  },
+)
+
+// 관리 대상 조직이 바뀌면 사원 목록도 새로 맞춥니다.
+watch(
+  currentManagedOrganizationPublicId,
+  () => {
+    if (activeTab.value === 'members') {
+      void loadMembers()
+    }
+  },
+)
 </script>
 
 <template>
@@ -1247,7 +1412,7 @@ watch(
           gap: 20px;
         "
       >
-               <article v-if="isAdminManager" class="page-panel">
+        <article v-if="isAdminManager" class="page-panel">
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">{{ copy.eyebrow }}</div>
@@ -1353,10 +1518,10 @@ watch(
                   organizationPanelMode === 'create'
                     ? copy.createDescription
                     : activeTab === 'members'
-                    ? copy.memberDescription
-                    : isAdminManager
-                      ? copy.readOnlyDescription
-                      : copy.myOrganizationDescription
+                      ? copy.memberDescription
+                      : isAdminManager
+                        ? copy.readOnlyDescription
+                        : copy.myOrganizationDescription
                 }}
               </p>
 
@@ -1382,6 +1547,7 @@ watch(
             </div>
           </div>
 
+          <!-- 조직 생성 폼 -->
           <template v-if="organizationPanelMode === 'create' && isAdminManager">
             <div v-if="organizationCreateError" class="login-error" style="margin-bottom: 12px;">
               {{ organizationCreateError }}
@@ -1489,398 +1655,511 @@ watch(
           </template>
 
           <template v-else>
-          <div v-if="pageError && activeTab === 'organization'" class="login-error" style="margin-bottom: 12px;">
-            {{ pageError }}
-          </div>
-
-          <div v-if="pageSuccess && activeTab === 'organization'" class="login-hint" style="margin-bottom: 12px;">
-            {{ pageSuccess }}
-          </div>
-
-          <div v-if="isLoadingOrganizationDetail && activeTab === 'organization'" class="login-hint">
-            {{ copy.loadingDetail }}
-          </div>
-
-          <div v-else-if="!selectedOrganizationDetail && activeTab === 'organization'" class="page-feed">
-            <div class="page-feed__item">
-              <span class="page-feed__label">{{ copy.detailTitle }}</span>
-              <strong class="page-feed__text">{{ copy.chooseOrganization }}</strong>
-            </div>
-          </div>
-
-          <template v-else-if="activeTab === 'organization' && selectedOrganizationDetail">
-            <div class="organization-summary-grid">
-              <button
-                class="organization-summary-card"
-                type="button"
-                :disabled="!canEditOrganization"
-                @click="openOrganizationMembers"
-              >
-                <span>{{ copy.memberCount }}</span>
-                <strong>{{ formatCount(selectedOrganizationDetail.memberCount) }}</strong>
-              </button>
-
-              <button
-                class="organization-summary-card"
-                type="button"
-                @click="openOrganizationWarehouses"
-              >
-                <span>{{ copy.warehouseCount }}</span>
-                <strong>
-                  {{ isLoadingOrganizationSupplySummary ? '-' : formatCount(organizationSupplySummary.warehouseCount) }}
-                </strong>
-              </button>
-
-              <button
-                class="organization-summary-card"
-                type="button"
-                @click="openOrganizationEsgFiles"
-              >
-                <span>{{ copy.esgFileCount }}</span>
-                <strong>
-                  {{ isLoadingOrganizationSupplySummary ? '-' : formatCount(organizationSupplySummary.esgFileCount) }}
-                </strong>
-              </button>
+            <div v-if="pageError && activeTab === 'organization'" class="login-error" style="margin-bottom: 12px;">
+              {{ pageError }}
             </div>
 
-            <div class="organization-entity-card">
-              <div class="organization-entity-card__image">
-                <img
-                  v-if="selectedOrganizationDetail.organizationImageThumbPath"
-                  :src="selectedOrganizationDetail.organizationImageThumbPath"
-                  :alt="selectedOrganizationDetail.organizationName"
-                />
-                <span v-else class="material-symbols-outlined">business</span>
+            <div v-if="pageSuccess && activeTab === 'organization'" class="login-hint" style="margin-bottom: 12px;">
+              {{ pageSuccess }}
+            </div>
+
+            <div v-if="isLoadingOrganizationDetail && activeTab === 'organization'" class="login-hint">
+              {{ copy.loadingDetail }}
+            </div>
+
+            <div v-else-if="!selectedOrganizationDetail && activeTab === 'organization'" class="page-feed">
+              <div class="page-feed__item">
+                <span class="page-feed__label">{{ copy.detailTitle }}</span>
+                <strong class="page-feed__text">{{ copy.chooseOrganization }}</strong>
               </div>
+            </div>
 
-              <div class="organization-entity-card__body">
-                <span class="organization-entity-card__eyebrow">
-                  {{ formatOrganizationType(selectedOrganizationDetail.organizationType) }} ·
-                  {{ formatOrganizationStatus(selectedOrganizationDetail.status) }}
-                </span>
-
-                <strong class="organization-entity-card__title">
-                  {{ selectedOrganizationLabel }}
-                </strong>
-              </div>
-
-              <div
-                v-if="canEditOrganization && isEditingOrganization"
-                class="organization-entity-card__actions"
-              >
-                <input
-                  ref="organizationImageInput"
-                  type="file"
-                  accept="image/*"
-                  style="display: none;"
-                  @change="handleOrganizationImageSelected"
-                />
+            <!-- 조직 상세 -->
+            <template v-else-if="activeTab === 'organization' && selectedOrganizationDetail">
+              <div class="organization-summary-grid">
+                <button
+                  class="organization-summary-card"
+                  type="button"
+                  :disabled="!canEditOrganization"
+                  @click="openOrganizationMembers"
+                >
+                  <span>{{ copy.memberCount }}</span>
+                  <strong>{{ formatCount(selectedOrganizationDetail.memberCount) }}</strong>
+                </button>
 
                 <button
-                  class="page-button page-button--secondary"
+                  class="organization-summary-card"
                   type="button"
-                  :disabled="isUploadingOrganizationImage"
-                  @click="triggerOrganizationImagePicker"
+                  @click="openOrganizationWarehouses"
                 >
-                  {{
-                    isUploadingOrganizationImage
-                      ? ('업로드 중...')
-                      : ('이미지 변경')
-                  }}
+                  <span>{{ copy.warehouseCount }}</span>
+                  <strong>
+                    {{ isLoadingOrganizationSupplySummary ? '-' : formatCount(organizationSupplySummary.warehouseCount) }}
+                  </strong>
+                </button>
+
+                <button
+                  class="organization-summary-card"
+                  type="button"
+                  @click="openOrganizationEsgFiles"
+                >
+                  <span>{{ copy.esgFileCount }}</span>
+                  <strong>
+                    {{ isLoadingOrganizationSupplySummary ? '-' : formatCount(organizationSupplySummary.esgFileCount) }}
+                  </strong>
                 </button>
               </div>
-            </div>
 
-           <div class="profile-kv organization-inline-edit">
-  <div class="profile-kv__row">
-    <span>{{ copy.organizationName }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.organizationName || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.organizationName"
-      type="text"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.organizationEnglishName }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.organizationEnglishName || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.organizationEnglishName"
-      type="text"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.organizationAlias }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.organizationAlias || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.organizationAlias"
-      type="text"
-      maxlength="10"
-      placeholder="ATLAS1"
-      @input="normalizeOrganizationAlias"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.businessNo }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.businessNo || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.businessNo"
-      type="text"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.address }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.address || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.address"
-      type="text"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.addressDetail }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.addressDetail || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.addressDetail"
-      type="text"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.zipCode }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.zipCode || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.zipCode"
-      type="text"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.contactFirstName }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.contactFirstName || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.contactFirstName"
-      type="text"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.contactMiddleName }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.contactMiddleName || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.contactMiddleName"
-      type="text"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.contactLastName }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.contactLastName || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.contactLastName"
-      type="text"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.contactEmail }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.contactEmail || '-' }}
-    </strong>
-    <input
-      v-else
-      v-model="organizationForm.contactEmail"
-      type="email"
-    />
-  </div>
-
-  <div class="profile-kv__row">
-    <span>{{ copy.contactPhone }}</span>
-    <strong v-if="!isEditingOrganization">
-      {{ selectedOrganizationDetail.contactPhone || '-' }}
-    </strong>
-    <PhoneField
-      v-else
-      v-model="organizationForm.contactPhone"
-      v-model:valid="organizationPhoneValid"
-      :language="preferences.language"
-    />
-  </div>
-</div>
-
-
-          <div
-  v-if="canEditOrganization"
-  class="organization-form-actions"
->
-  <button
-    v-if="!isEditingOrganization"
-    class="page-button page-button--primary"
-    type="button"
-    @click="startOrganizationEdit"
-  >
-    {{ copy.editButton }}
-  </button>
-
-  <template v-else>
-    <button
-      class="page-button page-button--secondary"
-      type="button"
-      :disabled="isSavingOrganization"
-      @click="cancelOrganizationEdit"
-    >
-      {{ copy.cancelButton }}
-    </button>
-
-    <button
-      class="page-button page-button--primary"
-      type="button"
-      :disabled="isSavingOrganization"
-      @click="submitOrganizationUpdate"
-    >
-      {{ isSavingOrganization ? copy.savingButton : copy.saveButton }}
-    </button>
-  </template>
-</div>
-
-
-            <div
-              v-if="canChangeOrganizationStatus"
-              class="organization-danger-actions"
-            >
-              <button
-                v-if="selectedOrganizationDetail.status !== 'ACTIVE'"
-                class="page-button page-button--secondary"
-                type="button"
-                :disabled="isUpdatingOrganizationStatus"
-                @click="submitOrganizationStatusUpdate('ACTIVE')"
-              >
-                {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.activateButton }}
-              </button>
-
-              <button
-                v-if="selectedOrganizationDetail.status === 'ACTIVE'"
-                class="page-button page-button--danger"
-                type="button"
-                :disabled="isUpdatingOrganizationStatus"
-                @click="submitOrganizationStatusUpdate('DEACTIVE')"
-              >
-                {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.deactivateButton }}
-              </button>
-
-              <button
-                v-if="canDeleteOrganization && selectedOrganizationDetail.status !== 'DELETE'"
-                class="page-button page-button--danger"
-                type="button"
-                :disabled="isUpdatingOrganizationStatus"
-                @click="submitOrganizationStatusUpdate('DELETE')"
-              >
-                {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.deleteButton }}
-              </button>
-            </div>
-          </template>
-
-          <template v-else-if="activeTab === 'members' && canEditOrganization">
-            <div class="settings-form">
-              <label>
-                <span>{{ copy.memberExcelFile }}</span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  :disabled="isUploadingMembers"
-                  @change="handleMemberExcelUpload"
-                />
-              </label>
-
-              <div class="login-hint" style="margin-top: 8px;">
-                {{ copy.uploadHint }}
-              </div>
-
-              <div v-if="memberUploadError" class="login-error">
-                {{ memberUploadError }}
-              </div>
-
-              <div v-if="memberUploadSuccess" class="login-hint">
-                {{ memberUploadSuccess }}
-              </div>
-
-              <div v-if="isUploadingMembers" class="login-hint">
-                {{ copy.uploadingMembers }}
-              </div>
-
-              <div v-if="memberUploadResult" class="page-feed">
-                <div class="page-feed__item">
-                  <span class="page-feed__label">{{ copy.totalCount }}</span>
-                  <strong class="page-feed__text">{{ memberUploadResult.totalCount }}</strong>
+              <div class="organization-entity-card">
+                <div class="organization-entity-card__image">
+                  <img
+                    v-if="selectedOrganizationDetail.organizationImageThumbPath"
+                    :src="selectedOrganizationDetail.organizationImageThumbPath"
+                    :alt="selectedOrganizationDetail.organizationName"
+                  />
+                  <span v-else class="material-symbols-outlined">business</span>
                 </div>
 
-                <div class="page-feed__item">
-                  <span class="page-feed__label">{{ copy.successCount }}</span>
-                  <strong class="page-feed__text">{{ memberUploadResult.successCount }}</strong>
-                </div>
+                <div class="organization-entity-card__body">
+                  <span class="organization-entity-card__eyebrow">
+                    {{ formatOrganizationType(selectedOrganizationDetail.organizationType) }} ·
+                    {{ formatOrganizationStatus(selectedOrganizationDetail.status) }}
+                  </span>
 
-                <div class="page-feed__item">
-                  <span class="page-feed__label">{{ copy.failCount }}</span>
-                  <strong class="page-feed__text">{{ memberUploadResult.failCount }}</strong>
-                </div>
-              </div>
-
-              <div v-if="memberUploadResult?.results?.length" class="page-table" style="margin-top: 16px;">
-                <div class="page-table__row page-table__row--head">
-                  <span>{{ copy.rowNumber }}</span>
-                  <span>{{ copy.rowResult }}</span>
-                  <span>{{ copy.loginId }}</span>
-                  <span>{{ copy.temporaryPassword }}</span>
-                  <span>{{ copy.message }}</span>
+                  <strong class="organization-entity-card__title">
+                    {{ selectedOrganizationLabel }}
+                  </strong>
                 </div>
 
                 <div
-                  v-for="row in memberUploadResult.results"
-                  :key="`${row.rowNumber}-${row.loginId || row.message}`"
-                  class="page-table__row"
+                  v-if="canEditOrganization && isEditingOrganization"
+                  class="organization-entity-card__actions"
                 >
-                  <span>{{ row.rowNumber }}</span>
-                  <span>{{ row.success ? copy.success : copy.fail }}</span>
-                  <span>{{ row.loginId || '-' }}</span>
-                  <span>{{ row.temporaryPassword || '-' }}</span>
-                  <span>{{ row.message || '-' }}</span>
+                  <input
+                    ref="organizationImageInput"
+                    type="file"
+                    accept="image/*"
+                    style="display: none;"
+                    @change="handleOrganizationImageSelected"
+                  />
+
+                  <button
+                    class="page-button page-button--secondary"
+                    type="button"
+                    :disabled="isUploadingOrganizationImage"
+                    @click="triggerOrganizationImagePicker"
+                  >
+                    {{ isUploadingOrganizationImage ? '업로드 중...' : '이미지 변경' }}
+                  </button>
                 </div>
               </div>
-            </div>
-          </template>
+
+              <div class="profile-kv organization-inline-edit">
+                <div class="profile-kv__row">
+                  <span>{{ copy.organizationName }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.organizationName || '-' }}</strong>
+                  <input v-else v-model="organizationForm.organizationName" type="text" />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.organizationEnglishName }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.organizationEnglishName || '-' }}</strong>
+                  <input v-else v-model="organizationForm.organizationEnglishName" type="text" />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.organizationAlias }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.organizationAlias || '-' }}</strong>
+                  <input
+                    v-else
+                    v-model="organizationForm.organizationAlias"
+                    type="text"
+                    maxlength="10"
+                    placeholder="ATLAS1"
+                    @input="normalizeOrganizationAlias"
+                  />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.businessNo }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.businessNo || '-' }}</strong>
+                  <input v-else v-model="organizationForm.businessNo" type="text" />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.address }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.address || '-' }}</strong>
+                  <input v-else v-model="organizationForm.address" type="text" />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.addressDetail }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.addressDetail || '-' }}</strong>
+                  <input v-else v-model="organizationForm.addressDetail" type="text" />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.zipCode }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.zipCode || '-' }}</strong>
+                  <input v-else v-model="organizationForm.zipCode" type="text" />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.contactFirstName }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.contactFirstName || '-' }}</strong>
+                  <input v-else v-model="organizationForm.contactFirstName" type="text" />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.contactMiddleName }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.contactMiddleName || '-' }}</strong>
+                  <input v-else v-model="organizationForm.contactMiddleName" type="text" />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.contactLastName }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.contactLastName || '-' }}</strong>
+                  <input v-else v-model="organizationForm.contactLastName" type="text" />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.contactEmail }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.contactEmail || '-' }}</strong>
+                  <input v-else v-model="organizationForm.contactEmail" type="email" />
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.contactPhone }}</span>
+                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.contactPhone || '-' }}</strong>
+                  <PhoneField
+                    v-else
+                    v-model="organizationForm.contactPhone"
+                    v-model:valid="organizationPhoneValid"
+                    :language="preferences.language"
+                  />
+                </div>
+              </div>
+
+              <div v-if="canEditOrganization" class="organization-form-actions">
+                <button
+                  v-if="!isEditingOrganization"
+                  class="page-button page-button--primary"
+                  type="button"
+                  @click="startOrganizationEdit"
+                >
+                  {{ copy.editButton }}
+                </button>
+
+                <template v-else>
+                  <button
+                    class="page-button page-button--secondary"
+                    type="button"
+                    :disabled="isSavingOrganization"
+                    @click="cancelOrganizationEdit"
+                  >
+                    {{ copy.cancelButton }}
+                  </button>
+
+                  <button
+                    class="page-button page-button--primary"
+                    type="button"
+                    :disabled="isSavingOrganization"
+                    @click="submitOrganizationUpdate"
+                  >
+                    {{ isSavingOrganization ? copy.savingButton : copy.saveButton }}
+                  </button>
+                </template>
+              </div>
+
+              <div v-if="canChangeOrganizationStatus" class="organization-danger-actions">
+                <button
+                  v-if="selectedOrganizationDetail.status !== 'ACTIVE'"
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="isUpdatingOrganizationStatus"
+                  @click="submitOrganizationStatusUpdate('ACTIVE')"
+                >
+                  {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.activateButton }}
+                </button>
+
+                <button
+                  v-if="selectedOrganizationDetail.status === 'ACTIVE'"
+                  class="page-button page-button--danger"
+                  type="button"
+                  :disabled="isUpdatingOrganizationStatus"
+                  @click="submitOrganizationStatusUpdate('DEACTIVE')"
+                >
+                  {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.deactivateButton }}
+                </button>
+
+                <button
+                  v-if="canDeleteOrganization && selectedOrganizationDetail.status !== 'DELETE'"
+                  class="page-button page-button--danger"
+                  type="button"
+                  :disabled="isUpdatingOrganizationStatus"
+                  @click="submitOrganizationStatusUpdate('DELETE')"
+                >
+                  {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.deleteButton }}
+                </button>
+              </div>
+            </template>
+
+            <!-- 사원관리 탭 -->
+            <template v-else-if="activeTab === 'members' && canEditOrganization">
+              <!-- 사원관리 서브탭 -->
+              <div class="member-subtabs">
+                <button
+                  class="page-button"
+                  type="button"
+                  :class="activeMemberSubTab === 'add' ? 'page-button--primary' : 'page-button--secondary'"
+                  @click="activeMemberSubTab = 'add'"
+                >
+                  {{ copy.memberSubTabAdd }}
+                </button>
+
+                <button
+                  class="page-button"
+                  type="button"
+                  :class="activeMemberSubTab === 'excel' ? 'page-button--primary' : 'page-button--secondary'"
+                  @click="activeMemberSubTab = 'excel'"
+                >
+                  {{ copy.memberSubTabExcel }}
+                </button>
+
+                <button
+                  class="page-button"
+                  type="button"
+                  :class="activeMemberSubTab === 'list' ? 'page-button--primary' : 'page-button--secondary'"
+                  @click="activeMemberSubTab = 'list'"
+                >
+                  {{ copy.memberSubTabList }}
+                </button>
+              </div>
+
+              <!-- 직접 등록 -->
+              <div v-if="activeMemberSubTab === 'add'" class="member-add-block">
+                <div v-if="createMemberRows.length === 0" class="login-hint">
+                  {{ copy.addMemberRowButton }} 버튼을 눌러 등록할 사원을 입력하세요.
+                </div>
+
+                <div v-else class="member-create-list">
+                  <div
+                    v-for="row in createMemberRows"
+                    :key="row.rowId"
+                    class="member-create-card"
+                  >
+                    <div class="member-create-card__fields">
+                      <label class="member-create-card__field">
+                        <span>{{ preferences.language === 'ko' ? '성 *' : 'Last Name *' }}</span>
+                        <input v-model="row.lastName" type="text" />
+                      </label>
+
+                      <label class="member-create-card__field">
+                        <span>{{ preferences.language === 'ko' ? '이름 *' : 'First Name *' }}</span>
+                        <input v-model="row.firstName" type="text" />
+                      </label>
+
+                      <label class="member-create-card__field">
+                        <span>{{ preferences.language === 'ko' ? '중간 이름' : 'Middle Name' }}</span>
+                        <input v-model="row.middleName" type="text" />
+                      </label>
+
+                      <label class="member-create-card__field">
+                        <span>{{ preferences.language === 'ko' ? '이메일 *' : 'Email *' }}</span>
+                        <input v-model="row.email" type="email" />
+                      </label>
+
+                      <label class="member-create-card__field">
+                        <span>{{ preferences.language === 'ko' ? '연락처 *' : 'Phone *' }}</span>
+                        <input v-model="row.phone" type="text" />
+                      </label>
+
+                      <label class="member-create-card__field">
+                        <span>{{ preferences.language === 'ko' ? '직급' : 'Job Title' }}</span>
+                        <input v-model="row.jobTitle" type="text" />
+                      </label>
+
+                      <label class="member-create-card__field member-create-card__field--wide">
+                        <span>{{ preferences.language === 'ko' ? '부서 *' : 'Department *' }}</span>
+                        <select v-model="row.departmentPublicId">
+                          <option value="">{{ preferences.language === 'ko' ? '부서 선택' : 'Select Department' }}</option>
+                          <option
+                            v-for="dept in departmentOptions"
+                            :key="dept.departmentPublicId"
+                            :value="dept.departmentPublicId"
+                          >
+                            {{ dept.departmentName }} ({{ dept.departmentCode }})
+                          </option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div class="member-create-card__footer">
+                      <div v-if="row.success" class="member-create-card__result member-create-card__result--success">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span>
+                        <span>{{ copy.memberRegisterComplete }}</span>
+                        <span>{{ copy.loginId }}: <strong>{{ row.loginId }}</strong></span>
+                        <span>{{ copy.temporaryPassword }}: <strong>{{ row.temporaryPassword }}</strong></span>
+                      </div>
+
+                      <div v-else-if="row.errorMessage" class="member-create-card__result member-create-card__result--error">
+                        {{ row.errorMessage }}
+                      </div>
+
+                      <div v-else style="flex: 1;" />
+
+                      <button
+                        class="page-button page-button--secondary"
+                        type="button"
+                        :disabled="isCreatingMembers"
+                        @click="removeCreateMemberRow(row.rowId)"
+                      >
+                        {{ copy.removeMemberRowButton }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="member-add-actions">
+                  <button
+                    class="page-button page-button--secondary"
+                    type="button"
+                    :disabled="isCreatingMembers"
+                    @click="addCreateMemberRow"
+                  >
+                    {{ copy.addMemberRowButton }}
+                  </button>
+
+                  <button
+                    v-if="createMemberRows.length > 0"
+                    class="page-button page-button--primary"
+                    type="button"
+                    :disabled="isCreatingMembers"
+                    @click="submitCreateMembers"
+                  >
+                    {{ isCreatingMembers ? copy.submittingMembersButton : copy.submitMembersButton }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- 엑셀 업로드 -->
+              <div v-else-if="activeMemberSubTab === 'excel'" class="member-excel-block">
+                <div class="settings-form">
+                  <label>
+                    <span>{{ copy.memberExcelFile }}</span>
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      :disabled="isUploadingMembers"
+                      @change="handleMemberExcelUpload"
+                    />
+                  </label>
+
+                  <div class="login-hint" style="margin-top: 8px;">
+                    {{ copy.uploadHint }}
+                  </div>
+
+                  <div v-if="memberUploadError" class="login-error" style="margin-top: 8px;">
+                    {{ memberUploadError }}
+                  </div>
+
+                  <div v-if="memberUploadSuccess" class="login-hint" style="margin-top: 8px;">
+                    {{ memberUploadSuccess }}
+                  </div>
+
+                  <div v-if="isUploadingMembers" class="login-hint" style="margin-top: 8px;">
+                    {{ copy.uploadingMembers }}
+                  </div>
+                </div>
+
+                <div v-if="memberUploadResult" class="page-feed" style="margin-top: 16px;">
+                  <div class="page-feed__item">
+                    <span class="page-feed__label">{{ copy.totalCount }}</span>
+                    <strong class="page-feed__text">{{ memberUploadResult.totalCount }}</strong>
+                  </div>
+
+                  <div class="page-feed__item">
+                    <span class="page-feed__label">{{ copy.successCount }}</span>
+                    <strong class="page-feed__text">{{ memberUploadResult.successCount }}</strong>
+                  </div>
+
+                  <div class="page-feed__item">
+                    <span class="page-feed__label">{{ copy.failCount }}</span>
+                    <strong class="page-feed__text">{{ memberUploadResult.failCount }}</strong>
+                  </div>
+                </div>
+
+                <div v-if="memberUploadResult?.results?.length" class="page-table" style="margin-top: 16px;">
+                  <div class="page-table__row page-table__row--head">
+                    <span>{{ copy.rowNumber }}</span>
+                    <span>{{ copy.rowResult }}</span>
+                    <span>{{ copy.loginId }}</span>
+                    <span>{{ copy.temporaryPassword }}</span>
+                    <span>{{ copy.message }}</span>
+                  </div>
+
+                  <div
+                    v-for="row in memberUploadResult.results"
+                    :key="`${row.rowNumber}-${row.loginId || row.message}`"
+                    class="page-table__row"
+                  >
+                    <span>{{ row.rowNumber }}</span>
+                    <span>{{ row.success ? copy.success : copy.fail }}</span>
+                    <span>{{ row.loginId || '-' }}</span>
+                    <span>{{ row.temporaryPassword || '-' }}</span>
+                    <span>{{ row.message || '-' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 사원 목록 -->
+              <div v-else-if="activeMemberSubTab === 'list'" class="member-list-block">
+                <div class="member-list-actions">
+                  <button
+                    class="page-button page-button--secondary"
+                    type="button"
+                    :disabled="isLoadingMembers"
+                    @click="loadMembers"
+                  >
+                    {{ copy.memberListRefresh }}
+                  </button>
+                </div>
+
+                <div v-if="isLoadingMembers" class="login-hint">
+                  {{ copy.memberListLoading }}
+                </div>
+
+                <div v-else-if="memberRows.length === 0" class="login-hint">
+                  {{ copy.memberListEmpty }}
+                </div>
+
+                <div v-else class="member-list-table">
+                  <div class="member-list-table__row member-list-table__row--head">
+                    <span>{{ preferences.language === 'ko' ? '이름' : 'Name' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '이메일' : 'Email' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '연락처' : 'Phone' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '직급' : 'Job Title' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '부서' : 'Department' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '권한' : 'Role' }}</span>
+                    <span>{{ preferences.language === 'ko' ? '상태' : 'Status' }}</span>
+                  </div>
+
+                  <div
+                    v-for="member in memberRows"
+                    :key="member.userPublicId"
+                    class="member-list-table__row"
+                  >
+                    <strong>{{ member.lastName }}{{ member.firstName }}</strong>
+                    <span>{{ member.email }}</span>
+                    <span>{{ member.phone }}</span>
+                    <span>{{ member.jobTitle || '-' }}</span>
+                    <span>{{ member.departmentName || '-' }}</span>
+                    <span>{{ member.userRole }}</span>
+                    <span>{{ member.status }}</span>
+                  </div>
+                </div>
+              </div>
+            </template>
           </template>
         </article>
       </div>
@@ -1892,6 +2171,7 @@ watch(
 .organization-management-head {
   align-items: flex-start;
 }
+
 .organization-list-block {
   display: grid;
   gap: 12px;
@@ -1909,7 +2189,6 @@ watch(
   font-size: 0.82rem;
   font-weight: 800;
 }
-
 
 .organization-management-tabs {
   display: flex;
@@ -2086,6 +2365,134 @@ watch(
   margin-top: 20px;
 }
 
+/* 사원관리 서브탭 */
+.member-subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
+}
+
+/* 직접 등록 */
+.member-add-block {
+  display: grid;
+  gap: 16px;
+}
+
+.member-add-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.member-create-list {
+  display: grid;
+  gap: 12px;
+}
+
+.member-create-card {
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.72);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.member-create-card__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.member-create-card__field {
+  display: grid;
+  gap: 4px;
+}
+
+.member-create-card__field span {
+  color: var(--on-surface-variant, #596061);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.member-create-card__field input,
+.member-create-card__field select {
+  width: 100%;
+}
+
+.member-create-card__field--wide {
+  grid-column: 1 / -1;
+}
+
+.member-create-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.member-create-card__result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.member-create-card__result--success {
+  color: var(--on-surface-variant, #596061);
+}
+
+.member-create-card__result--error {
+  color: var(--error, #b3261e);
+}
+
+/* 엑셀 업로드 */
+.member-excel-block {
+  display: grid;
+  gap: 4px;
+}
+
+/* 사원 목록 */
+.member-list-block {
+  display: grid;
+  gap: 12px;
+}
+
+.member-list-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.member-list-table {
+  display: grid;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
+  overflow-x: auto;
+}
+
+.member-list-table__row {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr 1fr 1fr 0.8fr 0.8fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.22);
+  font-size: 0.82rem;
+  min-width: 600px;
+}
+
+.member-list-table__row:last-child {
+  border-bottom: 0;
+}
+
+.member-list-table__row--head {
+  background: rgb(var(--surface-container-high-rgb, 228 233 234) / 0.85);
+  color: var(--on-surface-variant, #596061);
+  font-weight: 900;
+}
+
 @media (max-width: 720px) {
   .organization-management-head {
     display: grid;
@@ -2129,6 +2536,19 @@ watch(
     justify-self: stretch;
     text-align: left;
   }
+
+  .member-create-card__fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .member-subtabs {
+    flex-wrap: wrap;
+  }
 }
 
+@media (max-width: 480px) {
+  .member-create-card__fields {
+    grid-template-columns: 1fr;
+  }
+}
 </style>
