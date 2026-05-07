@@ -212,7 +212,6 @@ const profileImageInput = ref<HTMLInputElement | null>(null)
 // 기본 정보 수정 폼입니다.
 const profileForm = reactive({
   firstName: '',
-  middleName: '',
   lastName: '',
   email: '',
   phone: '',
@@ -272,7 +271,6 @@ const datePickerFormats = computed(() => ({
 // 사용자 상세 값을 수정 폼에 그대로 채웁니다.
 function syncProfileForm(detail: UserDetailResponse) {
   profileForm.firstName = detail.firstName ?? ''
-  profileForm.middleName = detail.middleName ?? ''
   profileForm.lastName = detail.lastName ?? ''
   profileForm.email = detail.email ?? ''
   profileForm.phone = detail.phone ?? ''
@@ -594,7 +592,6 @@ async function submitProfileUpdate() {
     // 실제 수정 API를 호출합니다.
     const updatedUser = await updateUser(currentUserId.value, {
       firstName: profileForm.firstName.trim(),
-      middleName: profileForm.middleName.trim() || undefined,
       lastName: profileForm.lastName.trim(),
       email: profileForm.email.trim(),
       phone: profileForm.phone,
@@ -1593,11 +1590,6 @@ onBeforeUnmount(() => {
               <label>
                 <span>{{ '성' }}</span>
                 <input v-model="profileForm.lastName" type="text" />
-              </label>
-
-              <label>
-                <span>{{ '중간이름 (선택)' }}</span>
-                <input v-model="profileForm.middleName" type="text" />
               </label>
 
               <label>
