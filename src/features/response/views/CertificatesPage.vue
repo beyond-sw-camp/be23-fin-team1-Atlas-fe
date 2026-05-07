@@ -5,12 +5,13 @@ import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasSessionStore } from '../../../stores/session'
 import { 
   getAllCertificates, getExpiringCertificates, 
-  createSupplierCertificate,
+  createSupplierCertificate, updateCertificate,
   type SupplierCertificateResponseDto,
   type CreateSupplierCertificateRequestDto,
 } from '../../../services/certificate'
 import CertificateCreateModal from '../components/CertificateCreateModal.vue'
 import DocumentsPage from './DocumentsPage.vue'
+import { uploadAttachment } from '../../../services/file'
 
 const header = useAtlasHeaderStore()
 const dialog = useAtlasDialogStore()
@@ -123,10 +124,11 @@ const filteredRows = computed(() => {
   const statusTab = activeTab.value
 
   return certs.value.filter((cert) => {
+    const certificateTypeName = getCertificateTypeName(cert.certificateType).toLowerCase()
     const textMatch = !query || 
       cert.certificateNo.toLowerCase().includes(query) || 
       cert.supplierName?.toLowerCase().includes(query) ||
-      cert.certificateType?.name?.toLowerCase().includes(query)
+      certificateTypeName.includes(query)
     
     if (!textMatch) return false
     const statusKey = CERTIFICATE_TAB_STATUS[statusTab] ?? 'ALL'
@@ -138,6 +140,10 @@ const filteredRows = computed(() => {
 function certStatusText(status: string | null | undefined) {
   if (!status) return '-'
   return CERTIFICATE_STATUS_TEXT[status] ?? status
+}
+
+function getCertificateTypeName(type: SupplierCertificateResponseDto['certificateType'] | null | undefined) {
+  return type?.name || type?.certificateName || type?.certificateCode || '-'
 }
 
 function getDaysLeft(expiredAt: string) {
@@ -158,9 +164,14 @@ async function handleCertSelect(cert: SupplierCertificateResponseDto) {
   selectedCertificateForDocuments.value = cert
 }
 
-async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupplierCertificateRequestDto) {
+async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupplierCertificateRequestDto, file: File) {
   try {
-    await createSupplierCertificate(supplierPublicId, data)
+    const createdCertificate = await createSupplierCertificate(supplierPublicId, data)
+    const uploadRes = await uploadAttachment(file, 'SUPPLIER_CERTIFICATE', createdCertificate.publicId)
+    await updateCertificate(createdCertificate.publicId, {
+      ...data,
+      attachmentPublicId: uploadRes.attachmentPublicId,
+    })
     isCreateModalOpen.value = false
     await nextTick()
     await dialog.alert('인증서가 성공적으로 등록 되었습니다.')
@@ -214,6 +225,12 @@ onBeforeUnmount(() => header.clearActions())
         <span>⌕</span>
         <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
       </label>
+      <label class="certificates-page__mobile-status-filter">
+        <span class="sr-only">상태 필터</span>
+        <select v-model="activeTab">
+          <option v-for="tab in content.tabs" :key="tab" :value="tab">{{ tab }}</option>
+        </select>
+      </label>
       <div class="terminal-page__tabs" style="overflow-x: auto; white-space: nowrap;">
         <button
           v-for="tab in content.tabs"
@@ -232,9 +249,17 @@ onBeforeUnmount(() => header.clearActions())
         <div><div class="page-panel__eyebrow">인증서</div><h3>{{ content.tableTitle }}</h3></div>
         <span class="page-panel__chip">{{ filteredRows.length }}</span>
       </div>
-      <div class="page-table terminal-page__table is-nine-cols">
+      <div class="page-table terminal-page__table certificates-page__table is-nine-cols">
         <div class="page-table__row page-table__row--head">
-          <span v-for="column in content.columns" :key="column">{{ column }}</span>
+          <span class="certificates-page__col certificates-page__col--number">인증서 번호</span>
+          <span class="certificates-page__col certificates-page__col--supplier">협력사</span>
+          <span class="certificates-page__col certificates-page__col--type">인증 유형</span>
+          <span class="certificates-page__col certificates-page__col--issuer">발급 기관</span>
+          <span class="certificates-page__col certificates-page__col--issued">발급일</span>
+          <span class="certificates-page__col certificates-page__col--expired">만료일</span>
+          <span class="certificates-page__col certificates-page__col--days">남은 일수</span>
+          <span class="certificates-page__col certificates-page__col--status">상태</span>
+          <span class="certificates-page__col certificates-page__col--detail">상세</span>
         </div>
         
         <div v-if="filteredRows.length === 0" class="terminal-page__table-message">
@@ -243,21 +268,21 @@ onBeforeUnmount(() => header.clearActions())
 
         <template v-else>
           <div v-for="cert in filteredRows" :key="cert.publicId" class="page-table__row">
-            <span>{{ cert.certificateNo }}</span>
-            <span>{{ cert.supplierName }}</span>
-            <span>{{ cert.certificateType?.name }}</span>
-            <span>{{ cert.issuerName }}</span>
-            <span>{{ cert.issuedAt }}</span>
-            <span>{{ cert.expiredAt }}</span>
-            <span :class="{'text-critical': Number(getDaysLeft(cert.expiredAt).replace(/\D/g, '')) < 30}">
+            <span class="certificates-page__col certificates-page__col--number">{{ cert.certificateNo }}</span>
+            <span class="certificates-page__col certificates-page__col--supplier">{{ cert.supplierName }}</span>
+            <span class="certificates-page__col certificates-page__col--type">{{ getCertificateTypeName(cert.certificateType) }}</span>
+            <span class="certificates-page__col certificates-page__col--issuer">{{ cert.issuerName }}</span>
+            <span class="certificates-page__col certificates-page__col--issued">{{ cert.issuedAt }}</span>
+            <span class="certificates-page__col certificates-page__col--expired">{{ cert.expiredAt }}</span>
+            <span class="certificates-page__col certificates-page__col--days" :class="{'text-critical': Number(getDaysLeft(cert.expiredAt).replace(/\D/g, '')) < 30}">
               {{ getDaysLeft(cert.expiredAt) }}
             </span>
-            <span>
+            <span class="certificates-page__col certificates-page__col--status certificates-page__status-cell">
               <span :class="['page-status-chip', certStatusTone(cert.certificateStatus)]">
                 {{ certStatusText(cert.certificateStatus) }}
               </span>
             </span>
-            <span style="display: flex; justify-content: flex-end;">
+            <span class="certificates-page__col certificates-page__col--detail certificates-page__detail-cell">
               <button class="page-button page-button--secondary" type="button" @click="handleCertSelect(cert)">
                 {{ content.detailLabel }}
               </button>
@@ -288,9 +313,54 @@ onBeforeUnmount(() => header.clearActions())
 .text-nominal {
   color: var(--color-nominal, #00eeaa);
 }
-.page-table.is-nine-cols .page-table__row {
-  grid-template-columns: 1.4fr 1.2fr 1.2fr 1.2fr 1fr 1fr 0.8fr 1fr 0.9fr;
-  min-width: 900px;
+.certificates-page__table .page-table__row {
+  grid-template-columns:
+    minmax(132px, 1.25fr)
+    minmax(112px, 1fr)
+    minmax(112px, 1fr)
+    minmax(92px, 0.82fr)
+    minmax(104px, 0.9fr)
+    minmax(104px, 0.9fr)
+    minmax(82px, 0.68fr)
+    86px
+    92px;
+  min-width: 0;
+  gap: 18px;
+}
+
+.certificates-page__table .page-table__row > span {
+  min-width: 0;
+  word-break: keep-all;
+}
+
+.certificates-page__col {
+  min-width: 0;
+}
+
+.certificates-page__col--number,
+.certificates-page__col--supplier,
+.certificates-page__col--type {
+  overflow-wrap: anywhere;
+}
+
+.certificates-page__status-cell {
+  justify-self: start;
+}
+
+.certificates-page__status-cell .page-status-chip {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.certificates-page__detail-cell {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.certificates-page__detail-cell .page-button {
+  min-width: 0;
+  padding-inline: 14px;
+  white-space: nowrap;
 }
 
 .page-table.is-trace-cols .page-table__row {
@@ -300,6 +370,180 @@ onBeforeUnmount(() => header.clearActions())
 .page-table {
   overflow-x: auto;
 }
+
+.certificates-page__mobile-status-filter {
+  display: none;
+}
+
+.certificates-page__mobile-status-filter select {
+  width: 100%;
+  height: 100%;
+  min-height: 48px;
+  padding: 0 34px 0 12px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.38);
+  border-radius: 0;
+  background: var(--surface-container-lowest, #fff);
+  color: var(--color-on-surface);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .terminal-page__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .terminal-page__metrics .page-metric {
+    min-width: 0;
+    padding: 16px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .terminal-page__filter {
+    grid-template-columns: minmax(0, 1fr) 120px;
+  }
+
+  .certificates-page__mobile-status-filter {
+    display: block;
+  }
+
+  .terminal-page__tabs {
+    display: none;
+  }
+}
+
+@media (max-width: 1500px) {
+  .certificates-page__table .page-table__row {
+    grid-template-columns:
+      minmax(126px, 1.2fr)
+      minmax(104px, 1fr)
+      minmax(104px, 1fr)
+      minmax(96px, 0.88fr)
+      minmax(96px, 0.88fr)
+      minmax(78px, 0.66fr)
+      84px
+      90px;
+  }
+
+  .certificates-page__col--issuer {
+    display: none;
+  }
+}
+
+@media (max-width: 1280px) {
+  .certificates-page__table .page-table__row {
+    grid-template-columns:
+      minmax(124px, 1.2fr)
+      minmax(104px, 1fr)
+      minmax(104px, 1fr)
+      minmax(82px, 0.7fr)
+      84px
+      90px;
+  }
+
+  .certificates-page__col--issued,
+  .certificates-page__col--expired {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .certificates-page__table .page-table__row {
+    grid-template-columns:
+      minmax(132px, 1.05fr)
+      minmax(96px, 0.85fr)
+      90px
+      82px !important;
+    gap: 14px;
+    justify-content: stretch;
+  }
+
+  .certificates-page__col--supplier,
+  .certificates-page__col--status,
+  .certificates-page__col--detail {
+    display: block !important;
+  }
+
+  .certificates-page__table .certificates-page__detail-cell {
+    display: flex !important;
+  }
+
+  .certificates-page__col--type,
+  .certificates-page__col--issuer,
+  .certificates-page__col--issued,
+  .certificates-page__col--expired,
+  .certificates-page__col--days {
+    display: none !important;
+  }
+}
+
+@media (min-width: 981px) and (max-width: 1280px) {
+  .certificates-page__table .page-table__row {
+    grid-template-columns:
+      minmax(132px, 1.05fr)
+      minmax(96px, 0.85fr)
+      90px
+      82px !important;
+    gap: 14px;
+    justify-content: stretch;
+  }
+
+  .certificates-page__col--supplier,
+  .certificates-page__col--status,
+  .certificates-page__col--detail {
+    display: block !important;
+  }
+
+  .certificates-page__table .certificates-page__detail-cell {
+    display: flex !important;
+  }
+
+  .certificates-page__col--type,
+  .certificates-page__col--issuer,
+  .certificates-page__col--issued,
+  .certificates-page__col--expired,
+  .certificates-page__col--days {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .certificates-page__table .page-table__row {
+    grid-template-columns:
+      minmax(86px, 1fr)
+      minmax(62px, 0.72fr)
+      78px
+      70px !important;
+    gap: 12px;
+  }
+
+  .certificates-page__col--supplier,
+  .certificates-page__col--status,
+  .certificates-page__col--detail {
+    display: block !important;
+  }
+
+  .certificates-page__table .certificates-page__detail-cell {
+    display: flex !important;
+  }
+
+  .certificates-page__col--type,
+  .certificates-page__col--issuer,
+  .certificates-page__col--issued,
+  .certificates-page__col--expired,
+  .certificates-page__col--days {
+    display: none !important;
+  }
+
+  .certificates-page__detail-cell .page-button {
+    padding-inline: 8px;
+  }
+}
+
 .terminal-page__tabs::-webkit-scrollbar {
   display: none;
 }
