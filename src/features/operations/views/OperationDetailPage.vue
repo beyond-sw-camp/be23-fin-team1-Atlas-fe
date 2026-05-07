@@ -1268,6 +1268,14 @@ function historyDescription(row: any) {
   return row.memo ?? row.description ?? aiSummary.value
 }
 
+function historyActorLabel(row: any) {
+  if (kind.value === 'logistics-nodes') {
+    return display(row.processedByUserName ?? row.recordedByName ?? row.createdByName ?? formatActor(row.processedByUserPublicId ?? row.createdBy))
+  }
+
+  return formatActor(row.processedByUserPublicId ?? row.createdBy)
+}
+
 function section(title: string, rows: [string, unknown][]): DetailSection {
   return {
     title,
@@ -2973,7 +2981,7 @@ watch(
                       {{ historyChangeLabel(row) }}
                     </span>
                   </td>
-                  <td>{{ formatActor(row.processedByUserPublicId ?? row.createdBy) }}</td>
+                  <td>{{ historyActorLabel(row) }}</td>
                   <td>{{ historyDescription(row) }}</td>
                 </tr>
               </tbody>
