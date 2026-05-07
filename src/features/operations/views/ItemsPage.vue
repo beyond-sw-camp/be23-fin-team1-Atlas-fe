@@ -260,6 +260,19 @@ function closeCapabilityEditModal() {
 async function submitCapabilityEdit() {
   if (!selectedItem.value || !selectedCapability.value) return
 
+  if (!isPositiveInteger(capabilityEditForm.value.monthlyCapacity)) {
+    capabilityEditErrorMessage.value = '월간 생산 가능량은 1 이상의 정수로 입력해 주세요.'
+    return
+  }
+  if (!isPositiveInteger(capabilityEditForm.value.availableQty)) {
+    capabilityEditErrorMessage.value = '주문 가능 수량은 1 이상의 정수로 입력해 주세요.'
+    return
+  }
+  if (!isPositiveInteger(capabilityEditForm.value.moq)) {
+    capabilityEditErrorMessage.value = '최소 주문 수량은 1 이상의 정수로 입력해 주세요.'
+    return
+  }
+
   try {
     capabilityEditLoading.value = true
     capabilityEditErrorMessage.value = ''
@@ -693,18 +706,22 @@ function isPositiveNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
 }
 
+function isPositiveInteger(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0
+}
+
 function validateCreateForm() {
     if (!createForm.value.itemCategoryPublicId) return '카테고리를 선택해 주세요.'
   if (!createForm.value.itemName.trim()) return '품목명을 입력해 주세요.'
   if (!createForm.value.spec.trim()) return '규격을 입력해 주세요.'
-  if (!isPositiveNumber(createForm.value.unitPrice)) return '단가는 0보다 커야 합니다.'
+  if (!isPositiveInteger(createForm.value.unitPrice)) return '단가는 1 이상의 정수로 입력해 주세요.'
   if (!isNonNegativeNumber(createForm.value.shelfLifeDays)) return '유통기한을 입력해 주세요.'
   if (!createForm.value.originLogisticsNodePublicId) return '출발 물류거점을 선택해 주세요.'
 
   if (!isNonNegativeNumber(createForm.value.leadTimeDays)) return '리드타임을 입력해 주세요.'
-  if (!isPositiveNumber(createForm.value.monthlyCapacity)) return '월간 생산 가능량을 입력해 주세요.'
-  if (!isPositiveNumber(createForm.value.availableQty)) return '주문 가능 수량을 입력해 주세요.'
-  if (!isPositiveNumber(createForm.value.moq)) return '최소 주문 수량을 입력해 주세요.'
+  if (!isPositiveInteger(createForm.value.monthlyCapacity)) return '월간 생산 가능량은 1 이상의 정수로 입력해 주세요.'
+  if (!isPositiveInteger(createForm.value.availableQty)) return '주문 가능 수량은 1 이상의 정수로 입력해 주세요.'
+  if (!isPositiveInteger(createForm.value.moq)) return '최소 주문 수량은 1 이상의 정수로 입력해 주세요.'
   if (!createForm.value.qualityGrade) return '품질 등급을 선택해 주세요.'
   if (typeof createForm.value.partialConfirmationAllowed !== 'boolean') {
     return '부분 확정 허용 여부를 선택해 주세요.'
@@ -1378,7 +1395,6 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   <BaseModal
     v-model="createModalOpen"
     :title="copy.createTitle"
-    :description="copy.createDescription"
     size="lg"
     @close="closeCreateModal"
   >
@@ -1391,7 +1407,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         <div class="items-page__section-title">{{ copy.createMasterSection }}</div>
 
         <label class="items-page__field">
-          <span>CATEGORY</span>
+          <span>카테고리</span>
           <select
             v-model="createForm.itemCategoryPublicId"
             :disabled="!!createdItemForCapability"
@@ -1422,7 +1438,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>UNIT</span>
+          <span>단위</span>
           <select v-model="createForm.unit" :disabled="!!createdItemForCapability">
             <option v-for="unit in ITEM_UNIT_OPTIONS" :key="unit" :value="unit">
               {{ unit }}
@@ -1431,17 +1447,17 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>UNIT PRICE</span>
-          <input v-model.number="createForm.unitPrice" type="number" min="0.01" step="0.01" />
+          <span>단가</span>
+          <input v-model.number="createForm.unitPrice" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
-          <span>SHELF LIFE DAYS</span>
+          <span>유통기한</span>
           <input v-model.number="createForm.shelfLifeDays" type="number" min="0" :disabled="!!createdItemForCapability" />
         </label>
 
         <label class="items-page__field items-page__field--full">
-          <span>SPEC</span>
+          <span>규격</span>
           <textarea v-model="createForm.spec" :disabled="!!createdItemForCapability" />
         </label>
 
@@ -1489,27 +1505,27 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         <div class="items-page__section-title">{{ copy.createCapabilitySection }}</div>
 
         <label class="items-page__field">
-          <span>LEAD TIME DAYS</span>
+          <span>리드타임</span>
           <input v-model.number="createForm.leadTimeDays" type="number" min="0" />
         </label>
 
         <label class="items-page__field">
           <span>월간 생산량</span>
-          <input v-model.number="createForm.monthlyCapacity" type="number" min="0.01" step="0.01" />
+          <input v-model.number="createForm.monthlyCapacity" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
           <span>{{ createForm.supplyType === 'MAKE_TO_ORDER' ? '생산 가능 수량' : '주문 가능 수량' }}</span>
-          <input v-model.number="createForm.availableQty" type="number" min="0.01" step="0.01" />
+          <input v-model.number="createForm.availableQty" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
           <span>최소 주문 수량</span>
-          <input v-model.number="createForm.moq" type="number" min="0.01" step="0.01" />
+          <input v-model.number="createForm.moq" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
-          <span>품목 품질</span>
+          <span>품질</span>
           <select v-model="createForm.qualityGrade">
             <option value="">{{ copy.options.none }}</option>
             <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
@@ -1884,6 +1900,9 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 
 .items-page__field span {
   font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   opacity: 0.7;
 }
 
@@ -1891,12 +1910,19 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 .items-page__field select,
 .items-page__field textarea {
   width: 100%;
-  min-height: 40px;
+  min-height: 42px;
   padding: 8px 10px;
   color: var(--color-on-surface);
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline);
-  border-radius: 6px;
+  background: var(--surface-container-lowest, var(--color-surface));
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
+  border-radius: 0;
+}
+
+.items-page__field input:focus,
+.items-page__field select:focus,
+.items-page__field textarea:focus {
+  outline: none;
+  border-color: rgb(var(--outline-rgb, 117 124 125) / 0.72);
 }
 
 .items-page__field textarea {

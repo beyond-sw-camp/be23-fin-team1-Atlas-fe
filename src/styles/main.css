@@ -7585,3 +7585,55 @@ select:not(.app-language-select select):focus {
     display: none !important;
   }
 }
+
+/* 생성/수정 페이지 및 모달 공통 입력 필드 배경 */
+.app-screen input,
+.app-screen select,
+.app-screen textarea,
+.modal input,
+.modal select,
+.modal textarea,
+.base-modal input,
+.base-modal select,
+.base-modal textarea {
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.92) !important;
+  border-color: transparent !important;
+}
+
+.theme-dark .app-screen input,
+.theme-dark .app-screen select,
+.theme-dark .app-screen textarea,
+.theme-dark .modal input,
+.theme-dark .modal select,
+.theme-dark .modal textarea,
+.theme-dark .base-modal input,
+.theme-dark .base-modal select,
+.theme-dark .base-modal textarea {
+  background: rgb(var(--surface-container-high-rgb, 42 42 42) / 0.92) !important;
+}
+
+.app-screen input:focus,
+.app-screen select:focus,
+.app-screen textarea:focus,
+.modal input:focus,
+.modal select:focus,
+.modal textarea:focus,
+.base-modal input:focus,
+.base-modal select:focus,
+.base-modal textarea:focus {
+  outline: none;
+  background: rgb(var(--surface-container-high-rgb, 228 233 234) / 0.96) !important;
+  box-shadow: 0 0 0 2px rgb(var(--primary-rgb, 0 98 114) / 0.22);
+}
+
+.theme-dark .app-screen input:focus,
+.theme-dark .app-screen select:focus,
+.theme-dark .app-screen textarea:focus,
+.theme-dark .modal input:focus,
+.theme-dark .modal select:focus,
+.theme-dark .modal textarea:focus,
+.theme-dark .base-modal input:focus,
+.theme-dark .base-modal select:focus,
+.theme-dark .base-modal textarea:focus {
+  background: rgb(var(--surface-container-highest-rgb, 53 53 53) / 0.96) !important;
+}
