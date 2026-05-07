@@ -67,12 +67,19 @@ type ItemTableRow = {
   cells: string[]
 }
 
+type CreateMediaPreview = {
+  url: string
+  name: string
+  kind: 'image' | 'video'
+  file: File
+}
+
 const itemCategoryPlaceholder = computed(() =>
   '카테고리 선택',
 )
 
 const itemCategoryHint = computed(() =>
-  '품목 등록은 최하위 카테고리만 선택할 수 있습니다. 예: 식품 > 냉동 식품',
+  '최상위, 상위, 하위 카테고리 중 필요한 항목을 선택할 수 있습니다.',
 )
 
 const ITEM_UNIT_OPTIONS: ItemUnit[] = [
@@ -339,7 +346,8 @@ const createErrorMessage = ref('')
 const isCreatePage = computed(() => route.name === 'itemCreate')
 const createdItemForCapability = ref<ItemResponseDto | null>(null)
 const createMediaFiles = ref<File[]>([])
-const createMediaPreviews = ref<Array<{ url: string; name: string; kind: 'image' | 'video' }>>([])
+const createMediaPreviews = ref<CreateMediaPreview[]>([])
+const createMediaDragIndex = ref<number | null>(null)
 
 const dashboardSummary = ref<ItemDashboardSummaryResponseDto | null>(null)
 const linkedOrders = ref<ItemLinkedPurchaseOrderResponseDto[]>([])
@@ -414,6 +422,22 @@ function revokeCreateMediaPreviews() {
   createMediaPreviews.value = []
 }
 
+function syncCreateMediaFilesFromPreviews() {
+  createMediaFiles.value = createMediaPreviews.value.map((preview) => preview.file)
+}
+
+function normalizeCreateMediaOrder(previews: CreateMediaPreview[]) {
+  if (previews[0]?.kind !== 'video') return previews
+
+  const firstImageIndex = previews.findIndex((preview) => preview.kind === 'image')
+  if (firstImageIndex <= 0) return previews
+
+  const ordered = [...previews]
+  const [firstImage] = ordered.splice(firstImageIndex, 1)
+  ordered.unshift(firstImage)
+  return ordered
+}
+
 function handleCreateMediaChange(event: Event) {
   const target = event.target as HTMLInputElement
   revokeCreateMediaPreviews()
@@ -421,13 +445,49 @@ function handleCreateMediaChange(event: Event) {
   const files = Array.from(target.files ?? []).filter(
     (file) => file.type.startsWith('image/') || file.type.startsWith('video/'),
   )
+  target.value = ''
 
-  createMediaFiles.value = files
-  createMediaPreviews.value = files.map((file) => ({
+  createMediaPreviews.value = normalizeCreateMediaOrder(files.map((file) => ({
     url: URL.createObjectURL(file),
     name: file.name,
     kind: file.type.startsWith('video/') ? 'video' : 'image',
-  }))
+    file,
+  })))
+  syncCreateMediaFilesFromPreviews()
+}
+
+function handleCreateMediaDragStart(index: number) {
+  createMediaDragIndex.value = index
+}
+
+function handleCreateMediaDrop(targetIndex: number) {
+  const sourceIndex = createMediaDragIndex.value
+  createMediaDragIndex.value = null
+
+  if (sourceIndex === null || sourceIndex === targetIndex) return
+
+  const nextPreviews = [...createMediaPreviews.value]
+  const [movedPreview] = nextPreviews.splice(sourceIndex, 1)
+  nextPreviews.splice(targetIndex, 0, movedPreview)
+
+  if (nextPreviews[0]?.kind === 'video') {
+    createErrorMessage.value = '동영상은 첫 번째 순서로 배치할 수 없습니다.'
+    return
+  }
+
+  createErrorMessage.value = ''
+  createMediaPreviews.value = nextPreviews
+  syncCreateMediaFilesFromPreviews()
+}
+
+function removeCreateMediaPreview(index: number) {
+  const preview = createMediaPreviews.value[index]
+  if (!preview) return
+
+  URL.revokeObjectURL(preview.url)
+  createMediaPreviews.value.splice(index, 1)
+  createMediaPreviews.value = normalizeCreateMediaOrder([...createMediaPreviews.value])
+  syncCreateMediaFilesFromPreviews()
 }
 
 async function setFirstImageAsPrimary(itemPublicId: string, files: ItemMediaFile[]) {
@@ -517,7 +577,7 @@ function formatLeadTime(value: number | null | undefined) {
   return `${value}일`
 }
 
-// 품목 등록에서는 최하위 카테고리만 선택하게 합니다.
+// 품목 등록에서는 카테고리 계층 전체를 선택지로 제공합니다.
 const leafCategoryOptions = computed(() =>
   categoryOptions.value,
 )
@@ -725,7 +785,7 @@ function isPositiveInteger(value: unknown) {
 function validateCreateForm() {
     if (!createForm.value.itemCategoryPublicId) return '카테고리를 선택해 주세요.'
   if (!createForm.value.itemName.trim()) return '품목명을 입력해 주세요.'
-  if (!createForm.value.spec.trim()) return '규격을 입력해 주세요.'
+  if (!createForm.value.spec.trim()) return '상세설명을 입력해 주세요.'
   if (!isPositiveInteger(createForm.value.unitPrice)) return '단가는 1 이상의 정수로 입력해 주세요.'
   if (!isNonNegativeNumber(createForm.value.shelfLifeDays)) return '유통기한을 입력해 주세요.'
   if (!createForm.value.originLogisticsNodePublicId) return '출발 물류거점을 선택해 주세요.'
@@ -738,6 +798,7 @@ function validateCreateForm() {
   if (typeof createForm.value.partialConfirmationAllowed !== 'boolean') {
     return '부분 확정 허용 여부를 선택해 주세요.'
   }
+  if (createMediaPreviews.value[0]?.kind === 'video') return '동영상은 첫 번째 순서로 배치할 수 없습니다.'
 
   return ''
 }
@@ -961,14 +1022,6 @@ const categoryOptions = computed<CategoryOption[]>(() => {
     categories.value.map((category) => [category.publicId, category]),
   )
 
-  // 자식이 있는 카테고리 publicId 집합입니다.
-  // 이 값을 이용해서 최하위(leaf) 카테고리만 선택 가능하게 만들 수 있습니다.
-  const parentIds = new Set(
-    categories.value
-      .map((category) => category.parentCategoryPublicId)
-      .filter((value): value is string => !!value),
-  )
-
   function buildCategoryPath(category: ItemCategoryResponseDto) {
     const names: string[] = []
     const visited = new Set<string>()
@@ -988,8 +1041,6 @@ const categoryOptions = computed<CategoryOption[]>(() => {
   }
 
   return categories.value
-    // 최하위 카테고리만 선택 가능하게 합니다.
-    .filter((category) => !parentIds.has(category.publicId))
     .map((category) => ({
       publicId: category.publicId,
       label: buildCategoryPath(category),
@@ -1426,8 +1477,8 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       <section class="items-page__form-section items-page__create-section items-page__create-section--master">
         <div class="items-page__section-title">{{ copy.createMasterSection }}</div>
 
-        <label class="items-page__field">
-          <span>카테고리</span>
+        <label class="items-page__field items-page__field--full">
+          <span>카테고리 <b class="items-page__required">*</b></span>
           <select
             v-model="createForm.itemCategoryPublicId"
             :disabled="!!createdItemForCapability"
@@ -1445,12 +1496,12 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>품목명</span>
+          <span>품목명 <b class="items-page__required">*</b></span>
           <input v-model="createForm.itemName" type="text" :disabled="!!createdItemForCapability" />
         </label>
 
         <label class="items-page__field">
-          <span>품목 유형</span>
+          <span>품목 유형 <b class="items-page__required">*</b></span>
           <select v-model="createForm.supplyType" :disabled="!!createdItemForCapability">
             <option value="STOCK_BASED">재고형</option>
             <option value="MAKE_TO_ORDER">주문생산형</option>
@@ -1458,7 +1509,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>단위</span>
+          <span>단위 <b class="items-page__required">*</b></span>
           <select v-model="createForm.unit" :disabled="!!createdItemForCapability">
             <option v-for="unit in ITEM_UNIT_OPTIONS" :key="unit" :value="unit">
               {{ unit }}
@@ -1467,22 +1518,22 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>단가</span>
+          <span>단가 <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.unitPrice" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
-          <span>유통기한</span>
+          <span>유통기한 <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.shelfLifeDays" type="number" min="0" :disabled="!!createdItemForCapability" />
         </label>
 
         <label class="items-page__field items-page__field--full">
-          <span>규격</span>
+          <span>상세설명 <b class="items-page__required">*</b></span>
           <textarea v-model="createForm.spec" :disabled="!!createdItemForCapability" />
         </label>
 
         <label class="items-page__field">
-          <span>출발 물류거점</span>
+          <span>출발 물류거점 <b class="items-page__required">*</b></span>
           <select v-model="createForm.originLogisticsNodePublicId" :disabled="!!createdItemForCapability">
             <option value="">출발 물류거점을 선택하세요.</option>
             <option
@@ -1495,27 +1546,51 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
           </select>
         </label>
 
-        <label class="items-page__field items-page__field--full">
+        <div class="items-page__field items-page__field--full">
           <span>{{ copy.mediaUploadTitle }}</span>
           <input
+            id="item-create-media-input"
+            class="items-page__media-input"
             type="file"
             accept="image/*,video/*"
             multiple
             :disabled="!!createdItemForCapability"
             @change="handleCreateMediaChange"
           />
-          <small class="items-page__hint">{{ copy.mediaUploadHint }}</small>
-        </label>
+          <label
+            class="items-page__media-upload items-page__media-upload--create"
+            for="item-create-media-input"
+          >
+            <span class="items-page__media-add-icon">+</span>
+            <strong>{{ copy.mediaAppendLabel }}</strong>
+            <small>{{ copy.mediaUploadHint }}</small>
+          </label>
+        </div>
 
         <div v-if="createMediaPreviews.length" class="items-page__preview-grid">
           <div
-            v-for="preview in createMediaPreviews"
+            v-for="(preview, index) in createMediaPreviews"
             :key="preview.url"
             class="items-page__preview-tile"
+            draggable="true"
+            @dragstart="handleCreateMediaDragStart(index)"
+            @dragover.prevent
+            @drop.prevent="handleCreateMediaDrop(index)"
+            @dragend="createMediaDragIndex = null"
           >
+            <span class="items-page__preview-order">{{ index + 1 }}</span>
             <img v-if="preview.kind === 'image'" :src="preview.url" :alt="preview.name" />
             <video v-else :src="preview.url" preload="metadata" />
+            <span v-if="preview.kind === 'video'" class="items-page__media-play material-symbols-outlined">play_circle</span>
             <small>{{ preview.name }}</small>
+            <button
+              class="items-page__preview-remove"
+              type="button"
+              aria-label="미디어 제거"
+              @click="removeCreateMediaPreview(index)"
+            >
+              ×
+            </button>
           </div>
         </div>
 
@@ -1525,27 +1600,27 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         <div class="items-page__section-title">{{ copy.createCapabilitySection }}</div>
 
         <label class="items-page__field">
-          <span>리드타임</span>
+          <span>리드타임 <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.leadTimeDays" type="number" min="0" />
         </label>
 
         <label class="items-page__field">
-          <span>월간 생산량</span>
+          <span>월간 생산량 <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.monthlyCapacity" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
-          <span>{{ createForm.supplyType === 'MAKE_TO_ORDER' ? '생산 가능 수량' : '주문 가능 수량' }}</span>
+          <span>{{ createForm.supplyType === 'MAKE_TO_ORDER' ? '생산 가능 수량' : '주문 가능 수량' }} <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.availableQty" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
-          <span>최소 주문 수량</span>
+          <span>최소 주문 수량 <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.moq" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
-          <span>품질</span>
+          <span>품질 <b class="items-page__required">*</b></span>
           <select v-model="createForm.qualityGrade">
             <option value="">{{ copy.options.none }}</option>
             <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
@@ -1555,7 +1630,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>발주 수량 부분 확정</span>
+          <span>발주 수량 부분 확정 <b class="items-page__required">*</b></span>
           <select v-model="createForm.partialConfirmationAllowed">
             <option :value="true">{{ copy.options.allowed }}</option>
             <option :value="false">{{ copy.options.disallowed }}</option>
@@ -1779,6 +1854,16 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   gap: 10px;
 }
 
+.items-page__media-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .items-page__media-upload {
   display: grid;
   gap: 8px;
@@ -1787,6 +1872,30 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   background: var(--color-surface);
   border: 1px dashed var(--color-outline);
   border-radius: 6px;
+}
+
+.items-page__media-upload--create {
+  place-items: center;
+  min-height: 132px;
+  margin: 0;
+  text-align: center;
+  cursor: pointer;
+}
+
+.items-page__media-upload--create:hover {
+  border-color: rgb(var(--outline-rgb, 17 17 17) / 0.72);
+}
+
+.items-page__media-add-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  font-size: 2rem;
+  font-weight: 500;
+  line-height: 1;
+  border: 1px solid currentColor;
+  border-radius: 0;
 }
 
 .items-page__media-upload span {
@@ -1814,6 +1923,44 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 }
 
 .items-page__media-tile {
+  cursor: pointer;
+}
+
+.items-page__preview-tile {
+  cursor: grab;
+}
+
+.items-page__preview-tile:active {
+  cursor: grabbing;
+}
+
+.items-page__preview-order,
+.items-page__preview-remove {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgb(17 17 17 / 0.82);
+}
+
+.items-page__preview-order {
+  top: 8px;
+  left: 8px;
+  min-width: 26px;
+  height: 26px;
+  padding-inline: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.items-page__preview-remove {
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 0;
   cursor: pointer;
 }
 
@@ -1925,6 +2072,12 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   opacity: 0.7;
+}
+
+.items-page__required {
+  color: #dc2626;
+  font: inherit;
+  opacity: 1;
 }
 
 .items-page__field input,
