@@ -28,6 +28,7 @@ const CONTENT = {
       topics: { label: 'Kafka 토픽', meta: '구독 현황', tone: 'nominal' },
     },
     searchPlaceholder: '규칙명, 이벤트 유형 검색...',
+    filterLabel: '필터',
     tabs: ['전체', '활성', '비활성'],
     rulesTitle: '리스크 규칙 목록',
     topicTitle: 'Kafka 토픽 구독 현황',
@@ -61,6 +62,7 @@ const CONTENT = {
       topics: { label: 'KAFKA TOPICS', meta: 'SUBSCRIPTION STATUS', tone: 'nominal' },
     },
     searchPlaceholder: 'Search rule name or event type...',
+    filterLabel: 'FILTER',
     tabs: ['ALL', 'ACTIVE', 'DISABLED'],
     rulesTitle: 'RISK RULES',
     topicTitle: 'KAFKA TOPIC SUBSCRIPTIONS',
@@ -110,6 +112,7 @@ type DisplayRule = {
   id: string
   name: string
   topic: string
+  topicLabel: string
   condition: string
   threshold: string
   thresholdTone: 'warning' | 'critical'
@@ -199,14 +202,51 @@ function normalizeKafkaStatus(status?: string | null) {
   return status?.trim().toUpperCase() ?? ''
 }
 
-function formatBrokerStatus(status?: string | null) {
+function isConnectedStatus(status?: string | null) {
   const normalized = normalizeKafkaStatus(status)
+  return normalized === 'CONNECTED' || normalized === '연결됨'
+}
 
-  if (normalized === 'CONNECTED') {
+function isSubscribedStatus(status?: string | null) {
+  const normalized = normalizeKafkaStatus(status)
+  return normalized === 'SUBSCRIBED' || normalized === '구독 중'
+}
+
+const KAFKA_TOPIC_NAME_MAP: Record<string, { ko: string; en: string }> = {
+  'purchase-order': { ko: '발주', en: 'Purchase Order' },
+  'sub-purchase-order': { ko: '하위 발주', en: 'Sub Order' },
+  shipment: { ko: '출하', en: 'Shipment' },
+  'supplier-certificate': { ko: '협력사 인증서', en: 'Supplier Certificate' },
+  'delivery-exception': { ko: '배송 예외', en: 'Delivery Exception' },
+  'inventory-movement': { ko: '재고 이동', en: 'Inventory Movement' },
+  settlement: { ko: '정산', en: 'Settlement' },
+  return: { ko: '반품', en: 'Return' },
+}
+
+function formatKafkaTopicName(topic?: string | null) {
+  const rawTopic = topic?.trim()
+  if (!rawTopic) return content.value.unknown
+
+  const topicKey = rawTopic.split('.').pop()?.toLowerCase() ?? rawTopic.toLowerCase()
+  const mapped = KAFKA_TOPIC_NAME_MAP[topicKey]
+
+  if (mapped) {
+    return preferences.language === 'ko' ? mapped.ko : mapped.en
+  }
+
+  return topicKey
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function formatBrokerStatus(status?: string | null) {
+  if (isConnectedStatus(status)) {
     return content.value.connected
   }
 
-  if (!normalized) {
+  if (!normalizeKafkaStatus(status)) {
     return content.value.unknown
   }
 
@@ -214,13 +254,11 @@ function formatBrokerStatus(status?: string | null) {
 }
 
 function formatConsumerStatus(status?: string | null) {
-  const normalized = normalizeKafkaStatus(status)
-
-  if (normalized === 'SUBSCRIBED') {
+  if (isSubscribedStatus(status)) {
     return content.value.subscribed
   }
 
-  if (!normalized) {
+  if (!normalizeKafkaStatus(status)) {
     return content.value.unknown
   }
 
@@ -256,17 +294,18 @@ const metrics = computed(() => {
 const kafkaTopics = computed(() =>
   subscriptions.value.map((topic) => ({
     topic: topic.topic,
+    topicLabel: formatKafkaTopicName(topic.topic),
     partitions: topic.partitionCount,
     offset: String(topic.committedOffset ?? content.value.unknown),
     rate: String(topic.messagesPerHour ?? 0),
     brokerStatus: formatBrokerStatus(topic.brokerConnectionStatus),
     brokerTone:
-      normalizeKafkaStatus(topic.brokerConnectionStatus) === 'CONNECTED'
+      isConnectedStatus(topic.brokerConnectionStatus)
         ? 'success'
         : 'error',
     consumerStatus: formatConsumerStatus(topic.consumerSubscriptionStatus),
     consumerTone:
-      normalizeKafkaStatus(topic.consumerSubscriptionStatus) === 'SUBSCRIBED'
+      isSubscribedStatus(topic.consumerSubscriptionStatus)
         ? 'success'
         : 'warning',
   })),
@@ -277,6 +316,7 @@ const displayRules = computed<DisplayRule[]>(() =>
     id: rule.ruleId,
     name: rule.ruleName,
     topic: rule.topic,
+    topicLabel: formatKafkaTopicName(rule.topic),
     condition: rule.condition,
     threshold: formatThreshold(rule.threshold),
     thresholdTone: resolveThresholdTone(rule.importance),
@@ -558,6 +598,12 @@ onBeforeUnmount(() => {
           {{ tab }}
         </button>
       </div>
+      <label class="risk-rules-page__mobile-filter">
+        <span>{{ content.filterLabel }}</span>
+        <select v-model="selectedTab">
+          <option v-for="tab in content.tabs" :key="tab" :value="tab">{{ tab }}</option>
+        </select>
+      </label>
     </section>
 
     <article class="risk-rules-sheet">
@@ -588,7 +634,9 @@ onBeforeUnmount(() => {
         >
           <span class="risk-rules-table__code">{{ rule.id }}</span>
           <span class="risk-rules-table__primary risk-rules-table__primary--wide">{{ rule.name }}</span>
-          <span class="risk-rules-table__topic"><i class="risk-rules-chip risk-rules-chip--topic">{{ rule.topic }}</i></span>
+          <span class="risk-rules-table__topic">
+            <i class="risk-rules-chip risk-rules-chip--topic" :title="rule.topic">{{ rule.topicLabel }}</i>
+          </span>
           <span class="risk-rules-table__condition">{{ rule.condition }}</span>
           <span :class="['risk-rules-table__threshold', 'risk-rules-table__threshold--wide', `is-${rule.thresholdTone}`]">{{ rule.threshold }}</span>
           <span>{{ rule.triggered }}</span>
@@ -649,7 +697,10 @@ onBeforeUnmount(() => {
           <span v-for="column in content.topicColumns" :key="column">{{ column }}</span>
         </div>
         <div v-for="topic in kafkaTopics" :key="topic.topic" class="risk-rules-table__row is-nominal">
-          <span class="risk-rules-table__primary risk-rules-table__primary--wide">{{ topic.topic }}</span>
+          <span class="risk-rules-table__primary risk-rules-table__primary--wide" :title="topic.topic">
+            {{ topic.topicLabel }}
+            <small class="risk-rules-table__topic-meta">{{ topic.topic }}</small>
+          </span>
           <span>{{ topic.partitions }}</span>
           <span class="risk-rules-table__code">{{ topic.offset }}</span>
           <span>{{ topic.rate }}</span>

@@ -3413,6 +3413,10 @@ select:not(.app-language-select select):focus {
   flex-wrap: wrap;
 }
 
+.risk-rules-page__mobile-filter {
+  display: none;
+}
+
 .risk-rules-page__tab {
   min-height: 38px;
   padding: 0 12px;
@@ -3539,6 +3543,17 @@ select:not(.app-language-select select):focus {
   overflow: hidden;
 }
 
+.risk-rules-table__topic-meta {
+  display: block;
+  margin-top: 3px;
+  color: var(--on-surface-variant, #596061);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.58rem;
+  font-weight: 600;
+  line-height: 1.25;
+  opacity: 0.72;
+}
+
 .risk-rules-table__code {
   font-family: 'SFMono-Regular', Consolas, monospace;
   color: var(--primary, #2d3435);
@@ -3576,7 +3591,9 @@ select:not(.app-language-select select):focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.54rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
 }
 
 .risk-rules-chip.is-warning {
@@ -4259,9 +4276,7 @@ select:not(.app-language-select select):focus {
   }
 
   .risk-rules-page__tabs {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
+    display: none;
   }
 
   .recommendations-page__tabs {
@@ -4270,17 +4285,42 @@ select:not(.app-language-select select):focus {
     scrollbar-width: none;
   }
 
-  .risk-rules-page__tabs::-webkit-scrollbar {
-    display: none;
-  }
-
   .recommendations-page__tabs::-webkit-scrollbar {
     display: none;
   }
 
-  .risk-rules-page__tab {
-    flex: 0 0 auto;
-    white-space: nowrap;
+  .risk-rules-page__filter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 112px;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .risk-rules-page__mobile-filter {
+    display: grid;
+    min-width: 0;
+    border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
+    background: #fff;
+  }
+
+  .risk-rules-page__mobile-filter span {
+    padding: 7px 10px 0;
+    color: var(--on-surface-variant, #596061);
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+  }
+
+  .risk-rules-page__mobile-filter select {
+    width: 100%;
+    min-height: 36px;
+    padding: 0 24px 0 10px;
+    border: 0;
+    background: transparent;
+    color: var(--on-surface, #2d3435);
+    font-size: 16px;
+    font-weight: 800;
   }
 
   .recommendations-page__tab {
@@ -4310,6 +4350,10 @@ select:not(.app-language-select select):focus {
   .risk-rules-table__row>span {
     overflow-wrap: anywhere;
     white-space: normal;
+  }
+
+  .risk-rules-chip--topic {
+    max-width: 100%;
   }
 
   .risk-rules-pagination {
