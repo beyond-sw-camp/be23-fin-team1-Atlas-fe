@@ -1635,7 +1635,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>리드타임 <b class="items-page__required">*</b></span>
+          <span>리드타임(일) <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.leadTimeDays" type="number" min="0" />
         </label>
 
