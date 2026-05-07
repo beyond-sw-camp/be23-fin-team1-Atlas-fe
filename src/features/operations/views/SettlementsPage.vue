@@ -145,10 +145,8 @@ type SettlementBudgetForm = {
   warningThresholdRate: number
 }
 
-type SettlementInsightChartView = 'targetTypeAmount' | 'flowAmount'
 type MonthlyBudgetRange = 'ALL' | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'RECENT_6'
 
-const activeInsightChartView = ref<SettlementInsightChartView>('targetTypeAmount')
 const monthlyBudgetRange = ref<MonthlyBudgetRange>('ALL')
 
 const settlements = ref<SettlementListResponseDto[]>([])
@@ -161,12 +159,8 @@ const statisticsYear = ref(new Date().getFullYear())
 const supplierOptions = ref<SupplierResponseDto[]>([])
 
 const isListLoading = ref(false)
-// 정산 엑셀 다운로드 중인지 표시합니다.
 const isExcelDownloading = ref(false)
-// 엑셀 내보내기에 사용할 시작일입니다.
 const excelStartDate = ref('')
-
-// 엑셀 내보내기에 사용할 종료일입니다.
 const excelEndDate = ref('')
 
 const isSupplierOptionsLoading = ref(false)
@@ -186,9 +180,7 @@ const budgetForm = ref<SettlementBudgetForm>({
   warningThresholdRate: 80,
 })
 
-const CHART_MONTH_LABELS = [
-  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-]
+const CHART_MONTH_LABELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
 const monthLabel = (month: number) => `${month}월`
 const formatWonAmount = (value: number) => `${Number(value).toLocaleString('ko-KR')}원`
@@ -200,7 +192,6 @@ function budgetUsageStatusText(value: string | null | undefined) {
   return content.value.stats.budgetStatuses[status] ?? value ?? content.value.stats.budgetStatuses.NO_BUDGET
 }
 
-// 월별 예산 대비 지급 정산액 차트 데이터입니다.
 const monthlyBudgetChartPoints = computed(() => {
   const source = new Map(
     (settlementStatistics.value?.monthlyBudgetUsages ?? []).map((point) => [
@@ -224,21 +215,14 @@ const monthlyBudgetChartPoints = computed(() => {
   })
 })
 
-// 사용자가 누른 범위 버튼에 맞춰 차트에 보여줄 월만 골라냅니다.
 const visibleMonthlyBudgetChartPoints = computed(() => {
   switch (monthlyBudgetRange.value) {
-    case 'Q1':
-      return monthlyBudgetChartPoints.value.slice(0, 3)
-    case 'Q2':
-      return monthlyBudgetChartPoints.value.slice(3, 6)
-    case 'Q3':
-      return monthlyBudgetChartPoints.value.slice(6, 9)
-    case 'Q4':
-      return monthlyBudgetChartPoints.value.slice(9, 12)
-    case 'RECENT_6':
-      return monthlyBudgetChartPoints.value.slice(6, 12)
-    default:
-      return monthlyBudgetChartPoints.value
+    case 'Q1': return monthlyBudgetChartPoints.value.slice(0, 3)
+    case 'Q2': return monthlyBudgetChartPoints.value.slice(3, 6)
+    case 'Q3': return monthlyBudgetChartPoints.value.slice(6, 9)
+    case 'Q4': return monthlyBudgetChartPoints.value.slice(9, 12)
+    case 'RECENT_6': return monthlyBudgetChartPoints.value.slice(6, 12)
+    default: return monthlyBudgetChartPoints.value
   }
 })
 
@@ -249,12 +233,9 @@ const hasMonthlyBudgetChartData = computed(() => {
 })
 
 const monthlyPayableTotalAmount = computed(() => {
-  return monthlyBudgetChartPoints.value.reduce((sum, point) => {
-    return sum + point.payableAmount
-  }, 0)
+  return monthlyBudgetChartPoints.value.reduce((sum, point) => sum + point.payableAmount, 0)
 })
 
-// 예산과 지급 정산액을 둘 다 막대 그래프로 보여줍니다.
 const monthlyBudgetChartSeries = computed(() => {
   return [
     {
@@ -284,9 +265,7 @@ const monthlyBudgetChartOptions = computed(() => {
       },
     },
     colors: ['#cbd5e1', '#334155'],
-    dataLabels: {
-      enabled: false,
-    },
+    dataLabels: { enabled: false },
     grid: {
       borderColor: '#edf1f7',
       strokeDashArray: 4,
@@ -303,7 +282,8 @@ const monthlyBudgetChartOptions = computed(() => {
     },
     yaxis: {
       labels: {
-        formatter: (value: number) => Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US'),
+        formatter: (value: number) =>
+          Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US'),
         style: {
           colors: '#98a2b3',
           fontSize: '11px',
@@ -313,28 +293,22 @@ const monthlyBudgetChartOptions = computed(() => {
     tooltip: {
       shared: true,
       intersect: false,
-      y: {
-        formatter: formatWonAmount,
-      },
+      y: { formatter: formatWonAmount },
     },
     legend: {
       position: 'top',
       horizontalAlign: 'right',
       fontSize: '12px',
       fontWeight: 800,
-      labels: {
-        colors: '#667085',
-      },
+      labels: { colors: '#667085' },
     },
   }
 })
 
-// 정산 유형별 금액 차트 데이터입니다.
 const targetTypeChartPoints = computed(() => {
   return settlementStatistics.value?.targetTypeAmounts ?? []
 })
 
-// 도넛은 금액 기준입니다. 반품 금액은 음수일 수 있어서 절댓값으로 표시합니다.
 const targetTypeDonutChartSeries = computed(() => {
   return targetTypeChartPoints.value.map((point) => Math.abs(Number(point.amount ?? 0)))
 })
@@ -347,14 +321,9 @@ const hasTargetTypeChartData = computed(() => {
   return targetTypeDonutChartSeries.value.some((value) => value > 0)
 })
 
-// 도넛 중앙 합계는 실제 정산 합계라서 반품 음수까지 포함해서 계산합니다.
-// 도넛 조각은 Math.abs()로 그리지만, 합계는 원본 amount를 그대로 더해야 합니다.
 const targetTypeAmountTotal = computed(() => {
-  return targetTypeChartPoints.value.reduce((sum, point) => {
-    return sum + Number(point.amount ?? 0)
-  }, 0)
+  return targetTypeChartPoints.value.reduce((sum, point) => sum + Number(point.amount ?? 0), 0)
 })
-
 
 const targetTypeDonutChartOptions = computed(() => {
   return {
@@ -365,25 +334,23 @@ const targetTypeDonutChartOptions = computed(() => {
       toolbar: { show: false },
     },
     dataLabels: {
-  style: {
-    fontFamily: 'Pretendard, "Segoe UI", sans-serif',
-    fontWeight: 900,
-    colors: ['#ffffff', '#ffffff', '#ffffff'],  // 도넛 조각 위 → 흰색
-  },
-  dropShadow: {
-    enabled: true,
-    blur: 2,
-    opacity: 0.4,
-  },
-},
+      style: {
+        fontFamily: 'Pretendard, "Segoe UI", sans-serif',
+        fontWeight: 900,
+        colors: ['#ffffff', '#ffffff', '#ffffff'],
+      },
+      dropShadow: {
+        enabled: true,
+        blur: 2,
+        opacity: 0.4,
+      },
+    },
     legend: {
       position: 'bottom',
       fontSize: '12px',
       fontWeight: 800,
       fontFamily: 'Pretendard, "Segoe UI", sans-serif',
-      labels: {
-        colors: '#667085',
-      },
+      labels: { colors: '#667085' },
     },
     plotOptions: {
       pie: {
@@ -411,9 +378,7 @@ const targetTypeDonutChartOptions = computed(() => {
       },
     },
     tooltip: {
-      y: {
-        formatter: formatWonAmount,
-      },
+      y: { formatter: formatWonAmount },
     },
   }
 })
@@ -456,18 +421,18 @@ const settlementFlowAmountChartOptions = computed(() => {
         borderRadius: 0,
         barHeight: '48%',
         dataLabels: {
-          position: 'top',  // ← 막대 바깥 오른쪽 끝에 배치
+          position: 'top',
         },
       },
     },
     dataLabels: {
       enabled: true,
       formatter: formatWonAmount,
-      offsetX: 8,  // ← 막대 끝에서 살짝 더 오른쪽으로
+      // offsetX 제거 — 음수 데이터에서 레이블이 튀어나가는 문제 방지
       style: {
         fontSize: '11px',
         fontWeight: 900,
-        colors: ['#334155'],  // ← 항상 어두운 색 (배경이 흰색이므로)
+        colors: ['#334155'],
       },
       background: {
         enabled: false,
@@ -475,10 +440,15 @@ const settlementFlowAmountChartOptions = computed(() => {
     },
     xaxis: {
       min: 0,
-      max: settlementFlowAmountMax.value * 1.25,  // ← 레이블 공간 확보용 여백
-      categories: [content.value.stats.payableExpected, content.value.stats.receivableExpected, content.value.stats.netFlow],
+      max: settlementFlowAmountMax.value * 1.4,  // 레이블 잘림 방지용 여백
+      categories: [
+        content.value.stats.payableExpected,
+        content.value.stats.receivableExpected,
+        content.value.stats.netFlow,
+      ],
       labels: {
-        formatter: (value: number) => Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US'),
+        formatter: (value: number) =>
+          Number(value).toLocaleString(preferences.language === 'ko' ? 'ko-KR' : 'en-US'),
       },
     },
     grid: {
@@ -487,9 +457,7 @@ const settlementFlowAmountChartOptions = computed(() => {
     },
     legend: { show: false },
     tooltip: {
-      y: {
-        formatter: formatWonAmount,
-      },
+      y: { formatter: formatWonAmount },
     },
   }
 })
@@ -525,15 +493,12 @@ function validateBudgetForm() {
   if (!Number.isInteger(budgetForm.value.year) || budgetForm.value.year < 2000) {
     return content.value.validation.invalidYear
   }
-
   if (!Number.isInteger(budgetForm.value.month) || budgetForm.value.month < 1 || budgetForm.value.month > 12) {
     return content.value.validation.invalidMonth
   }
-
   if (!Number.isFinite(budgetForm.value.budgetAmount) || budgetForm.value.budgetAmount < 0) {
     return content.value.validation.invalidAmount
   }
-
   if (
     !Number.isFinite(budgetForm.value.warningThresholdRate) ||
     budgetForm.value.warningThresholdRate < 0 ||
@@ -541,7 +506,6 @@ function validateBudgetForm() {
   ) {
     return content.value.validation.invalidThreshold
   }
-
   return ''
 }
 
@@ -620,7 +584,6 @@ async function loadSupplierOptions() {
 
   try {
     const response = await getSuppliers({ page: 0, size: 100 })
-
     supplierOptions.value = (response.content ?? [])
       .map((supplier: SupplierListResponseDto) => supplier.detail)
       .filter((supplier): supplier is SupplierResponseDto => supplier !== null)
@@ -656,7 +619,6 @@ async function fetchSettlementStatistics() {
     settlementStatistics.value = await getSettlementStatistics(statisticsYear.value)
   } catch (err: any) {
     console.error('Failed to fetch settlement statistics:', err)
-
     settlementStatistics.value = null
     statisticsErrorMessage.value =
       err?.payload?.message ||
@@ -669,43 +631,28 @@ async function fetchSettlementStatistics() {
 }
 
 async function handleDownloadSettlementExcel() {
-  // 이미 다운로드 중이면 중복 클릭을 막습니다.
-  if (isExcelDownloading.value) {
-    return
-  }
+  if (isExcelDownloading.value) return
 
   isExcelDownloading.value = true
   listErrorMessage.value = ''
 
   try {
-    // 현재 언어 설정을 백엔드에 넘겨서 엑셀 문구도 화면 언어와 맞춥니다.
-   const blob = await downloadSettlementExcel(
-  preferences.language,
-  excelStartDate.value || undefined,
-  excelEndDate.value || undefined,
-)
+    const blob = await downloadSettlementExcel(
+      preferences.language,
+      excelStartDate.value || undefined,
+      excelEndDate.value || undefined,
+    )
 
-
-
-    // 백엔드에서 받은 파일 데이터를 브라우저가 열 수 있는 임시 URL로 바꿉니다.
     const url = window.URL.createObjectURL(blob)
-
-    // 실제 다운로드를 실행할 a 태그를 임시로 만듭니다.
     const link = document.createElement('a')
-
     link.href = url
     link.download = `settlements-${new Date().toISOString().slice(0, 10)}.xlsx`
-
-    // 브라우저 다운로드를 실행합니다.
     document.body.appendChild(link)
     link.click()
-
-    // 임시로 만든 태그와 URL을 정리합니다.
     link.remove()
     window.URL.revokeObjectURL(url)
   } catch (err: any) {
     console.error('Failed to download settlement excel:', err)
-
     listErrorMessage.value =
       err?.payload?.message ||
       err?.response?.data?.message ||
@@ -716,12 +663,8 @@ async function handleDownloadSettlementExcel() {
   }
 }
 
-
 async function refreshSettlementPage() {
-  await Promise.all([
-    fetchSettlements(),
-    fetchSettlementStatistics(),
-  ])
+  await Promise.all([fetchSettlements(), fetchSettlementStatistics()])
 }
 
 onMounted(() => {
@@ -741,7 +684,6 @@ onMounted(() => {
         <div class="stl-breadcrumb">
           <span>{{ content.eyebrow }}</span>
         </div>
-
         <h1 class="stl-page__title">{{ content.title }}</h1>
       </div>
 
@@ -749,19 +691,8 @@ onMounted(() => {
         <button class="stl-btn stl-btn--ghost" type="button" @click="refreshSettlementPage">
           {{ content.actions.refresh }}
         </button>
-        <input
-  v-model="excelStartDate"
-  class="stl-input stl-date-input"
-  type="date"
-/>
-
-<input
-  v-model="excelEndDate"
-  class="stl-input stl-date-input"
-  type="date"
-/>
-
-
+        <input v-model="excelStartDate" class="stl-input stl-date-input" type="date" />
+        <input v-model="excelEndDate" class="stl-input stl-date-input" type="date" />
         <button
           class="stl-btn stl-btn--ghost"
           type="button"
@@ -770,7 +701,6 @@ onMounted(() => {
         >
           {{ isExcelDownloading ? content.actions.exportingExcel : content.actions.exportExcel }}
         </button>
-
         <button class="stl-btn stl-btn--primary" type="button" @click="openBudgetModal">
           {{ content.actions.registerBudget }}
         </button>
@@ -790,7 +720,6 @@ onMounted(() => {
             <circle cx="5.5" cy="10.5" r="1" fill="currentColor" />
           </svg>
         </div>
-
         <div class="stl-kpi-card__body">
           <span class="stl-kpi-card__label">{{ content.stats.currentBudget }}</span>
           <strong class="stl-kpi-card__value">
@@ -806,7 +735,6 @@ onMounted(() => {
             <path d="M9 5.5V9L11.5 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
           </svg>
         </div>
-
         <div class="stl-kpi-card__body">
           <span class="stl-kpi-card__label">{{ content.stats.payableThisMonth }}</span>
           <strong class="stl-kpi-card__value">
@@ -821,7 +749,6 @@ onMounted(() => {
             <path d="M4 9.5L7.5 13L14 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
           </svg>
         </div>
-
         <div class="stl-kpi-card__body">
           <span class="stl-kpi-card__label">{{ content.stats.budgetUsageRate }}</span>
           <strong class="stl-kpi-card__value">
@@ -837,7 +764,6 @@ onMounted(() => {
             <path d="M6 8H12M6 11H10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
           </svg>
         </div>
-
         <div class="stl-kpi-card__body">
           <span class="stl-kpi-card__label">{{ content.stats.receivableThisMonth }}</span>
           <strong class="stl-kpi-card__value">
@@ -854,7 +780,6 @@ onMounted(() => {
             <span class="stl-card__eyebrow">예산 대비 정산</span>
             <h3 class="stl-card__title">{{ content.stats.monthlyBudgetChart }}</h3>
           </div>
-
           <div class="stl-chart-total">
             <span>{{ content.stats.annualPayable }}</span>
             <strong>{{ formatStatisticsAmount(monthlyPayableTotalAmount) }}</strong>
@@ -862,70 +787,21 @@ onMounted(() => {
         </div>
 
         <div class="stl-chart-tabs">
-          <button
-            class="stl-chart-tab"
-            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'ALL' }"
-            type="button"
-            @click="monthlyBudgetRange = 'ALL'"
-          >
-            {{ content.stats.all }}
-          </button>
-
-          <button
-            class="stl-chart-tab"
-            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q1' }"
-            type="button"
-            @click="monthlyBudgetRange = 'Q1'"
-          >
-            {{ content.stats.q1 }}
-          </button>
-
-          <button
-            class="stl-chart-tab"
-            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q2' }"
-            type="button"
-            @click="monthlyBudgetRange = 'Q2'"
-          >
-            {{ content.stats.q2 }}
-          </button>
-
-          <button
-            class="stl-chart-tab"
-            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q3' }"
-            type="button"
-            @click="monthlyBudgetRange = 'Q3'"
-          >
-            {{ content.stats.q3 }}
-          </button>
-
-          <button
-            class="stl-chart-tab"
-            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q4' }"
-            type="button"
-            @click="monthlyBudgetRange = 'Q4'"
-          >
-            {{ content.stats.q4 }}
-          </button>
-
-          <button
-            class="stl-chart-tab"
-            :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'RECENT_6' }"
-            type="button"
-            @click="monthlyBudgetRange = 'RECENT_6'"
-          >
-            {{ content.stats.recent6 }}
-          </button>
+          <button class="stl-chart-tab" :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'ALL' }" type="button" @click="monthlyBudgetRange = 'ALL'">{{ content.stats.all }}</button>
+          <button class="stl-chart-tab" :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q1' }" type="button" @click="monthlyBudgetRange = 'Q1'">{{ content.stats.q1 }}</button>
+          <button class="stl-chart-tab" :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q2' }" type="button" @click="monthlyBudgetRange = 'Q2'">{{ content.stats.q2 }}</button>
+          <button class="stl-chart-tab" :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q3' }" type="button" @click="monthlyBudgetRange = 'Q3'">{{ content.stats.q3 }}</button>
+          <button class="stl-chart-tab" :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'Q4' }" type="button" @click="monthlyBudgetRange = 'Q4'">{{ content.stats.q4 }}</button>
+          <button class="stl-chart-tab" :class="{ 'stl-chart-tab--active': monthlyBudgetRange === 'RECENT_6' }" type="button" @click="monthlyBudgetRange = 'RECENT_6'">{{ content.stats.recent6 }}</button>
         </div>
 
         <div v-if="isStatisticsLoading" class="stl-empty">
           <div class="stl-spinner"></div>
           {{ content.stats.loadingStats }}
         </div>
-
         <div v-else-if="!hasMonthlyBudgetChartData" class="stl-empty">
           {{ content.stats.noBudgetData }}
         </div>
-
         <apexchart
           v-else
           type="bar"
@@ -945,52 +821,35 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="stl-chart-tabs">
-          <button
-            class="stl-chart-tab"
-            :class="{ 'stl-chart-tab--active': activeInsightChartView === 'targetTypeAmount' }"
-            type="button"
-            @click="activeInsightChartView = 'targetTypeAmount'"
-          >
-            {{ content.stats.targetTypeAmount }}
-          </button>
-
-          <button
-            class="stl-chart-tab"
-            :class="{ 'stl-chart-tab--active': activeInsightChartView === 'flowAmount' }"
-            type="button"
-            @click="activeInsightChartView = 'flowAmount'"
-          >
-            {{ content.stats.flowCompare }}
-          </button>
-        </div>
-
         <div v-if="isStatisticsLoading" class="stl-empty stl-empty--sm">
           {{ content.stats.loadingStats }}
         </div>
 
-        <div
-          v-else-if="activeInsightChartView === 'targetTypeAmount' && !hasTargetTypeChartData"
-          class="stl-empty stl-empty--sm"
-        >
-          {{ content.stats.noTargetTypeAmount }}
+        <div v-else class="stl-insight-split">
+          <div class="stl-insight-split__pane">
+            <p class="stl-insight-split__label">{{ content.stats.targetTypeAmount }}</p>
+            <div v-if="!hasTargetTypeChartData" class="stl-empty stl-empty--sm">
+              {{ content.stats.noTargetTypeAmount }}
+            </div>
+            <apexchart
+              v-else
+              type="donut"
+              height="240"
+              :options="targetTypeDonutChartOptions"
+              :series="targetTypeDonutChartSeries"
+            />
+          </div>
+
+          <div class="stl-insight-split__pane stl-insight-split__pane--right">
+            <p class="stl-insight-split__label">{{ content.stats.flowCompare }}</p>
+            <apexchart
+              type="bar"
+              height="240"
+              :options="settlementFlowAmountChartOptions"
+              :series="settlementFlowAmountChartSeries"
+            />
+          </div>
         </div>
-
-        <apexchart
-          v-else-if="activeInsightChartView === 'targetTypeAmount'"
-          type="donut"
-          height="260"
-          :options="targetTypeDonutChartOptions"
-          :series="targetTypeDonutChartSeries"
-        />
-
-        <apexchart
-          v-else
-          type="bar"
-          height="260"
-          :options="settlementFlowAmountChartOptions"
-          :series="settlementFlowAmountChartSeries"
-        />
       </article>
 
       <article class="stl-card stl-chart-card stl-chart-card--flow">
@@ -1010,17 +869,14 @@ onMounted(() => {
             <span>{{ content.stats.payableExpected }}</span>
             <strong>{{ formatStatisticsAmount(settlementStatistics?.payableAmountThisMonth) }}</strong>
           </div>
-
           <div class="stl-flow-summary__row">
             <span>{{ content.stats.receivableExpected }}</span>
             <strong>{{ formatStatisticsAmount(settlementStatistics?.receivableAmountThisMonth) }}</strong>
           </div>
-
           <div class="stl-flow-summary__row">
             <span>{{ content.stats.remainingBudget }}</span>
             <strong>{{ formatStatisticsAmount(settlementStatistics?.currentMonthRemainingBudgetAmount) }}</strong>
           </div>
-
           <div class="stl-flow-summary__row stl-flow-summary__row--strong">
             <span>{{ content.stats.netFlow }}</span>
             <strong>{{ formatStatisticsAmount(currentMonthNetFlow) }}</strong>
@@ -1043,15 +899,12 @@ onMounted(() => {
           <div class="stl-spinner"></div>
           {{ content.loadingList }}
         </div>
-
         <div v-else-if="listErrorMessage" class="stl-empty stl-empty--error">
           {{ listErrorMessage }}
         </div>
-
         <div v-else-if="settlements.length === 0" class="stl-empty">
           {{ content.emptyList }}
         </div>
-
         <div v-else class="stl-table-wrap">
           <table class="stl-table">
             <thead>
@@ -1064,7 +917,6 @@ onMounted(() => {
                 <th></th>
               </tr>
             </thead>
-
             <tbody>
               <tr
                 v-for="settlement in settlements"
@@ -1074,13 +926,9 @@ onMounted(() => {
                 <td class="stl-table__id">{{ settlement.id }}</td>
                 <td>{{ getSupplierLabel(settlement.supplierPublicId, settlement.supplierOrganizationPublicId) }}</td>
                 <td>
-                  <span class="stl-type-badge">
-                    {{ formatTargetType(settlement.targetType) }}
-                  </span>
+                  <span class="stl-type-badge">{{ formatTargetType(settlement.targetType) }}</span>
                 </td>
-                <td class="stl-table__amount">
-                  {{ formatAmount(settlement.amount) }}
-                </td>
+                <td class="stl-table__amount">{{ formatAmount(settlement.amount) }}</td>
                 <td>{{ formatDate(settlement.createdAt) }}</td>
                 <td>
                   <button
@@ -1112,29 +960,24 @@ onMounted(() => {
         <label class="stl-field__label">{{ content.budgetModal.year }}</label>
         <input v-model.number="budgetForm.year" type="number" min="2000" class="stl-input" />
       </div>
-
       <div class="stl-field">
         <label class="stl-field__label">{{ content.budgetModal.month }}</label>
         <input v-model.number="budgetForm.month" type="number" min="1" max="12" class="stl-input" />
       </div>
-
       <div class="stl-field">
         <label class="stl-field__label">{{ content.budgetModal.amount }}</label>
         <input v-model.number="budgetForm.budgetAmount" type="number" min="0" step="1000" class="stl-input" />
       </div>
-
       <div class="stl-field">
         <label class="stl-field__label">{{ content.budgetModal.currency }}</label>
         <select v-model="budgetForm.currencyCode" class="stl-select">
           <option value="KRW">원</option>
         </select>
       </div>
-
       <div class="stl-field">
         <label class="stl-field__label">{{ content.budgetModal.warningThreshold }}</label>
         <input v-model.number="budgetForm.warningThresholdRate" type="number" min="0" max="100" step="1" class="stl-input" />
       </div>
-
       <div class="stl-form-hint">
         {{ content.budgetModal.hint }}
       </div>
@@ -1148,7 +991,6 @@ onMounted(() => {
       <button class="stl-btn stl-btn--ghost" type="button" @click="closeBudgetModal">
         {{ content.actions.cancel }}
       </button>
-
       <button class="stl-btn stl-btn--primary" type="button" :disabled="isBudgetSubmitting" @click="handleSaveBudget">
         {{ isBudgetSubmitting ? content.actions.saving : content.actions.saveBudget }}
       </button>
@@ -1407,6 +1249,30 @@ onMounted(() => {
   min-height: 330px;
 }
 
+.stl-insight-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.stl-insight-split__pane {
+  min-width: 0;
+}
+
+.stl-insight-split__pane--right {
+  border-left: 1px solid var(--stl-border);
+  padding-left: 20px;
+}
+
+.stl-insight-split__label {
+  margin: 0 0 8px;
+  color: var(--stl-text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .stl-chart-tabs {
   display: inline-flex;
   width: fit-content;
@@ -1650,6 +1516,7 @@ onMounted(() => {
   font-size: 0.8rem;
   font-weight: 700;
 }
+
 .stl-date-input {
   width: 140px;
   min-height: 34px;
@@ -1663,15 +1530,11 @@ onMounted(() => {
 .stl-chart-card :deep(.apexcharts-legend-text),
 .stl-chart-card :deep(.apexcharts-datalabel-label),
 .stl-chart-card :deep(.apexcharts-datalabel-value) {
-  /* fill, color 제거 — 차트 옵션에서 각각 제어 */
   font-family: Pretendard, "Segoe UI", sans-serif !important;
 }
 
-
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 1200px) {
@@ -1738,6 +1601,17 @@ onMounted(() => {
   .stl-insight-grid,
   .stl-main-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stl-insight-split {
+    grid-template-columns: 1fr;
+  }
+
+  .stl-insight-split__pane--right {
+    border-left: none;
+    border-top: 1px solid var(--stl-border);
+    padding-left: 0;
+    padding-top: 16px;
   }
 
   .stl-card {
@@ -1814,6 +1688,5 @@ onMounted(() => {
     white-space: normal;
     line-height: 1.15;
   }
-
 }
 </style>
