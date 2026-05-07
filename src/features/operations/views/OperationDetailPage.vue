@@ -2798,6 +2798,7 @@ watch(
 
     <template v-else-if="data">
       <section
+        v-if="kind !== 'logistics-nodes'"
         class="operation-detail-page__summary-strip"
         :style="{ gridTemplateColumns: `repeat(${heroMetrics.length}, minmax(0, 1fr))` }"
       >
