@@ -2,6 +2,7 @@ import { apiClient } from './http'
 
 export interface AttachmentFileDto {
   publicId: string
+  attachmentPublicId?: string
   filePublicId?: string
   originalFileName: string
   fileName?: string
@@ -78,6 +79,44 @@ export async function appendFiles(attachmentPublicId: string, fileOrFiles: File 
   const response = await apiClient.post<AttachmentUploadResponseDto>(`/api/files/attachments/${attachmentPublicId}/files`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+  return response.data
+}
+
+export type AttachmentFileUpdateAction = 'KEEP' | 'DELETE' | 'ADD'
+
+export interface UpdateAttachmentFileRequestDto {
+  filePublicId?: string
+  uploadIndex?: number
+  sortOrder?: number
+  action: AttachmentFileUpdateAction
+}
+
+export interface UpdateAttachmentRequestDto {
+  files: UpdateAttachmentFileRequestDto[]
+}
+
+export async function updateAttachment(
+  attachmentPublicId: string,
+  data: UpdateAttachmentRequestDto,
+  fileOrFiles: File[] = [],
+): Promise<AttachmentUploadResponseDto> {
+  const formData = new FormData()
+  formData.append(
+    'request',
+    new Blob([JSON.stringify(data)], { type: 'application/json' }),
+  )
+
+  for (const file of fileOrFiles) {
+    formData.append('files', file)
+  }
+
+  const response = await apiClient.patch<AttachmentUploadResponseDto>(
+    `/api/files/attachments/${attachmentPublicId}`,
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    },
+  )
   return response.data
 }
 
