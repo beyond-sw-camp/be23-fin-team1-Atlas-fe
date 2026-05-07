@@ -35,7 +35,6 @@ const CONTENT = {
     rulesTitle: '리스크 규칙 목록',
     topicTitle: 'Kafka 토픽 구독 현황',
     exportLabel: '내보내기',
-    createLabel: '규칙 추가',
     columns: ['규칙 ID', '규칙 명', 'Kafka 토픽', '조건', '임계값', '발동 횟수', '활성화', '중요도'],
     topicColumns: ['토픽 이름', '파티션', '커밋 오프셋', '메시지/h', '브로커 연결', '컨슈머 구독'],
     loadingRules: '리스크 규칙 목록을 불러오는 중입니다.',
@@ -69,7 +68,6 @@ const CONTENT = {
     rulesTitle: 'RISK RULES',
     topicTitle: 'KAFKA TOPIC SUBSCRIPTIONS',
     exportLabel: 'EXPORT',
-    createLabel: 'ADD RULE',
     columns: ['RULE ID', 'RULE NAME', 'KAFKA TOPIC', 'CONDITION', 'THRESHOLD', 'TRIGGERED', 'ACTIVE', 'IMPORTANCE'],
     topicColumns: ['TOPIC NAME', 'PARTITIONS', 'COMMITTED OFFSET', 'MSG/H', 'BROKER', 'CONSUMER'],
     loadingRules: 'Loading risk rules...',
@@ -498,9 +496,7 @@ async function handleToggleRule(ruleId: string, nextEnabled: boolean) {
 
 watchEffect(() => {
   selectedTab.value = content.value.tabs[0]
-  header.setActions([
-    { key: 'risk-rules-add', label: '규칙 추가', tone: 'primary' },
-  ])
+  header.clearActions()
 })
 
 watch([search, selectedTab], () => {
@@ -532,9 +528,6 @@ onBeforeUnmount(() => {
           <div class="risk-rules-page__eyebrow">{{ content.eyebrow }}</div>
           <h2 class="risk-rules-page__title">{{ content.title }}</h2>
         </div>
-        <button class="page-button page-button--primary risk-rules-page__create-button" type="button">
-          {{ content.createLabel }}
-        </button>
       </div>
     </header>
 

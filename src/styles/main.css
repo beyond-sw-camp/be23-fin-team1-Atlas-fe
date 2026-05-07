@@ -3323,10 +3323,6 @@ select:not(.app-language-select select):focus {
   letter-spacing: -0.04em;
 }
 
-.risk-rules-page__create-button {
-  flex: 0 0 auto;
-}
-
 .risk-rules-page__metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4080,13 +4076,6 @@ select:not(.app-language-select select):focus {
 
   .risk-rules-page__title {
     font-size: 1.45rem;
-  }
-
-  .risk-rules-page__create-button {
-    min-height: 36px;
-    padding: 0 12px;
-    font-size: 0.64rem;
-    white-space: nowrap;
   }
 
   .risk-rules-page__metrics {
