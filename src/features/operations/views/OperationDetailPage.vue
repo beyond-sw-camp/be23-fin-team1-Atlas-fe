@@ -405,6 +405,8 @@ const loading = ref(false)
 const errorMessage = ref('')
 const data = ref<Record<string, any> | null>(null)
 const related = ref<Record<string, any>>({})
+const historyPage = ref(1)
+const historyPageSize = 10
 const itemMediaViewerOpen = ref(false)
 const itemMediaViewerIndex = ref(0)
 const itemEditModalOpen = ref(false)
@@ -1188,7 +1190,7 @@ const aiChecklist = computed(() => [
 
 const historyRows = computed(() => {
   const rows = Array.isArray(related.value.histories) ? related.value.histories : []
-  if (rows.length > 0) return sortHistoryRows(rows).slice(0, 4)
+  if (rows.length > 0) return sortHistoryRows(rows)
 
   if (kind.value === 'logistics-nodes' && data.value) {
     const createdAt = data.value.createdAt ?? data.value.updatedAt
@@ -1222,6 +1224,19 @@ const historyRows = computed(() => {
     { createdAt: data.value?.updatedAt ?? data.value?.createdAt, statusCode: status.value || 'REVIEW', processedByUserPublicId: '-', memo: aiSummary.value },
   ]
 })
+
+const historyTotalPages = computed(() => Math.max(1, Math.ceil(historyRows.value.length / historyPageSize)))
+
+const paginatedHistoryRows = computed(() => {
+  const start = (historyPage.value - 1) * historyPageSize
+  return historyRows.value.slice(start, start + historyPageSize)
+})
+
+const shouldPaginateHistory = computed(() => historyRows.value.length > historyPageSize)
+
+function moveHistoryPage(direction: -1 | 1) {
+  historyPage.value = Math.min(historyTotalPages.value, Math.max(1, historyPage.value + direction))
+}
 
 function sortHistoryRows(rows: any[]) {
   return [...rows].sort((first, second) => {
@@ -2263,6 +2278,12 @@ function formatFileSize(size: unknown) {
 }
 
 watch(() => [kind.value, publicId.value], fetchDetail, { immediate: true })
+watch(() => [kind.value, publicId.value], () => {
+  historyPage.value = 1
+})
+watch(historyTotalPages, (totalPages) => {
+  if (historyPage.value > totalPages) historyPage.value = totalPages
+})
 watch(
   () => [kind.value, publicId.value],
   ([currentKind, currentPublicId]) => {
@@ -2298,7 +2319,7 @@ watch(
           </button>
         </template>
         <button
-          v-if="!itemInlineEditMode"
+          v-if="!itemInlineEditMode && kind !== 'logistics-nodes'"
           class="page-button page-button--secondary"
           type="button"
           @click="goBack"
@@ -2924,7 +2945,7 @@ watch(
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(row, rowIndex) in historyRows" :key="rowKey(row, rowIndex)">
+                <tr v-for="(row, rowIndex) in paginatedHistoryRows" :key="rowKey(row, rowIndex)">
                   <td>{{ formatDate(row.createdAt ?? row.recordedAt ?? row.updatedAt) }}</td>
                   <td>
                     <template v-if="kind === 'logistics-nodes'">
@@ -2945,6 +2966,25 @@ watch(
                 </tr>
               </tbody>
             </table>
+            <div v-if="shouldPaginateHistory" class="operation-detail-page__history-pagination">
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                :disabled="historyPage <= 1"
+                @click="moveHistoryPage(-1)"
+              >
+                이전
+              </button>
+              <span>{{ historyPage }} / {{ historyTotalPages }}</span>
+              <button
+                class="page-button page-button--secondary"
+                type="button"
+                :disabled="historyPage >= historyTotalPages"
+                @click="moveHistoryPage(1)"
+              >
+                다음
+              </button>
+            </div>
           </article>
 
           <div v-if="kind === 'logistics-nodes' && data" class="operation-detail-page__node-actions">
@@ -2953,6 +2993,9 @@ watch(
             </button>
             <button class="page-button page-button--secondary" type="button" :disabled="loading" @click="toggleLogisticsNodeActive">
               {{ data.active ? t('비활성화', 'Deactivate') : t('활성화', 'Activate') }}
+            </button>
+            <button class="page-button page-button--secondary" type="button" @click="goBack">
+              {{ detailCopy.backToList }}
             </button>
           </div>
 
@@ -3981,6 +4024,29 @@ watch(
   font-size: 0.68rem;
 }
 
+.operation-detail-page__history-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.operation-detail-page__history-pagination span {
+  min-width: 42px;
+  text-align: center;
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.operation-detail-page__history-pagination .page-button {
+  min-height: 32px;
+  min-width: 62px;
+  padding: 0 10px;
+  font-size: 0.68rem;
+}
+
 .operation-detail-page .page-button,
 .operation-detail-page .page-panel,
 .operation-detail-page .page-feed__item,
@@ -4759,7 +4825,7 @@ watch(
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--line);
-  background: var(--surface);
+  background: #fff;
   padding: 10px 12px;
   color: var(--text);
   font: inherit;
