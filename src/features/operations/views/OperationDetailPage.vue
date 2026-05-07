@@ -3273,11 +3273,10 @@ watch(
           {{ logisticsEditErrorMessage }}
         </p>
 
-        <div class="operation-detail-page__bottom-actions">
+        <div class="operation-detail-page__bottom-actions operation-detail-page__bottom-actions--start">
           <button class="page-button page-button--secondary" type="button" @click="closeLogisticsEditModal">
             {{ t('취소', 'Cancel') }}
           </button>
-          <span></span>
           <button class="page-button page-button--primary" type="button" :disabled="logisticsEditLoading" @click="submitLogisticsEdit">
             {{ logisticsEditLoading ? t('저장 중', 'Saving') : t('수정 완료', 'Save Changes') }}
           </button>
@@ -4464,6 +4463,11 @@ watch(
   grid-template-columns: max-content 1fr max-content max-content;
   gap: 10px;
   align-items: center;
+}
+
+.operation-detail-page__bottom-actions--start {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .operation-detail-page__recommendation {
