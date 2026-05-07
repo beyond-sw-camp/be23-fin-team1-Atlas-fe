@@ -18,8 +18,7 @@ import {
 } from '../../../services/organization'
 import { createSupplier } from '../../../services/supplier'
 import {
-  createInitialOrgAdmin,
-  createOrganizationUser,
+  createOrganizationUser, // 사원 직접 등록 API라서 그대로 둡니다.
   getDepartments,
   getUsers,
   type CreateOrganizationUserPayload,
@@ -949,14 +948,7 @@ async function submitOrganizationCreate() {
       zipCode: organizationCreateForm.zipCode.trim() || null,
     })
 
-    const orgAdminResponse = await createInitialOrgAdmin(response.organizationPublicId, {
-      firstName: organizationCreateForm.contactFirstName.trim(),
-      middleName: organizationCreateForm.contactMiddleName?.trim() || undefined,
-      lastName: organizationCreateForm.contactLastName.trim(),
-      email: organizationCreateForm.contactEmail.trim(),
-      phone: organizationCreateForm.contactPhone.trim(),
-      jobTitle: '조직 관리자',
-    })
+
 
     let supplierCreateFailed = false
 
@@ -984,17 +976,17 @@ async function submitOrganizationCreate() {
       }
     }
 
-    organizationPanelMode.value = 'detail'
-    await refreshListAndOpenCreatedOrganization(response.organizationPublicId)
-    resetCreateOrganizationForm()
+   organizationPanelMode.value = 'detail'
+await refreshListAndOpenCreatedOrganization(response.organizationPublicId)
+resetCreateOrganizationForm()
 
-    const createdCredentialMessage =
-      `${copy.value.loginId}: ${orgAdminResponse.loginId} / ` +
-      `${copy.value.temporaryPassword}: ${orgAdminResponse.temporaryPassword}`
+// 조직 생성 단계에서는 대표자 계정을 만들지 않습니다.
+// 대표자 계정은 나중에 조직 관리자 생성 화면에서 따로 만듭니다.
+pageSuccess.value = supplierCreateFailed
+  ? copy.value.createSupplierWarning
+  : copy.value.createSuccess
 
-    pageSuccess.value = supplierCreateFailed
-      ? `${copy.value.createSupplierWarning} (${createdCredentialMessage})`
-      : `${copy.value.createSuccess} (${createdCredentialMessage})`
+
   } catch (error: any) {
     console.error('Failed to create organization:', error)
 
