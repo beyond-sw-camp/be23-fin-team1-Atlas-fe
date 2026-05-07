@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasDialogStore } from '../../../stores/dialog'
@@ -67,12 +67,19 @@ type ItemTableRow = {
   cells: string[]
 }
 
+type CreateMediaPreview = {
+  url: string
+  name: string
+  kind: 'image' | 'video'
+  file: File
+}
+
 const itemCategoryPlaceholder = computed(() =>
   '카테고리 선택',
 )
 
 const itemCategoryHint = computed(() =>
-  '품목 등록은 최하위 카테고리만 선택할 수 있습니다. 예: 식품 > 냉동 식품',
+  '최상위, 상위, 하위 카테고리 중 필요한 항목을 선택할 수 있습니다.',
 )
 
 const ITEM_UNIT_OPTIONS: ItemUnit[] = [
@@ -101,6 +108,7 @@ const dialog = useAtlasDialogStore()
 const preferences = useAtlasPreferencesStore()
 const actor = useActorScope()
 const router = useRouter()
+const route = useRoute()
 
 const copy = computed(() => ({
         eyebrow: '공급망 운영 / 품목 관리',
@@ -335,9 +343,14 @@ const createModalOpen = ref(false)
 
 const createLoading = ref(false)
 const createErrorMessage = ref('')
+const isCreatePage = computed(() => route.name === 'itemCreate')
 const createdItemForCapability = ref<ItemResponseDto | null>(null)
 const createMediaFiles = ref<File[]>([])
-const createMediaPreviews = ref<Array<{ url: string; name: string; kind: 'image' | 'video' }>>([])
+const createMediaPreviews = ref<CreateMediaPreview[]>([])
+const createMediaDragIndex = ref<number | null>(null)
+const createCategoryLevel1PublicId = ref('')
+const createCategoryLevel2PublicId = ref('')
+const createCategoryLevel3PublicId = ref('')
 
 const dashboardSummary = ref<ItemDashboardSummaryResponseDto | null>(null)
 const linkedOrders = ref<ItemLinkedPurchaseOrderResponseDto[]>([])
@@ -412,6 +425,22 @@ function revokeCreateMediaPreviews() {
   createMediaPreviews.value = []
 }
 
+function syncCreateMediaFilesFromPreviews() {
+  createMediaFiles.value = createMediaPreviews.value.map((preview) => preview.file)
+}
+
+function normalizeCreateMediaOrder(previews: CreateMediaPreview[]) {
+  if (previews[0]?.kind !== 'video') return previews
+
+  const firstImageIndex = previews.findIndex((preview) => preview.kind === 'image')
+  if (firstImageIndex <= 0) return previews
+
+  const ordered = [...previews]
+  const [firstImage] = ordered.splice(firstImageIndex, 1)
+  ordered.unshift(firstImage)
+  return ordered
+}
+
 function handleCreateMediaChange(event: Event) {
   const target = event.target as HTMLInputElement
   revokeCreateMediaPreviews()
@@ -419,13 +448,49 @@ function handleCreateMediaChange(event: Event) {
   const files = Array.from(target.files ?? []).filter(
     (file) => file.type.startsWith('image/') || file.type.startsWith('video/'),
   )
+  target.value = ''
 
-  createMediaFiles.value = files
-  createMediaPreviews.value = files.map((file) => ({
+  createMediaPreviews.value = normalizeCreateMediaOrder(files.map((file) => ({
     url: URL.createObjectURL(file),
     name: file.name,
     kind: file.type.startsWith('video/') ? 'video' : 'image',
-  }))
+    file,
+  })))
+  syncCreateMediaFilesFromPreviews()
+}
+
+function handleCreateMediaDragStart(index: number) {
+  createMediaDragIndex.value = index
+}
+
+function handleCreateMediaDrop(targetIndex: number) {
+  const sourceIndex = createMediaDragIndex.value
+  createMediaDragIndex.value = null
+
+  if (sourceIndex === null || sourceIndex === targetIndex) return
+
+  const nextPreviews = [...createMediaPreviews.value]
+  const [movedPreview] = nextPreviews.splice(sourceIndex, 1)
+  nextPreviews.splice(targetIndex, 0, movedPreview)
+
+  if (nextPreviews[0]?.kind === 'video') {
+    createErrorMessage.value = '동영상은 첫 번째 순서로 배치할 수 없습니다.'
+    return
+  }
+
+  createErrorMessage.value = ''
+  createMediaPreviews.value = nextPreviews
+  syncCreateMediaFilesFromPreviews()
+}
+
+function removeCreateMediaPreview(index: number) {
+  const preview = createMediaPreviews.value[index]
+  if (!preview) return
+
+  URL.revokeObjectURL(preview.url)
+  createMediaPreviews.value.splice(index, 1)
+  createMediaPreviews.value = normalizeCreateMediaOrder([...createMediaPreviews.value])
+  syncCreateMediaFilesFromPreviews()
 }
 
 async function setFirstImageAsPrimary(itemPublicId: string, files: ItemMediaFile[]) {
@@ -515,10 +580,59 @@ function formatLeadTime(value: number | null | undefined) {
   return `${value}일`
 }
 
-// 품목 등록에서는 최하위 카테고리만 선택하게 합니다.
+// 품목 등록에서는 카테고리 계층 전체를 선택지로 제공합니다.
 const leafCategoryOptions = computed(() =>
   categoryOptions.value,
 )
+
+const createRootCategoryOptions = computed(() =>
+  categories.value
+    .filter((category) => !category.parentCategoryPublicId || category.categoryLevel === 1)
+    .sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder ||
+        a.categoryName.localeCompare(b.categoryName, 'ko-KR'),
+    ),
+)
+
+const createSecondCategoryOptions = computed(() =>
+  categories.value
+    .filter((category) => category.parentCategoryPublicId === createCategoryLevel1PublicId.value)
+    .sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder ||
+        a.categoryName.localeCompare(b.categoryName, 'ko-KR'),
+    ),
+)
+
+const createThirdCategoryOptions = computed(() =>
+  categories.value
+    .filter((category) => category.parentCategoryPublicId === createCategoryLevel2PublicId.value)
+    .sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder ||
+        a.categoryName.localeCompare(b.categoryName, 'ko-KR'),
+    ),
+)
+
+function handleCreateRootCategoryChange() {
+  createCategoryLevel2PublicId.value = ''
+  createCategoryLevel3PublicId.value = ''
+  createForm.value.itemCategoryPublicId = createCategoryLevel1PublicId.value
+}
+
+function handleCreateSecondCategoryChange() {
+  createCategoryLevel3PublicId.value = ''
+  createForm.value.itemCategoryPublicId =
+    createCategoryLevel2PublicId.value || createCategoryLevel1PublicId.value
+}
+
+function handleCreateThirdCategoryChange() {
+  createForm.value.itemCategoryPublicId =
+    createCategoryLevel3PublicId.value ||
+    createCategoryLevel2PublicId.value ||
+    createCategoryLevel1PublicId.value
+}
 
 
 function qualityGradeText(value: SupplierItemQualityGrade | null | undefined) {
@@ -659,6 +773,9 @@ async function loadItemCategories() {
 function resetCreateForm() {
   createErrorMessage.value = ''
   createdItemForCapability.value = null
+  createCategoryLevel1PublicId.value = ''
+  createCategoryLevel2PublicId.value = ''
+  createCategoryLevel3PublicId.value = ''
   createMediaFiles.value = []
   revokeCreateMediaPreviews()
   createForm.value = {
@@ -685,7 +802,13 @@ function openCreateModal() {
   if (!actor.canManageItems.value) return
 
   resetCreateForm()
-  createModalOpen.value = true
+  createModalOpen.value = false
+
+  if (!isCreatePage.value) {
+    router.push({ name: 'itemCreate' })
+  } else {
+    router.replace({ name: 'itemCreate' })
+  }
 
   if (!categories.value.length) {
     void loadItemCategories()
@@ -696,6 +819,10 @@ function closeCreateModal() {
   createModalOpen.value = false
   createLoading.value = false
   resetCreateForm()
+
+  if (isCreatePage.value) {
+    router.push({ name: 'items' })
+  }
 }
 
 function isNonNegativeNumber(value: unknown) {
@@ -713,7 +840,7 @@ function isPositiveInteger(value: unknown) {
 function validateCreateForm() {
     if (!createForm.value.itemCategoryPublicId) return '카테고리를 선택해 주세요.'
   if (!createForm.value.itemName.trim()) return '품목명을 입력해 주세요.'
-  if (!createForm.value.spec.trim()) return '규격을 입력해 주세요.'
+  if (!createForm.value.spec.trim()) return '상세설명을 입력해 주세요.'
   if (!isPositiveInteger(createForm.value.unitPrice)) return '단가는 1 이상의 정수로 입력해 주세요.'
   if (!isNonNegativeNumber(createForm.value.shelfLifeDays)) return '유통기한을 입력해 주세요.'
   if (!createForm.value.originLogisticsNodePublicId) return '출발 물류거점을 선택해 주세요.'
@@ -726,6 +853,7 @@ function validateCreateForm() {
   if (typeof createForm.value.partialConfirmationAllowed !== 'boolean') {
     return '부분 확정 허용 여부를 선택해 주세요.'
   }
+  if (createMediaPreviews.value[0]?.kind === 'video') return '동영상은 첫 번째 순서로 배치할 수 없습니다.'
 
   return ''
 }
@@ -906,6 +1034,10 @@ function closeItemDetail() {
 onMounted(() => {
   void fetchItems()
   void loadItemCategories()
+
+  if (isCreatePage.value) {
+    resetCreateForm()
+  }
 })
 
 // 앱 상단 헤더 버튼과 페이지 버튼을 둘 다 연결합니다.
@@ -945,14 +1077,6 @@ const categoryOptions = computed<CategoryOption[]>(() => {
     categories.value.map((category) => [category.publicId, category]),
   )
 
-  // 자식이 있는 카테고리 publicId 집합입니다.
-  // 이 값을 이용해서 최하위(leaf) 카테고리만 선택 가능하게 만들 수 있습니다.
-  const parentIds = new Set(
-    categories.value
-      .map((category) => category.parentCategoryPublicId)
-      .filter((value): value is string => !!value),
-  )
-
   function buildCategoryPath(category: ItemCategoryResponseDto) {
     const names: string[] = []
     const visited = new Set<string>()
@@ -972,8 +1096,6 @@ const categoryOptions = computed<CategoryOption[]>(() => {
   }
 
   return categories.value
-    // 최하위 카테고리만 선택 가능하게 합니다.
-    .filter((category) => !parentIds.has(category.publicId))
     .map((category) => ({
       publicId: category.publicId,
       label: buildCategoryPath(category),
@@ -1035,7 +1157,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 </script>
 
 <template>
-  <section class="app-screen terminal-page items-page">
+  <section v-if="!isCreatePage" class="app-screen terminal-page items-page">
     <header class="terminal-page__header">
       <div>
         <div class="terminal-page__eyebrow">{{ copy.eyebrow }}</div>
@@ -1392,45 +1514,80 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       
   </BaseModal>
 
+  <div :class="['items-page__create-host', { 'items-page__create-host--page': isCreatePage }]">
   <BaseModal
-    v-model="createModalOpen"
+    :model-value="isCreatePage || createModalOpen"
     :title="copy.createTitle"
+    :presentation="isCreatePage ? 'page' : 'modal'"
     size="lg"
-    @close="closeCreateModal"
+    hide-dividers
+    :hide-close-button="isCreatePage"
+    @update:model-value="(value) => { if (!value) closeCreateModal() }"
   >
-    <div class="items-page__form">
+    <div class="items-page__form items-page__create-form">
       <p v-if="createdItemForCapability" class="items-page__notice">
         {{ copy.retryNotice }}
       </p>
 
-      <section class="items-page__form-section">
-        <div class="items-page__section-title">{{ copy.createMasterSection }}</div>
-
-        <label class="items-page__field">
-          <span>카테고리</span>
-          <select
-            v-model="createForm.itemCategoryPublicId"
-            :disabled="!!createdItemForCapability"
-          >
-            <option value="">{{ itemCategoryPlaceholder }}</option>
-            <option
-              v-for="category in leafCategoryOptions"
-              :key="category.publicId"
-              :value="category.publicId"
+      <section class="items-page__form-section items-page__create-section items-page__create-section--master">
+        <div class="items-page__field items-page__field--full">
+          <span>카테고리 <b class="items-page__required">*</b></span>
+          <div class="items-page__category-cascade">
+            <select
+              v-model="createCategoryLevel1PublicId"
+              :disabled="!!createdItemForCapability"
+              @change="handleCreateRootCategoryChange"
             >
-              {{ category.label }}
-            </option>
-          </select>
+              <option value="">1차 카테고리</option>
+              <option
+                v-for="category in createRootCategoryOptions"
+                :key="category.publicId"
+                :value="category.publicId"
+              >
+                {{ category.categoryName }}
+              </option>
+            </select>
+            <select
+              v-model="createCategoryLevel2PublicId"
+              :class="{ 'is-mobile-visible': createCategoryLevel1PublicId }"
+              :disabled="!!createdItemForCapability || !createCategoryLevel1PublicId"
+              @change="handleCreateSecondCategoryChange"
+            >
+              <option value="">2차 카테고리</option>
+              <option
+                v-for="category in createSecondCategoryOptions"
+                :key="category.publicId"
+                :value="category.publicId"
+              >
+                {{ category.categoryName }}
+              </option>
+            </select>
+            <select
+              v-model="createCategoryLevel3PublicId"
+              :class="{ 'is-mobile-visible': createCategoryLevel2PublicId }"
+              :disabled="!!createdItemForCapability || !createCategoryLevel2PublicId"
+              @change="handleCreateThirdCategoryChange"
+            >
+              <option value="">3차 카테고리</option>
+              <option
+                v-for="category in createThirdCategoryOptions"
+                :key="category.publicId"
+                :value="category.publicId"
+              >
+                {{ category.categoryName }}
+              </option>
+            </select>
+          </div>
           <small class="items-page__hint">{{ itemCategoryHint }}</small>
-        </label>
+        </div>
 
         <label class="items-page__field">
-          <span>품목명</span>
+          <span>품목명 <b class="items-page__required">*</b></span>
           <input v-model="createForm.itemName" type="text" :disabled="!!createdItemForCapability" />
         </label>
 
         <label class="items-page__field">
-          <span>품목 유형</span>
+          <span>품목 유형 <b class="items-page__required">*</b></span>
           <select v-model="createForm.supplyType" :disabled="!!createdItemForCapability">
             <option value="STOCK_BASED">재고형</option>
             <option value="MAKE_TO_ORDER">주문생산형</option>
@@ -1438,7 +1595,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>단위</span>
+          <span>단위 <b class="items-page__required">*</b></span>
           <select v-model="createForm.unit" :disabled="!!createdItemForCapability">
             <option v-for="unit in ITEM_UNIT_OPTIONS" :key="unit" :value="unit">
               {{ unit }}
@@ -1447,22 +1604,22 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>단가</span>
+          <span>단가 <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.unitPrice" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
-          <span>유통기한</span>
+          <span>유통기한 <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.shelfLifeDays" type="number" min="0" :disabled="!!createdItemForCapability" />
         </label>
 
         <label class="items-page__field items-page__field--full">
-          <span>규격</span>
+          <span>상세설명 <b class="items-page__required">*</b></span>
           <textarea v-model="createForm.spec" :disabled="!!createdItemForCapability" />
         </label>
 
         <label class="items-page__field">
-          <span>출발 물류거점</span>
+          <span>출발 물류거점 <b class="items-page__required">*</b></span>
           <select v-model="createForm.originLogisticsNodePublicId" :disabled="!!createdItemForCapability">
             <option value="">출발 물류거점을 선택하세요.</option>
             <option
@@ -1475,57 +1632,28 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
           </select>
         </label>
 
-        <label class="items-page__field items-page__field--full">
-          <span>{{ copy.mediaUploadTitle }}</span>
-          <input
-            type="file"
-            accept="image/*,video/*"
-            multiple
-            :disabled="!!createdItemForCapability"
-            @change="handleCreateMediaChange"
-          />
-          <small class="items-page__hint">{{ copy.mediaUploadHint }}</small>
-        </label>
-
-        <div v-if="createMediaPreviews.length" class="items-page__preview-grid">
-          <div
-            v-for="preview in createMediaPreviews"
-            :key="preview.url"
-            class="items-page__preview-tile"
-          >
-            <img v-if="preview.kind === 'image'" :src="preview.url" :alt="preview.name" />
-            <video v-else :src="preview.url" preload="metadata" />
-            <small>{{ preview.name }}</small>
-          </div>
-        </div>
-
-      </section>
-
-      <section class="items-page__form-section">
-        <div class="items-page__section-title">{{ copy.createCapabilitySection }}</div>
-
         <label class="items-page__field">
-          <span>리드타임</span>
+          <span>리드타임(일) <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.leadTimeDays" type="number" min="0" />
         </label>
 
         <label class="items-page__field">
-          <span>월간 생산량</span>
+          <span>월간 생산량 <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.monthlyCapacity" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
-          <span>{{ createForm.supplyType === 'MAKE_TO_ORDER' ? '생산 가능 수량' : '주문 가능 수량' }}</span>
+          <span>{{ createForm.supplyType === 'MAKE_TO_ORDER' ? '생산 가능 수량' : '주문 가능 수량' }} <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.availableQty" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
-          <span>최소 주문 수량</span>
+          <span>최소 주문 수량 <b class="items-page__required">*</b></span>
           <input v-model.number="createForm.moq" type="number" min="1" step="1" />
         </label>
 
         <label class="items-page__field">
-          <span>품질</span>
+          <span>품질 <b class="items-page__required">*</b></span>
           <select v-model="createForm.qualityGrade">
             <option value="">{{ copy.options.none }}</option>
             <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
@@ -1535,12 +1663,60 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>발주 수량 부분 확정</span>
+          <span>발주 수량 부분 확정 <b class="items-page__required">*</b></span>
           <select v-model="createForm.partialConfirmationAllowed">
             <option :value="true">{{ copy.options.allowed }}</option>
             <option :value="false">{{ copy.options.disallowed }}</option>
           </select>
         </label>
+
+        <div class="items-page__field items-page__field--full">
+          <span>{{ copy.mediaUploadTitle }}</span>
+          <input
+            id="item-create-media-input"
+            class="items-page__media-input"
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            :disabled="!!createdItemForCapability"
+            @change="handleCreateMediaChange"
+          />
+          <label
+            class="items-page__media-upload items-page__media-upload--create"
+            for="item-create-media-input"
+          >
+            <span class="items-page__media-add-icon">+</span>
+            <strong>{{ copy.mediaAppendLabel }}</strong>
+            <small>{{ copy.mediaUploadHint }}</small>
+          </label>
+        </div>
+
+        <div v-if="createMediaPreviews.length" class="items-page__preview-grid">
+          <div
+            v-for="(preview, index) in createMediaPreviews"
+            :key="preview.url"
+            class="items-page__preview-tile"
+            draggable="true"
+            @dragstart="handleCreateMediaDragStart(index)"
+            @dragover.prevent
+            @drop.prevent="handleCreateMediaDrop(index)"
+            @dragend="createMediaDragIndex = null"
+          >
+            <span class="items-page__preview-order">{{ index + 1 }}</span>
+            <img v-if="preview.kind === 'image'" :src="preview.url" :alt="preview.name" />
+            <video v-else :src="preview.url" preload="metadata" />
+            <span v-if="preview.kind === 'video'" class="items-page__media-play material-symbols-outlined">play_circle</span>
+            <small>{{ preview.name }}</small>
+            <button
+              class="items-page__preview-remove"
+              type="button"
+              aria-label="미디어 제거"
+              @click="removeCreateMediaPreview(index)"
+            >
+              ×
+            </button>
+          </div>
+        </div>
 
       </section>
 
@@ -1561,6 +1737,7 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
       </div>
     </div>
   </BaseModal>
+  </div>
 
   <BaseModal
   v-model="capabilityEditModalOpen"
@@ -1758,6 +1935,26 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   gap: 10px;
 }
 
+.items-page__preview-grid {
+  display: flex;
+  gap: 12px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+  scroll-snap-type: x proximity;
+}
+
+.items-page__media-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .items-page__media-upload {
   display: grid;
   gap: 8px;
@@ -1766,6 +1963,30 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   background: var(--color-surface);
   border: 1px dashed var(--color-outline);
   border-radius: 6px;
+}
+
+.items-page__media-upload--create {
+  place-items: center;
+  min-height: 132px;
+  margin: 0;
+  text-align: center;
+  cursor: pointer;
+}
+
+.items-page__media-upload--create:hover {
+  border-color: rgb(var(--outline-rgb, 17 17 17) / 0.72);
+}
+
+.items-page__media-add-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  font-size: 2rem;
+  font-weight: 500;
+  line-height: 1;
+  border: 1px solid currentColor;
+  border-radius: 0;
 }
 
 .items-page__media-upload span {
@@ -1793,6 +2014,46 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
 }
 
 .items-page__media-tile {
+  cursor: pointer;
+}
+
+.items-page__preview-tile {
+  cursor: grab;
+  flex: 0 0 160px;
+  scroll-snap-align: start;
+}
+
+.items-page__preview-tile:active {
+  cursor: grabbing;
+}
+
+.items-page__preview-order,
+.items-page__preview-remove {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgb(17 17 17 / 0.82);
+}
+
+.items-page__preview-order {
+  top: 8px;
+  left: 8px;
+  min-width: 26px;
+  height: 26px;
+  padding-inline: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.items-page__preview-remove {
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 0;
   cursor: pointer;
 }
 
@@ -1906,6 +2167,12 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   opacity: 0.7;
 }
 
+.items-page__required {
+  color: #dc2626;
+  font: inherit;
+  opacity: 1;
+}
+
 .items-page__field input,
 .items-page__field select,
 .items-page__field textarea {
@@ -1936,10 +2203,149 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
   gap: 8px;
 }
 
+.items-page__create-host--page {
+  display: grid;
+  gap: 18px;
+  padding: 20px 28px 28px;
+}
+
+.items-page__create-host--page :deep(.base-modal-page) {
+  padding: 0;
+}
+
+.items-page__create-host--page :deep(.base-modal__surface--page) {
+  border: 0;
+  background: transparent;
+}
+
+.items-page__create-host--page :deep(.base-modal__surface--page .base-modal__header),
+.items-page__create-host--page :deep(.base-modal__surface--page .base-modal__body) {
+  width: min(100%, 1280px);
+  margin-inline: auto;
+  padding-inline: 0;
+}
+
+.items-page__create-host--page :deep(.base-modal__surface--page .base-modal__header) {
+  padding-block: 0 24px !important;
+}
+
+.items-page__create-host--page :deep(.base-modal__heading h2) {
+  margin: 0;
+  font-size: clamp(1.55rem, 2vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.items-page__create-host--page .items-page__create-form {
+  display: block;
+  max-height: none;
+  overflow: visible;
+}
+
+.items-page__create-host--page .items-page__create-section {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 24px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 71 71 71) / 0.2);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.78);
+}
+
+.theme-dark .items-page__create-host--page .items-page__create-section {
+  border-color: transparent;
+  background: rgb(var(--surface-container-rgb, 31 31 31) / 0.82);
+}
+
+.items-page__create-host--page .items-page__create-section--master {
+  grid-column: 1 / -1;
+}
+
+.items-page__create-host--page .items-page__create-section--capability {
+  grid-column: 1 / -1;
+}
+
+.items-page__create-host--page .items-page__notice,
+.items-page__create-host--page .items-page__error,
+.items-page__create-host--page .items-page__actions {
+  grid-column: 1 / -1;
+}
+
+.items-page__create-host--page .items-page__field input,
+.items-page__create-host--page .items-page__field select,
+.items-page__create-host--page .items-page__field textarea {
+  min-height: 46px;
+  padding: 10px 12px;
+  color: #111;
+  background: #fff;
+  border-color: rgb(var(--outline-variant-rgb, 71 71 71) / 0.26);
+  border-bottom-width: 2px;
+}
+
+.items-page__create-host--page .items-page__field input:focus,
+.items-page__create-host--page .items-page__field select:focus,
+.items-page__create-host--page .items-page__field textarea:focus {
+  border-color: rgb(var(--outline-rgb, 17 17 17) / 0.72);
+}
+
+.items-page__category-cascade {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
 @media (max-width: 960px) {
   .items-page__detail-grid,
   .items-page__form-section {
     grid-template-columns: 1fr;
+  }
+
+  .items-page__create-host--page {
+    padding: 12px 10px 24px;
+  }
+
+  .items-page__create-host--page .items-page__create-form,
+  .items-page__create-host--page .items-page__create-section {
+    grid-template-columns: 1fr;
+  }
+
+  .items-page__create-host--page :deep(.base-modal__surface--page .base-modal__header),
+  .items-page__create-host--page :deep(.base-modal__surface--page .base-modal__body) {
+    width: 100%;
+  }
+
+  .items-page__create-host--page .items-page__create-section {
+    padding: 18px;
+  }
+
+  .items-page__category-cascade {
+    grid-template-columns: 1fr;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .items-page__category-cascade select:not(:first-child) {
+    display: none;
+  }
+
+  .items-page__category-cascade select.is-mobile-visible {
+    display: block;
+  }
+
+  .items-page__create-host--page .items-page__create-section--master,
+  .items-page__create-host--page .items-page__create-section--capability,
+  .items-page__create-host--page .items-page__notice,
+  .items-page__create-host--page .items-page__error,
+  .items-page__create-host--page .items-page__actions {
+    grid-column: 1;
+  }
+
+  .items-page__create-host--page .items-page__create-section--capability {
+    position: static;
+  }
+
+  .items-page__create-host--page .items-page__actions {
+    margin-top: 20px;
   }
 
   .items-page__field--full {

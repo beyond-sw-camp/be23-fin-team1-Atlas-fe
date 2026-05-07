@@ -58,6 +58,7 @@ const pageRoutes = [
   { path: 'orders', alias: ['orders-desk'], name: 'ordersDesk', component: OrdersPage, meta: { hidePageHead: true } },
   { path: 'operations/:kind/:publicId', name: 'operationDetail', component: OperationDetailPage, meta: { hidePageHead: true } },
   { path: 'suppliers', alias: ['supplier-control'], name: 'supplierControl', component: SuppliersPage, meta: { hidePageHead: true } },
+  { path: 'items/create', name: 'itemCreate', component: ItemsPage, meta: { hidePageHead: true } },
   { path: 'items', name: 'items', component: ItemsPage, meta: { hidePageHead: true } },
   { path: 'inventory', name: 'inventory', component: InventoryPage, meta: { hidePageHead: true } },
   { path: 'shipments/create', name: 'shipmentCreate', component: ShipmentsPage, meta: { hidePageHead: true } },
