@@ -46,11 +46,9 @@ function renderMarker() {
 
   const markerElement = document.createElement('div')
   markerElement.className = 'logistics-node-location-map__marker'
-  const markerPrefix = document.createElement('span')
-  markerPrefix.textContent = '거'
   const markerLabel = document.createElement('strong')
   markerLabel.textContent = props.nodeName || props.nodeCode
-  markerElement.append(markerPrefix, markerLabel)
+  markerElement.append(markerLabel)
 
   marker = new maplibre.Marker({ element: markerElement, anchor: 'bottom' })
     .setLngLat(point)
@@ -179,12 +177,11 @@ onBeforeUnmount(() => {
 :global(.logistics-node-location-map__marker) {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-width: 132px;
+  min-width: 0;
   border: 1px solid rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.92);
   border-left: 4px solid #047857;
   border-radius: 0;
-  padding: 6px 9px 6px 5px;
+  padding: 8px 10px;
   background: #1f2933;
   color: #fff;
   font-family: Pretendard, "Segoe UI", sans-serif;
@@ -195,16 +192,8 @@ onBeforeUnmount(() => {
   box-shadow: 0 8px 18px rgb(15 23 42 / 0.16);
 }
 
-:global(.logistics-node-location-map__marker span) {
-  display: inline-grid;
-  place-items: center;
-  min-width: 22px;
-  min-height: 22px;
-  background: rgb(255 255 255 / 0.18);
-}
-
 :global(.logistics-node-location-map__marker strong) {
-  max-width: 86px;
+  max-width: 132px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
