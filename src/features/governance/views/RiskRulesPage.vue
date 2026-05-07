@@ -361,6 +361,10 @@ const filteredRules = computed(() => {
   return items
 })
 
+const canShowRulesPagination = computed(() =>
+  !rulesErrorMessage.value && filteredRules.value.length > 0 && totalPages.value > 1,
+)
+
 async function fetchRuleSummaryMetrics(
   currentPageContent: KafkaEventSummaryResponse[],
   pageCount: number,
@@ -662,7 +666,7 @@ onBeforeUnmount(() => {
       </div>
       </div>
     </article>
-    <div v-if="!rulesErrorMessage && totalPages > 1" class="risk-rules-pagination">
+    <div v-if="canShowRulesPagination" class="risk-rules-pagination">
       <button
         class="page-button page-button--secondary risk-rules-pagination__button"
         type="button"
