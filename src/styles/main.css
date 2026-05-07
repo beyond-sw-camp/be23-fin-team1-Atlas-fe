@@ -3469,18 +3469,18 @@ select:not(.app-language-select select):focus {
 .risk-rules-table__row {
   display: grid;
   grid-template-columns:
-    108px minmax(150px, 1.05fr) minmax(250px, 1.95fr) minmax(110px, 0.95fr) minmax(140px, 1.1fr) 88px 72px 84px;
-  gap: 12px;
+    92px minmax(128px, 1.1fr) minmax(96px, 0.72fr) minmax(92px, 0.75fr) minmax(132px, 1.05fr) 64px 58px 68px;
+  gap: 10px;
   align-items: center;
   min-height: 50px;
-  padding: 0 16px;
+  padding: 0 14px;
   border-top: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.12);
   position: relative;
 }
 
 .risk-rules-table--topics .risk-rules-table__row {
   grid-template-columns:
-    minmax(220px, 1.7fr) 72px minmax(100px, 0.85fr) 88px 110px 120px;
+    minmax(160px, 1.25fr) 56px 92px 72px 86px 94px;
 }
 
 .risk-rules-table__row--head {
