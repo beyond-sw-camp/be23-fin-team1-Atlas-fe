@@ -4345,6 +4345,12 @@ select:not(.app-language-select select):focus {
     white-space: normal;
   }
 
+  .risk-rules-table:not(.risk-rules-table--topics) .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(3),
+  .risk-rules-table:not(.risk-rules-table--topics) .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(4),
+  .risk-rules-table:not(.risk-rules-table--topics) .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(6) {
+    display: none;
+  }
+
   .risk-rules-chip--topic {
     max-width: 100%;
   }
