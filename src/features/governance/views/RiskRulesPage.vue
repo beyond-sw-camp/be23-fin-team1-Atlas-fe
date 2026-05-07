@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { ApiError } from '../../../services/http'
@@ -16,6 +16,8 @@ const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
 const toast = useAtlasToastStore()
 const KAFKA_SUBSCRIPTIONS_POLL_INTERVAL_MS = 10 * 60 * 1000
+const RISK_RULES_CLIENT_PAGE_SIZE = 10
+const RISK_RULES_FETCH_SIZE = 1000
 
 const CONTENT = {
   ko: {
@@ -28,11 +30,11 @@ const CONTENT = {
       topics: { label: 'Kafka 토픽', meta: '구독 현황', tone: 'nominal' },
     },
     searchPlaceholder: '규칙명, 이벤트 유형 검색...',
+    filterLabel: '필터',
     tabs: ['전체', '활성', '비활성'],
     rulesTitle: '리스크 규칙 목록',
     topicTitle: 'Kafka 토픽 구독 현황',
     exportLabel: '내보내기',
-    createLabel: '규칙 추가',
     columns: ['규칙 ID', '규칙 명', 'Kafka 토픽', '조건', '임계값', '발동 횟수', '활성화', '중요도'],
     topicColumns: ['토픽 이름', '파티션', '커밋 오프셋', '메시지/h', '브로커 연결', '컨슈머 구독'],
     loadingRules: '리스크 규칙 목록을 불러오는 중입니다.',
@@ -61,11 +63,11 @@ const CONTENT = {
       topics: { label: 'KAFKA TOPICS', meta: 'SUBSCRIPTION STATUS', tone: 'nominal' },
     },
     searchPlaceholder: 'Search rule name or event type...',
+    filterLabel: 'FILTER',
     tabs: ['ALL', 'ACTIVE', 'DISABLED'],
     rulesTitle: 'RISK RULES',
     topicTitle: 'KAFKA TOPIC SUBSCRIPTIONS',
     exportLabel: 'EXPORT',
-    createLabel: 'ADD RULE',
     columns: ['RULE ID', 'RULE NAME', 'KAFKA TOPIC', 'CONDITION', 'THRESHOLD', 'TRIGGERED', 'ACTIVE', 'IMPORTANCE'],
     topicColumns: ['TOPIC NAME', 'PARTITIONS', 'COMMITTED OFFSET', 'MSG/H', 'BROKER', 'CONSUMER'],
     loadingRules: 'Loading risk rules...',
@@ -92,8 +94,7 @@ const selectedTab = ref<string>(content.value.tabs[0])
 const rules = ref<KafkaEventSummaryResponse[]>([])
 const subscriptions = ref<KafkaSubscriptionStatusResponse[]>([])
 const currentPage = ref(0)
-const totalPages = ref(0)
-const pageSize = ref(10)
+const pageSize = ref(RISK_RULES_CLIENT_PAGE_SIZE)
 const totalRuleCount = ref(0)
 const totalActiveRuleCount = ref(0)
 const totalTriggeredRuleCount = ref(0)
@@ -110,6 +111,7 @@ type DisplayRule = {
   id: string
   name: string
   topic: string
+  topicLabel: string
   condition: string
   threshold: string
   thresholdTone: 'warning' | 'critical'
@@ -199,14 +201,59 @@ function normalizeKafkaStatus(status?: string | null) {
   return status?.trim().toUpperCase() ?? ''
 }
 
-function formatBrokerStatus(status?: string | null) {
+function isConnectedStatus(status?: string | null) {
   const normalized = normalizeKafkaStatus(status)
+  return normalized === 'CONNECTED' || normalized === '연결됨'
+}
 
-  if (normalized === 'CONNECTED') {
+function isSubscribedStatus(status?: string | null) {
+  const normalized = normalizeKafkaStatus(status)
+  return normalized === 'SUBSCRIBED' || normalized === '구독 중'
+}
+
+const KAFKA_TOPIC_NAME_MAP: Record<string, { ko: string; en: string }> = {
+  'purchase-order': { ko: '발주', en: 'Purchase Order' },
+  'sub-purchase-order': { ko: '하위 발주', en: 'Sub Order' },
+  shipment: { ko: '출하', en: 'Shipment' },
+  'supplier-certificate': { ko: '협력사 인증서', en: 'Supplier Certificate' },
+  'delivery-exception': { ko: '배송 예외', en: 'Delivery Exception' },
+  'logistics-node': { ko: '물류거점', en: 'Logistics Node' },
+  inventory: { ko: '재고', en: 'Inventory' },
+  'inventory-movement': { ko: '재고 이동', en: 'Inventory Movement' },
+  'return-request': { ko: '반품 요청', en: 'Return Request' },
+  'recommendation-requested': { ko: '권고안 요청', en: 'Recommendation Requested' },
+  'recommendation-generated': { ko: '권고안 생성', en: 'Recommendation Generated' },
+  'recommendation-failed': { ko: '권고안 실패', en: 'Recommendation Failed' },
+  'recommendation-decision': { ko: '권고안 결정', en: 'Recommendation Decision' },
+  'supplier-risk': { ko: '협력사 리스크', en: 'Supplier Risk' },
+  settlement: { ko: '정산', en: 'Settlement' },
+  return: { ko: '반품', en: 'Return' },
+}
+
+function formatKafkaTopicName(topic?: string | null) {
+  const rawTopic = topic?.trim()
+  if (!rawTopic) return content.value.unknown
+
+  const topicKey = rawTopic.split('.').pop()?.toLowerCase() ?? rawTopic.toLowerCase()
+  const mapped = KAFKA_TOPIC_NAME_MAP[topicKey]
+
+  if (mapped) {
+    return preferences.language === 'ko' ? mapped.ko : mapped.en
+  }
+
+  return topicKey
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function formatBrokerStatus(status?: string | null) {
+  if (isConnectedStatus(status)) {
     return content.value.connected
   }
 
-  if (!normalized) {
+  if (!normalizeKafkaStatus(status)) {
     return content.value.unknown
   }
 
@@ -214,13 +261,11 @@ function formatBrokerStatus(status?: string | null) {
 }
 
 function formatConsumerStatus(status?: string | null) {
-  const normalized = normalizeKafkaStatus(status)
-
-  if (normalized === 'SUBSCRIBED') {
+  if (isSubscribedStatus(status)) {
     return content.value.subscribed
   }
 
-  if (!normalized) {
+  if (!normalizeKafkaStatus(status)) {
     return content.value.unknown
   }
 
@@ -256,17 +301,18 @@ const metrics = computed(() => {
 const kafkaTopics = computed(() =>
   subscriptions.value.map((topic) => ({
     topic: topic.topic,
+    topicLabel: formatKafkaTopicName(topic.topic),
     partitions: topic.partitionCount,
     offset: String(topic.committedOffset ?? content.value.unknown),
     rate: String(topic.messagesPerHour ?? 0),
     brokerStatus: formatBrokerStatus(topic.brokerConnectionStatus),
     brokerTone:
-      normalizeKafkaStatus(topic.brokerConnectionStatus) === 'CONNECTED'
+      isConnectedStatus(topic.brokerConnectionStatus)
         ? 'success'
         : 'error',
     consumerStatus: formatConsumerStatus(topic.consumerSubscriptionStatus),
     consumerTone:
-      normalizeKafkaStatus(topic.consumerSubscriptionStatus) === 'SUBSCRIBED'
+      isSubscribedStatus(topic.consumerSubscriptionStatus)
         ? 'success'
         : 'warning',
   })),
@@ -277,6 +323,7 @@ const displayRules = computed<DisplayRule[]>(() =>
     id: rule.ruleId,
     name: rule.ruleName,
     topic: rule.topic,
+    topicLabel: formatKafkaTopicName(rule.topic),
     condition: rule.condition,
     threshold: formatThreshold(rule.threshold),
     thresholdTone: resolveThresholdTone(rule.importance),
@@ -313,90 +360,48 @@ const filteredRules = computed(() => {
   return items
 })
 
-async function fetchRuleSummaryMetrics(
-  currentPageContent: KafkaEventSummaryResponse[],
-  pageCount: number,
-  currentPageNumber: number,
-  currentSize: number,
-) {
-  if (pageCount <= 1) {
-    totalActiveRuleCount.value = currentPageContent.filter((rule) => rule.enabled).length
-    totalTriggeredRuleCount.value = currentPageContent.reduce(
-      (total, rule) => total + (rule.triggeredCount ?? 0),
-      0,
-    )
-    return
-  }
+const totalPages = computed(() => Math.ceil(filteredRules.value.length / pageSize.value))
 
-  const pageRequests = Array.from({ length: pageCount }, (_, pageIndex) => {
-    if (pageIndex === currentPageNumber) {
-      return Promise.resolve({
-        content: currentPageContent,
-        totalElements: totalRuleCount.value,
-        totalPages: pageCount,
-        size: currentSize,
-        page: currentPageNumber,
-        first: currentPageNumber === 0,
-        last: currentPageNumber === pageCount - 1,
-      })
-    }
+const pagedRules = computed(() => {
+  const startIndex = currentPage.value * pageSize.value
+  return filteredRules.value.slice(startIndex, startIndex + pageSize.value)
+})
 
-    return getKafkaEventRules({
-      page: pageIndex,
-      size: currentSize,
-    })
-  })
-
-  const pageResults = await Promise.allSettled(pageRequests)
-
-  let activeCount = 0
-  let triggeredCount = 0
-
-  for (const result of pageResults) {
-    if (result.status !== 'fulfilled') {
-      continue
-    }
-
-    for (const rule of result.value.content) {
-      if (rule.enabled) {
-        activeCount += 1
-      }
-
-      triggeredCount += rule.triggeredCount ?? 0
-    }
-  }
-
-  totalActiveRuleCount.value = activeCount
-  totalTriggeredRuleCount.value = triggeredCount
-}
+const canShowRulesPagination = computed(() =>
+  !rulesErrorMessage.value && filteredRules.value.length > 0 && totalPages.value > 1,
+)
 
 async function fetchRiskRulesData() {
   isLoadingRules.value = true
   rulesErrorMessage.value = ''
 
   try {
-    const rulesResponse = await getKafkaEventRules({
-      page: currentPage.value,
-      size: pageSize.value,
+    let rulesResponse = await getKafkaEventRules({
+      page: 0,
+      size: RISK_RULES_FETCH_SIZE,
     })
 
-    const safePage = toSafeNonNegativeNumber(rulesResponse.page, 0)
-    const safeTotalPages = toSafeNonNegativeNumber(rulesResponse.totalPages, 0)
-    const safePageSize = toSafeNonNegativeNumber(rulesResponse.size, 10)
     const safeTotalElements = toSafeNonNegativeNumber(rulesResponse.totalElements, 0)
 
-    rules.value = rulesResponse.content
-    totalRuleCount.value = safeTotalElements
-    totalPages.value = safeTotalPages
-    currentPage.value = safePage
-    pageSize.value = safePageSize
-    isInitialRulesLoading.value = false
-    void fetchRuleSummaryMetrics(
-      rulesResponse.content,
-      safeTotalPages,
-      safePage,
-      safePageSize,
+    if (safeTotalElements > rulesResponse.content.length) {
+      rulesResponse = await getKafkaEventRules({
+        page: 0,
+        size: safeTotalElements,
+      })
+    }
+
+    const allRules = rulesResponse.content
+
+    rules.value = allRules
+    totalRuleCount.value = allRules.length
+    totalActiveRuleCount.value = allRules.filter((rule) => rule.enabled).length
+    totalTriggeredRuleCount.value = allRules.reduce(
+      (total, rule) => total + (rule.triggeredCount ?? 0),
+      0,
     )
+    currentPage.value = 0
+    pageSize.value = RISK_RULES_CLIENT_PAGE_SIZE
+    isInitialRulesLoading.value = false
   } catch (error) {
     const reason = error
     const message =
@@ -406,7 +411,6 @@ async function fetchRiskRulesData() {
     totalRuleCount.value = 0
     totalActiveRuleCount.value = 0
     totalTriggeredRuleCount.value = 0
-    totalPages.value = 0
     currentPage.value = 0
     rulesErrorMessage.value = message
     isInitialRulesLoading.value = false
@@ -451,7 +455,6 @@ async function goToPreviousPage() {
   }
 
   currentPage.value -= 1
-  await fetchRiskRulesData()
 }
 
 async function goToNextPage() {
@@ -460,7 +463,6 @@ async function goToNextPage() {
   }
 
   currentPage.value += 1
-  await fetchRiskRulesData()
 }
 
 async function handleToggleRule(ruleId: string, nextEnabled: boolean) {
@@ -494,9 +496,11 @@ async function handleToggleRule(ruleId: string, nextEnabled: boolean) {
 
 watchEffect(() => {
   selectedTab.value = content.value.tabs[0]
-  header.setActions([
-    { key: 'risk-rules-add', label: '규칙 추가', tone: 'primary' },
-  ])
+  header.clearActions()
+})
+
+watch([search, selectedTab], () => {
+  currentPage.value = 0
 })
 
 onMounted(async () => {
@@ -524,9 +528,6 @@ onBeforeUnmount(() => {
           <div class="risk-rules-page__eyebrow">{{ content.eyebrow }}</div>
           <h2 class="risk-rules-page__title">{{ content.title }}</h2>
         </div>
-        <button class="page-button page-button--primary risk-rules-page__create-button" type="button">
-          {{ content.createLabel }}
-        </button>
       </div>
     </header>
 
@@ -558,6 +559,11 @@ onBeforeUnmount(() => {
           {{ tab }}
         </button>
       </div>
+      <label class="risk-rules-page__mobile-filter">
+        <select v-model="selectedTab">
+          <option v-for="tab in content.tabs" :key="tab" :value="tab">{{ tab }}</option>
+        </select>
+      </label>
     </section>
 
     <article class="risk-rules-sheet">
@@ -582,13 +588,15 @@ onBeforeUnmount(() => {
           <span v-for="column in content.columns" :key="column">{{ column }}</span>
         </div>
         <div
-          v-for="rule in filteredRules"
+          v-for="rule in pagedRules"
           :key="rule.id"
           :class="['risk-rules-table__row', `is-${rule.rowTone}`]"
         >
           <span class="risk-rules-table__code">{{ rule.id }}</span>
           <span class="risk-rules-table__primary risk-rules-table__primary--wide">{{ rule.name }}</span>
-          <span class="risk-rules-table__topic"><i class="risk-rules-chip risk-rules-chip--topic">{{ rule.topic }}</i></span>
+          <span class="risk-rules-table__topic">
+            <i class="risk-rules-chip risk-rules-chip--topic" :title="rule.topic">{{ rule.topicLabel }}</i>
+          </span>
           <span class="risk-rules-table__condition">{{ rule.condition }}</span>
           <span :class="['risk-rules-table__threshold', 'risk-rules-table__threshold--wide', `is-${rule.thresholdTone}`]">{{ rule.threshold }}</span>
           <span>{{ rule.triggered }}</span>
@@ -607,7 +615,7 @@ onBeforeUnmount(() => {
       </div>
       </div>
     </article>
-    <div v-if="!rulesErrorMessage && totalPages > 1" class="risk-rules-pagination">
+    <div v-if="canShowRulesPagination" class="risk-rules-pagination">
       <button
         class="page-button page-button--secondary risk-rules-pagination__button"
         type="button"
@@ -649,7 +657,10 @@ onBeforeUnmount(() => {
           <span v-for="column in content.topicColumns" :key="column">{{ column }}</span>
         </div>
         <div v-for="topic in kafkaTopics" :key="topic.topic" class="risk-rules-table__row is-nominal">
-          <span class="risk-rules-table__primary risk-rules-table__primary--wide">{{ topic.topic }}</span>
+          <span class="risk-rules-table__primary risk-rules-table__primary--wide" :title="topic.topic">
+            {{ topic.topicLabel }}
+            <small class="risk-rules-table__topic-meta">{{ topic.topic }}</small>
+          </span>
           <span>{{ topic.partitions }}</span>
           <span class="risk-rules-table__code">{{ topic.offset }}</span>
           <span>{{ topic.rate }}</span>

@@ -3323,10 +3323,6 @@ select:not(.app-language-select select):focus {
   letter-spacing: -0.04em;
 }
 
-.risk-rules-page__create-button {
-  flex: 0 0 auto;
-}
-
 .risk-rules-page__metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3413,6 +3409,10 @@ select:not(.app-language-select select):focus {
   flex-wrap: wrap;
 }
 
+.risk-rules-page__mobile-filter {
+  display: none;
+}
+
 .risk-rules-page__tab {
   min-height: 38px;
   padding: 0 12px;
@@ -3469,18 +3469,18 @@ select:not(.app-language-select select):focus {
 .risk-rules-table__row {
   display: grid;
   grid-template-columns:
-    108px minmax(150px, 1.05fr) minmax(250px, 1.95fr) minmax(110px, 0.95fr) minmax(140px, 1.1fr) 88px 72px 84px;
-  gap: 12px;
+    92px minmax(128px, 1.1fr) minmax(96px, 0.72fr) minmax(92px, 0.75fr) minmax(132px, 1.05fr) 64px 58px 68px;
+  gap: 10px;
   align-items: center;
   min-height: 50px;
-  padding: 0 16px;
+  padding: 0 14px;
   border-top: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.12);
   position: relative;
 }
 
 .risk-rules-table--topics .risk-rules-table__row {
   grid-template-columns:
-    minmax(220px, 1.7fr) 72px minmax(100px, 0.85fr) 88px 110px 120px;
+    minmax(160px, 1.25fr) 56px 92px 72px 86px 94px;
 }
 
 .risk-rules-table__row--head {
@@ -3539,6 +3539,17 @@ select:not(.app-language-select select):focus {
   overflow: hidden;
 }
 
+.risk-rules-table__topic-meta {
+  display: block;
+  margin-top: 3px;
+  color: var(--on-surface-variant, #596061);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.58rem;
+  font-weight: 600;
+  line-height: 1.25;
+  opacity: 0.72;
+}
+
 .risk-rules-table__code {
   font-family: 'SFMono-Regular', Consolas, monospace;
   color: var(--primary, #2d3435);
@@ -3576,7 +3587,9 @@ select:not(.app-language-select select):focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.54rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
 }
 
 .risk-rules-chip.is-warning {
@@ -4065,13 +4078,6 @@ select:not(.app-language-select select):focus {
     font-size: 1.45rem;
   }
 
-  .risk-rules-page__create-button {
-    min-height: 36px;
-    padding: 0 12px;
-    font-size: 0.64rem;
-    white-space: nowrap;
-  }
-
   .risk-rules-page__metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1px;
@@ -4259,9 +4265,7 @@ select:not(.app-language-select select):focus {
   }
 
   .risk-rules-page__tabs {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
+    display: none;
   }
 
   .recommendations-page__tabs {
@@ -4270,17 +4274,35 @@ select:not(.app-language-select select):focus {
     scrollbar-width: none;
   }
 
-  .risk-rules-page__tabs::-webkit-scrollbar {
-    display: none;
-  }
-
   .recommendations-page__tabs::-webkit-scrollbar {
     display: none;
   }
 
-  .risk-rules-page__tab {
-    flex: 0 0 auto;
-    white-space: nowrap;
+  .risk-rules-page__filter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 96px;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .risk-rules-page__mobile-filter {
+    display: grid;
+    align-items: center;
+    min-width: 0;
+    border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
+    background: #fff;
+  }
+
+  .risk-rules-page__mobile-filter select {
+    width: 100%;
+    min-height: 100%;
+    padding: 0 24px 0 10px;
+    border: 0;
+    background: transparent;
+    color: var(--on-surface, #2d3435);
+    font-size: 16px;
+    font-weight: 800;
   }
 
   .recommendations-page__tab {
@@ -4300,7 +4322,10 @@ select:not(.app-language-select select):focus {
   }
 
   .risk-rules-table--topics .risk-rules-table__row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
+    justify-content: start;
+    gap: 6px;
+    align-items: start;
   }
 
   .risk-rules-table__row--head {
@@ -4310,6 +4335,27 @@ select:not(.app-language-select select):focus {
   .risk-rules-table__row>span {
     overflow-wrap: anywhere;
     white-space: normal;
+  }
+
+  .risk-rules-table:not(.risk-rules-table--topics) .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(3),
+  .risk-rules-table:not(.risk-rules-table--topics) .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(4),
+  .risk-rules-table:not(.risk-rules-table--topics) .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(6),
+  .risk-rules-table:not(.risk-rules-table--topics) .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(8) {
+    display: none;
+  }
+
+  .risk-rules-table--topics .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(2),
+  .risk-rules-table--topics .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(3),
+  .risk-rules-table--topics .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(4) {
+    display: none;
+  }
+
+  .risk-rules-table--topics .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(1) {
+    grid-column: 1;
+  }
+
+  .risk-rules-chip--topic {
+    max-width: 100%;
   }
 
   .risk-rules-pagination {

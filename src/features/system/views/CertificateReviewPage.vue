@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useAtlasDialogStore } from '../../../stores/dialog'
-import { useAtlasHeaderStore } from '../../../stores/header'
 import {
   approveCertificate,
   getAllCertificates,
@@ -10,7 +9,6 @@ import {
 } from '../../../services/certificate'
 import { getAttachment } from '../../../services/file'
 
-const header = useAtlasHeaderStore()
 const dialog = useAtlasDialogStore()
 const certificates = ref<SupplierCertificateResponseDto[]>([])
 const selectedCertificate = ref<SupplierCertificateResponseDto | null>(null)
@@ -23,7 +21,6 @@ const content = computed(() => {
     eyebrow: '시스템 / 인증서 심사',
     title: '인증서 심사',
     subtitle: '새로 등록된 협력사 인증서를 검토하고 승인 또는 반려합니다.',
-    refresh: '새로고침',
     searchPlaceholder: '협력사명, 인증 번호, 인증 유형 검색...',
     tableTitle: '심사 목록',
     pendingMetric: '심사 대기',
@@ -146,13 +143,8 @@ async function rejectSelectedCertificate() {
 }
 
 onMounted(() => {
-  header.setActions([
-    { key: 'certificate-review-refresh', label: content.value.refresh, tone: 'secondary', onClick: loadCertificates },
-  ])
   loadCertificates()
 })
-
-onBeforeUnmount(() => header.clearActions())
 </script>
 
 <template>
@@ -163,9 +155,6 @@ onBeforeUnmount(() => header.clearActions())
         <h1 class="terminal-page__title">{{ content.title }}</h1>
         <p class="certificate-review-page__subtitle">{{ content.subtitle }}</p>
       </div>
-      <button class="page-button page-button--secondary" type="button" :disabled="isLoading" @click="loadCertificates">
-        {{ content.refresh }}
-      </button>
     </header>
 
     <section class="page-metrics terminal-page__metrics">
@@ -224,7 +213,7 @@ onBeforeUnmount(() => header.clearActions())
               </button>
             </span>
           </div>
-          <div v-if="!isLoading && filteredCertificates.length === 0" class="certificate-review-page__empty">
+          <div v-if="!isLoading && filteredCertificates.length === 0" class="terminal-page__table-message">
             {{ content.noRows }}
           </div>
         </div>
@@ -320,20 +309,6 @@ onBeforeUnmount(() => header.clearActions())
   min-height: 44px;
   padding: 0 14px;
   font-size: 0.85rem;
-}
-
-.certificate-review-page__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 96px;
-  margin-top: 16px;
-  padding: 24px 16px;
-  border: 1px dashed var(--color-outline-variant);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
-  font-weight: 800;
-  text-align: center;
 }
 
 .certificate-review-page__detail {
