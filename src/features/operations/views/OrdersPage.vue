@@ -319,6 +319,7 @@ const copy = computed(() =>
           selectAtLeastOne: '검색 결과에서 발주할 품목을 1개 이상 선택하세요.',
           invalidOrderQty: '발주 수량은 0보다 커야 합니다.',
           invalidItemSupplierMapping: '품목과 협력사 매핑이 올바르지 않습니다.',
+          itemAdded: '해당 품목이 추가되었습니다.',
           itemSearchFail: '품목 검색에 실패했습니다.',
           createFail: '발주 등록에 실패했습니다.',
           loadDetailFail: '발주 상세 정보를 불러오지 못했습니다.',
@@ -532,6 +533,7 @@ const copy = computed(() =>
           selectAtLeastOne: 'Select at least one item from the search results.',
           invalidOrderQty: 'Order quantity must be greater than 0.',
           invalidItemSupplierMapping: 'The item and supplier mapping is invalid.',
+          itemAdded: '해당 품목이 추가되었습니다.',
           itemSearchFail: 'Failed to search items.',
           createFail: 'Failed to create purchase order.',
           loadDetailFail: 'Failed to load order detail.',
@@ -1829,9 +1831,10 @@ function showCreateItemCapability(itemPublicId: string) {
     createForm.value.detailItemPublicId === itemPublicId ? '' : itemPublicId
 }
 
-function selectCreateSearchItem(item: ItemResponseDto) {
+async function selectCreateSearchItem(item: ItemResponseDto) {
   const line = createEmptyOrderLine(item)
   createForm.value.lines.push(line)
+  await dialog.alert(copy.value.messages.itemAdded)
 }
 
 function handleCreateLineItemNameChange(line: CreateOrderLineForm) {
