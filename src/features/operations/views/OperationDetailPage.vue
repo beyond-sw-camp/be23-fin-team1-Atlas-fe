@@ -1270,7 +1270,7 @@ function historyDescription(row: any) {
 
 function historyActorLabel(row: any) {
   if (kind.value === 'logistics-nodes') {
-    return display(row.processedByUserName ?? row.recordedByName ?? row.createdByName ?? formatActor(row.processedByUserPublicId ?? row.createdBy))
+    return display(row.processedByUserName)
   }
 
   return formatActor(row.processedByUserPublicId ?? row.createdBy)
