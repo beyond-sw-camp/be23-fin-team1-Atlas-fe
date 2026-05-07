@@ -284,7 +284,7 @@ export const NAV_ITEMS: NavEntry[] = [
   {
     key: 'auditTrail',
     label: '감사 로그',
-    icon: 'fact_check',
+    icon: 'manage_search',
     description: '시스템 감사 로그',
     pageSubtitle: '사용자, 시스템, 보안 이벤트 감사 로그',
     section: 'system',
@@ -303,15 +303,6 @@ export const NAV_ITEMS: NavEntry[] = [
     hidden: true,
   },
   {
-    key: 'notificationsCenter',
-    label: '알림',
-    icon: 'notifications',
-    description: '채널 정책과 읽지 않은 경보 관리',
-    pageSubtitle: '알림 채널, 미확인 경보, topic 상태 관리',
-    section: 'system',
-    organizations: ['mainBuyer', 'supplier', 'admin'],
-  },
-  {
     key: 'certificateReview',
     label: '인증서 심사',
     icon: 'fact_check',
@@ -319,6 +310,15 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '심사 요청 인증서를 검토하고 승인 또는 반려합니다.',
     section: 'system',
     organizations: ['admin'],
+  },
+  {
+    key: 'notificationsCenter',
+    label: '알림',
+    icon: 'notifications',
+    description: '채널 정책과 읽지 않은 경보 관리',
+    pageSubtitle: '알림 채널, 미확인 경보, topic 상태 관리',
+    section: 'system',
+    organizations: ['mainBuyer', 'supplier', 'admin'],
   },
   {
     key: 'riskRules',
