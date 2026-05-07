@@ -209,6 +209,7 @@ export interface GetItemsParams {
   status?: ItemStatus
   page?: number
   size?: number
+  sort?: string
 }
 
 export interface UpdateItemCategoryRequestDto {

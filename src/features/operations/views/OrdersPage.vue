@@ -1856,6 +1856,7 @@ async function searchItemsForCreateOrder() {
       status: 'ACTIVE',
       page: 0,
       size: 100,
+      sort: 'publicId,asc',
     })
 
     const detailedItems = await Promise.all(
@@ -2275,6 +2276,7 @@ async function loadEditableSupplierItems(supplierPublicId: string) {
     status: 'ACTIVE',
     page: 0,
     size: 100,
+    sort: 'publicId,asc',
   })
 
   editAvailableItems.value = response.content
@@ -2969,6 +2971,7 @@ onBeforeUnmount(() => header.clearActions())
     </section>
   </section>
 
+  <div :class="['orders-page__create-host', { 'orders-page__create-host--page': isCreatePage }]">
   <BaseModal
     :model-value="isCreatePage || createModalOpen"
     :title="copy.createTitle"
@@ -2976,11 +2979,15 @@ onBeforeUnmount(() => header.clearActions())
     :presentation="isCreatePage ? 'page' : 'modal'"
     size="lg"
     hide-dividers
+    :hide-close-button="isCreatePage"
     @update:model-value="(value) => { if (!value) closeCreateOrderModal() }"
   >
     <div class="orders-page__form orders-page__create-modal-body">
 
-      <section v-if="actor.isSupplierOrganization" class="orders-page__detail-section">
+      <section
+        v-if="actor.isSupplierOrganization"
+        class="orders-page__detail-section orders-page__create-section orders-page__create-section--parent"
+      >
       
 
         <div class="orders-page__section-head">
@@ -3010,7 +3017,7 @@ onBeforeUnmount(() => header.clearActions())
         </label>
       </section>
 
-      <section class="orders-page__detail-section">
+      <section class="orders-page__detail-section orders-page__create-section orders-page__create-section--search">
         <div class="orders-page__section-head">
           <strong>{{ copy.itemSearch }}</strong>
         </div>
@@ -3195,7 +3202,7 @@ onBeforeUnmount(() => header.clearActions())
       </section>
 
 
-      <section class="orders-page__detail-section">
+      <section class="orders-page__detail-section orders-page__create-section orders-page__create-section--selected">
         <div class="orders-page__section-head">
           <strong>{{ copy.selectedItems }}</strong>
           <span class="page-panel__chip">{{ createForm.lines.length }}</span>
@@ -3397,6 +3404,7 @@ onBeforeUnmount(() => header.clearActions())
       </div>
     </div>
   </BaseModal>
+  </div>
 
   <BaseModal
     v-model="orderDetailModalOpen"

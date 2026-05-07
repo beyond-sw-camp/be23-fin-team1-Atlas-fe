@@ -6711,6 +6711,90 @@ select:not(.app-language-select select):focus {
   display: none;
 }
 
+.orders-page__create-host--page {
+  display: grid;
+  gap: 18px;
+  padding: 20px 28px 28px;
+}
+
+.orders-page__create-host--page .base-modal-page {
+  padding: 0;
+}
+
+.orders-page__create-host--page .base-modal__surface--page {
+  border: 0;
+  background: transparent;
+}
+
+.orders-page__create-host--page .base-modal__surface--page .base-modal__header,
+.orders-page__create-host--page .base-modal__surface--page .base-modal__body {
+  width: min(100%, 1280px);
+  margin-inline: auto;
+  padding-inline: 0;
+}
+
+.orders-page__create-host--page .base-modal__surface--page .base-modal__header {
+  padding-block: 0 24px !important;
+}
+
+.orders-page__create-host--page .base-modal__heading h2 {
+  margin: 0;
+  font-size: clamp(1.55rem, 2vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.orders-page__create-host--page .base-modal__heading p {
+  max-width: 720px;
+  color: var(--on-surface-variant, #474747);
+}
+
+.orders-page__create-host--page .orders-page__create-modal-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.22fr) minmax(360px, 0.78fr);
+  gap: 24px;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.orders-page__create-host--page .orders-page__create-section {
+  margin: 0;
+  padding: 24px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 71 71 71) / 0.2);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.78);
+}
+
+.theme-dark .orders-page__create-host--page .orders-page__create-section {
+  border-color: transparent;
+  background: rgb(var(--surface-container-rgb, 31 31 31) / 0.82);
+}
+
+.orders-page__create-host--page .orders-page__create-section--parent {
+  grid-column: 1 / -1;
+}
+
+.orders-page__create-host--page .orders-page__create-section--search {
+  grid-column: 1;
+}
+
+.orders-page__create-host--page .orders-page__create-section--selected {
+  grid-column: 2;
+  align-self: start;
+  position: sticky;
+  top: 24px;
+}
+
+.orders-page__create-host--page .orders-page__error,
+.orders-page__create-host--page .orders-page__actions {
+  grid-column: 1 / -1;
+}
+
+.orders-page__create-host--page .orders-page__actions {
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
 .orders-page__create-filter-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -6808,9 +6892,22 @@ select:not(.app-language-select select):focus {
 }
 
 @media (max-width: 1024px) {
+  .orders-page__create-host--page .orders-page__create-modal-body,
   .orders-page__create-filter-grid,
   .orders-page__item-preview-grid {
     grid-template-columns: 1fr;
+  }
+
+  .orders-page__create-host--page .orders-page__create-section--parent,
+  .orders-page__create-host--page .orders-page__create-section--search,
+  .orders-page__create-host--page .orders-page__create-section--selected,
+  .orders-page__create-host--page .orders-page__error,
+  .orders-page__create-host--page .orders-page__actions {
+    grid-column: 1;
+  }
+
+  .orders-page__create-host--page .orders-page__create-section--selected {
+    position: static;
   }
 
   .orders-page__search-result-card {
