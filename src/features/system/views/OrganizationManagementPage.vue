@@ -1547,7 +1547,7 @@ watch(
 
             <div class="settings-form organization-create-form">
               <label>
-                <span>{{ copy.organizationType }}</span>
+                <span>{{ copy.organizationType }} <b class="required-mark">*</b></span>
                 <select v-model="organizationCreateForm.organizationType">
                   <option value="SUPPLIER">{{ copy.supplierType }}</option>
                   <option value="BUYER">{{ copy.buyerType }}</option>
@@ -1555,17 +1555,17 @@ watch(
               </label>
 
               <label>
-                <span>{{ copy.organizationName }}</span>
+                <span>{{ copy.organizationName }} <b class="required-mark">*</b></span>
                 <input v-model="organizationCreateForm.organizationName" type="text" />
               </label>
 
               <label>
-                <span>{{ copy.organizationEnglishName }}</span>
+                <span>{{ copy.organizationEnglishName }} <b class="required-mark">*</b></span>
                 <input v-model="organizationCreateForm.organizationEnglishName" type="text" />
               </label>
 
               <label>
-                <span>{{ copy.organizationAlias }}</span>
+                <span>{{ copy.organizationAlias }} <b class="required-mark">*</b></span>
                 <input
                   v-model="organizationCreateForm.organizationAlias"
                   type="text"
@@ -1576,12 +1576,12 @@ watch(
               </label>
 
               <label>
-                <span>{{ copy.businessNo }}</span>
+                <span>{{ copy.businessNo }} <b class="required-mark">*</b></span>
                 <input v-model="organizationCreateForm.businessNo" type="text" />
               </label>
 
               <label>
-                <span>{{ copy.address }}</span>
+                <span>{{ copy.address }} <b class="required-mark">*</b></span>
                 <input v-model="organizationCreateForm.address" type="text" />
               </label>
 
@@ -1596,27 +1596,22 @@ watch(
               </label>
 
               <label>
-                <span>{{ copy.contactFirstName }}</span>
+                <span>{{ copy.contactFirstName }} <b class="required-mark">*</b></span>
                 <input v-model="organizationCreateForm.contactFirstName" type="text" />
               </label>
 
               <label>
-                <span>{{ copy.contactMiddleName }}</span>
-                <input v-model="organizationCreateForm.contactMiddleName" type="text" />
-              </label>
-
-              <label>
-                <span>{{ copy.contactLastName }}</span>
+                <span>{{ copy.contactLastName }} <b class="required-mark">*</b></span>
                 <input v-model="organizationCreateForm.contactLastName" type="text" />
               </label>
 
               <label>
-                <span>{{ copy.contactEmail }}</span>
+                <span>{{ copy.contactEmail }} <b class="required-mark">*</b></span>
                 <input v-model="organizationCreateForm.contactEmail" type="email" />
               </label>
 
               <label>
-                <span>{{ copy.contactPhone }}</span>
+                <span>{{ copy.contactPhone }} <b class="required-mark">*</b></span>
                 <PhoneField
                   v-model="organizationCreateForm.contactPhone"
                   v-model:valid="organizationCreatePhoneValid"
@@ -2326,6 +2321,12 @@ watch(
   margin-top: 20px;
 }
 
+.organization-danger-actions .page-button {
+  width: 96px;
+  min-height: 40px;
+  margin-top: 0;
+}
+
 /* 사원관리 서브탭 */
 .member-subtabs {
   display: flex;
@@ -2500,6 +2501,10 @@ watch(
   .organization-danger-actions {
     justify-content: stretch;
     flex-direction: column;
+  }
+
+  .organization-danger-actions .page-button {
+    width: 100%;
   }
 
   .organization-inline-edit .profile-kv__row input,
