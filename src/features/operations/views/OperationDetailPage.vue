@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useActorScope } from '../../../composables/useActorScope'
 import {
   changeItemStatus,
+  changeItemPrimaryMedia,
   getItem,
   getManagedItems,
   getManagedItemLinkedOrders,
@@ -17,7 +18,12 @@ import {
 } from '../../../services/purchaseOrder'
 import { useRoute, useRouter } from 'vue-router'
 import { getCertificate, getCertificateHistories } from '../../../services/certificate'
-import { getAttachment, uploadAttachment, type AttachmentFileDto } from '../../../services/file'
+import {
+  getAttachment,
+  updateAttachment,
+  uploadAttachment,
+  type AttachmentFileDto,
+} from '../../../services/file'
 import {
   getInventory,
   getItemInventories,
@@ -47,10 +53,15 @@ import type { PageKey } from '../../../types'
 import { BaseModal } from '../../shared'
 import { getSubPurchaseOrder } from '../../../services/subPurchaseOrder'
 import {
+  ITEM_MEDIA_MAX_UPLOAD_COUNT,
   getItemMedia,
+  getItemMediaAttachment,
   itemMediaFilesFromItem,
+  itemMediaPublicId,
+  normalizeItemMediaFiles,
   resolveItemMediaUrl,
   resolveItemOriginalMediaUrl,
+  uploadItemMedia,
   type ItemMediaFile,
 } from '../../../services/itemMedia'
 
@@ -84,6 +95,16 @@ type DetailStep = {
   label: string
   meta: string
   state: 'done' | 'active' | 'pending' | 'critical'
+}
+
+type EditableItemMedia = {
+  id: string
+  filePublicId?: string
+  originalFileName: string
+  kind: 'image' | 'video'
+  previewUrl: string
+  source: 'existing' | 'new'
+  file?: File
 }
 
 const route = useRoute()
@@ -387,6 +408,11 @@ const itemMediaViewerIndex = ref(0)
 const itemEditModalOpen = ref(false)
 const itemEditLoading = ref(false)
 const itemEditErrorMessage = ref('')
+const itemEditErrorModalOpen = ref(false)
+const itemMediaFileInput = ref<HTMLInputElement | null>(null)
+const itemEditableMedia = ref<EditableItemMedia[]>([])
+const itemRemovedMediaPublicIds = ref<string[]>([])
+const itemDraggedMediaIndex = ref<number | null>(null)
 const itemEditForm = ref({
   itemName: '',
   unitPrice: null as number | null,
@@ -1512,6 +1538,213 @@ function isPositiveInteger(value: unknown) {
   return typeof value === 'number' && Number.isInteger(value) && value > 0
 }
 
+function mediaFileToEditableMedia(file: ItemMediaFile): EditableItemMedia {
+  const filePublicId = itemMediaPublicId(file)
+  return {
+    id: filePublicId,
+    filePublicId,
+    originalFileName: file.originalFileName,
+    kind: file.kind === 'video' ? 'video' : 'image',
+    previewUrl: resolveItemMediaUrl(file),
+    source: 'existing',
+  }
+}
+
+function resetEditableItemMedia() {
+  itemEditableMedia.value.forEach((media) => {
+    if (media.source === 'new') URL.revokeObjectURL(media.previewUrl)
+  })
+  itemEditableMedia.value = ensureEditablePrimaryImageFirst(itemMediaFiles.value.map(mediaFileToEditableMedia))
+  itemRemovedMediaPublicIds.value = []
+}
+
+function ensureEditablePrimaryImageFirst(mediaList: EditableItemMedia[]) {
+  if (mediaList.length <= 1 || mediaList[0]?.kind === 'image') return mediaList
+
+  const firstImageIndex = mediaList.findIndex((media) => media.kind === 'image')
+  if (firstImageIndex <= 0) return mediaList
+
+  const next = [...mediaList]
+  const [firstImage] = next.splice(firstImageIndex, 1)
+  next.unshift(firstImage)
+  return next
+}
+
+function triggerItemMediaPicker() {
+  if (!canAddItemMedia.value) return
+  itemMediaFileInput.value?.click()
+}
+
+function handleItemMediaFileChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const remainingCount = ITEM_MEDIA_MAX_UPLOAD_COUNT - itemEditableMedia.value.length
+  const files = Array.from(target.files ?? [])
+    .filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'))
+    .slice(0, Math.max(remainingCount, 0))
+
+  if (files.length > 0) {
+    itemEditableMedia.value = ensureEditablePrimaryImageFirst([
+      ...itemEditableMedia.value,
+      ...files.map((file, index) => ({
+        id: `new-${Date.now()}-${index}-${file.name}`,
+        originalFileName: file.name,
+        kind: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
+        previewUrl: URL.createObjectURL(file),
+        source: 'new' as const,
+        file,
+      })),
+    ])
+  }
+
+  target.value = ''
+}
+
+function removeEditableItemMedia(index: number) {
+  const media = itemEditableMedia.value[index]
+  if (!media) return
+
+  if (media.source === 'existing' && media.filePublicId) {
+    itemRemovedMediaPublicIds.value = [
+      ...itemRemovedMediaPublicIds.value,
+      media.filePublicId,
+    ]
+  } else if (media.source === 'new') {
+    URL.revokeObjectURL(media.previewUrl)
+  }
+
+  itemEditableMedia.value = itemEditableMedia.value.filter((_, mediaIndex) => mediaIndex !== index)
+}
+
+function moveEditableItemMedia(index: number, direction: -1 | 1) {
+  const nextIndex = index + direction
+  if (nextIndex < 0 || nextIndex >= itemEditableMedia.value.length) return
+
+  const next = [...itemEditableMedia.value]
+  const [media] = next.splice(index, 1)
+  next.splice(nextIndex, 0, media)
+  if (next[0]?.kind !== 'image') {
+    showItemEditError(t('대표 미디어는 이미지 파일만 지정할 수 있습니다.', 'Primary media must be an image file.'))
+    return
+  }
+  itemEditableMedia.value = next
+}
+
+function moveEditableItemMediaTo(fromIndex: number, toIndex: number) {
+  if (fromIndex === toIndex) return
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= itemEditableMedia.value.length ||
+    toIndex >= itemEditableMedia.value.length
+  ) return
+
+  const next = [...itemEditableMedia.value]
+  const [media] = next.splice(fromIndex, 1)
+  next.splice(toIndex, 0, media)
+  if (next[0]?.kind !== 'image') {
+    showItemEditError(t('대표 미디어는 이미지 파일만 지정할 수 있습니다.', 'Primary media must be an image file.'))
+    return
+  }
+  itemEditableMedia.value = next
+}
+
+function handleItemMediaDragStart(index: number, event: DragEvent) {
+  itemDraggedMediaIndex.value = index
+  event.dataTransfer?.setData('text/plain', String(index))
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+function handleItemMediaDrop(index: number, event: DragEvent) {
+  event.preventDefault()
+  const fromIndex = itemDraggedMediaIndex.value ?? Number(event.dataTransfer?.getData('text/plain'))
+  if (Number.isInteger(fromIndex)) {
+    moveEditableItemMediaTo(fromIndex, index)
+  }
+  itemDraggedMediaIndex.value = null
+}
+
+async function saveItemMediaEdit() {
+  if (itemEditableMedia.value.length > 0 && itemEditableMedia.value[0]?.kind !== 'image') {
+    showItemEditError(t('대표 미디어는 이미지 파일만 지정할 수 있습니다.', 'Primary media must be an image file.'))
+    return false
+  }
+
+  const attachmentPublicId =
+    data.value?.mediaAttachmentPublicId ||
+    related.value.itemMediaAttachmentPublicId ||
+    itemMediaFiles.value[0]?.attachmentPublicId
+
+  const newMedia = itemEditableMedia.value.filter((media) => media.source === 'new' && media.file)
+  const newMediaUploadIndex = new Map(newMedia.map((media, index) => [media.id, index]))
+  const existingChanged =
+    itemRemovedMediaPublicIds.value.length > 0 ||
+    itemEditableMedia.value.some((media, index) => (
+      media.source === 'existing' &&
+      media.filePublicId &&
+      itemMediaFiles.value[index]?.publicId !== media.filePublicId
+    ))
+
+  let savedFiles: ItemMediaFile[] | null = null
+
+  if (attachmentPublicId) {
+    if (existingChanged || newMedia.length > 0) {
+      const response = await updateAttachment(
+        attachmentPublicId,
+        {
+          files: [
+            ...itemEditableMedia.value
+              .map((media, index) => {
+                if (media.source === 'existing') {
+                  return {
+                    filePublicId: media.filePublicId,
+                    sortOrder: index + 1,
+                    action: 'KEEP' as const,
+                  }
+                }
+
+                return {
+                  uploadIndex: newMediaUploadIndex.get(media.id),
+                  sortOrder: index + 1,
+                  action: 'ADD' as const,
+                }
+              })
+              .filter((request) => (
+                request.action === 'ADD' ||
+                Boolean(request.filePublicId)
+              )),
+            ...itemRemovedMediaPublicIds.value.map((filePublicId) => ({
+              filePublicId,
+              action: 'DELETE' as const,
+            })),
+          ],
+        },
+        newMedia.map((media) => media.file as File),
+      )
+      savedFiles = normalizeItemMediaFiles(response.files)
+      related.value.itemMediaAttachmentPublicId = response.attachmentPublicId
+    }
+  } else if (newMedia.length > 0) {
+    const response = await uploadItemMedia(publicId.value, newMedia.map((media) => media.file as File))
+    if (response) {
+      savedFiles = normalizeItemMediaFiles(response.files)
+      related.value.itemMediaAttachmentPublicId = response.attachmentPublicId
+    }
+  }
+
+  const nextPrimaryFilePublicId =
+    savedFiles?.[0]?.publicId ||
+    itemEditableMedia.value[0]?.filePublicId ||
+    ''
+
+  if (nextPrimaryFilePublicId && data.value?.primaryMediaFilePublicId !== nextPrimaryFilePublicId) {
+    await changeItemPrimaryMedia(publicId.value, nextPrimaryFilePublicId)
+  }
+
+  return true
+}
+
 async function handleEditItem() {
   if (!data.value) return
 
@@ -1539,6 +1772,7 @@ async function handleEditItem() {
     partialConfirmationAllowed: capability?.partialConfirmationAllowed ?? data.value.partialConfirmationAllowed ?? true,
   }
 
+  resetEditableItemMedia()
   itemInlineEditMode.value = true
 }
 
@@ -1547,6 +1781,16 @@ function closeItemEditModal() {
   itemEditModalOpen.value = false
   itemEditLoading.value = false
   itemEditErrorMessage.value = ''
+  itemEditErrorModalOpen.value = false
+}
+
+function showItemEditError(message: string) {
+  itemEditErrorMessage.value = message
+  itemEditErrorModalOpen.value = true
+}
+
+function closeItemEditErrorModal() {
+  itemEditErrorModalOpen.value = false
 }
 
 function openInventoryEditModal() {
@@ -1639,33 +1883,33 @@ async function submitItemEdit() {
   if (!data.value) return
 
   if (hasConfirmedLinkedOrder.value) {
-    itemEditErrorMessage.value = t(
+    showItemEditError(t(
       '확정된 발주가 연결된 품목은 수정할 수 없습니다.',
       'Items linked to confirmed purchase orders cannot be edited.',
-    )
+    ))
     return
   }
 
   const nextName = itemEditForm.value.itemName.trim()
   const nextSpec = itemEditForm.value.spec.trim()
   if (!nextName || !nextSpec) {
-    itemEditErrorMessage.value = t('품목명과 규격을 입력해 주세요.', 'Enter item name and spec.')
+    showItemEditError(t('품목명과 규격을 입력해 주세요.', 'Enter item name and spec.'))
     return
   }
   if (!isPositiveInteger(itemEditForm.value.unitPrice)) {
-    itemEditErrorMessage.value = t('단가는 1 이상의 정수로 입력해 주세요.', 'Unit price must be a positive integer.')
+    showItemEditError(t('단가는 1 이상의 정수로 입력해 주세요.', 'Unit price must be a positive integer.'))
     return
   }
   if (!isPositiveInteger(itemEditForm.value.monthlyCapacity)) {
-    itemEditErrorMessage.value = t('월간 생산량은 1 이상의 정수로 입력해 주세요.', 'Monthly capacity must be a positive integer.')
+    showItemEditError(t('월간 생산량은 1 이상의 정수로 입력해 주세요.', 'Monthly capacity must be a positive integer.'))
     return
   }
   if (!isPositiveInteger(itemEditForm.value.availableQty)) {
-    itemEditErrorMessage.value = t('주문 가능 수량은 1 이상의 정수로 입력해 주세요.', 'Available quantity must be a positive integer.')
+    showItemEditError(t('주문 가능 수량은 1 이상의 정수로 입력해 주세요.', 'Available quantity must be a positive integer.'))
     return
   }
   if (!isPositiveInteger(itemEditForm.value.moq)) {
-    itemEditErrorMessage.value = t('최소 주문 수량은 1 이상의 정수로 입력해 주세요.', 'MOQ must be a positive integer.')
+    showItemEditError(t('최소 주문 수량은 1 이상의 정수로 입력해 주세요.', 'MOQ must be a positive integer.'))
     return
   }
 
@@ -1685,10 +1929,10 @@ async function submitItemEdit() {
       const originLogisticsNodePublicId = String(data.value.originLogisticsNodePublicId ?? '').trim()
 
       if (!originLogisticsNodePublicId) {
-        itemEditErrorMessage.value = t(
+        showItemEditError(t(
           '출발 물류거점 정보가 없어 품목 기본정보를 수정할 수 없습니다.',
           'Origin logistics node is required to edit item master data.',
-        )
+        ))
         return
       }
 
@@ -1721,17 +1965,23 @@ async function submitItemEdit() {
       })
     }
 
+    const itemMediaSaved = await saveItemMediaEdit()
+    if (!itemMediaSaved) return
+
     await fetchDetail()
     itemInlineEditMode.value = false
 
   } catch (error: any) {
-    itemEditErrorMessage.value = error?.message ?? t('품목 수정에 실패했습니다.', 'Failed to edit item.')
+    showItemEditError(error?.message ?? t('품목 수정에 실패했습니다.', 'Failed to edit item.'))
   } finally {
     itemEditLoading.value = false
   }
 }
 
 function cancelInlineItemEdit() {
+  itemEditableMedia.value.forEach((media) => {
+    if (media.source === 'new') URL.revokeObjectURL(media.previewUrl)
+  })
   itemInlineEditMode.value = false
   itemEditErrorMessage.value = ''
 }
@@ -1865,14 +2115,24 @@ async function fetchDetail() {
 
       const detail = itemDetail
 
-      const media = itemMediaFilesFromItem(detail).length
-        ? itemMediaFilesFromItem(detail)
-        : detail.primaryMediaFilePublicId
-          ? await getItemMedia(publicId.value)
-          : []
+      const mediaFromDetail = itemMediaFilesFromItem(detail)
+      const mediaAttachment = mediaFromDetail.length
+        ? null
+        : await getItemMediaAttachment(publicId.value)
+      const media = mediaFromDetail.length
+        ? mediaFromDetail
+        : mediaAttachment
+          ? normalizeItemMediaFiles(mediaAttachment.files)
+          : detail.primaryMediaFilePublicId
+            ? await getItemMedia(publicId.value)
+            : []
 
       data.value = detail as Record<string, any>
-      related.value = { linkedOrders, itemMedia: media }
+      related.value = {
+        linkedOrders,
+        itemMedia: media,
+        itemMediaAttachmentPublicId: mediaAttachment?.attachmentPublicId ?? detail.mediaAttachmentPublicId,
+      }
     } else if (kind.value === 'suppliers') {
       const [detail, capabilities] = await Promise.all([
         getSupplier(publicId.value),
@@ -1923,8 +2183,31 @@ const returnProofFiles = computed<AttachmentFileDto[]>(() => {
 
 const itemMediaFiles = computed<ItemMediaFile[]>(() => {
   const files = related.value.itemMedia
-  return Array.isArray(files) ? files : []
+  if (!Array.isArray(files)) return []
+
+  const mediaFiles = [...files]
+  if (mediaFiles.length <= 1 || mediaFiles[0]?.kind === 'image') return mediaFiles
+
+  const primaryImageIndex = mediaFiles.findIndex((file) => (
+    file.kind === 'image' &&
+    itemMediaPublicId(file) === data.value?.primaryMediaFilePublicId
+  ))
+  const firstImageIndex = primaryImageIndex >= 0
+    ? primaryImageIndex
+    : mediaFiles.findIndex((file) => file.kind === 'image')
+
+  if (firstImageIndex <= 0) return mediaFiles
+
+  const [firstImage] = mediaFiles.splice(firstImageIndex, 1)
+  mediaFiles.unshift(firstImage)
+  return mediaFiles
 })
+
+const itemMediaCount = computed(() => (
+  itemInlineEditMode.value ? itemEditableMedia.value.length : itemMediaFiles.value.length
+))
+
+const canAddItemMedia = computed(() => itemEditableMedia.value.length < ITEM_MEDIA_MAX_UPLOAD_COUNT)
 
 function openItemMediaViewer(index: number) {
   itemMediaViewerIndex.value = index
@@ -1978,20 +2261,29 @@ watch(
       </div>
       <div class="operation-detail-page__actions">
         <button
-          v-if="kind === 'items'"
+          v-if="kind === 'items' && !itemInlineEditMode"
           class="page-button page-button--primary"
           type="button"
           @click="handleEditItem"
         >
           수정
         </button>
+        <template v-else-if="kind === 'items' && itemInlineEditMode">
+          <button class="page-button page-button--secondary" type="button" @click="cancelInlineItemEdit">
+            {{ t('취소', 'Cancel') }}
+          </button>
+          <button class="page-button page-button--primary" type="button" :disabled="itemEditLoading" @click="submitItemEdit">
+            {{ itemEditLoading ? t('저장 중', 'Saving') : t('저장', 'Save') }}
+          </button>
+        </template>
         <button
-        class="page-button page-button--secondary"
-        type="button"
-        @click="goBack"
-      >
-        {{ detailCopy.backToList }}
-      </button>
+          v-if="!itemInlineEditMode"
+          class="page-button page-button--secondary"
+          type="button"
+          @click="goBack"
+        >
+          {{ detailCopy.backToList }}
+        </button>
       </div>
     </header>
 
@@ -2288,11 +2580,14 @@ watch(
           <section class="operation-detail-page__document-main">
             <section v-if="kind !== 'items'" class="operation-detail-page__metric-row"><div><span>전체 품목</span><strong>1,248 EA</strong></div><div><span>전체 재고 금액</span><strong>2,451,830,000원</strong></div><div><span>정상</span><strong>1,012</strong></div><div><span>부족 임박</span><strong>156</strong></div><div><span>부족 감지</span><strong class="is-alert">80</strong></div></section>
             <article v-if="kind === 'items'" class="operation-detail-page__domain-card">
-              <h3>{{ t('품목 미디어', 'Item Media') }}</h3>
-              <div v-if="itemMediaFiles.length === 0" class="page-table__empty">
+              <div class="operation-detail-page__item-media-head">
+                <h3>{{ t('품목 미디어', 'Item Media') }}</h3>
+                <span>{{ itemMediaCount }} / {{ ITEM_MEDIA_MAX_UPLOAD_COUNT }}</span>
+              </div>
+              <div v-if="!itemInlineEditMode && itemMediaFiles.length === 0" class="page-table__empty">
                 {{ t('등록된 미디어가 없습니다.', 'No media registered.') }}
               </div>
-              <div v-else class="operation-detail-page__item-media-grid">
+              <div v-else-if="!itemInlineEditMode" class="operation-detail-page__item-media-grid">
                 <button
                   v-for="(file, index) in itemMediaFiles"
                   :key="file.publicId"
@@ -2314,6 +2609,47 @@ watch(
                   <small>{{ file.originalFileName }}</small>
                 </button>
               </div>
+              <div v-else class="operation-detail-page__item-media-grid operation-detail-page__item-media-grid--editing">
+                <article
+                  v-for="(media, index) in itemEditableMedia"
+                  :key="media.id"
+                  class="operation-detail-page__item-media operation-detail-page__item-media--editable"
+                  draggable="true"
+                  @dragstart="handleItemMediaDragStart(index, $event)"
+                  @dragover.prevent
+                  @drop="handleItemMediaDrop(index, $event)"
+                >
+                  <img v-if="media.kind === 'image'" :src="media.previewUrl" :alt="media.originalFileName" />
+                  <video v-else :src="media.previewUrl" preload="metadata" />
+                  <span v-if="media.kind === 'video'" class="material-symbols-outlined">play_circle</span>
+                  <span v-if="index === 0" class="operation-detail-page__item-media-primary">대표</span>
+                  <button
+                    class="operation-detail-page__item-media-remove"
+                    type="button"
+                    :title="t('삭제', 'Remove')"
+                    @click="removeEditableItemMedia(index)"
+                  >
+                    <span class="material-symbols-outlined">close</span>
+                  </button>
+                  <small>{{ media.originalFileName }}</small>
+                </article>
+                <button
+                  v-if="canAddItemMedia"
+                  class="operation-detail-page__item-media operation-detail-page__item-media-add"
+                  type="button"
+                  @click="triggerItemMediaPicker"
+                >
+                  <span class="material-symbols-outlined">add</span>
+                </button>
+                <input
+                  ref="itemMediaFileInput"
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  class="operation-detail-page__media-file-input"
+                  @change="handleItemMediaFileChange"
+                />
+              </div>
             </article>
             <article
               v-if="kind === 'items'"
@@ -2321,14 +2657,6 @@ watch(
             >
               <div class="operation-detail-page__block-head">
                 <h3>{{ t('품목 상세 정보', 'ITEM INFORMATION') }}</h3>
-                <div v-if="itemInlineEditMode" class="operation-detail-page__inline-actions">
-                  <button class="page-button page-button--secondary" type="button" @click="cancelInlineItemEdit">
-                    {{ t('취소', 'Cancel') }}
-                  </button>
-                  <button class="page-button page-button--primary" type="button" :disabled="itemEditLoading" @click="submitItemEdit">
-                    {{ itemEditLoading ? t('저장 중', 'Saving') : t('저장', 'Save') }}
-                  </button>
-                </div>
               </div>
 
               <div v-if="itemInlineEditMode" class="operation-detail-page__edit-form operation-detail-page__inline-edit-form">
@@ -2351,8 +2679,8 @@ watch(
                   <label class="operation-detail-page__edit-field">
                     <span>상태</span>
                     <select v-model="itemEditForm.status">
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="DEACTIVE">DEACTIVE</option>
+                      <option value="ACTIVE">활성</option>
+                      <option value="DEACTIVE">비활성</option>
                     </select>
                   </label>
 
@@ -2382,9 +2710,6 @@ watch(
                   </label>
                 </section>
 
-                <p v-if="itemEditErrorMessage" class="operation-detail-page__error">
-                  {{ itemEditErrorMessage }}
-                </p>
               </div>
 
               <template v-else>
@@ -2738,6 +3063,24 @@ watch(
     </BaseModal>
 
     <BaseModal
+      v-model="itemEditErrorModalOpen"
+      title="품목 수정 실패"
+      :description="itemEditErrorMessage"
+      size="sm"
+      hide-eyebrow
+      hide-dividers
+      hide-close-button
+      @close="closeItemEditErrorModal"
+    >
+      <div class="operation-detail-page__bottom-actions">
+        <span></span>
+        <button class="page-button page-button--primary" type="button" @click="closeItemEditErrorModal">
+          확인
+        </button>
+      </div>
+    </BaseModal>
+
+    <BaseModal
       v-model="inventoryEditModalOpen"
       :title="t('재고 수정', 'Edit Inventory')"
       :description="t('예약되지 않은 정상 재고만 수정할 수 있습니다.', 'Only active inventory without reserved quantity can be edited.')"
@@ -3035,6 +3378,84 @@ watch(
   cursor: pointer;
 }
 
+.operation-detail-page__item-media--editable {
+  cursor: grab;
+}
+
+.operation-detail-page__item-media--editable:active {
+  cursor: grabbing;
+}
+
+.operation-detail-page__item-media-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: block;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: #fff;
+  background: rgb(0 0 0 / 0.72);
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: 0;
+  cursor: pointer;
+  appearance: none;
+}
+
+.operation-detail-page__item-media-remove::before,
+.operation-detail-page__item-media-remove::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 2px;
+  background: currentcolor;
+  content: "";
+  transform-origin: center;
+}
+
+.operation-detail-page__item-media-remove::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.operation-detail-page__item-media-remove::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.operation-detail-page__item-media-remove .material-symbols-outlined {
+  display: none;
+}
+
+.operation-detail-page__item-media-primary {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  padding: 4px 6px;
+  color: var(--detail-surface);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  background: var(--detail-text);
+}
+
+.operation-detail-page__item-media-add {
+  place-items: center;
+  min-height: 160px;
+  grid-template-rows: 1fr;
+  color: var(--detail-muted);
+  background: var(--detail-surface-plain);
+}
+
+.operation-detail-page__item-media-add > .material-symbols-outlined {
+  position: static;
+  color: var(--detail-text);
+  font-size: 42px;
+  text-shadow: none;
+  transform: none;
+}
+
 .operation-detail-page__item-media img,
 .operation-detail-page__item-media video {
   width: 100%;
@@ -3052,6 +3473,15 @@ watch(
   transform: translateX(-50%);
 }
 
+.operation-detail-page__item-media > .operation-detail-page__item-media-primary {
+  top: 6px;
+  left: 6px;
+  color: var(--detail-surface);
+  font-size: 0.68rem;
+  text-shadow: none;
+  transform: none;
+}
+
 .operation-detail-page__item-media small {
   padding: 0 8px 8px;
   overflow: hidden;
@@ -3060,6 +3490,10 @@ watch(
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.operation-detail-page__media-file-input {
+  display: none;
 }
 
 .operation-detail-page__media-viewer {
@@ -3124,6 +3558,26 @@ watch(
 }
 
 .operation-detail-page__block-head span {
+  color: var(--detail-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.operation-detail-page__item-media-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.operation-detail-page__item-media-head h3 {
+  margin: 0;
+  color: var(--on-surface, #2d3435);
+  font-size: 1.17em;
+  font-weight: 900;
+}
+
+.operation-detail-page__item-media-head span {
   color: var(--detail-muted);
   font-size: 0.76rem;
   font-weight: 800;

@@ -2,6 +2,7 @@ import {
   getAttachmentByRef,
   uploadAttachment,
   type AttachmentFileDto,
+  type AttachmentUploadResponseDto,
 } from './file'
 import type { ItemResponseDto } from './item'
 
@@ -12,6 +13,7 @@ export interface ItemMediaFile extends AttachmentFileDto {
 }
 
 const ITEM_MEDIA_REF_TYPE = 'ITEM'
+export const ITEM_MEDIA_MAX_UPLOAD_COUNT = 5
 
 export function isItemMediaFile(file: File) {
   return file.type.startsWith('image/') || file.type.startsWith('video/')
@@ -95,11 +97,15 @@ export function resolveItemThumbnailUrl(item: ItemResponseDto | null | undefined
 }
 
 export async function getItemMedia(itemPublicId: string): Promise<ItemMediaFile[]> {
+  const attachment = await getItemMediaAttachment(itemPublicId)
+  return attachment ? normalizeItemMediaFiles(attachment.files) : []
+}
+
+export async function getItemMediaAttachment(itemPublicId: string): Promise<AttachmentUploadResponseDto | null> {
   try {
-    const attachment = await getAttachmentByRef(ITEM_MEDIA_REF_TYPE, itemPublicId)
-    return normalizeItemMediaFiles(attachment.files)
+    return await getAttachmentByRef(ITEM_MEDIA_REF_TYPE, itemPublicId)
   } catch {
-    return []
+    return null
   }
 }
 
