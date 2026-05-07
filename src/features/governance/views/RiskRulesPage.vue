@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { ApiError } from '../../../services/http'
@@ -16,6 +16,8 @@ const header = useAtlasHeaderStore()
 const preferences = useAtlasPreferencesStore()
 const toast = useAtlasToastStore()
 const KAFKA_SUBSCRIPTIONS_POLL_INTERVAL_MS = 10 * 60 * 1000
+const RISK_RULES_CLIENT_PAGE_SIZE = 10
+const RISK_RULES_FETCH_SIZE = 1000
 
 const CONTENT = {
   ko: {
@@ -94,8 +96,7 @@ const selectedTab = ref<string>(content.value.tabs[0])
 const rules = ref<KafkaEventSummaryResponse[]>([])
 const subscriptions = ref<KafkaSubscriptionStatusResponse[]>([])
 const currentPage = ref(0)
-const totalPages = ref(0)
-const pageSize = ref(10)
+const pageSize = ref(RISK_RULES_CLIENT_PAGE_SIZE)
 const totalRuleCount = ref(0)
 const totalActiveRuleCount = ref(0)
 const totalTriggeredRuleCount = ref(0)
@@ -361,94 +362,48 @@ const filteredRules = computed(() => {
   return items
 })
 
+const totalPages = computed(() => Math.ceil(filteredRules.value.length / pageSize.value))
+
+const pagedRules = computed(() => {
+  const startIndex = currentPage.value * pageSize.value
+  return filteredRules.value.slice(startIndex, startIndex + pageSize.value)
+})
+
 const canShowRulesPagination = computed(() =>
   !rulesErrorMessage.value && filteredRules.value.length > 0 && totalPages.value > 1,
 )
-
-async function fetchRuleSummaryMetrics(
-  currentPageContent: KafkaEventSummaryResponse[],
-  pageCount: number,
-  currentPageNumber: number,
-  currentSize: number,
-) {
-  if (pageCount <= 1) {
-    totalActiveRuleCount.value = currentPageContent.filter((rule) => rule.enabled).length
-    totalTriggeredRuleCount.value = currentPageContent.reduce(
-      (total, rule) => total + (rule.triggeredCount ?? 0),
-      0,
-    )
-    return
-  }
-
-  const pageRequests = Array.from({ length: pageCount }, (_, pageIndex) => {
-    if (pageIndex === currentPageNumber) {
-      return Promise.resolve({
-        content: currentPageContent,
-        totalElements: totalRuleCount.value,
-        totalPages: pageCount,
-        size: currentSize,
-        page: currentPageNumber,
-        first: currentPageNumber === 0,
-        last: currentPageNumber === pageCount - 1,
-      })
-    }
-
-    return getKafkaEventRules({
-      page: pageIndex,
-      size: currentSize,
-    })
-  })
-
-  const pageResults = await Promise.allSettled(pageRequests)
-
-  let activeCount = 0
-  let triggeredCount = 0
-
-  for (const result of pageResults) {
-    if (result.status !== 'fulfilled') {
-      continue
-    }
-
-    for (const rule of result.value.content) {
-      if (rule.enabled) {
-        activeCount += 1
-      }
-
-      triggeredCount += rule.triggeredCount ?? 0
-    }
-  }
-
-  totalActiveRuleCount.value = activeCount
-  totalTriggeredRuleCount.value = triggeredCount
-}
 
 async function fetchRiskRulesData() {
   isLoadingRules.value = true
   rulesErrorMessage.value = ''
 
   try {
-    const rulesResponse = await getKafkaEventRules({
-      page: currentPage.value,
-      size: pageSize.value,
+    let rulesResponse = await getKafkaEventRules({
+      page: 0,
+      size: RISK_RULES_FETCH_SIZE,
     })
 
-    const safePage = toSafeNonNegativeNumber(rulesResponse.page, 0)
-    const safeTotalPages = toSafeNonNegativeNumber(rulesResponse.totalPages, 0)
-    const safePageSize = toSafeNonNegativeNumber(rulesResponse.size, 10)
     const safeTotalElements = toSafeNonNegativeNumber(rulesResponse.totalElements, 0)
 
-    rules.value = rulesResponse.content
-    totalRuleCount.value = safeTotalElements
-    totalPages.value = safeTotalPages
-    currentPage.value = safePage
-    pageSize.value = safePageSize
-    isInitialRulesLoading.value = false
-    void fetchRuleSummaryMetrics(
-      rulesResponse.content,
-      safeTotalPages,
-      safePage,
-      safePageSize,
+    if (safeTotalElements > rulesResponse.content.length) {
+      rulesResponse = await getKafkaEventRules({
+        page: 0,
+        size: safeTotalElements,
+      })
+    }
+
+    const allRules = rulesResponse.content
+
+    rules.value = allRules
+    totalRuleCount.value = allRules.length
+    totalActiveRuleCount.value = allRules.filter((rule) => rule.enabled).length
+    totalTriggeredRuleCount.value = allRules.reduce(
+      (total, rule) => total + (rule.triggeredCount ?? 0),
+      0,
     )
+    currentPage.value = 0
+    pageSize.value = RISK_RULES_CLIENT_PAGE_SIZE
+    isInitialRulesLoading.value = false
   } catch (error) {
     const reason = error
     const message =
@@ -458,7 +413,6 @@ async function fetchRiskRulesData() {
     totalRuleCount.value = 0
     totalActiveRuleCount.value = 0
     totalTriggeredRuleCount.value = 0
-    totalPages.value = 0
     currentPage.value = 0
     rulesErrorMessage.value = message
     isInitialRulesLoading.value = false
@@ -503,7 +457,6 @@ async function goToPreviousPage() {
   }
 
   currentPage.value -= 1
-  await fetchRiskRulesData()
 }
 
 async function goToNextPage() {
@@ -512,7 +465,6 @@ async function goToNextPage() {
   }
 
   currentPage.value += 1
-  await fetchRiskRulesData()
 }
 
 async function handleToggleRule(ruleId: string, nextEnabled: boolean) {
@@ -549,6 +501,10 @@ watchEffect(() => {
   header.setActions([
     { key: 'risk-rules-add', label: '규칙 추가', tone: 'primary' },
   ])
+})
+
+watch([search, selectedTab], () => {
+  currentPage.value = 0
 })
 
 onMounted(async () => {
@@ -639,7 +595,7 @@ onBeforeUnmount(() => {
           <span v-for="column in content.columns" :key="column">{{ column }}</span>
         </div>
         <div
-          v-for="rule in filteredRules"
+          v-for="rule in pagedRules"
           :key="rule.id"
           :class="['risk-rules-table__row', `is-${rule.rowTone}`]"
         >
