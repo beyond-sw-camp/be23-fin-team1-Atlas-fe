@@ -12,30 +12,20 @@ const CONTENT = {
   ko: {
     eyebrow: '시스템 / 감사 로그',
     title: '감사 로그',
-    subtitle: '사용자, 시스템, 보안 이벤트를 감사 시계열 기준으로 추적합니다.',
+    subtitle: 'Kafka 이벤트 발행 히스토리를 감사 시계열 기준으로 추적합니다.',
     metrics: [
-      { label: '오늘 이벤트', value: '1,429', meta: '전체 이벤트 유형', tone: 'nominal' },
-      { label: '활성 사용자', value: '12', meta: '최근 24시간', tone: 'info' },
-      { label: '중요 이벤트', value: '3', meta: '검토 필요', tone: 'critical' },
-      { label: '실패 액션', value: '7', meta: '권한 거부 / 오류', tone: 'warning' },
+      { key: 'total', label: '전체 이벤트', meta: 'Kafka 발행 히스토리', tone: 'nominal' },
+      { key: 'published', label: '발행 성공', meta: 'PUBLISHED', tone: 'info' },
+      { key: 'failed', label: '발행 실패', meta: 'FAILED', tone: 'critical' },
+      { key: 'topics', label: '토픽 수', meta: '현재 페이지 기준', tone: 'warning' },
     ],
-    tabs: ['전체', '사용자', '시스템', '보안', '데이터 변경'],
-    searchPlaceholder: '사용자, 액션, 리소스 검색...',
-    tableTitle: '이벤트 로그',
+    tabs: ['전체', '성공', '실패'],
+    searchPlaceholder: '이벤트 ID, 토픽, 타입, aggregate 검색...',
+    tableTitle: 'Kafka 이벤트 발행 히스토리',
     exportLabel: '내보내기',
     refreshLabel: '새로고침',
-    columns: ['시각', '사용자', '액션', '모듈', '세부 내용', 'IP', '결과'],
+    columns: ['발행 시각', '상태', '토픽', '이벤트 타입', 'Aggregate', '이벤트 ID', '오류'],
   },
-}
-
-const ROWS = {
-  ko: [
-    ['09:14:22', '운영자 레예스', '발주 승인', '발주', '발주 9025 승인', '10.0.1.42', '성공'],
-    ['09:12:44', '시스템', '자동 발주 생성', '수요예측', '수요 모델 기반 8건 생성', '내부', '성공'],
-    ['09:11:30', '운영자 토레스', '통관 상태 변경', '통관', '선박 4471 상태 강제 변경', '10.0.1.18', '검토'],
-    ['09:10:05', '운영자 첸', '출하 삭제 시도', '출하', '권한 부족으로 차단', '192.168.1.4', '거부'],
-    ['09:08:22', '운영자 레예스', '도착 예정 시각 수정', '발주', '발주 8841 도착 예정 시각 변경', '10.0.1.42', '성공'],
-  ],
 }
 
 const content = computed(() => CONTENT.ko)
@@ -53,11 +43,28 @@ const eventLogsErrorMessage = ref('')
 const auditTabs = computed(() => content.value.tabs)
 
 const selectedStatus = computed(() => {
+  if (activeTab.value === '성공') return 'PUBLISHED'
+  if (activeTab.value === '실패') return 'FAILED'
   return undefined
 })
 
 const metrics = computed(() => {
-  return content.value.metrics
+  const publishedCount = eventLogs.value.filter((log) => log.status === 'PUBLISHED').length
+  const failedCount = eventLogs.value.filter((log) => log.status === 'FAILED').length
+  const topicCount = new Set(eventLogs.value.map((log) => log.topic).filter(Boolean)).size
+
+  return content.value.metrics.map((metric) => {
+    if (metric.key === 'total') {
+      return { ...metric, value: eventLogTotalElements.value.toLocaleString('ko-KR') }
+    }
+    if (metric.key === 'published') {
+      return { ...metric, value: publishedCount.toLocaleString('ko-KR') }
+    }
+    if (metric.key === 'failed') {
+      return { ...metric, value: failedCount.toLocaleString('ko-KR') }
+    }
+    return { ...metric, value: topicCount.toLocaleString('ko-KR') }
+  })
 })
 
 function formatAuditDateTime(value?: string | null) {
@@ -66,40 +73,27 @@ function formatAuditDateTime(value?: string | null) {
 }
 
 function formatAuditStatus(value: EventLogSearchResponse['status']) {
-  return value === 'PUBLISHED' ? '성공' : '실패'
+  return value === 'PUBLISHED' ? '발행 성공' : '발행 실패'
 }
 
-function buildAuditDetail(log: EventLogSearchResponse) {
-  return [
-    log.aggregatePublicId,
-    log.lastError,
-  ].filter(Boolean).join(' / ') || '-'
+function formatAggregate(log: EventLogSearchResponse) {
+  if (log.aggregateType && log.aggregatePublicId) {
+    return `${log.aggregateType} / ${log.aggregatePublicId}`
+  }
+
+  return log.aggregateType || log.aggregatePublicId || '-'
 }
-
-const fallbackRows = computed(() => ROWS.ko)
-
-const esRows = computed(() => {
-  return eventLogs.value.map((log) => [
-    formatAuditDateTime(log.publishedAt ?? log.createdAt),
-    '시스템',
-    log.eventType || '-',
-    log.topic || String(log.aggregateType ?? '-'),
-    buildAuditDetail(log),
-    '내부',
-    formatAuditStatus(log.status),
-  ])
-})
 
 const visibleRows = computed(() => {
-  const sourceRows = [
-    ...esRows.value,
-    ...fallbackRows.value,
-  ]
-  const query = search.value.trim().toLowerCase()
-
-  return sourceRows.filter((row) => {
-    return !query || row.some((cell) => cell.toLowerCase().includes(query))
-  })
+  return eventLogs.value.map((log) => [
+    formatAuditDateTime(log.publishedAt ?? log.createdAt),
+    formatAuditStatus(log.status),
+    log.topic || '-',
+    log.eventType || '-',
+    formatAggregate(log),
+    log.eventId || '-',
+    log.lastError || '-',
+  ])
 })
 
 
@@ -232,13 +226,12 @@ onBeforeUnmount(() => header.clearActions())
         {{ eventLogsErrorMessage }}
       </div>
 
-      <div v-if="visibleRows.length === 0" class="login-hint">
-        {{ '감사 로그가 없습니다.' }}
-      </div>
-
-      <div v-else class="page-table terminal-page__table is-seven-cols">
+      <div class="page-table terminal-page__table is-seven-cols">
         <div class="page-table__row page-table__row--head">
           <span v-for="column in content.columns" :key="column">{{ column }}</span>
+        </div>
+        <div v-if="visibleRows.length === 0" class="terminal-page__table-message">
+          {{ 'Kafka 이벤트 발행 히스토리가 없습니다.' }}
         </div>
         <div v-for="row in visibleRows" :key="`${row[0]}-${row[2]}`" class="page-table__row">
           <span v-for="cell in row" :key="cell">{{ cell }}</span>
