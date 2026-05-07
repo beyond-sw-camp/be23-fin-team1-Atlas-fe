@@ -628,9 +628,16 @@ onMounted(() => {
   min-height: 42px;
   padding: 8px 10px;
   color: var(--color-on-surface);
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline);
+  background: var(--surface-container-lowest, var(--color-surface));
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
   border-radius: 0;
+}
+
+.inventory-page__field input:focus,
+.inventory-page__field select:focus,
+.inventory-page__field textarea:focus {
+  outline: none;
+  border-color: rgb(var(--outline-rgb, 117 124 125) / 0.72);
 }
 
 .inventory-page__field textarea {

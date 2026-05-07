@@ -18,7 +18,12 @@ import {
 import { useRoute, useRouter } from 'vue-router'
 import { getCertificate, getCertificateHistories } from '../../../services/certificate'
 import { getAttachment, uploadAttachment, type AttachmentFileDto } from '../../../services/file'
-import { getInventories, getRecentNodeInventories } from '../../../services/inventory'
+import {
+  getInventory,
+  getItemInventories,
+  getRecentNodeInventories,
+  updateInventory,
+} from '../../../services/inventory'
 import {
   activateLogisticsNode,
   deactivateLogisticsNode,
@@ -86,6 +91,9 @@ const router = useRouter()
 const preferences = useAtlasPreferencesStore()
 const sidebarBadges = useAtlasSidebarBadgesStore()
 const actor = useActorScope()
+
+const itemInlineEditMode = ref(false)
+const itemLockedModalOpen = ref(false)
 
 const userNamesMap = ref<Record<string, string>>({})
 
@@ -394,6 +402,15 @@ const itemEditForm = ref({
   validFrom: '',
   partialConfirmationAllowed: true,
 })
+
+const inventoryEditModalOpen = ref(false)
+const inventoryEditLoading = ref(false)
+const inventoryEditErrorMessage = ref('')
+const inventoryEditForm = ref({
+  manufacturedDate: '',
+  qty: null as number | null,
+  memo: '',
+})
 const logisticsEditModalOpen = ref(false)
 const logisticsEditLoading = ref(false)
 const logisticsEditErrorMessage = ref('')
@@ -617,12 +634,35 @@ const supplierCertificateRows = computed(() => [
   ['식품안전관리 인증', 'FSMS-25-00211', '2025.02.20', '2027.02.19', '유효', '낮음', '296일'],
 ])
 
-const inventoryRows = computed(() => [
-  ['ITEM-000124', '알루미늄 하우징 A1', 'EA', '120', '500', '-380', '부족', 'PO-2026-000014'],
-  ['ITEM-000178', display(data.value?.itemName ?? '모터 컨트롤러 M5'), 'EA', formatNumber(data.value?.remainingQty ?? 35), '200', '-165', '부족', 'PO-2026-000021'],
-  ['ITEM-000256', '베어링 6205', 'EA', '87', '300', '-213', '부족', 'PO-2026-000031'],
-  ['ITEM-000312', 'PCB ASSY B-100', 'EA', '210', '200', '10', '정상', '-'],
-])
+const inventoryRows = computed(() => {
+  const inventories = Array.isArray(related.value.itemInventories)
+    ? related.value.itemInventories
+    : data.value && kind.value === 'inventory'
+      ? [data.value]
+      : []
+
+  return inventories.map((row: any) => [
+    row.itemCode,
+    row.itemName,
+    row.unit,
+    formatNumber(row.remainingQty),
+    formatNumber(row.reservedQty),
+    formatNumber(row.availableQty),
+    displayStatus(row.status),
+    row.expirationDate ?? '-',
+  ])
+})
+
+const hasConfirmedLinkedOrder = computed(() => {
+  const lockedStatuses = new Set(['PARTIALLY_CONFIRMED', 'CONFIRMED', 'COMPLETED'])
+  const linkedOrders = Array.isArray(related.value.linkedOrders) ? related.value.linkedOrders : []
+  return linkedOrders.some((order: any) => lockedStatuses.has(String(order.poStatus ?? '').toUpperCase()))
+})
+
+const canEditCurrentInventory = computed(() => {
+  if (!data.value || kind.value !== 'inventory') return false
+  return data.value.status === 'ACTIVE' && Number(data.value.reservedQty ?? 0) === 0
+})
 
 const itemInformationSummary = computed(() => {
   const item = data.value
@@ -1468,8 +1508,17 @@ function handleEditOrder() {
   })
 }
 
+function isPositiveInteger(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0
+}
+
 async function handleEditItem() {
   if (!data.value) return
+
+  if (hasConfirmedLinkedOrder.value) {
+    itemLockedModalOpen.value = true
+    return
+  }
 
   itemEditErrorMessage.value = ''
   const capability = await getSupplierItemCapability(data.value.supplierPublicId, publicId.value).catch(() => null)
@@ -1490,13 +1539,32 @@ async function handleEditItem() {
     partialConfirmationAllowed: capability?.partialConfirmationAllowed ?? data.value.partialConfirmationAllowed ?? true,
   }
 
-  itemEditModalOpen.value = true
+  itemInlineEditMode.value = true
 }
+
 
 function closeItemEditModal() {
   itemEditModalOpen.value = false
   itemEditLoading.value = false
   itemEditErrorMessage.value = ''
+}
+
+function openInventoryEditModal() {
+  if (!data.value || !canEditCurrentInventory.value) return
+
+  inventoryEditErrorMessage.value = ''
+  inventoryEditForm.value = {
+    manufacturedDate: String(data.value.manufacturedDate ?? ''),
+    qty: typeof data.value.initialQty === 'number' ? data.value.initialQty : null,
+    memo: String(data.value.memo ?? ''),
+  }
+  inventoryEditModalOpen.value = true
+}
+
+function closeInventoryEditModal() {
+  inventoryEditModalOpen.value = false
+  inventoryEditLoading.value = false
+  inventoryEditErrorMessage.value = ''
 }
 
 function handleEditLogisticsNode() {
@@ -1570,10 +1638,34 @@ async function toggleLogisticsNodeActive() {
 async function submitItemEdit() {
   if (!data.value) return
 
+  if (hasConfirmedLinkedOrder.value) {
+    itemEditErrorMessage.value = t(
+      '확정된 발주가 연결된 품목은 수정할 수 없습니다.',
+      'Items linked to confirmed purchase orders cannot be edited.',
+    )
+    return
+  }
+
   const nextName = itemEditForm.value.itemName.trim()
   const nextSpec = itemEditForm.value.spec.trim()
   if (!nextName || !nextSpec) {
     itemEditErrorMessage.value = t('품목명과 규격을 입력해 주세요.', 'Enter item name and spec.')
+    return
+  }
+  if (!isPositiveInteger(itemEditForm.value.unitPrice)) {
+    itemEditErrorMessage.value = t('단가는 1 이상의 정수로 입력해 주세요.', 'Unit price must be a positive integer.')
+    return
+  }
+  if (!isPositiveInteger(itemEditForm.value.monthlyCapacity)) {
+    itemEditErrorMessage.value = t('월간 생산량은 1 이상의 정수로 입력해 주세요.', 'Monthly capacity must be a positive integer.')
+    return
+  }
+  if (!isPositiveInteger(itemEditForm.value.availableQty)) {
+    itemEditErrorMessage.value = t('주문 가능 수량은 1 이상의 정수로 입력해 주세요.', 'Available quantity must be a positive integer.')
+    return
+  }
+  if (!isPositiveInteger(itemEditForm.value.moq)) {
+    itemEditErrorMessage.value = t('최소 주문 수량은 1 이상의 정수로 입력해 주세요.', 'MOQ must be a positive integer.')
     return
   }
 
@@ -1581,16 +1673,36 @@ async function submitItemEdit() {
     itemEditLoading.value = true
     itemEditErrorMessage.value = ''
 
-    await updateItem(publicId.value, {
-      itemCategoryPublicId: data.value.itemCategoryPublicId,
-      supplyType: data.value.supplyType,
-      itemName: nextName,
-      unitPrice: Number(itemEditForm.value.unitPrice ?? data.value.unitPrice ?? 0),
-      unit: data.value.unit,
-      spec: nextSpec,
-      shelfLifeDays: Number(itemEditForm.value.shelfLifeDays),
-      originLogisticsNodePublicId: data.value.originLogisticsNodePublicId,
-    })
+    const nextUnitPrice = Number(itemEditForm.value.unitPrice ?? data.value.unitPrice ?? 0)
+    const nextShelfLifeDays = Number(itemEditForm.value.shelfLifeDays)
+    const masterChanged =
+      nextName !== String(data.value.itemName ?? '') ||
+      nextSpec !== String(data.value.spec ?? '') ||
+      nextUnitPrice !== Number(data.value.unitPrice ?? 0) ||
+      nextShelfLifeDays !== Number(data.value.shelfLifeDays ?? 0)
+
+    if (masterChanged) {
+      const originLogisticsNodePublicId = String(data.value.originLogisticsNodePublicId ?? '').trim()
+
+      if (!originLogisticsNodePublicId) {
+        itemEditErrorMessage.value = t(
+          '출발 물류거점 정보가 없어 품목 기본정보를 수정할 수 없습니다.',
+          'Origin logistics node is required to edit item master data.',
+        )
+        return
+      }
+
+      await updateItem(publicId.value, {
+        itemCategoryPublicId: data.value.itemCategoryPublicId,
+        supplyType: data.value.supplyType,
+        itemName: nextName,
+        unitPrice: nextUnitPrice,
+        unit: data.value.unit,
+        spec: nextSpec,
+        shelfLifeDays: nextShelfLifeDays,
+        originLogisticsNodePublicId,
+      })
+    }
 
     await updateSupplierItemCapability(data.value.supplierPublicId, publicId.value, {
       leadTimeDays: Number(itemEditForm.value.leadTimeDays),
@@ -1610,7 +1722,8 @@ async function submitItemEdit() {
     }
 
     await fetchDetail()
-    closeItemEditModal()
+    itemInlineEditMode.value = false
+
   } catch (error: any) {
     itemEditErrorMessage.value = error?.message ?? t('품목 수정에 실패했습니다.', 'Failed to edit item.')
   } finally {
@@ -1618,13 +1731,41 @@ async function submitItemEdit() {
   }
 }
 
-function handleEditInventory() {
-  router.push({
-    name: 'inventory',
-    query: {
-      edit: publicId.value,
-    },
-  })
+function cancelInlineItemEdit() {
+  itemInlineEditMode.value = false
+  itemEditErrorMessage.value = ''
+}
+
+async function submitInventoryEdit() {
+  if (!data.value || kind.value !== 'inventory') return
+
+  if (!inventoryEditForm.value.manufacturedDate) {
+    inventoryEditErrorMessage.value = t('제조일을 입력해 주세요.', 'Enter manufactured date.')
+    return
+  }
+  if (!isPositiveInteger(inventoryEditForm.value.qty)) {
+    inventoryEditErrorMessage.value = t('수량은 1 이상의 정수로 입력해 주세요.', 'Quantity must be a positive integer.')
+    return
+  }
+
+  try {
+    inventoryEditLoading.value = true
+    inventoryEditErrorMessage.value = ''
+
+    await updateInventory(publicId.value, {
+      logisticsNodePublicId: data.value.logisticsNodePublicId,
+      manufacturedDate: inventoryEditForm.value.manufacturedDate,
+      qty: Number(inventoryEditForm.value.qty),
+      memo: inventoryEditForm.value.memo.trim() || null,
+    })
+
+    await fetchDetail()
+    closeInventoryEditModal()
+  } catch (error: any) {
+    inventoryEditErrorMessage.value = error?.message ?? t('재고 수정에 실패했습니다.', 'Failed to edit inventory.')
+  } finally {
+    inventoryEditLoading.value = false
+  }
 }
 
 
@@ -1706,25 +1847,23 @@ async function fetchDetail() {
       data.value = detail as Record<string, any>
       related.value = { histories, sourceShipment, returnAttachments }
     } else if (kind.value === 'inventory') {
-      const inventories = await getInventories()
-      const detail = inventories.find((row) => row.inventoryPublicId === publicId.value)
-
-      if (!detail) {
-        throw new Error('조회 가능한 재고가 아닙니다.')
-      }
+      const detail = await getInventory(publicId.value)
+      const itemInventories = await getItemInventories(detail.itemPublicId).catch(() => [detail])
 
       data.value = detail as Record<string, any>
+      related.value = { itemInventories }
     } else if (kind.value === 'items') {
-      const [itemPage, linkedOrders] = await Promise.all([
-        getManagedItems(0, 500),
+      const [itemDetail, linkedOrders] = await Promise.all([
+        getItem(publicId.value).catch(async () => {
+          const managedPage = await getManagedItems(0, 500)
+          const managedItem = managedPage.content.find((row) => row.publicId === publicId.value)
+          if (!managedItem) throw new Error('조회 가능한 품목이 아닙니다.')
+          return managedItem
+        }),
         getManagedItemLinkedOrders(publicId.value).catch(() => []),
       ])
 
-      const detail = itemPage.content.find((row) => row.publicId === publicId.value)
-
-      if (!detail) {
-        throw new Error('조회 가능한 품목이 아닙니다.')
-      }
+      const detail = itemDetail
 
       const media = itemMediaFilesFromItem(detail).length
         ? itemMediaFilesFromItem(detail)
@@ -2180,32 +2319,101 @@ watch(
               v-if="kind === 'items'"
               class="operation-detail-page__domain-card operation-detail-page__item-info-card"
             >
-              <h3>{{ t('물품 상세정보', 'ITEM INFORMATION') }}</h3>
-              <div v-if="itemInformationSummary" class="operation-detail-page__item-info-hero">
-                <div class="operation-detail-page__item-info-main">
-                  <span>{{ itemInformationSummary.category }} · {{ itemInformationSummary.status }}</span>
-                  <strong>{{ itemInformationSummary.name }}</strong>
-                  <small>{{ itemInformationSummary.code }}</small>
+              <div class="operation-detail-page__block-head">
+                <h3>{{ t('품목 상세 정보', 'ITEM INFORMATION') }}</h3>
+                <div v-if="itemInlineEditMode" class="operation-detail-page__inline-actions">
+                  <button class="page-button page-button--secondary" type="button" @click="cancelInlineItemEdit">
+                    {{ t('취소', 'Cancel') }}
+                  </button>
+                  <button class="page-button page-button--primary" type="button" :disabled="itemEditLoading" @click="submitItemEdit">
+                    {{ itemEditLoading ? t('저장 중', 'Saving') : t('저장', 'Save') }}
+                  </button>
                 </div>
               </div>
-              <div class="operation-detail-page__item-info-metrics">
-                <div v-for="metric in itemInformationMetrics" :key="metric.label">
-                  <span>{{ metric.label }}</span>
-                  <strong>{{ metric.value }}</strong>
-                  <small>{{ metric.meta }}</small>
-                </div>
-              </div>
-              <div class="operation-detail-page__item-info-sections">
-                <section v-for="group in itemInformationGroups" :key="group.title">
-                  <h4>{{ group.title }}</h4>
-                  <dl>
-                    <div v-for="row in group.rows" :key="row.label">
-                      <dt>{{ row.label }}</dt>
-                      <dd>{{ row.value }}</dd>
-                    </div>
-                  </dl>
+
+              <div v-if="itemInlineEditMode" class="operation-detail-page__edit-form operation-detail-page__inline-edit-form">
+                <section class="operation-detail-page__edit-section">
+                  <label class="operation-detail-page__edit-field">
+                    <span>품목명</span>
+                    <input v-model="itemEditForm.itemName" type="text" />
+                  </label>
+
+                  <label class="operation-detail-page__edit-field">
+                    <span>단가</span>
+                    <input v-model.number="itemEditForm.unitPrice" type="number" min="1" step="1" />
+                  </label>
+
+                  <label class="operation-detail-page__edit-field">
+                    <span>유통기한</span>
+                    <input v-model.number="itemEditForm.shelfLifeDays" type="number" min="0" />
+                  </label>
+
+                  <label class="operation-detail-page__edit-field">
+                    <span>상태</span>
+                    <select v-model="itemEditForm.status">
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="DEACTIVE">DEACTIVE</option>
+                    </select>
+                  </label>
+
+                  <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
+                    <span>규격</span>
+                    <textarea v-model="itemEditForm.spec" />
+                  </label>
+
+                  <label class="operation-detail-page__edit-field">
+                    <span>리드타임</span>
+                    <input v-model.number="itemEditForm.leadTimeDays" type="number" min="0" />
+                  </label>
+
+                  <label class="operation-detail-page__edit-field">
+                    <span>월간 생산량</span>
+                    <input v-model.number="itemEditForm.monthlyCapacity" type="number" min="1" step="1" />
+                  </label>
+
+                  <label class="operation-detail-page__edit-field">
+                    <span>주문 가능 수량</span>
+                    <input v-model.number="itemEditForm.availableQty" type="number" min="1" step="1" />
+                  </label>
+
+                  <label class="operation-detail-page__edit-field">
+                    <span>최소 주문 수량</span>
+                    <input v-model.number="itemEditForm.moq" type="number" min="1" step="1" />
+                  </label>
                 </section>
+
+                <p v-if="itemEditErrorMessage" class="operation-detail-page__error">
+                  {{ itemEditErrorMessage }}
+                </p>
               </div>
+
+              <template v-else>
+                <div v-if="itemInformationSummary" class="operation-detail-page__item-info-hero">
+                  <div class="operation-detail-page__item-info-main">
+                    <span>{{ itemInformationSummary.category }} · {{ itemInformationSummary.status }}</span>
+                    <strong>{{ itemInformationSummary.name }}</strong>
+                    <small>{{ itemInformationSummary.code }}</small>
+                  </div>
+                </div>
+                <div class="operation-detail-page__item-info-metrics">
+                  <div v-for="metric in itemInformationMetrics" :key="metric.label">
+                    <span>{{ metric.label }}</span>
+                    <strong>{{ metric.value }}</strong>
+                    <small>{{ metric.meta }}</small>
+                  </div>
+                </div>
+                <div class="operation-detail-page__item-info-sections">
+                  <section v-for="group in itemInformationGroups" :key="group.title">
+                    <h4>{{ group.title }}</h4>
+                    <dl>
+                      <div v-for="row in group.rows" :key="row.label">
+                        <dt>{{ row.label }}</dt>
+                        <dd>{{ row.value }}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                </div>
+              </template>
             </article>
             <article class="operation-detail-page__domain-card">
               <h3>{{ kind === 'items' ? t('품목 히스토리', 'ITEM HISTORY') : '재고 상태' }}</h3>
@@ -2231,7 +2439,7 @@ watch(
                   </tr>
                 </tbody>
               </table>
-              <table v-else class="operation-detail-page__domain-table"><thead><tr><th>품목 코드</th><th>품목명</th><th>단위</th><th>현재 재고</th><th>안전 재고</th><th>부족 수량</th><th>상태</th><th>영향 발주</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="row[0]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
+              <table v-else class="operation-detail-page__domain-table"><thead><tr><th>품목 코드</th><th>품목명</th><th>단위</th><th>잔여 수량</th><th>예약 수량</th><th>주문 가능</th><th>상태</th><th>유통기한</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="`${row[0]}-${row[7]}`"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
             </article>
             <article class="operation-detail-page__domain-card"><h3>수요 대비 안전재고</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>예측 수요</strong></div></article>
           </section>
@@ -2245,7 +2453,8 @@ watch(
             <button
               class="page-button page-button--primary"
               type="button"
-              @click="handleEditInventory"
+              :disabled="!canEditCurrentInventory"
+              @click="openInventoryEditModal"
             >
               수정
             </button>
@@ -2515,108 +2724,60 @@ watch(
     </BaseModal>
 
     <BaseModal
-      v-model="itemEditModalOpen"
-      :title="t('품목 수정', 'Edit Item')"
-      :description="t('현재 품목의 기본 정보와 공급 역량을 수정합니다.', 'Edit item details and supplier capability.')"
-      size="lg"
-      @close="closeItemEditModal"
+      v-model="itemLockedModalOpen"
+      title="품목 수정 불가"
+      description="발주 확정 품목은 수정 불가합니다."
+      size="sm"
+    >
+      <div class="operation-detail-page__bottom-actions">
+        <span></span>
+        <button class="page-button page-button--primary" type="button" @click="itemLockedModalOpen = false">
+          확인
+        </button>
+      </div>
+    </BaseModal>
+
+    <BaseModal
+      v-model="inventoryEditModalOpen"
+      :title="t('재고 수정', 'Edit Inventory')"
+      :description="t('예약되지 않은 정상 재고만 수정할 수 있습니다.', 'Only active inventory without reserved quantity can be edited.')"
+      size="md"
+      @close="closeInventoryEditModal"
     >
       <div class="operation-detail-page__edit-form">
         <section class="operation-detail-page__edit-section">
-          <h3>{{ t('품목 기본 정보', 'Item Basic Info') }}</h3>
-
           <label class="operation-detail-page__edit-field">
-            <span>품목명</span>
-            <input v-model="itemEditForm.itemName" type="text" />
+            <span>{{ t('제조일', 'Manufactured Date') }}</span>
+            <input v-model="inventoryEditForm.manufacturedDate" type="date" />
           </label>
 
           <label class="operation-detail-page__edit-field">
-            <span>단가</span>
-            <input v-model.number="itemEditForm.unitPrice" type="number" min="0" step="0.01" />
-          </label>
-
-          <label class="operation-detail-page__edit-field">
-            <span>유통기한 일수</span>
-            <input v-model.number="itemEditForm.shelfLifeDays" type="number" min="0" />
-          </label>
-
-          <label class="operation-detail-page__edit-field">
-            <span>{{ t('상태', 'Status') }}</span>
-            <select v-model="itemEditForm.status">
-              <option value="ACTIVE">{{ t('활성', 'ACTIVE') }}</option>
-              <option value="DEACTIVE">{{ t('비활성', 'DEACTIVE') }}</option>
-            </select>
+            <span>{{ t('수량', 'Quantity') }}</span>
+            <input v-model.number="inventoryEditForm.qty" type="number" min="1" step="1" />
           </label>
 
           <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
-            <span>규격</span>
-            <textarea v-model="itemEditForm.spec" />
+            <span>{{ t('메모', 'Memo') }}</span>
+            <textarea v-model="inventoryEditForm.memo" />
           </label>
         </section>
 
-        <section class="operation-detail-page__edit-section">
-          <h3>{{ t('협력사 품목 공급 역량', 'Supplier Item Capability') }}</h3>
-
-          <label class="operation-detail-page__edit-field">
-            <span>{{ t('리드타임', 'Lead Time') }}</span>
-            <input v-model.number="itemEditForm.leadTimeDays" type="number" min="0" />
-          </label>
-
-          <label class="operation-detail-page__edit-field">
-            <span>{{ t('월간 생산량', 'Monthly Capacity') }}</span>
-            <input v-model.number="itemEditForm.monthlyCapacity" type="number" min="1" step="1" />
-          </label>
-
-          <label class="operation-detail-page__edit-field">
-            <span>{{ t('주문 가능 수량', 'Available Qty') }}</span>
-            <input v-model.number="itemEditForm.availableQty" type="number" min="1" step="1" />
-          </label>
-
-          <label class="operation-detail-page__edit-field">
-            <span>{{ t('최소 주문 수량', 'MOQ') }}</span>
-            <input v-model.number="itemEditForm.moq" type="number" min="1" step="1" />
-          </label>
-
-          <label class="operation-detail-page__edit-field">
-            <span>{{ t('품질 등급', 'Quality Grade') }}</span>
-            <select v-model="itemEditForm.qualityGrade">
-              <option value="">{{ t('선택 안 함', 'None') }}</option>
-              <option v-for="grade in QUALITY_GRADE_OPTIONS" :key="grade" :value="grade">
-                {{ qualityGradeText(grade) }}
-              </option>
-            </select>
-          </label>
-
-          <label class="operation-detail-page__edit-field">
-            <span>{{ t('품질 단가', 'Quality Price') }}</span>
-            <input v-model.number="itemEditForm.unitPriceHint" type="number" min="0" step="0.01" />
-          </label>
-
-          <label class="operation-detail-page__edit-field">
-            <span>{{ t('적용 시작일', 'Valid From') }}</span>
-            <input v-model="itemEditForm.validFrom" type="date" />
-          </label>
-
-          <label class="operation-detail-page__edit-field">
-            <span>{{ t('부분 확정', 'Partial Confirmation') }}</span>
-            <select v-model="itemEditForm.partialConfirmationAllowed">
-              <option :value="true">{{ t('허용', 'Allowed') }}</option>
-              <option :value="false">{{ t('비허용', 'Disallowed') }}</option>
-            </select>
-          </label>
-        </section>
-
-        <p v-if="itemEditErrorMessage" class="operation-detail-page__error">
-          {{ itemEditErrorMessage }}
+        <p v-if="inventoryEditErrorMessage" class="operation-detail-page__error">
+          {{ inventoryEditErrorMessage }}
         </p>
 
         <div class="operation-detail-page__bottom-actions">
-          <button class="page-button page-button--secondary" type="button" @click="closeItemEditModal">
+          <button class="page-button page-button--secondary" type="button" @click="closeInventoryEditModal">
             {{ t('취소', 'Cancel') }}
           </button>
           <span></span>
-          <button class="page-button page-button--primary" type="button" :disabled="itemEditLoading" @click="submitItemEdit">
-            {{ t('품목 수정', 'Save Item') }}
+          <button
+            class="page-button page-button--primary"
+            type="button"
+            :disabled="inventoryEditLoading"
+            @click="submitInventoryEdit"
+          >
+            {{ inventoryEditLoading ? t('저장 중', 'Saving') : t('재고 수정', 'Save Inventory') }}
           </button>
         </div>
       </div>
@@ -3962,6 +4123,16 @@ watch(
 .operation-detail-page__edit-form {
   display: grid;
   gap: 22px;
+}
+
+.operation-detail-page__inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.operation-detail-page__inline-edit-form {
+  margin-top: 16px;
 }
 
 .operation-detail-page__edit-section {
