@@ -313,31 +313,33 @@ onBeforeUnmount(() => header.clearActions())
           <span v-for="column in content.columns" :key="column">{{ column }}</span>
         </div>
         
-        <div v-for="cert in filteredRows" :key="cert.publicId" class="page-table__row">
-          <span>{{ cert.certificateNo }}</span>
-          <span>{{ cert.supplierName }}</span>
-          <span>{{ cert.certificateType?.name }}</span>
-          <span>{{ cert.issuerName }}</span>
-          <span>{{ cert.issuedAt }}</span>
-          <span>{{ cert.expiredAt }}</span>
-          <span :class="{'text-critical': Number(getDaysLeft(cert.expiredAt).replace(/\D/g, '')) < 30}">
-            {{ getDaysLeft(cert.expiredAt) }}
-          </span>
-          <span>
-            <span :class="['page-status-chip', certStatusTone(cert.certificateStatus)]">
-              {{ certStatusText(cert.certificateStatus) }}
-            </span>
-          </span>
-          <span style="display: flex; justify-content: flex-end;">
-            <button class="page-button page-button--secondary" type="button" @click="handleCertSelect(cert)">
-              {{ content.detailLabel }}
-            </button>
-          </span>
-        </div>
-
-        <div v-if="filteredRows.length === 0" style="padding: 32px 16px; text-align: center; color: var(--color-on-surface-variant); font-size: 0.875rem;">
+        <div v-if="filteredRows.length === 0" class="terminal-page__table-message">
           조건에 맞는 인증서가 없습니다.
         </div>
+
+        <template v-else>
+          <div v-for="cert in filteredRows" :key="cert.publicId" class="page-table__row">
+            <span>{{ cert.certificateNo }}</span>
+            <span>{{ cert.supplierName }}</span>
+            <span>{{ cert.certificateType?.name }}</span>
+            <span>{{ cert.issuerName }}</span>
+            <span>{{ cert.issuedAt }}</span>
+            <span>{{ cert.expiredAt }}</span>
+            <span :class="{'text-critical': Number(getDaysLeft(cert.expiredAt).replace(/\D/g, '')) < 30}">
+              {{ getDaysLeft(cert.expiredAt) }}
+            </span>
+            <span>
+              <span :class="['page-status-chip', certStatusTone(cert.certificateStatus)]">
+                {{ certStatusText(cert.certificateStatus) }}
+              </span>
+            </span>
+            <span style="display: flex; justify-content: flex-end;">
+              <button class="page-button page-button--secondary" type="button" @click="handleCertSelect(cert)">
+                {{ content.detailLabel }}
+              </button>
+            </span>
+          </div>
+        </template>
       </div>
     </article>
   </section>
