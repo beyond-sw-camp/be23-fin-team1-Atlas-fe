@@ -4322,9 +4322,10 @@ select:not(.app-language-select select):focus {
   }
 
   .risk-rules-table--topics .risk-rules-table__row {
-    grid-template-columns: max-content max-content;
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
     justify-content: start;
-    gap: 10px 8px;
+    gap: 6px;
+    align-items: start;
   }
 
   .risk-rules-table__row--head {
@@ -4350,7 +4351,7 @@ select:not(.app-language-select select):focus {
   }
 
   .risk-rules-table--topics .risk-rules-table__row:not(.risk-rules-table__row--head)>span:nth-child(1) {
-    grid-column: 1 / -1;
+    grid-column: 1;
   }
 
   .risk-rules-chip--topic {
