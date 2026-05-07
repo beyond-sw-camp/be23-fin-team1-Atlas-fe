@@ -5279,7 +5279,7 @@ select:not(.app-language-select select):focus {
   min-height: 42px;
   padding: 0 14px;
   border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.22);
-  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.92);
+  background: #fff;
 }
 
 .terminal-page__search span {
@@ -5288,10 +5288,12 @@ select:not(.app-language-select select):focus {
 }
 
 .terminal-page__search input {
+  appearance: none;
+  -webkit-appearance: none;
   width: 100%;
   min-width: 0;
   border: 0;
-  background: transparent;
+  background: #fff;
   color: inherit;
   outline: none;
 }
@@ -7636,4 +7638,29 @@ select:not(.app-language-select select):focus {
 .theme-dark .base-modal select:focus,
 .theme-dark .base-modal textarea:focus {
   background: rgb(var(--surface-container-highest-rgb, 53 53 53) / 0.96) !important;
+}
+
+.app-screen :is(.terminal-page__search,
+  .documents-page__search,
+  .recommendations-page__search,
+  .risk-rules-page__search,
+  .supplier-network-registry__search,
+  .logistics-search) {
+  background: #fff !important;
+}
+
+.app-screen :is(.terminal-page__search,
+  .documents-page__search,
+  .recommendations-page__search,
+  .risk-rules-page__search,
+  .supplier-network-registry__search,
+  .logistics-search) input,
+.app-screen :is(.terminal-page__search,
+  .documents-page__search,
+  .recommendations-page__search,
+  .risk-rules-page__search,
+  .supplier-network-registry__search,
+  .logistics-search) input:focus {
+  background: #fff !important;
+  box-shadow: none;
 }
