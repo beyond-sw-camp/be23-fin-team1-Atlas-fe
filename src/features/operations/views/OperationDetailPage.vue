@@ -253,7 +253,7 @@ const detailCopy = computed(() =>
           inventory: { eyebrow: '공급망 운영 / 재고', title: '재고 상세', idLabel: '재고 ID' },
           items: { eyebrow: '공급망 운영 / 품목', title: '품목 상세', idLabel: '품목코드' },
           suppliers: { eyebrow: '공급망 운영 / 협력사', title: '협력사 상세', idLabel: '협력사 코드' },
-          'logistics-nodes': { eyebrow: '공급망 운영 / 물류거점', title: '물류거점 상세', idLabel: '거점 코드' },
+          'logistics-nodes': { eyebrow: '공급망 운영 / 창고', title: '창고 상세', idLabel: '창고 코드' },
           settlements: { eyebrow: '공급망 운영 / 정산', title: '정산 상세', idLabel: '정산 ID' },
           certificates: { eyebrow: '문서 / 인증서', title: '인증서 상세', idLabel: '인증서 번호' },
           'sub-orders': { eyebrow: '공급망 운영 / 서브발주 관리', title: '서브발주 상세', idLabel: '서브발주번호' },
@@ -736,7 +736,7 @@ const itemInformationGroups = computed(() => {
     {
       title: t('공급 정보', 'Supply Info'),
       rows: [
-        [t('출발 물류거점', 'Origin Node'), item.originLogisticsNodeName ?? item.originLogisticsNodeCode ?? '출발 물류거점'],
+        [t('출발 창고', 'Origin Warehouse'), item.originLogisticsNodeName ?? item.originLogisticsNodeCode ?? '출발 창고'],
         [t('월간 생산량', 'Monthly Capacity'), formatNumber(item.monthlyCapacity)],
         [t('공급 유형', 'Supply Type'), item.supplyType],
         [t('상태', 'Status'), displayItemStatus(item.status)],
@@ -977,8 +977,8 @@ const sections = computed<DetailSection[]>(() => {
         ['도착 예정', formatDate(item.arrivalEta)],
       ]),
       section('경로 정보', [
-        ['출발지', item.originNodeName ?? item.originNodeCode ?? '출발 물류거점'],
-        ['도착지', item.destinationNodeName ?? item.destinationNodeCode ?? '도착 물류거점'],
+        ['출발지', item.originNodeName ?? item.originNodeCode ?? '출발 창고'],
+        ['도착지', item.destinationNodeName ?? item.destinationNodeCode ?? '도착 창고'],
         ['예상 도착', formatDate(related.value.eta?.estimatedArrivalAt)],
         ['지연 시간', formatMinutes(related.value.eta?.delayMinutes)],
       ]),
@@ -1202,9 +1202,9 @@ const historyRows = computed(() => {
     return sortHistoryRows([
       {
         createdAt,
-        changeType: '거점 생성',
+        changeType: '창고 생성',
         processedByUserPublicId: '-',
-        memo: `${formatDate(createdAt)}에 물류거점 생성`,
+        memo: `${formatDate(createdAt)}에 창고 생성`,
       },
       {
         createdAt: updatedAt,
@@ -1216,7 +1216,7 @@ const historyRows = computed(() => {
         createdAt: updatedAt,
         changeType: '운영 여부',
         processedByUserPublicId: '-',
-        memo: activeStatus === '활성' ? '물류거점 활성화' : '물류거점 비활성화',
+        memo: activeStatus === '활성' ? '창고 활성화' : '창고 비활성화',
       },
     ])
   }
@@ -1263,7 +1263,7 @@ function historyChangeLabel(row: any) {
 
 function historyDescription(row: any) {
   if (kind.value === 'logistics-nodes') {
-    return row.memo ?? row.description ?? '물류거점 정보 변경'
+    return row.memo ?? row.description ?? '창고 정보 변경'
   }
 
   return row.memo ?? row.description ?? aiSummary.value
@@ -1889,10 +1889,9 @@ async function submitLogisticsEdit() {
   if (!data.value) return
 
   const nodeName = logisticsEditForm.value.nodeName.trim()
-  const baseAddress = logisticsEditForm.value.baseAddress.trim()
 
-  if (!nodeName || !baseAddress) {
-    logisticsEditErrorMessage.value = t('창고명과 주소를 입력해 주세요.', 'Enter warehouse name and address.')
+  if (!nodeName) {
+    logisticsEditErrorMessage.value = t('창고명을 입력해 주세요.', 'Enter warehouse name.')
     return
   }
 
@@ -1903,15 +1902,15 @@ async function submitLogisticsEdit() {
     data.value = await updateLogisticsNode(publicId.value, {
       nodeName,
       nodeType: 'WAREHOUSE',
-      baseAddress,
-      detailAddress: logisticsEditForm.value.detailAddress.trim() || null,
+      baseAddress: String(data.value.baseAddress ?? data.value.address ?? '').trim(),
+      detailAddress: String(data.value.detailAddress ?? '').trim() || null,
       capacityStatus: logisticsEditForm.value.capacityStatus,
     })
 
     await refreshLogisticsNodeHistories()
     closeLogisticsEditModal()
   } catch (error: any) {
-    logisticsEditErrorMessage.value = error?.message ?? t('물류거점 수정에 실패했습니다.', 'Failed to edit logistics node.')
+    logisticsEditErrorMessage.value = error?.message ?? t('창고 수정에 실패했습니다.', 'Failed to edit warehouse.')
   } finally {
     logisticsEditLoading.value = false
   }
@@ -1986,7 +1985,7 @@ async function submitItemEdit() {
 
       if (!originLogisticsNodePublicId) {
         showItemEditError(t(
-          '출발 물류거점 정보가 없어 품목 기본정보를 수정할 수 없습니다.',
+          '출발 창고 정보가 없어 품목 기본정보를 수정할 수 없습니다.',
           'Origin logistics node is required to edit item master data.',
         ))
         return
@@ -3261,8 +3260,8 @@ watch(
 
     <BaseModal
       v-model="logisticsEditModalOpen"
-      :title="t('물류거점 수정', 'Edit Logistics Node')"
-      :description="t('현재 물류거점의 기본 정보와 용량 상태를 수정합니다.', 'Edit logistics node information and capacity status.')"
+      :title="t('창고 수정', 'Edit Warehouse')"
+      :description="t('현재 창고의 기본 정보와 용량 상태를 수정합니다.', 'Edit warehouse information and capacity status.')"
       size="md"
       @close="closeLogisticsEditModal"
     >
@@ -3277,12 +3276,12 @@ watch(
 
           <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
             <span>{{ t('주소', 'Address') }}</span>
-            <input v-model="logisticsEditForm.baseAddress" type="text" />
+            <input v-model="logisticsEditForm.baseAddress" type="text" readonly />
           </label>
 
           <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
             <span>{{ t('상세주소', 'Address Detail') }}</span>
-            <input v-model="logisticsEditForm.detailAddress" type="text" />
+            <input v-model="logisticsEditForm.detailAddress" type="text" readonly />
           </label>
 
           <label class="operation-detail-page__edit-field">
@@ -4854,11 +4853,17 @@ watch(
 .operation-detail-page__edit-field textarea {
   width: 100%;
   min-height: 44px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--outline-variant, var(--line));
   background: #fff;
   padding: 10px 12px;
   color: var(--text);
   font: inherit;
+}
+
+.operation-detail-page__edit-field input[readonly] {
+  background: rgb(var(--surface-container-low-rgb, 245 245 245) / 0.72);
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .operation-detail-page__edit-field textarea {

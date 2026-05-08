@@ -736,7 +736,7 @@ function openOrganizationMembers() {
   }
 }
 
-// 창고 카드를 누르면 물류거점 관리 페이지로 이동합니다.
+// 창고 카드를 누르면 창고 관리 페이지로 이동합니다.
 function openOrganizationWarehouses() {
   navigation.navigateToPage('logisticsNodes')
 }

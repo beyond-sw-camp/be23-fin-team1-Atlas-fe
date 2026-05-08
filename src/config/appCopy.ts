@@ -110,14 +110,14 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
   },
   logisticsNodes: {
     ko: {
-      label: '물류거점',
-      description: '물류거점 등록, 조회, 상태 관리',
-      pageSubtitle: '물류거점 정보와 활성 상태를 운영 화면에서 관리',
+      label: '창고',
+      description: '창고 등록, 조회, 상태 관리',
+      pageSubtitle: '창고 정보와 활성 상태를 운영 화면에서 관리',
     },
     en: {
-      label: '물류거점',
-      description: '물류거점 등록, 조회, 상태 관리',
-      pageSubtitle: '물류거점 정보와 활성 상태를 운영 화면에서 관리',
+      label: '창고',
+      description: '창고 등록, 조회, 상태 관리',
+      pageSubtitle: '창고 정보와 활성 상태를 운영 화면에서 관리',
     },
   },
   returns: {

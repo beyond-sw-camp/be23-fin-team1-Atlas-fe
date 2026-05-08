@@ -217,7 +217,7 @@ const KAFKA_TOPIC_NAME_MAP: Record<string, { ko: string; en: string }> = {
   shipment: { ko: '출하', en: 'Shipment' },
   'supplier-certificate': { ko: '협력사 인증서', en: 'Supplier Certificate' },
   'delivery-exception': { ko: '배송 예외', en: 'Delivery Exception' },
-  'logistics-node': { ko: '물류거점', en: 'Logistics Node' },
+  'logistics-node': { ko: '창고', en: 'Warehouse' },
   inventory: { ko: '재고', en: 'Inventory' },
   'inventory-movement': { ko: '재고 이동', en: 'Inventory Movement' },
   'return-request': { ko: '반품 요청', en: 'Return Request' },

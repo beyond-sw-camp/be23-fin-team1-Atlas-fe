@@ -183,7 +183,7 @@ export async function updateOrganizationStatus(
 }
 
 export interface OrganizationSupplySummaryResponse {
-  // 조직에 등록된 창고/물류거점 수입니다.
+  // 조직에 등록된 창고 수입니다.
   warehouseCount: number
 
   // 조직 협력사에 등록된 ESG/인증 파일 수입니다.
@@ -200,5 +200,4 @@ export async function getOrganizationSupplySummary(
 
   return response.data
 }
-
 
