@@ -2834,7 +2834,6 @@ watch(
               <h3>재고 상태</h3>
               <table class="operation-detail-page__domain-table"><thead><tr><th>품목 코드</th><th>품목명</th><th>단위</th><th>잔여 수량</th><th>예약 수량</th><th>주문 가능</th><th>상태</th><th>유통기한</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="`${row[0]}-${row[7]}`"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
             </article>
-            <article class="operation-detail-page__domain-card"><h3>수요 대비 안전재고</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>예측 수요</strong></div></article>
             <div v-if="kind === 'inventory'" class="operation-detail-page__bottom-actions">
               <button class="page-button page-button--secondary" type="button" @click="goBack">
                 {{ detailCopy.backToList }}
