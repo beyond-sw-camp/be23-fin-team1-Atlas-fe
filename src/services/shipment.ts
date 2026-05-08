@@ -39,6 +39,7 @@ export interface ShipmentListResponseDto {
   canCancel?: boolean
   canTrack?: boolean
   canRegisterException?: boolean
+  hasReturn?: boolean
 }
 
 export interface ShipmentResponseDto {
@@ -82,6 +83,7 @@ export interface ShipmentResponseDto {
   canCancel?: boolean
   canTrack?: boolean
   canRegisterException?: boolean
+  hasReturn?: boolean
   shipmentLines?: ShipmentLineResponseDto[]
 }
 
