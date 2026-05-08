@@ -116,9 +116,6 @@ const certificateFileState = computed(() => {
 })
 
 const certificateReviewPending = computed(() => props.certificate?.certificateStatus === 'REVIEW_REQUESTED')
-const certificateReviewCompleted = computed(() => Boolean(
-  props.certificate && props.certificate.certificateStatus !== 'REVIEW_REQUESTED',
-))
 
 const certificateDurationText = computed(() => {
   const issuedAt = props.certificate?.issuedAt
@@ -534,9 +531,9 @@ watch(
                 </dl>
               </section>
             </div>
-            <section v-if="certificate && reviewActions" class="documents-file-item__section documents-file-item__review-actions">
+            <section v-if="certificate && reviewActions && certificateReviewPending" class="documents-file-item__section documents-file-item__review-actions">
               <h4>심사 처리</h4>
-              <div v-if="certificateReviewPending" class="documents-file-item__review-buttons">
+              <div class="documents-file-item__review-buttons">
                 <button class="page-button page-button--secondary" type="button" :disabled="reviewSubmitting" @click.stop="emit('reject')">
                   반려
                 </button>
@@ -544,9 +541,6 @@ watch(
                   승인
                 </button>
               </div>
-              <p v-else-if="certificateReviewCompleted" class="documents-file-item__review-complete">
-                심사 완료된 문서입니다
-              </p>
             </section>
           </component>
         </div>
