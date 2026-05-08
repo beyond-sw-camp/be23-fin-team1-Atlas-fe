@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import {
   approveCertificate,
@@ -14,9 +14,14 @@ const dialog = useAtlasDialogStore()
 const certificates = ref<SupplierCertificateResponseDto[]>([])
 const selectedCertificate = ref<SupplierCertificateResponseDto | null>(null)
 const search = ref('')
-const activeReviewFilter = ref<'ALL' | 'COMPLETED' | 'PENDING'>('ALL')
+const activeReviewFilter = ref<'ALL' | 'COMPLETED' | 'REJECTED' | 'PENDING'>('ALL')
+const currentPage = ref(0)
+const pageSize = 20
+const totalPages = ref(0)
+const totalElements = ref(0)
 const isLoading = ref(false)
 const isSubmitting = ref(false)
+let searchDebounceTimer: number | undefined
 
 const content = computed(() => {
   return {
@@ -31,6 +36,7 @@ const content = computed(() => {
     filters: [
       { key: 'ALL' as const, label: '전체' },
       { key: 'COMPLETED' as const, label: '심사완료' },
+      { key: 'REJECTED' as const, label: '반려' },
       { key: 'PENDING' as const, label: '심사대기' },
     ],
     columns: ['인증서 번호', '협력사', '인증 유형', '발급 기관', '발급일', '만료일', '현재 상태', '상세'],
@@ -45,35 +51,22 @@ const pendingCertificates = computed(() =>
   certificates.value.filter((certificate) => certificate.certificateStatus === 'REVIEW_REQUESTED'),
 )
 
-const reviewFilteredCertificates = computed(() => {
-  if (activeReviewFilter.value === 'PENDING') {
-    return pendingCertificates.value
-  }
-  if (activeReviewFilter.value === 'COMPLETED') {
-    return certificates.value.filter((certificate) => certificate.certificateStatus !== 'REVIEW_REQUESTED')
-  }
-  return certificates.value
-})
-
-const filteredCertificates = computed(() => {
-  const query = search.value.trim().toLowerCase()
-  if (!query) return reviewFilteredCertificates.value
-
-  return reviewFilteredCertificates.value.filter((certificate) => [
-    certificate.certificateNo,
-    certificate.supplierName,
-    certificate.issuerName,
-    certificate.certificateType?.certificateName,
-    certificate.certificateType?.name,
-    certificate.certificateType?.certificateCode,
-  ].some((value) => String(value ?? '').toLowerCase().includes(query)))
-})
+const filteredCertificates = computed(() => certificates.value)
 
 const supplierCount = computed(() => new Set(pendingCertificates.value.map((certificate) => certificate.supplierPublicId)).size)
 
 const reviewRatio = computed(() => {
   if (certificates.value.length === 0) return 0
   return Math.round((pendingCertificates.value.length / certificates.value.length) * 100)
+})
+
+const totalPagesLabel = computed(() => Math.max(totalPages.value, 1))
+const canMovePrevious = computed(() => currentPage.value > 0 && !isLoading.value)
+const canMoveNext = computed(() => currentPage.value < totalPages.value - 1 && !isLoading.value)
+
+const activeReviewStatusParam = computed(() => {
+  if (activeReviewFilter.value === 'ALL') return undefined
+  return activeReviewFilter.value
 })
 
 function certificateTypeName(certificate: SupplierCertificateResponseDto) {
@@ -107,14 +100,38 @@ function certificateStatusTone(status: SupplierCertificateResponseDto['certifica
 async function loadCertificates() {
   try {
     isLoading.value = true
-    const response = await getAllCertificates({ size: 100 })
+    const response = await getAllCertificates({
+      page: currentPage.value,
+      size: pageSize,
+      reviewStatus: activeReviewStatusParam.value,
+      keyword: search.value.trim() || undefined,
+    })
     certificates.value = response.content ?? []
+    totalPages.value = response.totalPages ?? 0
+    totalElements.value = response.totalElements ?? certificates.value.length
+    currentPage.value = response.number ?? currentPage.value
   } catch (error) {
     console.error('Failed to load certificate review queue', error)
+    certificates.value = []
+    totalPages.value = 0
+    totalElements.value = 0
     await dialog.alert('인증서 심사 목록을 불러오지 못했습니다.')
   } finally {
     isLoading.value = false
   }
+}
+
+async function reloadCertificatesFromFirstPage() {
+  currentPage.value = 0
+  await loadCertificates()
+}
+
+async function movePage(offset: number) {
+  if (isLoading.value) return
+  const nextPage = currentPage.value + offset
+  if (nextPage < 0 || nextPage >= totalPages.value) return
+  currentPage.value = nextPage
+  await loadCertificates()
 }
 
 async function openCertificateDetail(certificate: SupplierCertificateResponseDto) {
@@ -184,6 +201,19 @@ async function rejectSelectedCertificate() {
 onMounted(() => {
   loadCertificates()
 })
+
+watch(activeReviewFilter, () => {
+  void reloadCertificatesFromFirstPage()
+})
+
+watch(search, () => {
+  if (searchDebounceTimer) {
+    window.clearTimeout(searchDebounceTimer)
+  }
+  searchDebounceTimer = window.setTimeout(() => {
+    void reloadCertificatesFromFirstPage()
+  }, 300)
+})
 </script>
 
 <template>
@@ -251,7 +281,7 @@ onMounted(() => {
             <div class="page-panel__eyebrow">CERTIFICATE REVIEW</div>
             <h2>{{ content.tableTitle }}</h2>
           </div>
-          <span class="page-panel__chip">{{ filteredCertificates.length }}</span>
+          <span class="page-panel__chip">{{ totalElements }}</span>
         </div>
 
         <div class="page-table terminal-page__table certificate-review-page__table">
@@ -284,6 +314,25 @@ onMounted(() => {
             {{ content.noRows }}
           </div>
         </div>
+        <nav v-if="totalPages > 1" class="risk-rules-pagination certificate-review-page__pagination" aria-label="certificate review pagination">
+          <button
+            class="page-button page-button--secondary risk-rules-pagination__button"
+            type="button"
+            :disabled="!canMovePrevious"
+            @click="movePage(-1)"
+          >
+            &lt;
+          </button>
+          <span class="risk-rules-pagination__status">{{ currentPage + 1 }} / {{ totalPagesLabel }}</span>
+          <button
+            class="page-button page-button--secondary risk-rules-pagination__button"
+            type="button"
+            :disabled="!canMoveNext"
+            @click="movePage(1)"
+          >
+            &gt;
+          </button>
+        </nav>
       </article>
     </section>
   </section>
