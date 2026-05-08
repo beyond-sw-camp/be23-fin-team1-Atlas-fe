@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
-import { useAtlasHeaderStore } from '../../../stores/header'
+import { computed, onMounted, ref, watchEffect } from 'vue'
 import { ApiError } from '../../../services/http'
 import {
   getKafkaEventLogs,
   type EventLogSearchResponse,
 } from '../../../services/kafkaMonitoring'
 
-const header = useAtlasHeaderStore()
 const CONTENT = {
   ko: {
     eyebrow: '시스템 / 감사 로그',
@@ -22,8 +20,6 @@ const CONTENT = {
     tabs: ['전체', '성공', '실패'],
     searchPlaceholder: '이벤트 ID, 토픽, 타입, aggregate 검색...',
     tableTitle: 'Kafka 이벤트 발행 히스토리',
-    exportLabel: '내보내기',
-    refreshLabel: '새로고침',
     columns: ['발행 시각', '상태', '토픽', '이벤트 타입', 'Aggregate', '이벤트 ID', '오류'],
   },
 }
@@ -155,18 +151,11 @@ watchEffect(() => {
   if (!auditTabs.value.includes(activeTab.value)) {
     activeTab.value = auditTabs.value[0]
   }
-
-  header.setActions([
-    { key: 'audit-export', label: content.value.exportLabel, tone: 'secondary' },
-    { key: 'audit-refresh', label: content.value.refreshLabel, tone: 'secondary' },
-  ])
 })
 
 onMounted(() => {
   void fetchAuditLogs()
 })
-
-onBeforeUnmount(() => header.clearActions())
 </script>
 
 <template>
@@ -175,10 +164,6 @@ onBeforeUnmount(() => header.clearActions())
       <div>
         <div class="terminal-page__eyebrow">{{ content.eyebrow }}</div>
         <h2 class="terminal-page__title">{{ content.title }}</h2>
-      </div>
-      <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button">{{ content.exportLabel }}</button>
-        <button class="page-button page-button--secondary" type="button" @click="fetchAuditLogs">{{ content.refreshLabel }}</button>
       </div>
     </header>
 

@@ -14,6 +14,7 @@ const dialog = useAtlasDialogStore()
 const certificates = ref<SupplierCertificateResponseDto[]>([])
 const selectedCertificate = ref<SupplierCertificateResponseDto | null>(null)
 const search = ref('')
+const activeReviewFilter = ref<'ALL' | 'COMPLETED' | 'PENDING'>('ALL')
 const isLoading = ref(false)
 const isSubmitting = ref(false)
 
@@ -27,11 +28,16 @@ const content = computed(() => {
     pendingMetric: '심사 대기',
     supplierMetric: '협력사 수',
     reviewRatioMetric: '심사 비율',
-    columns: ['인증서 번호', '협력사', '인증 유형', '발급 기관', '발급일', '만료일', '상세'],
+    filters: [
+      { key: 'ALL' as const, label: '전체' },
+      { key: 'COMPLETED' as const, label: '심사완료' },
+      { key: 'PENDING' as const, label: '심사대기' },
+    ],
+    columns: ['인증서 번호', '협력사', '인증 유형', '발급 기관', '발급일', '만료일', '현재 상태', '상세'],
     viewDetail: '상세보기',
     approve: '승인',
     reject: '반려',
-    noRows: '심사 대기 중인 인증서가 없습니다.',
+    noRows: '조건에 맞는 인증서가 없습니다.',
   }
 })
 
@@ -39,11 +45,21 @@ const pendingCertificates = computed(() =>
   certificates.value.filter((certificate) => certificate.certificateStatus === 'REVIEW_REQUESTED'),
 )
 
+const reviewFilteredCertificates = computed(() => {
+  if (activeReviewFilter.value === 'PENDING') {
+    return pendingCertificates.value
+  }
+  if (activeReviewFilter.value === 'COMPLETED') {
+    return certificates.value.filter((certificate) => certificate.certificateStatus !== 'REVIEW_REQUESTED')
+  }
+  return certificates.value
+})
+
 const filteredCertificates = computed(() => {
   const query = search.value.trim().toLowerCase()
-  if (!query) return pendingCertificates.value
+  if (!query) return reviewFilteredCertificates.value
 
-  return pendingCertificates.value.filter((certificate) => [
+  return reviewFilteredCertificates.value.filter((certificate) => [
     certificate.certificateNo,
     certificate.supplierName,
     certificate.issuerName,
@@ -70,6 +86,22 @@ function certificateTypeName(certificate: SupplierCertificateResponseDto) {
 function formatDate(value: string | undefined) {
   if (!value) return '-'
   return value
+}
+
+function certificateStatusText(status: SupplierCertificateResponseDto['certificateStatus'] | null | undefined) {
+  if (status === 'REVIEW_REQUESTED') return '심사 요청'
+  if (status === 'APPROVED') return '승인'
+  if (status === 'REJECTED') return '반려'
+  if (status === 'EXPIRED') return '만료'
+  if (status === 'REVOKED') return '철회'
+  return '-'
+}
+
+function certificateStatusTone(status: SupplierCertificateResponseDto['certificateStatus'] | null | undefined) {
+  if (status === 'APPROVED') return 'is-success'
+  if (status === 'REVIEW_REQUESTED') return 'is-warning'
+  if (status === 'REJECTED' || status === 'EXPIRED' || status === 'REVOKED') return 'is-critical'
+  return 'is-muted'
 }
 
 async function loadCertificates() {
@@ -199,6 +231,17 @@ onMounted(() => {
         <span>⌕</span>
         <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
       </label>
+      <div class="terminal-page__tabs" role="tablist" aria-label="심사 상태 필터">
+        <button
+          v-for="filter in content.filters"
+          :key="filter.key"
+          :class="['terminal-page__tab', { 'is-active': activeReviewFilter === filter.key }]"
+          type="button"
+          @click="activeReviewFilter = filter.key"
+        >
+          {{ filter.label }}
+        </button>
+      </div>
     </section>
 
     <section class="certificate-review-page__grid">
@@ -226,6 +269,11 @@ onMounted(() => {
             <span>{{ certificate.issuerName || '-' }}</span>
             <span>{{ formatDate(certificate.issuedAt) }}</span>
             <span>{{ formatDate(certificate.expiredAt) }}</span>
+            <span class="certificate-review-page__status-cell">
+              <span :class="['page-status-chip', certificateStatusTone(certificate.certificateStatus)]">
+                {{ certificateStatusText(certificate.certificateStatus) }}
+              </span>
+            </span>
             <span>
               <button class="page-button page-button--secondary certificate-review-page__detail-button" type="button" @click="openCertificateDetail(certificate)">
                 {{ content.viewDetail }}
@@ -252,9 +300,16 @@ onMounted(() => {
   width: 100%;
 }
 
+.certificate-review-page :deep(.terminal-page__filter) {
+  align-items: stretch;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .certificate-review-page__table .page-table__row {
-  grid-template-columns: 1.2fr 1fr 1.15fr 1fr 0.9fr 0.9fr 0.7fr;
-  min-width: 1040px;
+  grid-template-columns: 1.15fr 1fr 1.1fr 0.9fr 0.85fr 0.85fr 0.85fr 0.65fr;
+  min-width: 1160px;
 }
 
 .certificate-review-page__row.is-active {
@@ -268,6 +323,17 @@ onMounted(() => {
   font-size: 0.85rem;
 }
 
+.certificate-review-page__status-cell {
+  align-items: center;
+  display: flex;
+}
+
+.certificate-review-page__status-cell .page-status-chip {
+  justify-content: center;
+  min-width: 72px;
+  white-space: nowrap;
+}
+
 .certificate-review-page__detail-screen {
   display: grid;
   gap: 24px;
@@ -276,6 +342,18 @@ onMounted(() => {
 @media (max-width: 1180px) {
   .certificate-review-page__grid {
     grid-template-columns: 1fr;
+  }
+
+  .certificate-review-page :deep(.terminal-page__filter) {
+    grid-template-columns: 1fr;
+  }
+
+  .certificate-review-page :deep(.terminal-page__tabs) {
+    width: 100%;
+  }
+
+  .certificate-review-page :deep(.terminal-page__tab) {
+    flex: 1;
   }
 }
 </style>
