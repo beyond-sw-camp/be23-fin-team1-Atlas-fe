@@ -309,30 +309,34 @@ onMounted(() => {
 
 .certificate-review-page__filter-tabs {
   display: inline-flex;
+  gap: 8px;
+  align-items: center;
   min-height: 52px;
-  border: 1px solid var(--color-outline);
-  background: var(--color-surface);
 }
 
 .certificate-review-page__filter-tab {
   min-width: 92px;
-  border: 0;
-  border-left: 1px solid var(--color-outline);
-  background: transparent;
-  color: var(--color-on-surface-variant);
+  min-height: 44px;
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.55);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.96);
+  color: var(--on-surface, #242a2b);
   font: inherit;
   font-size: 0.9rem;
   font-weight: 800;
   cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.65);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.certificate-review-page__filter-tab:first-child {
-  border-left: 0;
+.certificate-review-page__filter-tab:hover {
+  border-color: var(--color-outline);
+  background: var(--color-surface-container-low);
 }
 
 .certificate-review-page__filter-tab.is-active {
   background: var(--color-inverse-surface);
   color: var(--color-inverse-on-surface);
+  border-color: var(--color-inverse-surface);
 }
 
 .certificate-review-page__table .page-table__row {
