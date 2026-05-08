@@ -357,7 +357,8 @@ onMounted(() => {
 }
 
 .certificate-review-page__status-cell .page-status-chip {
-  width: fit-content;
+  justify-content: center;
+  min-width: 72px;
   white-space: nowrap;
 }
 
