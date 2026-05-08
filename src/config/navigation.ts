@@ -75,6 +75,8 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '전체 공급망 운영 현황과 핵심 경보 모니터링',
     section: 'monitoring',
     organizations: ['mainBuyer', 'admin'],
+    // 컨트롤 타워 메뉴 임시 숨김: 삭제 금지, 필요 시 hidden 해제
+    hidden: true,
     badge: '실시간',
     badgeTone: 'ok',
   },
@@ -86,6 +88,8 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: 'Tier 연결, 병목 지점, 대체 경로 가시화',
     section: 'monitoring',
     organizations: ['mainBuyer', 'supplier', 'admin'],
+    // 컨트롤 타워 메뉴 임시 숨김: 삭제 금지, 필요 시 hidden 해제
+    hidden: true,
     badge: '248',
     badgeTone: 'info',
   },
@@ -97,6 +101,8 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '이벤트 기반 지연 대응과 리스크 오케스트레이션',
     section: 'monitoring',
     organizations: ['mainBuyer', 'supplier'],
+    // 컨트롤 타워 메뉴 임시 숨김: 삭제 금지, 필요 시 hidden 해제
+    hidden: true,
     badge: '5',
     badgeTone: 'crit',
   },
@@ -108,6 +114,8 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '영향 주문, ETA 편차, 우선순위 실행 큐',
     section: 'monitoring',
     organizations: ['mainBuyer'],
+    // 컨트롤 타워 메뉴 임시 숨김: 삭제 금지, 필요 시 hidden 해제
+    hidden: true,
     badge: '12',
     badgeTone: 'crit',
   },
@@ -230,6 +238,8 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '추천 엔진 기반 대체 공급처 의사결정',
     section: 'monitoring',
     organizations: ['mainBuyer', 'supplier'],
+    // 컨트롤 타워 메뉴 임시 숨김: 삭제 금지, 필요 시 hidden 해제
+    hidden: true,
     badge: '8',
     badgeTone: 'warn',
   },
