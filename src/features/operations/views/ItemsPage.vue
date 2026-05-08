@@ -843,7 +843,7 @@ function validateCreateForm() {
   if (!createForm.value.spec.trim()) return '상세설명을 입력해 주세요.'
   if (!isPositiveInteger(createForm.value.unitPrice)) return '단가는 1 이상의 정수로 입력해 주세요.'
   if (!isNonNegativeNumber(createForm.value.shelfLifeDays)) return '유통기한을 입력해 주세요.'
-  if (!createForm.value.originLogisticsNodePublicId) return '출발 물류거점을 선택해 주세요.'
+  if (!createForm.value.originLogisticsNodePublicId) return '출발 창고를 선택해 주세요.'
 
   if (!isNonNegativeNumber(createForm.value.leadTimeDays)) return '리드타임을 입력해 주세요.'
   if (!isPositiveInteger(createForm.value.monthlyCapacity)) return '월간 생산 가능량은 1 이상의 정수로 입력해 주세요.'
@@ -1619,9 +1619,9 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
         </label>
 
         <label class="items-page__field">
-          <span>출발 물류거점 <b class="items-page__required">*</b></span>
+          <span>출발 창고 <b class="items-page__required">*</b></span>
           <select v-model="createForm.originLogisticsNodePublicId" :disabled="!!createdItemForCapability">
-            <option value="">출발 물류거점을 선택하세요.</option>
+            <option value="">출발 창고를 선택하세요.</option>
             <option
               v-for="node in logisticsNodeOptions"
               :key="node.publicId"

@@ -542,6 +542,19 @@ function removeCreateMemberRow(rowId: string) {
   createMemberRows.value = createMemberRows.value.filter((row) => row.rowId !== rowId)
 }
 
+function formatMemberPhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+
+  if (digits.length <= 3) return digits
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+}
+
+function handleCreateMemberPhoneInput(row: CreateMemberRow, event: Event) {
+  const input = event.target as HTMLInputElement
+  row.phone = formatMemberPhoneNumber(input.value)
+}
+
 // 입력된 사원들을 기존 사원 생성 API에 순서대로 등록합니다.
 async function submitCreateMembers() {
   if (createMemberRows.value.length === 0) {
@@ -723,7 +736,7 @@ function openOrganizationMembers() {
   }
 }
 
-// 창고 카드를 누르면 물류거점 관리 페이지로 이동합니다.
+// 창고 카드를 누르면 창고 관리 페이지로 이동합니다.
 function openOrganizationWarehouses() {
   navigation.navigateToPage('logisticsNodes')
 }
@@ -1945,7 +1958,14 @@ watch(
                     <input v-model="row.lastName" type="text" :placeholder="preferences.language === 'ko' ? '성' : 'Last'" />
                     <input v-model="row.firstName" type="text" :placeholder="preferences.language === 'ko' ? '이름' : 'First'" />
                     <input v-model="row.email" type="email" placeholder="email@example.com" />
-                    <input v-model="row.phone" type="text" placeholder="010-0000-0000" />
+                    <input
+                      :value="row.phone"
+                      type="text"
+                      inputmode="numeric"
+                      maxlength="13"
+                      placeholder="010-0000-0000"
+                      @input="handleCreateMemberPhoneInput(row, $event)"
+                    />
                     <input v-model="row.jobTitle" type="text" />
                     <select v-model="row.departmentPublicId">
                       <option value="">{{ preferences.language === 'ko' ? '부서 선택' : 'Select' }}</option>

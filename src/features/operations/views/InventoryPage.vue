@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
+import '@vuepic/vue-datepicker/dist/main.css'
+import { ko } from 'date-fns/locale/ko'
 import { BaseModal } from '../../shared'
 import { useActorScope } from '../../../composables/useActorScope'
 import { useAtlasDialogStore } from '../../../stores/dialog'
@@ -45,6 +48,7 @@ const form = ref({
   itemPublicId: '',
   logisticsNodePublicId: '',
   manufacturedDate: '',
+  expirationDate: '',
   qty: null as number | null,
   memo: '',
 })
@@ -65,6 +69,54 @@ const computedExpirationDate = computed(() => {
 
   return date.toISOString().slice(0, 10)
 })
+
+const manufacturedDatePickerValue = computed<Date | null>({
+  get() {
+    if (!form.value.manufacturedDate) return null
+    const [year, month, day] = form.value.manufacturedDate.split('-').map(Number)
+    if (!year || !month || !day) return null
+    return new Date(year, month - 1, day)
+  },
+  set(date) {
+    form.value.manufacturedDate = formatDateForApi(date)
+  },
+})
+
+const datepickerTimeConfig = { enableTimePicker: false }
+const datepickerFormats = {
+  input: 'yyyy. MM. dd.',
+  preview: 'yyyy. MM. dd.',
+}
+
+function formatDateForApi(date: Date | null) {
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDateForDisplay(date: Date | null) {
+  if (!date) return '연도. 월. 일.'
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}. ${month}. ${day}.`
+}
+
+function formatDateStringForDisplay(value: string) {
+  if (!value) return '연도. 월. 일.'
+  const [year, month, day] = value.split('-')
+  return `${year}. ${month}. ${day}.`
+}
+
+watch(
+  computedExpirationDate,
+  (expirationDate) => {
+    form.value.expirationDate = expirationDate
+  },
+  { immediate: true },
+)
 
 const copy = computed(() =>
   ({
@@ -244,6 +296,7 @@ function resetForm() {
     itemPublicId: '',
     logisticsNodePublicId: '',
     manufacturedDate: '',
+    expirationDate: '',
     qty: null,
     memo: '',
   }
@@ -283,6 +336,7 @@ function openEditModal() {
     itemPublicId: selectedInventory.value.itemPublicId,
     logisticsNodePublicId: selectedInventory.value.logisticsNodePublicId,
     manufacturedDate: selectedInventory.value.manufacturedDate,
+    expirationDate: selectedInventory.value.expirationDate,
     qty: selectedInventory.value.initialQty,
     memo: selectedInventory.value.memo ?? '',
   }
@@ -526,12 +580,33 @@ onMounted(() => {
 
         <label class="inventory-page__field">
           <span>{{ copy.fields.manufacturedDate }}</span>
-          <input v-model="form.manufacturedDate" type="date" />
+          <VueDatePicker
+            v-model="manufacturedDatePickerValue"
+            class="inventory-page__datepicker"
+            :locale="ko"
+            :formats="datepickerFormats"
+            :time-config="datepickerTimeConfig"
+            auto-apply
+            :clearable="false"
+            :teleport="false"
+            required
+          >
+            <template #trigger>
+              <button class="inventory-page__date-trigger" type="button">
+                <span :class="{ 'is-placeholder': !manufacturedDatePickerValue }">
+                  {{ formatDateForDisplay(manufacturedDatePickerValue) }}
+                </span>
+                <span class="material-symbols-outlined">calendar_month</span>
+              </button>
+            </template>
+          </VueDatePicker>
         </label>
 
         <label class="inventory-page__field">
           <span>{{ copy.fields.expirationDate }}</span>
-          <input :value="computedExpirationDate" type="date" readonly />
+          <button class="inventory-page__date-trigger" type="button" disabled>
+            <span :class="{ 'is-placeholder': !form.expirationDate }">{{ formatDateStringForDisplay(form.expirationDate) }}</span>
+          </button>
         </label>
 
         <label class="inventory-page__field"><span>{{ copy.fields.qty }}</span><input v-model.number="form.qty" type="number" min="1" step="1" /></label>
@@ -628,7 +703,7 @@ onMounted(() => {
   min-height: 42px;
   padding: 8px 10px;
   color: var(--color-on-surface);
-  background: var(--surface-container-lowest, var(--color-surface));
+  background: var(--surface-container-lowest, #fff);
   border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
   border-radius: 0;
 }
@@ -643,6 +718,104 @@ onMounted(() => {
 .inventory-page__field textarea {
   min-height: 96px;
   resize: vertical;
+}
+
+.inventory-page__datepicker {
+  width: 100%;
+}
+
+.inventory-page__datepicker :deep(.dp__main),
+.inventory-page__datepicker :deep(.dp__input_wrap) {
+  width: 100%;
+  font-family: inherit;
+}
+
+.inventory-page__date-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  color: var(--color-on-surface);
+  background: var(--surface-container-lowest, #fff);
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
+  border-radius: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.inventory-page__date-trigger:focus-visible {
+  outline: none;
+  border-color: rgb(var(--outline-rgb, 117 124 125) / 0.72);
+}
+
+.inventory-page__date-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.inventory-page__date-trigger .is-placeholder {
+  color: var(--color-on-surface-variant, #919191);
+}
+
+.inventory-page__date-trigger .material-symbols-outlined {
+  color: var(--color-on-surface, #2f3435);
+  font-size: 1.2rem;
+}
+
+.inventory-page__datepicker :deep(.dp__clear_icon),
+.inventory-page__datepicker :deep(.dp__button_bottom) {
+  display: none;
+}
+
+.inventory-page__datepicker :deep(.dp__menu) {
+  border: 1px solid rgb(var(--outline-rgb, 117 124 125) / 0.38);
+  border-radius: 0;
+  background: var(--surface-container-lowest, #fff);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.16);
+  font-family: inherit;
+}
+
+.inventory-page__datepicker :deep(.dp__month_year_row),
+.inventory-page__datepicker :deep(.dp__calendar_header) {
+  color: var(--on-surface, #2f3435);
+  font-weight: 900;
+}
+
+.inventory-page__datepicker :deep(.dp__calendar_header_separator) {
+  background: rgb(var(--outline-variant-rgb, 172 179 180) / 0.42);
+}
+
+.inventory-page__datepicker :deep(.dp__cell_inner) {
+  border-radius: 0;
+  color: var(--on-surface, #2f3435);
+  font-weight: 800;
+}
+
+.inventory-page__datepicker :deep(.dp__cell_inner:hover) {
+  background: rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
+}
+
+.inventory-page__datepicker :deep(.dp__active_date),
+.inventory-page__datepicker :deep(.dp__today) {
+  border-color: var(--primary, #5e5e5e);
+  background: var(--primary, #5e5e5e);
+  color: var(--on-primary, #fff);
+}
+
+.inventory-page__datepicker :deep(.dp__action_row) {
+  border-top: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.32);
+}
+
+.inventory-page__datepicker :deep(.dp__action_button) {
+  border-radius: 0;
+  font-family: inherit;
+  font-weight: 900;
 }
 
 .inventory-page__detail-stack {
@@ -661,6 +834,10 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.inventory-page__form > .inventory-page__actions {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 960px) {

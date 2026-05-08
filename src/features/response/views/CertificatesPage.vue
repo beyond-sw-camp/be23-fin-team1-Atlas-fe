@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasSessionStore } from '../../../stores/session'
+import { useAtlasNavigationStore } from '../../../stores/navigation'
 import { 
-  getAllCertificates, getExpiringCertificates, 
+  getSupplierCertificates,
   createSupplierCertificate, updateCertificate,
   type SupplierCertificateResponseDto,
   type CreateSupplierCertificateRequestDto,
 } from '../../../services/certificate'
+import { getMySupplier } from '../../../services/supplier'
 import CertificateCreateModal from '../components/CertificateCreateModal.vue'
 import DocumentsPage from './DocumentsPage.vue'
 import { uploadAttachment } from '../../../services/file'
@@ -16,6 +18,7 @@ import { uploadAttachment } from '../../../services/file'
 const header = useAtlasHeaderStore()
 const dialog = useAtlasDialogStore()
 const session = useAtlasSessionStore()
+const navigation = useAtlasNavigationStore()
 
 const CONTENT = {
   ko: {
@@ -58,7 +61,6 @@ const content = computed(() => CONTENT.ko)
 
 // API States
 const certs = ref<SupplierCertificateResponseDto[]>([])
-const expiringCount = ref<number>(0)
 const search = ref('')
 const activeTab = ref<string>('전체')
 
@@ -67,35 +69,30 @@ const isCreateModalOpen = ref(false)
 const selectedCertificateForDocuments = ref<SupplierCertificateResponseDto | null>(null)
 async function fetchCertificates() {
   try {
-    const res = await getAllCertificates()
-    // 백엔드에서 사용자 권한(SUPPLIER 등)에 맞게 이미 필터링해서 내려준다고 가정합니다.
-    // 403 에러가 나던 협력사 검색 로직은 제거합니다.
-    certs.value = res.content
+    const mySupplier = await getMySupplier()
+    certs.value = await getSupplierCertificates(mySupplier.publicId)
   } catch (e) {
     console.error('Failed to fetch certs:', e)
-  }
-}
-
-async function fetchExpiring() {
-  try {
-    const expiring = await getExpiringCertificates()
-    // 백엔드에서 이미 권한에 맞게 필터링된 결과가 내려온다고 가정합니다.
-    expiringCount.value = expiring.length
-  } catch (e) {
-    console.error('Failed to fetch expiring certs:', e)
+    certs.value = []
   }
 }
 
 onMounted(() => {
   fetchCertificates()
-  fetchExpiring()
 })
 
 const metricDisplay = computed(() => {
   const base = [...content.value.metrics]
+  const now = Date.now()
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+  const expiringCount = certs.value.filter((cert) => {
+    const expiry = new Date(cert.expiredAt).getTime()
+    return Number.isFinite(expiry) && expiry >= now && expiry <= now + thirtyDaysMs
+  }).length
+
   if (!certs.value || certs.value.length === 0) {
     base[0] = { ...base[0], value: '0' }
-    base[1] = { ...base[1], value: String(expiringCount.value) }
+    base[1] = { ...base[1], value: '0' }
     base[2] = { ...base[2], value: '0' }
     base[3] = { ...base[3], value: '0' }
     return base
@@ -106,7 +103,7 @@ const metricDisplay = computed(() => {
   const numSuppliers = new Set(certs.value.map(c => c.supplierPublicId)).size;
   
   base[0] = { ...base[0], value: String(validCerts) }
-  base[1] = { ...base[1], value: String(expiringCount.value) }
+  base[1] = { ...base[1], value: String(expiringCount) }
   base[2] = { ...base[2], value: String(renewalNeeded) }
   base[3] = { ...base[3], value: String(numSuppliers) }
   return base
@@ -163,6 +160,15 @@ function formatDate(dateStr: string) {
 async function handleCertSelect(cert: SupplierCertificateResponseDto) {
   selectedCertificateForDocuments.value = cert
 }
+
+watch(
+  () => navigation.navigationSequence,
+  () => {
+    if (navigation.lastNavigationPageKey === 'certificateWatch') {
+      selectedCertificateForDocuments.value = null
+    }
+  },
+)
 
 async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupplierCertificateRequestDto, file: File) {
   try {
@@ -315,21 +321,17 @@ onBeforeUnmount(() => header.clearActions())
 }
 .certificates-page__table .page-table__row {
   grid-template-columns:
-    minmax(132px, 1.25fr)
-    minmax(112px, 1fr)
-    minmax(112px, 1fr)
-    minmax(92px, 0.82fr)
-    minmax(104px, 0.9fr)
-    minmax(104px, 0.9fr)
-    minmax(82px, 0.68fr)
-    86px
-    92px;
-  min-width: 0;
-  gap: 18px;
+    minmax(128px, 1.1fr)
+    minmax(120px, 1.4fr)
+    minmax(130px, 1.1fr)
+    repeat(6, minmax(72px, 1fr));
+  min-width: 860px;
+  gap: 0;
 }
 
 .certificates-page__table .page-table__row > span {
   min-width: 0;
+  padding-right: 14px;
   word-break: keep-all;
 }
 
@@ -344,7 +346,7 @@ onBeforeUnmount(() => header.clearActions())
 }
 
 .certificates-page__status-cell {
-  justify-self: start;
+  justify-self: stretch;
 }
 
 .certificates-page__status-cell .page-status-chip {
@@ -352,9 +354,16 @@ onBeforeUnmount(() => header.clearActions())
   white-space: nowrap;
 }
 
+.certificates-page__col--detail {
+  justify-self: stretch;
+  text-align: right;
+  padding-right: 0 !important;
+}
+
 .certificates-page__detail-cell {
   display: flex;
-  justify-content: flex-start;
+  justify-content: flex-end;
+  justify-self: stretch;
 }
 
 .certificates-page__detail-cell .page-button {
@@ -419,14 +428,11 @@ onBeforeUnmount(() => header.clearActions())
 @media (max-width: 1500px) {
   .certificates-page__table .page-table__row {
     grid-template-columns:
-      minmax(126px, 1.2fr)
-      minmax(104px, 1fr)
-      minmax(104px, 1fr)
-      minmax(96px, 0.88fr)
-      minmax(96px, 0.88fr)
-      minmax(78px, 0.66fr)
-      84px
-      90px;
+      minmax(128px, 1.1fr)
+      minmax(120px, 1.35fr)
+      minmax(130px, 1.1fr)
+      repeat(5, minmax(76px, 1fr));
+    min-width: 780px;
   }
 
   .certificates-page__col--issuer {
@@ -437,15 +443,33 @@ onBeforeUnmount(() => header.clearActions())
 @media (max-width: 1280px) {
   .certificates-page__table .page-table__row {
     grid-template-columns:
-      minmax(124px, 1.2fr)
-      minmax(104px, 1fr)
-      minmax(104px, 1fr)
-      minmax(82px, 0.7fr)
-      84px
-      90px;
+      minmax(124px, 1.15fr)
+      minmax(112px, 1.2fr)
+      minmax(126px, 1.15fr)
+      minmax(104px, 0.9fr)
+      minmax(92px, 0.78fr)
+      minmax(88px, 0.7fr)
+      minmax(96px, 0.72fr);
+    min-width: 720px;
   }
 
-  .certificates-page__col--issued,
+  .certificates-page__col--days {
+    display: none;
+  }
+}
+
+@media (max-width: 1120px) {
+  .certificates-page__table .page-table__row {
+    grid-template-columns:
+      minmax(124px, 1.2fr)
+      minmax(110px, 1.15fr)
+      minmax(126px, 1.15fr)
+      minmax(104px, 0.9fr)
+      minmax(88px, 0.72fr)
+      minmax(96px, 0.72fr);
+    min-width: 650px;
+  }
+
   .certificates-page__col--expired {
     display: none;
   }
@@ -454,89 +478,45 @@ onBeforeUnmount(() => header.clearActions())
 @media (max-width: 980px) {
   .certificates-page__table .page-table__row {
     grid-template-columns:
-      minmax(132px, 1.05fr)
-      minmax(96px, 0.85fr)
-      90px
-      82px !important;
-    gap: 14px;
-    justify-content: stretch;
+      minmax(118px, 1.2fr)
+      minmax(104px, 1.1fr)
+      minmax(122px, 1.1fr)
+      minmax(86px, 0.78fr)
+      minmax(94px, 0.72fr);
+    min-width: 560px;
   }
 
-  .certificates-page__col--supplier,
-  .certificates-page__col--status,
-  .certificates-page__col--detail {
-    display: block !important;
-  }
-
-  .certificates-page__table .certificates-page__detail-cell {
-    display: flex !important;
-  }
-
-  .certificates-page__col--type,
-  .certificates-page__col--issuer,
-  .certificates-page__col--issued,
-  .certificates-page__col--expired,
-  .certificates-page__col--days {
-    display: none !important;
+  .certificates-page__col--issued {
+    display: none;
   }
 }
 
-@media (min-width: 981px) and (max-width: 1280px) {
+@media (max-width: 840px) {
   .certificates-page__table .page-table__row {
     grid-template-columns:
-      minmax(132px, 1.05fr)
-      minmax(96px, 0.85fr)
-      90px
-      82px !important;
-    gap: 14px;
-    justify-content: stretch;
+      minmax(112px, 1.2fr)
+      minmax(100px, 1.05fr)
+      minmax(82px, 0.78fr)
+      minmax(94px, 0.72fr);
+    min-width: 440px;
   }
 
-  .certificates-page__col--supplier,
-  .certificates-page__col--status,
-  .certificates-page__col--detail {
-    display: block !important;
-  }
-
-  .certificates-page__table .certificates-page__detail-cell {
-    display: flex !important;
-  }
-
-  .certificates-page__col--type,
-  .certificates-page__col--issuer,
-  .certificates-page__col--issued,
-  .certificates-page__col--expired,
-  .certificates-page__col--days {
-    display: none !important;
+  .certificates-page__col--type {
+    display: none;
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 560px) {
   .certificates-page__table .page-table__row {
     grid-template-columns:
-      minmax(86px, 1fr)
-      minmax(62px, 0.72fr)
-      78px
-      70px !important;
-    gap: 12px;
+      minmax(100px, 1.1fr)
+      minmax(80px, 0.8fr)
+      minmax(88px, 0.72fr);
+    min-width: 320px;
   }
 
-  .certificates-page__col--supplier,
-  .certificates-page__col--status,
-  .certificates-page__col--detail {
-    display: block !important;
-  }
-
-  .certificates-page__table .certificates-page__detail-cell {
-    display: flex !important;
-  }
-
-  .certificates-page__col--type,
-  .certificates-page__col--issuer,
-  .certificates-page__col--issued,
-  .certificates-page__col--expired,
-  .certificates-page__col--days {
-    display: none !important;
+  .certificates-page__col--supplier {
+    display: none;
   }
 
   .certificates-page__detail-cell .page-button {
