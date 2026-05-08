@@ -231,11 +231,11 @@ onMounted(() => {
         <span>⌕</span>
         <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
       </label>
-      <div class="certificate-review-page__filter-tabs" role="group" aria-label="심사 상태 필터">
+      <div class="terminal-page__tabs" role="tablist" aria-label="심사 상태 필터">
         <button
           v-for="filter in content.filters"
           :key="filter.key"
-          :class="['certificate-review-page__filter-tab', { 'is-active': activeReviewFilter === filter.key }]"
+          :class="['terminal-page__tab', { 'is-active': activeReviewFilter === filter.key }]"
           type="button"
           @click="activeReviewFilter = filter.key"
         >
@@ -307,38 +307,6 @@ onMounted(() => {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.certificate-review-page__filter-tabs {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  min-height: 52px;
-}
-
-.certificate-review-page__filter-tab {
-  min-width: 92px;
-  min-height: 44px;
-  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.55);
-  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.96);
-  color: var(--on-surface, #242a2b);
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.65);
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.certificate-review-page__filter-tab:hover {
-  border-color: var(--color-outline);
-  background: var(--color-surface-container-low);
-}
-
-.certificate-review-page__filter-tab.is-active {
-  background: var(--color-inverse-surface);
-  color: var(--color-inverse-on-surface);
-  border-color: var(--color-inverse-surface);
-}
-
 .certificate-review-page__table .page-table__row {
   grid-template-columns: 1.15fr 1fr 1.1fr 0.9fr 0.85fr 0.85fr 0.85fr 0.65fr;
   min-width: 1160px;
@@ -380,11 +348,11 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .certificate-review-page__filter-tabs {
+  .certificate-review-page :deep(.terminal-page__tabs) {
     width: 100%;
   }
 
-  .certificate-review-page__filter-tab {
+  .certificate-review-page :deep(.terminal-page__tab) {
     flex: 1;
   }
 }
