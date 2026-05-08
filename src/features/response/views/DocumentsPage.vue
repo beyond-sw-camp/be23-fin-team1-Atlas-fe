@@ -116,7 +116,6 @@ watchEffect(() => {
 
   if (!props.embedded) {
     header.setActions([
-      { key: 'documents-upload', label: '업로드 파일', tone: 'primary' },
       { key: 'documents-export', label: '데이터 내보내기', tone: 'secondary' },
     ])
   }
@@ -141,7 +140,6 @@ onBeforeUnmount(() => {
       </div>
       <div class="design-trigger-row">
         <button v-if="embedded" class="page-button page-button--secondary" type="button" @click="emit('back')">목록으로</button>
-        <button class="page-button page-button--primary" type="button">{{ '업로드 파일' }}</button>
         <button v-if="!embedded" class="page-button page-button--secondary" type="button">{{ '배치 내보내기' }}</button>
       </div>
     </header>
