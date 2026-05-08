@@ -152,7 +152,13 @@ const resolutionHint = computed(() => {
 })
 
 const arrivedShipments = computed(() =>
-  shipments.value.filter((shipment) => shipment.status === 'ARRIVED'),
+  shipments.value.filter(
+    (shipment) =>
+      shipment.status === 'ARRIVED' &&
+      !shipment.hasReturn &&
+      shipment.sourceType !== 'RETURN' &&
+      shipment.sourceType !== 'EXCHANGE',
+  ),
 )
 
 function shipmentOptionText(shipment: ShipmentListResponseDto) {

@@ -20,6 +20,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { getCertificate, getCertificateHistories } from '../../../services/certificate'
 import {
   getAttachment,
+  getAttachmentByRef,
   updateAttachment,
   uploadAttachment,
   type AttachmentFileDto,
@@ -2148,6 +2149,11 @@ async function fetchDetail() {
       const returnAttachments = (await Promise.all(
         attachmentPublicIds.map(id => getAttachment(id).catch(() => null))
       )).filter(Boolean)
+
+      const refAttachment = await getAttachmentByRef('RETURN_REQUEST', publicId.value).catch(() => null)
+      if (refAttachment && !returnAttachments.find((a: any) => a.attachmentPublicId === refAttachment.attachmentPublicId)) {
+        returnAttachments.push(refAttachment)
+      }
 
       data.value = detail as Record<string, any>
       related.value = { histories, sourceShipment, returnAttachments }
