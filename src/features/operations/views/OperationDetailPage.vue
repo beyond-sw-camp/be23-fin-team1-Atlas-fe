@@ -2360,7 +2360,7 @@ watch(
           </button>
         </template>
         <button
-          v-if="!itemInlineEditMode && kind !== 'logistics-nodes'"
+          v-if="!itemInlineEditMode && kind !== 'logistics-nodes' && kind !== 'inventory'"
           class="page-button page-button--secondary"
           type="button"
           @click="goBack"
