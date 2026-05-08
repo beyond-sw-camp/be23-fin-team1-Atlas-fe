@@ -109,6 +109,23 @@ const certificateFileState = computed(() => {
   return '대기'
 })
 
+const certificateDurationText = computed(() => {
+  const issuedAt = props.certificate?.issuedAt
+  const expiredAt = props.certificate?.expiredAt
+
+  if (!issuedAt || !expiredAt) return '-'
+
+  const issued = new Date(issuedAt)
+  const expired = new Date(expiredAt)
+
+  if (Number.isNaN(issued.getTime()) || Number.isNaN(expired.getTime())) return '-'
+
+  const diffDays = Math.ceil((expired.getTime() - issued.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays < 0) return '-'
+
+  return `${diffDays}일`
+})
+
 const certificateInfoSections = computed<DocumentInfoSection[]>(() => {
   if (!props.certificate) return []
   return [
@@ -126,6 +143,7 @@ const certificateInfoSections = computed<DocumentInfoSection[]>(() => {
         ['발급 기관', props.certificate.issuerName || '-'],
         ['발급일', formatDisplayDate(props.certificate.issuedAt)],
         ['만료일', formatDisplayDate(props.certificate.expiredAt)],
+        ['남은 기간', certificateDurationText.value],
       ],
     },
     {
