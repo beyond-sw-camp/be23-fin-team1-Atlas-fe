@@ -4,11 +4,12 @@ import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasSessionStore } from '../../../stores/session'
 import { 
-  getAllCertificates, getExpiringCertificates, 
+  getSupplierCertificates,
   createSupplierCertificate, updateCertificate,
   type SupplierCertificateResponseDto,
   type CreateSupplierCertificateRequestDto,
 } from '../../../services/certificate'
+import { getMySupplier } from '../../../services/supplier'
 import CertificateCreateModal from '../components/CertificateCreateModal.vue'
 import DocumentsPage from './DocumentsPage.vue'
 import { uploadAttachment } from '../../../services/file'
@@ -58,7 +59,6 @@ const content = computed(() => CONTENT.ko)
 
 // API States
 const certs = ref<SupplierCertificateResponseDto[]>([])
-const expiringCount = ref<number>(0)
 const search = ref('')
 const activeTab = ref<string>('전체')
 
@@ -67,35 +67,30 @@ const isCreateModalOpen = ref(false)
 const selectedCertificateForDocuments = ref<SupplierCertificateResponseDto | null>(null)
 async function fetchCertificates() {
   try {
-    const res = await getAllCertificates()
-    // 백엔드에서 사용자 권한(SUPPLIER 등)에 맞게 이미 필터링해서 내려준다고 가정합니다.
-    // 403 에러가 나던 협력사 검색 로직은 제거합니다.
-    certs.value = res.content
+    const mySupplier = await getMySupplier()
+    certs.value = await getSupplierCertificates(mySupplier.publicId)
   } catch (e) {
     console.error('Failed to fetch certs:', e)
-  }
-}
-
-async function fetchExpiring() {
-  try {
-    const expiring = await getExpiringCertificates()
-    // 백엔드에서 이미 권한에 맞게 필터링된 결과가 내려온다고 가정합니다.
-    expiringCount.value = expiring.length
-  } catch (e) {
-    console.error('Failed to fetch expiring certs:', e)
+    certs.value = []
   }
 }
 
 onMounted(() => {
   fetchCertificates()
-  fetchExpiring()
 })
 
 const metricDisplay = computed(() => {
   const base = [...content.value.metrics]
+  const now = Date.now()
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+  const expiringCount = certs.value.filter((cert) => {
+    const expiry = new Date(cert.expiredAt).getTime()
+    return Number.isFinite(expiry) && expiry >= now && expiry <= now + thirtyDaysMs
+  }).length
+
   if (!certs.value || certs.value.length === 0) {
     base[0] = { ...base[0], value: '0' }
-    base[1] = { ...base[1], value: String(expiringCount.value) }
+    base[1] = { ...base[1], value: '0' }
     base[2] = { ...base[2], value: '0' }
     base[3] = { ...base[3], value: '0' }
     return base
@@ -106,7 +101,7 @@ const metricDisplay = computed(() => {
   const numSuppliers = new Set(certs.value.map(c => c.supplierPublicId)).size;
   
   base[0] = { ...base[0], value: String(validCerts) }
-  base[1] = { ...base[1], value: String(expiringCount.value) }
+  base[1] = { ...base[1], value: String(expiringCount) }
   base[2] = { ...base[2], value: String(renewalNeeded) }
   base[3] = { ...base[3], value: String(numSuppliers) }
   return base
