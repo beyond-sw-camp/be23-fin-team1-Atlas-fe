@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasSessionStore } from '../../../stores/session'
+import { useAtlasNavigationStore } from '../../../stores/navigation'
 import { 
   getSupplierCertificates,
   createSupplierCertificate, updateCertificate,
@@ -17,6 +18,7 @@ import { uploadAttachment } from '../../../services/file'
 const header = useAtlasHeaderStore()
 const dialog = useAtlasDialogStore()
 const session = useAtlasSessionStore()
+const navigation = useAtlasNavigationStore()
 
 const CONTENT = {
   ko: {
@@ -158,6 +160,15 @@ function formatDate(dateStr: string) {
 async function handleCertSelect(cert: SupplierCertificateResponseDto) {
   selectedCertificateForDocuments.value = cert
 }
+
+watch(
+  () => navigation.navigationSequence,
+  () => {
+    if (navigation.lastNavigationPageKey === 'certificateWatch') {
+      selectedCertificateForDocuments.value = null
+    }
+  },
+)
 
 async function handleCreateCertSubmit(supplierPublicId: string, data: CreateSupplierCertificateRequestDto, file: File) {
   try {

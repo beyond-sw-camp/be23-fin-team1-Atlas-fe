@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import type { ScreenTheme } from '../../types'
+import type { PageKey, ScreenTheme } from '../../types'
 import { getMyInfo, getUserDetailByPublicId } from '../../services/user'
 import { useAtlasNavigationStore } from '../../stores/navigation'
 import { useAtlasChatStore } from '../../stores/chat'
@@ -35,7 +35,8 @@ function toggleTheme() {
   preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
 }
 
-function handleSidebarNavigate(navigate: () => void) {
+function handleSidebarNavigate(itemKey: PageKey, navigate: () => void) {
+  navigation.markNavigationIntent(itemKey)
   navigate()
   ui.closeMobileSidebar()
 }
@@ -190,7 +191,7 @@ onBeforeUnmount(() => {
             :class="['app-nav-item', { 'is-active': item.key === preferences.pageKey }]"
             type="button"
             :data-href="href"
-            @click="handleSidebarNavigate(navigate)"
+            @click="handleSidebarNavigate(item.key, navigate)"
           >
             <span class="material-symbols-outlined">{{ item.icon }}</span>
             <span class="app-nav-item__body">

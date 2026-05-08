@@ -1,4 +1,4 @@
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useRouter } from 'vue-router'
 import { NAV_I18N, ORGANIZATION_I18N, SECTION_I18N, SIDEBAR_OPERATOR_I18N } from '../config/appCopy'
@@ -54,6 +54,8 @@ export const useAtlasNavigationStore = defineStore('atlasNavigation', () => {
   const router = useRouter()
   const preferences = useAtlasPreferencesStore()
   const ui = useAtlasUiStore()
+  const lastNavigationPageKey = ref<PageKey | null>(null)
+  const navigationSequence = ref(0)
 
  const session = useAtlasSessionStore()
 
@@ -89,8 +91,14 @@ const availableNavItems = computed(() =>
   )
 
   function navigateToPage(nextPageKey: PageKey) {
+    markNavigationIntent(nextPageKey)
     router.push(preferences.pageLocation(nextPageKey))
     ui.closeMobileSidebar()
+  }
+
+  function markNavigationIntent(nextPageKey: PageKey) {
+    lastNavigationPageKey.value = nextPageKey
+    navigationSequence.value += 1
   }
 
   function openNotifications() {
@@ -120,7 +128,10 @@ const availableNavItems = computed(() =>
     activeNavItem,
     availableNavItems,
     groupedNavItems,
+    lastNavigationPageKey,
+    markNavigationIntent,
     navigateToPage,
+    navigationSequence,
     openNotifications,
     openSettings,
     organizationLabel,
