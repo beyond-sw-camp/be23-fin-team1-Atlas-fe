@@ -2173,9 +2173,24 @@ async function fetchDetail() {
         getManagedItemLinkedOrders(publicId.value).catch(() => []),
       ])
 
-      const detail = itemDetail
+      const detail = itemDetail as Record<string, any>
+      const itemCapability = detail.supplierPublicId
+        ? await getSupplierItemCapability(detail.supplierPublicId, detail.publicId).catch(() => null)
+        : null
+      const detailWithCapability = itemCapability
+        ? {
+            ...detail,
+            leadTimeDays: itemCapability.leadTimeDays ?? detail.leadTimeDays,
+            monthlyCapacity: itemCapability.monthlyCapacity ?? detail.monthlyCapacity,
+            availableQty: itemCapability.availableQty ?? detail.availableQty,
+            moq: itemCapability.moq ?? detail.moq,
+            qualityGrade: itemCapability.qualityGrade ?? detail.qualityGrade,
+            partialConfirmationAllowed: itemCapability.partialConfirmationAllowed ?? detail.partialConfirmationAllowed,
+            unitPriceHint: itemCapability.unitPriceHint ?? detail.unitPriceHint,
+          }
+        : detail
 
-      const mediaFromDetail = itemMediaFilesFromItem(detail)
+      const mediaFromDetail = itemMediaFilesFromItem(detailWithCapability as any)
       const mediaAttachment = mediaFromDetail.length
         ? null
         : await getItemMediaAttachment(publicId.value)
@@ -2183,15 +2198,16 @@ async function fetchDetail() {
         ? mediaFromDetail
         : mediaAttachment
           ? normalizeItemMediaFiles(mediaAttachment.files)
-          : detail.primaryMediaFilePublicId
+          : detailWithCapability.primaryMediaFilePublicId
             ? await getItemMedia(publicId.value)
             : []
 
-      data.value = detail as Record<string, any>
+      data.value = detailWithCapability as Record<string, any>
       related.value = {
         linkedOrders,
+        itemCapability,
         itemMedia: media,
-        itemMediaAttachmentPublicId: mediaAttachment?.attachmentPublicId ?? detail.mediaAttachmentPublicId,
+        itemMediaAttachmentPublicId: mediaAttachment?.attachmentPublicId ?? detailWithCapability.mediaAttachmentPublicId,
       }
     } else if (kind.value === 'suppliers') {
       const [detail, capabilities] = await Promise.all([
