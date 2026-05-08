@@ -82,7 +82,7 @@ const content = computed(() => {
         cancel: '취소',
         submit: '반품 요청',
         required: '*',
-        proofPhotos: '증빙 사진 첨부 (선택)',
+        proofPhotos: '증빙 사진 첨부',
       }
     : {
         title: 'Create Return Request',
@@ -106,7 +106,7 @@ const content = computed(() => {
         cancel: 'Cancel',
         submit: 'Submit Request',
         required: '*',
-        proofPhotos: 'Attach Proof Photos (Optional)',
+        proofPhotos: 'Attach Proof Photos',
       }
 })
 
@@ -286,6 +286,15 @@ async function handleSubmit() {
     return
   }
 
+  if (proofFiles.value.length === 0) {
+    await dialog.alert(
+      props.language === 'ko'
+        ? '반품 증빙 사진을 첨부해주세요.'
+        : 'Please attach proof photos.',
+    )
+    return
+  }
+
   try {
     isSubmitting.value = true
     console.log('[ReturnCreate] 요청 데이터:', JSON.stringify(form.value, null, 2))
@@ -400,8 +409,8 @@ async function handleSubmit() {
 
       <div class="terminal-form-group">
         <label>
-          <span>{{ content.proofPhotos }}</span>
-          <input type="file" accept="image/*" multiple @change="handleProofFilesChange" :disabled="isSubmitting" />
+          <span>{{ content.proofPhotos }} <em class="required-mark">{{ content.required }}</em></span>
+          <input type="file" accept="image/*" multiple required @change="handleProofFilesChange" :disabled="isSubmitting" />
         </label>
       </div>
 
