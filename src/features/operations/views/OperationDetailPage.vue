@@ -3081,7 +3081,7 @@ watch(
           </article>
         </main>
 
-        <aside class="operation-detail-page__aside">
+        <aside v-if="false" class="operation-detail-page__aside">
           <article class="operation-detail-page__ai-panel">
             <div class="operation-detail-page__ai-head">
               <div>

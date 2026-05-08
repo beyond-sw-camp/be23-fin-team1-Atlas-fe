@@ -6,8 +6,10 @@ import { useAtlasSessionStore } from '../../../stores/session'
 import { useAtlasNavigationStore } from '../../../stores/navigation'
 import { 
   getSupplierCertificates,
+  getSupplierCertificateSummary,
   createSupplierCertificate, updateCertificate,
   type SupplierCertificateResponseDto,
+  type SupplierCertificateSummaryResponseDto,
   type CreateSupplierCertificateRequestDto,
 } from '../../../services/certificate'
 import { getMySupplier } from '../../../services/supplier'
@@ -29,7 +31,7 @@ const CONTENT = {
       { label: '유효 인증서', value: '84', meta: '활성', tone: 'nominal' },
       { label: '만료 임박', value: '6', meta: '30일 이내', tone: 'critical' },
       { label: '갱신 필요', value: '4', meta: '만료됨', tone: 'warning' },
-      { label: '협력사 수', value: '18', meta: '등록 업체', tone: 'info' },
+      { label: '등록 인증서', value: '18', meta: '전체', tone: 'info' },
     ],
     tabs: ['전체', '심사 요청', '승인', '만료', '반려', '철회'],
     searchPlaceholder: '협력사명, 인증 번호 검색...',
@@ -61,6 +63,7 @@ const content = computed(() => CONTENT.ko)
 
 // API States
 const certs = ref<SupplierCertificateResponseDto[]>([])
+const certificateSummary = ref<SupplierCertificateSummaryResponseDto | null>(null)
 const search = ref('')
 const activeTab = ref<string>('전체')
 
@@ -70,10 +73,23 @@ const selectedCertificateForDocuments = ref<SupplierCertificateResponseDto | nul
 async function fetchCertificates() {
   try {
     const mySupplier = await getMySupplier()
-    certs.value = await getSupplierCertificates(mySupplier.publicId)
+    try {
+      certs.value = await getSupplierCertificates(mySupplier.publicId)
+    } catch (e) {
+      console.error('Failed to fetch cert list:', e)
+      certs.value = []
+    }
+
+    try {
+      certificateSummary.value = await getSupplierCertificateSummary(mySupplier.publicId)
+    } catch (e) {
+      console.error('Failed to fetch cert summary:', e)
+      certificateSummary.value = null
+    }
   } catch (e) {
     console.error('Failed to fetch certs:', e)
     certs.value = []
+    certificateSummary.value = null
   }
 }
 
@@ -83,29 +99,12 @@ onMounted(() => {
 
 const metricDisplay = computed(() => {
   const base = [...content.value.metrics]
-  const now = Date.now()
-  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
-  const expiringCount = certs.value.filter((cert) => {
-    const expiry = new Date(cert.expiredAt).getTime()
-    return Number.isFinite(expiry) && expiry >= now && expiry <= now + thirtyDaysMs
-  }).length
+  const summary = certificateSummary.value
 
-  if (!certs.value || certs.value.length === 0) {
-    base[0] = { ...base[0], value: '0' }
-    base[1] = { ...base[1], value: '0' }
-    base[2] = { ...base[2], value: '0' }
-    base[3] = { ...base[3], value: '0' }
-    return base
-  }
-  
-  const validCerts = certs.value.filter(c => c.certificateStatus === 'APPROVED').length;
-  const renewalNeeded = certs.value.filter(c => c.certificateStatus === 'EXPIRED' || c.certificateStatus === 'REVOKED').length;
-  const numSuppliers = new Set(certs.value.map(c => c.supplierPublicId)).size;
-  
-  base[0] = { ...base[0], value: String(validCerts) }
-  base[1] = { ...base[1], value: String(expiringCount) }
-  base[2] = { ...base[2], value: String(renewalNeeded) }
-  base[3] = { ...base[3], value: String(numSuppliers) }
+  base[0] = { ...base[0], value: String(summary?.validCount ?? 0) }
+  base[1] = { ...base[1], value: String(summary?.expiringSoonCount ?? 0) }
+  base[2] = { ...base[2], value: String(summary?.renewalNeededCount ?? 0) }
+  base[3] = { ...base[3], value: String(summary?.totalCount ?? 0) }
   return base
 })
 
