@@ -53,6 +53,13 @@ export interface SupplierCertificateResponseDto {
   rejectReason?: string
 }
 
+export interface SupplierCertificateSummaryResponseDto {
+  validCount: number
+  expiringSoonCount: number
+  renewalNeededCount: number
+  totalCount: number
+}
+
 export interface CertificateHistoryResponseDto {
   publicId: string
   actionType: string
@@ -78,6 +85,14 @@ export async function createSupplierCertificate(supplierPublicId: string, data: 
 /* ── 특정 협력사 인증서 목록 ── */
 export async function getSupplierCertificates(supplierPublicId: string): Promise<SupplierCertificateResponseDto[]> {
   const response = await apiClient.get<SupplierCertificateResponseDto[]>(`/api/supply/suppliers/${supplierPublicId}/certificates`)
+  return response.data
+}
+
+/* ── 특정 협력사 인증서 요약 ── */
+export async function getSupplierCertificateSummary(supplierPublicId: string, expiringWithinDays = 30): Promise<SupplierCertificateSummaryResponseDto> {
+  const response = await apiClient.get<SupplierCertificateSummaryResponseDto>(`/api/supply/suppliers/${supplierPublicId}/certificates/summary`, {
+    params: { expiringWithinDays },
+  })
   return response.data
 }
 
