@@ -25,7 +25,7 @@ const content = computed(() => {
     tableTitle: '심사 목록',
     pendingMetric: '심사 대기',
     supplierMetric: '협력사 수',
-    selectedMetric: '선택 인증서',
+    reviewRatioMetric: '심사 비율',
     detailTitle: '심사 상세',
     emptyDetail: '왼쪽에서 인증서를 선택해 주세요.',
     columns: ['인증서 번호', '협력사', '인증 유형', '발급 기관', '발급일', '만료일', '상세'],
@@ -57,6 +57,11 @@ const filteredCertificates = computed(() => {
 })
 
 const supplierCount = computed(() => new Set(pendingCertificates.value.map((certificate) => certificate.supplierPublicId)).size)
+
+const reviewRatio = computed(() => {
+  if (certificates.value.length === 0) return 0
+  return Math.round((pendingCertificates.value.length / certificates.value.length) * 100)
+})
 
 function certificateTypeName(certificate: SupplierCertificateResponseDto) {
   return certificate.certificateType?.certificateName
@@ -161,17 +166,17 @@ onMounted(() => {
       <article class="page-metric is-warning">
         <span class="page-metric__label">{{ content.pendingMetric }}</span>
         <strong class="page-metric__value">{{ pendingCertificates.length }}</strong>
-        <span class="page-metric__meta">REVIEW_REQUESTED</span>
+        <span class="page-metric__meta">심사 요청</span>
       </article>
       <article class="page-metric is-info">
         <span class="page-metric__label">{{ content.supplierMetric }}</span>
         <strong class="page-metric__value">{{ supplierCount }}</strong>
-        <span class="page-metric__meta">SUPPLIERS</span>
+        <span class="page-metric__meta">협력사 기준</span>
       </article>
       <article class="page-metric is-nominal">
-        <span class="page-metric__label">{{ content.selectedMetric }}</span>
-        <strong class="page-metric__value">{{ selectedCertificate ? selectedCertificate.certificateNo : '-' }}</strong>
-        <span class="page-metric__meta">{{ selectedCertificate ? certificateTypeName(selectedCertificate) : '-' }}</span>
+        <span class="page-metric__label">{{ content.reviewRatioMetric }}</span>
+        <strong class="page-metric__value">{{ reviewRatio }}%</strong>
+        <span class="page-metric__meta">전체 인증서 대비</span>
       </article>
     </section>
 
