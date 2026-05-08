@@ -5,18 +5,24 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import type { SupplierCertificateResponseDto } from '../../../services/certificate'
-import { getAttachment, type AttachmentFileDto } from '../../../services/file'
+import { getAttachment, getAttachmentByRef, type AttachmentFileDto } from '../../../services/file'
 
 const props = withDefaults(defineProps<{
   embedded?: boolean
   certificate?: SupplierCertificateResponseDto | null
+  reviewActions?: boolean
+  reviewSubmitting?: boolean
 }>(), {
   embedded: false,
   certificate: null,
+  reviewActions: false,
+  reviewSubmitting: false,
 })
 
 const emit = defineEmits<{
   back: []
+  approve: []
+  reject: []
 }>()
 
 const header = useAtlasHeaderStore()
@@ -108,6 +114,11 @@ const certificateFileState = computed(() => {
   if (status === 'REVOKED') return '철회'
   return '대기'
 })
+
+const certificateReviewPending = computed(() => props.certificate?.certificateStatus === 'REVIEW_REQUESTED')
+const certificateReviewCompleted = computed(() => Boolean(
+  props.certificate && props.certificate.certificateStatus !== 'REVIEW_REQUESTED',
+))
 
 const certificateDurationText = computed(() => {
   const issuedAt = props.certificate?.issuedAt
@@ -253,6 +264,34 @@ const activePdfPageIndex = ref(0)
 const pdfRendering = ref(false)
 const pdfRenderError = ref(false)
 let pdfRenderSequence = 0
+
+async function loadCertificateAttachment(certificate: SupplierCertificateResponseDto) {
+  attachmentFiles.value = []
+  activeFileIndex.value = 0
+  attachmentLoading.value = true
+
+  try {
+    const attachment = certificate.attachmentPublicId
+      ? await getAttachment(certificate.attachmentPublicId)
+      : await getAttachmentByRef('SUPPLIER_CERTIFICATE', certificate.publicId)
+
+    attachmentFiles.value = attachment.files ?? []
+  } catch (error) {
+    if (certificate.attachmentPublicId) {
+      try {
+        const attachment = await getAttachmentByRef('SUPPLIER_CERTIFICATE', certificate.publicId)
+        attachmentFiles.value = attachment.files ?? []
+        return
+      } catch (fallbackError) {
+        console.error('Failed to load certificate attachment by ref:', fallbackError)
+      }
+    }
+
+    console.error('Failed to load certificate attachment:', error)
+  } finally {
+    attachmentLoading.value = false
+  }
+}
 const previewRows = computed(() => {
   if (!props.certificate) return content.value.previewRows
   return [
@@ -386,21 +425,16 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => props.certificate?.attachmentPublicId,
-  async (attachmentPublicId) => {
-    attachmentFiles.value = []
-    activeFileIndex.value = 0
-    if (!attachmentPublicId) return
-
-    attachmentLoading.value = true
-    try {
-      const attachment = await getAttachment(attachmentPublicId)
-      attachmentFiles.value = attachment.files ?? []
-    } catch (error) {
-      console.error('Failed to load certificate attachment:', error)
-    } finally {
+  () => [props.certificate?.publicId, props.certificate?.attachmentPublicId] as const,
+  async () => {
+    if (!props.certificate) {
+      attachmentFiles.value = []
+      activeFileIndex.value = 0
       attachmentLoading.value = false
+      return
     }
+
+    await loadCertificateAttachment(props.certificate)
   },
   { immediate: true },
 )
@@ -468,11 +502,11 @@ watch(
           <strong>{{ directoryText }}</strong>
         </div>
         <div class="documents-file-list">
-          <button
+          <component
+            :is="certificate ? 'div' : 'button'"
             v-for="(file, index) in filteredFileQueue"
             :key="file.name"
             :class="['documents-file-item', { 'is-active': index === activeFileIndex, 'is-issue': file.issue }]"
-            type="button"
             @click="activeFileIndex = index"
           >
             <strong v-if="!certificate">{{ file.name }}</strong>
@@ -500,7 +534,21 @@ watch(
                 </dl>
               </section>
             </div>
-          </button>
+            <section v-if="certificate && reviewActions" class="documents-file-item__section documents-file-item__review-actions">
+              <h4>심사 처리</h4>
+              <div v-if="certificateReviewPending" class="documents-file-item__review-buttons">
+                <button class="page-button page-button--secondary" type="button" :disabled="reviewSubmitting" @click.stop="emit('reject')">
+                  반려
+                </button>
+                <button class="page-button page-button--primary" type="button" :disabled="reviewSubmitting" @click.stop="emit('approve')">
+                  승인
+                </button>
+              </div>
+              <p v-else-if="certificateReviewCompleted" class="documents-file-item__review-complete">
+                심사 완료된 문서입니다
+              </p>
+            </section>
+          </component>
         </div>
       </article>
 
