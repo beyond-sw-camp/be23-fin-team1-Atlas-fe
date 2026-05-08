@@ -2730,6 +2730,37 @@ select:not(.app-language-select select):focus {
   font-size: 1rem;
 }
 
+.documents-file-item__review-actions {
+  display: grid;
+  gap: 14px;
+}
+
+.documents-file-item__review-actions p {
+  margin: 0;
+  color: var(--on-surface-variant, #596061);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.documents-file-item__review-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.documents-file-item__review-buttons .page-button {
+  min-width: 74px;
+}
+
+.documents-file-item__review-complete {
+  margin: 0;
+  color: var(--on-surface-variant, #596061);
+  font-size: 0.92rem;
+  font-weight: 900;
+  line-height: 1.5;
+}
+
 .documents-file-item__section .documents-file-item__meta {
   margin: 0;
   padding-top: 0;
