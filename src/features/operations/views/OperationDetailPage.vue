@@ -2820,23 +2820,23 @@ watch(
               <table class="operation-detail-page__domain-table"><thead><tr><th>품목 코드</th><th>품목명</th><th>단위</th><th>잔여 수량</th><th>예약 수량</th><th>주문 가능</th><th>상태</th><th>유통기한</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="`${row[0]}-${row[7]}`"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
             </article>
             <article class="operation-detail-page__domain-card"><h3>수요 대비 안전재고</h3><div class="operation-detail-page__chart-panel"><span></span><span></span><span></span><strong>예측 수요</strong></div></article>
+            <div v-if="kind === 'inventory'" class="operation-detail-page__bottom-actions">
+              <button class="page-button page-button--secondary" type="button" @click="goBack">
+                {{ detailCopy.backToList }}
+              </button>
+
+              <span></span>
+
+              <button
+                class="page-button page-button--primary"
+                type="button"
+                :disabled="!canEditCurrentInventory"
+                @click="openInventoryEditModal"
+              >
+                수정
+              </button>
+            </div>
           </section>
-          <div v-if="kind === 'inventory'" class="operation-detail-page__bottom-actions">
-            <button class="page-button page-button--secondary" type="button" @click="goBack">
-              {{ detailCopy.backToList }}
-            </button>
-
-            <span></span>
-
-            <button
-              class="page-button page-button--primary"
-              type="button"
-              :disabled="!canEditCurrentInventory"
-              @click="openInventoryEditModal"
-            >
-              수정
-            </button>
-          </div>
 
           <aside class="operation-detail-page__analysis-panel is-inventory"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 재고 부족 대응', 'AI Inventory Shortage Response') }}</h2><span class="operation-detail-page__chip is-high">{{ t('안전재고 미달', 'Below Safety Stock') }}</span></div><div class="operation-detail-page__recommendation"><strong>{{ t('01 긴급 발주', '01 Urgent Order') }}</strong><span>높음</span><p>{{ t('필요 수량 165 EA, 권장 발주 수량 170 EA', 'Required 165 EA, recommended order 170 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('실행 계획 보기', 'View Action Plan') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('02 대체 공급처 검토', '02 Review Alternative Suppliers') }}</strong><span>보통</span><p>{{ t('공급처 3개, 필요 수량 165 EA', '3 suppliers, required 165 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('후보 공급처 보기', 'View Supplier Candidates') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('03 분할 입고', '03 Split Inbound') }}</strong><span>낮음</span><p>{{ t('분할 횟수 2회, 운송 영향 보통', '2 splits, normal logistics impact') }}</p><button class="page-button page-button--primary" type="button">{{ t('분할 계획 보기', 'View Split Plan') }}</button></div></aside>
         </main>
