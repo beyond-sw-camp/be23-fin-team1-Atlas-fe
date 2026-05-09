@@ -680,10 +680,6 @@ async function submitCreateSupplier() {
       </div>
 
       <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button">
-          {{ content.exportLabel }}
-        </button>
-
         <button
           v-if="actor.canCreateSupplier.value"
           class="page-button page-button--primary"

@@ -21,6 +21,11 @@ import {
   getLogisticsNodes,
   type LogisticsNodeResponseDto,
 } from '../../../services/logistics'
+import {
+  getItemMedia,
+  resolveItemMediaUrl,
+  resolveItemThumbnailUrl,
+} from '../../../services/itemMedia'
 
 
 type InventoryTabKey = 'ALL' | InventoryStatus
@@ -32,6 +37,7 @@ const router = useRouter()
 
 const rows = ref<ItemInventoryResponseDto[]>([])
 const items = ref<ItemResponseDto[]>([])
+const inventoryItemThumbnails = ref<Record<string, string>>({})
 const logisticsNodeOptions = ref<LogisticsNodeResponseDto[]>([])
 const search = ref('')
 const activeTabKey = ref<InventoryTabKey>('ALL')
@@ -157,7 +163,7 @@ const copy = computed(() =>
           logisticsNode: '창고',
         },
         columns: [
-          '품목코드',
+          '이미지',
           '품목명',
           '단위',
           '제조일',
@@ -284,11 +290,40 @@ async function fetchPageData() {
     rows.value = inventoryRows
     items.value = itemPage.content
     logisticsNodeOptions.value = nodePage.content.filter((node) => node.active)
+    await loadInventoryItemThumbnails(inventoryRows, itemPage.content)
 
   } catch (error: any) {
     rows.value = []
+    inventoryItemThumbnails.value = {}
     errorMessage.value = inventoryListErrorMessage(error)
   }
+}
+
+async function loadInventoryItemThumbnails(
+  inventoryRows: ItemInventoryResponseDto[],
+  managedItems: ItemResponseDto[],
+) {
+  const managedItemMap = new Map(managedItems.map((item) => [item.publicId, item]))
+  const itemPublicIds = [...new Set(inventoryRows.map((row) => row.itemPublicId).filter(Boolean))]
+
+  const entries = await Promise.all(itemPublicIds.map(async (itemPublicId) => {
+    const managedItem = managedItemMap.get(itemPublicId)
+    const managedThumbnail = resolveItemThumbnailUrl(managedItem)
+
+    if (managedThumbnail) {
+      return [itemPublicId, managedThumbnail] as const
+    }
+
+    const media = await getItemMedia(itemPublicId).catch(() => [])
+    const thumbnail = resolveItemMediaUrl(media.find((file) => file.kind === 'image') ?? media[0])
+    return [itemPublicId, thumbnail] as const
+  }))
+
+  inventoryItemThumbnails.value = Object.fromEntries(entries.filter(([, thumbnail]) => Boolean(thumbnail)))
+}
+
+function inventoryItemThumbnail(row: ItemInventoryResponseDto) {
+  return inventoryItemThumbnails.value[row.itemPublicId] ?? ''
 }
 
 function inventoryListErrorMessage(error: unknown) {
@@ -448,9 +483,6 @@ onMounted(() => {
       </div>
 
       <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button">
-          {{ copy.exportLabel }}
-        </button>
         <button class="page-button page-button--primary" type="button" @click="openCreateModal">
           {{ copy.createLabel }}
         </button>
@@ -503,7 +535,16 @@ onMounted(() => {
           </p>
 
           <div v-for="row in filteredRows" :key="row.inventoryPublicId" class="page-table__row">
-            <span>{{ row.itemCode }}</span>
+            <span>
+              <span class="inventory-page__item-thumb">
+                <img
+                  v-if="inventoryItemThumbnail(row)"
+                  :src="inventoryItemThumbnail(row)"
+                  :alt="row.itemName"
+                />
+                <span v-else class="material-symbols-outlined">inventory_2</span>
+              </span>
+            </span>
             <span>{{ row.itemName }}</span>
             <span>{{ row.unit }}</span>
             <span>{{ row.manufacturedDate }}</span>
@@ -599,7 +640,7 @@ onMounted(() => {
             :time-config="datepickerTimeConfig"
             auto-apply
             :clearable="false"
-            :teleport="false"
+            teleport="body"
             required
           >
             <template #trigger>
@@ -674,6 +715,28 @@ onMounted(() => {
 
 .inventory-page__table .page-table__row > span:nth-child(10) {
   justify-content: center;
+}
+
+.inventory-page__item-thumb {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--line, #d9dedf);
+  background: var(--surface-muted, #f4f6f6);
+}
+
+.inventory-page__item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.inventory-page__item-thumb .material-symbols-outlined {
+  color: var(--text-muted, #667072);
+  font-size: 1.25rem;
 }
 
 .inventory-page__status-chip {
@@ -784,7 +847,8 @@ onMounted(() => {
   display: none;
 }
 
-.inventory-page__datepicker :deep(.dp__menu) {
+.inventory-page__datepicker :deep(.dp__menu),
+:global(.dp__menu) {
   border: 1px solid rgb(var(--outline-rgb, 117 124 125) / 0.38);
   border-radius: 0;
   background: var(--surface-container-lowest, #fff);
@@ -793,40 +857,53 @@ onMounted(() => {
 }
 
 .inventory-page__datepicker :deep(.dp__month_year_row),
-.inventory-page__datepicker :deep(.dp__calendar_header) {
+.inventory-page__datepicker :deep(.dp__calendar_header),
+:global(.dp__month_year_row),
+:global(.dp__calendar_header) {
   color: var(--on-surface, #2f3435);
   font-weight: 900;
 }
 
-.inventory-page__datepicker :deep(.dp__calendar_header_separator) {
+.inventory-page__datepicker :deep(.dp__calendar_header_separator),
+:global(.dp__calendar_header_separator) {
   background: rgb(var(--outline-variant-rgb, 172 179 180) / 0.42);
 }
 
-.inventory-page__datepicker :deep(.dp__cell_inner) {
+.inventory-page__datepicker :deep(.dp__cell_inner),
+:global(.dp__cell_inner) {
   border-radius: 0;
   color: var(--on-surface, #2f3435);
   font-weight: 800;
 }
 
-.inventory-page__datepicker :deep(.dp__cell_inner:hover) {
+.inventory-page__datepicker :deep(.dp__cell_inner:hover),
+:global(.dp__cell_inner:hover) {
   background: rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
 }
 
 .inventory-page__datepicker :deep(.dp__active_date),
-.inventory-page__datepicker :deep(.dp__today) {
+.inventory-page__datepicker :deep(.dp__today),
+:global(.dp__active_date),
+:global(.dp__today) {
   border-color: var(--primary, #5e5e5e);
   background: var(--primary, #5e5e5e);
   color: var(--on-primary, #fff);
 }
 
-.inventory-page__datepicker :deep(.dp__action_row) {
+.inventory-page__datepicker :deep(.dp__action_row),
+:global(.dp__action_row) {
   border-top: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.32);
 }
 
-.inventory-page__datepicker :deep(.dp__action_button) {
+.inventory-page__datepicker :deep(.dp__action_button),
+:global(.dp__action_button) {
   border-radius: 0;
   font-family: inherit;
   font-weight: 900;
+}
+
+:global(.dp--menu-wrapper) {
+  z-index: 100000;
 }
 
 .inventory-page__detail-stack {

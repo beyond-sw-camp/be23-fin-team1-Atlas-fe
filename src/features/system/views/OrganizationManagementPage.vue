@@ -555,6 +555,12 @@ function handleCreateMemberPhoneInput(row: CreateMemberRow, event: Event) {
   row.phone = formatMemberPhoneNumber(input.value)
 }
 
+function handleOrganizationPhoneInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  organizationForm.contactPhone = formatMemberPhoneNumber(input.value)
+  organizationPhoneValid.value = Boolean(organizationForm.contactPhone.trim())
+}
+
 // 입력된 사원들을 기존 사원 생성 API에 순서대로 등록합니다.
 async function submitCreateMembers() {
   if (createMemberRows.value.length === 0) {
@@ -1158,22 +1164,14 @@ async function submitOrganizationUpdate() {
   }
 
   resetMessages()
-  normalizeOrganizationAlias()
+  const selectedOrganization = selectedOrganizationDetail.value
 
   if (
-    !organizationForm.organizationName.trim() ||
-    !organizationForm.organizationEnglishName.trim() ||
-    !organizationForm.organizationAlias.trim() ||
     !organizationForm.contactFirstName.trim() ||
     !organizationForm.contactLastName.trim() ||
     !organizationForm.contactPhone.trim()
   ) {
     pageError.value = copy.value.validationRequired
-    return
-  }
-
-  if (!/^[A-Z0-9]{2,10}$/.test(organizationForm.organizationAlias)) {
-    pageError.value = copy.value.validationAlias
     return
   }
 
@@ -1188,15 +1186,15 @@ async function submitOrganizationUpdate() {
     const saved = await updateOrganization(
       selectedOrganizationDetail.value.organizationId,
       {
-        organizationName: organizationForm.organizationName.trim(),
-        organizationEnglishName: organizationForm.organizationEnglishName.trim(),
-        organizationAlias: organizationForm.organizationAlias.trim(),
-        businessNo: organizationForm.businessNo.trim() || null,
+        organizationName: selectedOrganization.organizationName,
+        organizationEnglishName: selectedOrganization.organizationEnglishName,
+        organizationAlias: selectedOrganization.organizationAlias,
+        businessNo: selectedOrganization.businessNo || null,
         address: organizationForm.address.trim() || null,
         addressDetail: organizationForm.addressDetail.trim() || null,
         zipCode: organizationForm.zipCode.trim() || null,
         contactFirstName: organizationForm.contactFirstName.trim(),
-        contactMiddleName: organizationForm.contactMiddleName.trim() || null,
+        contactMiddleName: null,
         contactLastName: organizationForm.contactLastName.trim(),
         contactEmail: organizationForm.contactEmail.trim() || null,
         contactPhone: organizationForm.contactPhone,
@@ -1752,88 +1750,105 @@ watch(
               </div>
 
               <div class="profile-kv organization-inline-edit">
-                <div class="profile-kv__row">
+                <div v-if="!isEditingOrganization" class="profile-kv__row">
                   <span>{{ copy.organizationName }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.organizationName || '-' }}</strong>
-                  <input v-else v-model="organizationForm.organizationName" type="text" />
+                  <strong>{{ selectedOrganizationDetail.organizationName || '-' }}</strong>
                 </div>
 
-                <div class="profile-kv__row">
+                <div v-if="!isEditingOrganization" class="profile-kv__row">
                   <span>{{ copy.organizationEnglishName }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.organizationEnglishName || '-' }}</strong>
-                  <input v-else v-model="organizationForm.organizationEnglishName" type="text" />
+                  <strong>{{ selectedOrganizationDetail.organizationEnglishName || '-' }}</strong>
                 </div>
 
-                <div class="profile-kv__row">
+                <div v-if="!isEditingOrganization" class="profile-kv__row">
                   <span>{{ copy.organizationAlias }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.organizationAlias || '-' }}</strong>
-                  <input
-                    v-else
-                    v-model="organizationForm.organizationAlias"
-                    type="text"
-                    maxlength="10"
-                    placeholder="ATLAS1"
-                    @input="normalizeOrganizationAlias"
-                  />
+                  <strong>{{ selectedOrganizationDetail.organizationAlias || '-' }}</strong>
                 </div>
 
-                <div class="profile-kv__row">
+                <div v-if="!isEditingOrganization" class="profile-kv__row">
                   <span>{{ copy.businessNo }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.businessNo || '-' }}</strong>
-                  <input v-else v-model="organizationForm.businessNo" type="text" />
+                  <strong>{{ selectedOrganizationDetail.businessNo || '-' }}</strong>
                 </div>
 
+                <template v-if="!isEditingOrganization">
                 <div class="profile-kv__row">
                   <span>{{ copy.address }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.address || '-' }}</strong>
-                  <input v-else v-model="organizationForm.address" type="text" />
+                  <strong>{{ selectedOrganizationDetail.address || '-' }}</strong>
                 </div>
 
                 <div class="profile-kv__row">
                   <span>{{ copy.addressDetail }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.addressDetail || '-' }}</strong>
-                  <input v-else v-model="organizationForm.addressDetail" type="text" />
+                  <strong>{{ selectedOrganizationDetail.addressDetail || '-' }}</strong>
                 </div>
 
                 <div class="profile-kv__row">
                   <span>{{ copy.zipCode }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.zipCode || '-' }}</strong>
-                  <input v-else v-model="organizationForm.zipCode" type="text" />
-                </div>
-
-                <div class="profile-kv__row">
-                  <span>{{ copy.contactFirstName }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.contactFirstName || '-' }}</strong>
-                  <input v-else v-model="organizationForm.contactFirstName" type="text" />
-                </div>
-
-                <div class="profile-kv__row">
-                  <span>{{ copy.contactMiddleName }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.contactMiddleName || '-' }}</strong>
-                  <input v-else v-model="organizationForm.contactMiddleName" type="text" />
+                  <strong>{{ selectedOrganizationDetail.zipCode || '-' }}</strong>
                 </div>
 
                 <div class="profile-kv__row">
                   <span>{{ copy.contactLastName }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.contactLastName || '-' }}</strong>
-                  <input v-else v-model="organizationForm.contactLastName" type="text" />
+                  <strong>{{ selectedOrganizationDetail.contactLastName || '-' }}</strong>
+                </div>
+
+                <div class="profile-kv__row">
+                  <span>{{ copy.contactFirstName }}</span>
+                  <strong>{{ selectedOrganizationDetail.contactFirstName || '-' }}</strong>
                 </div>
 
                 <div class="profile-kv__row">
                   <span>{{ copy.contactEmail }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.contactEmail || '-' }}</strong>
-                  <input v-else v-model="organizationForm.contactEmail" type="email" />
+                  <strong>{{ selectedOrganizationDetail.contactEmail || '-' }}</strong>
                 </div>
 
                 <div class="profile-kv__row">
                   <span>{{ copy.contactPhone }}</span>
-                  <strong v-if="!isEditingOrganization">{{ selectedOrganizationDetail.contactPhone || '-' }}</strong>
-                  <PhoneField
-                    v-else
+                  <strong>{{ selectedOrganizationDetail.contactPhone || '-' }}</strong>
+                </div>
+                </template>
+
+                <div v-else class="organization-edit-grid">
+                  <label class="organization-edit-field">
+                    <span>{{ copy.address }}</span>
+                    <input v-model="organizationForm.address" type="text" />
+                  </label>
+
+                  <label class="organization-edit-field organization-edit-field--detail-address">
+                    <span>{{ copy.addressDetail }}</span>
+                    <input v-model="organizationForm.addressDetail" type="text" />
+                  </label>
+
+                  <label class="organization-edit-field organization-edit-field--zip">
+                    <span>{{ copy.zipCode }}</span>
+                    <input v-model="organizationForm.zipCode" type="text" />
+                  </label>
+
+                  <label class="organization-edit-field">
+                    <span>{{ copy.contactLastName }}</span>
+                    <input v-model="organizationForm.contactLastName" type="text" />
+                  </label>
+
+                  <label class="organization-edit-field">
+                    <span>{{ copy.contactFirstName }}</span>
+                    <input v-model="organizationForm.contactFirstName" type="text" />
+                  </label>
+
+                  <label class="organization-edit-field">
+                    <span>{{ copy.contactEmail }}</span>
+                    <input v-model="organizationForm.contactEmail" type="email" />
+                  </label>
+
+                  <label class="organization-edit-field">
+                    <span>{{ copy.contactPhone }}</span>
+                  <input
                     v-model="organizationForm.contactPhone"
-                    v-model:valid="organizationPhoneValid"
-                    :language="preferences.language"
+                    class="organization-phone-input"
+                    type="tel"
+                    inputmode="numeric"
+                    autocomplete="tel"
+                    @input="handleOrganizationPhoneInput"
                   />
+                  </label>
                 </div>
               </div>
 
@@ -1868,7 +1883,7 @@ watch(
                 </template>
               </div>
 
-              <div v-if="canChangeOrganizationStatus" class="organization-danger-actions">
+              <div v-if="canChangeOrganizationStatus && !isEditingOrganization" class="organization-danger-actions">
                 <button
                   v-if="selectedOrganizationDetail.status !== 'ACTIVE'"
                   class="page-button page-button--secondary"
@@ -2308,8 +2323,90 @@ watch(
 
 .organization-inline-edit .profile-kv__row input {
   width: min(100%, 360px);
+  min-height: 34px;
+  box-sizing: border-box;
   justify-self: end;
+  padding: 7px 10px;
+  color: var(--on-surface, #2f3435);
+  background: var(--surface-container-lowest, #fff);
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.55);
   text-align: right;
+  border-radius: 0;
+  box-shadow: none;
+  appearance: none;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.organization-inline-edit .profile-kv__row input:focus {
+  outline: none;
+  border-color: rgb(var(--outline-rgb, 117 124 125) / 0.72);
+}
+
+.organization-inline-edit .profile-kv__row input[readonly] {
+  color: var(--on-surface-variant, #596061);
+  background: rgb(var(--surface-container-low-rgb, 244 247 248) / 0.72);
+  cursor: not-allowed;
+}
+
+.organization-inline-edit .profile-kv__row .organization-phone-input {
+  min-height: 34px;
+  border-color: rgb(var(--outline-variant-rgb, 172 179 180) / 0.55);
+}
+
+.organization-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px 16px;
+  padding-top: 8px;
+}
+
+.organization-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  grid-column: span 6;
+}
+
+.organization-edit-field:first-child {
+  grid-column: 1 / -1;
+}
+
+.organization-edit-field--detail-address {
+  grid-column: span 8;
+}
+
+.organization-edit-field--zip {
+  grid-column: span 4;
+}
+
+.organization-edit-field span {
+  color: var(--on-surface-variant, #596061);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.organization-edit-field input {
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  color: var(--on-surface, #2f3435);
+  background: var(--surface-container-lowest, #fff);
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.55);
+  border-radius: 0;
+  box-shadow: none;
+  appearance: none;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.organization-edit-field input:focus {
+  outline: none;
+  border-color: rgb(var(--outline-rgb, 117 124 125) / 0.72);
 }
 
 .organization-inline-edit .profile-kv__row :deep(.phone-field),
@@ -2318,6 +2415,7 @@ watch(
 .organization-inline-edit .profile-kv__row :deep(input) {
   width: min(100%, 360px);
   justify-self: end;
+  border-radius: 0;
 }
 
 .organization-form-actions {

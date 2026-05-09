@@ -50,6 +50,10 @@ export async function changeItemPrimaryMedia(
   return response.data
 }
 
+export async function recordItemMediaChanged(itemPublicId: string) {
+  await apiClient.post(`/api/supply/items/${itemPublicId}/media/histories`)
+}
+
 // 품목/카테고리 상태값
 export type ItemStatus = 'ACTIVE' | 'DEACTIVE' | 'DELETE'
 // 품목 단위
@@ -177,6 +181,24 @@ export interface ItemLinkedPurchaseOrderResponseDto {
   expectedDueDate: string | null
 }
 
+export interface ItemHistoryResponseDto {
+  id: number
+  itemPublicId: string
+  itemCode: string
+  itemName: string
+  actionType: string
+  actionLabel: string
+  beforeSupplyType: SupplyType | null
+  afterSupplyType: SupplyType | null
+  beforeStatus: ItemStatus | null
+  afterStatus: ItemStatus | null
+  beforePrimaryMediaFilePublicId: string | null
+  afterPrimaryMediaFilePublicId: string | null
+  memo: string | null
+  recordedAt: string
+  processedByUserPublicId: string | null
+}
+
 export async function getManagedItems(page = 0, size = 100) {
   const response = await apiClient.get<PageResponse<ItemResponseDto>>('/api/supply/items/managed', {
     params: { page, size },
@@ -195,6 +217,13 @@ export async function getManagedItemDashboard() {
 export async function getManagedItemLinkedOrders(itemPublicId: string) {
   const response = await apiClient.get<ItemLinkedPurchaseOrderResponseDto[]>(
     `/api/supply/items/managed/${itemPublicId}/purchase-orders`,
+  )
+  return response.data
+}
+
+export async function getManagedItemHistories(itemPublicId: string) {
+  const response = await apiClient.get<ItemHistoryResponseDto[]>(
+    `/api/supply/items/managed/${itemPublicId}/histories`,
   )
   return response.data
 }
