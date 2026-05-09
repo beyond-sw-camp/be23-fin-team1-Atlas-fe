@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
+import '@vuepic/vue-datepicker/dist/main.css'
+import { ko } from 'date-fns/locale/ko'
 import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import {
@@ -162,6 +165,55 @@ const isListLoading = ref(false)
 const isExcelDownloading = ref(false)
 const excelStartDate = ref('')
 const excelEndDate = ref('')
+
+const datepickerFormats = {
+  input: 'yyyy. MM. dd.',
+  preview: 'yyyy. MM. dd.',
+}
+
+const datepickerTimeConfig = {
+  enableTimePicker: false,
+}
+
+function parseDateString(value: string) {
+  if (!value) return null
+  return new Date(`${value}T00:00:00`)
+}
+
+function formatDateForApi(value: Date | string | null) {
+  if (!value) return ''
+
+  if (typeof value === 'string') {
+    return value.slice(0, 10)
+  }
+
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDateForDisplay(value: Date | string | null) {
+  const apiDate = formatDateForApi(value)
+  if (!apiDate) return '연도. 월. 일.'
+
+  const [year, month, day] = apiDate.split('-')
+  return `${year}. ${month}. ${day}.`
+}
+
+const excelStartDatePickerValue = computed<Date | null>({
+  get: () => parseDateString(excelStartDate.value),
+  set: (value) => {
+    excelStartDate.value = formatDateForApi(value)
+  },
+})
+
+const excelEndDatePickerValue = computed<Date | null>({
+  get: () => parseDateString(excelEndDate.value),
+  set: (value) => {
+    excelEndDate.value = formatDateForApi(value)
+  },
+})
 
 const isSupplierOptionsLoading = ref(false)
 
@@ -691,8 +743,44 @@ onMounted(() => {
         <button class="stl-btn stl-btn--ghost" type="button" @click="refreshSettlementPage">
           {{ content.actions.refresh }}
         </button>
-        <input v-model="excelStartDate" class="stl-input stl-date-input" type="date" />
-        <input v-model="excelEndDate" class="stl-input stl-date-input" type="date" />
+        <VueDatePicker
+          v-model="excelStartDatePickerValue"
+          class="stl-datepicker"
+          :locale="ko"
+          :formats="datepickerFormats"
+          :time-config="datepickerTimeConfig"
+          auto-apply
+          :clearable="false"
+          teleport="body"
+        >
+          <template #trigger>
+            <button class="stl-date-trigger" type="button">
+              <span :class="{ 'is-placeholder': !excelStartDatePickerValue }">
+                {{ formatDateForDisplay(excelStartDatePickerValue) }}
+              </span>
+              <span class="material-symbols-outlined">calendar_month</span>
+            </button>
+          </template>
+        </VueDatePicker>
+        <VueDatePicker
+          v-model="excelEndDatePickerValue"
+          class="stl-datepicker"
+          :locale="ko"
+          :formats="datepickerFormats"
+          :time-config="datepickerTimeConfig"
+          auto-apply
+          :clearable="false"
+          teleport="body"
+        >
+          <template #trigger>
+            <button class="stl-date-trigger" type="button">
+              <span :class="{ 'is-placeholder': !excelEndDatePickerValue }">
+                {{ formatDateForDisplay(excelEndDatePickerValue) }}
+              </span>
+              <span class="material-symbols-outlined">calendar_month</span>
+            </button>
+          </template>
+        </VueDatePicker>
         <button
           class="stl-btn stl-btn--ghost"
           type="button"
@@ -1525,6 +1613,51 @@ onMounted(() => {
   font-weight: 800;
 }
 
+.stl-datepicker {
+  width: 150px;
+}
+
+.stl-datepicker :deep(.dp__main),
+.stl-datepicker :deep(.dp__input_wrap) {
+  width: 100%;
+  font-family: inherit;
+}
+
+.stl-date-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  color: var(--stl-text-primary);
+  background: #fafafa;
+  border: 1.5px solid var(--stl-border);
+  border-radius: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: left;
+}
+
+.stl-date-trigger:focus-visible {
+  outline: none;
+  border-color: var(--primary, #5e5e5e);
+  background: #ffffff;
+}
+
+.stl-date-trigger .is-placeholder {
+  color: var(--stl-text-muted);
+}
+
+.stl-date-trigger .material-symbols-outlined {
+  color: var(--stl-text-primary);
+  font-size: 1.05rem;
+}
+
 .stl-chart-card :deep(.apexcharts-text),
 .stl-chart-card :deep(.apexcharts-datalabel),
 .stl-chart-card :deep(.apexcharts-legend-text),
@@ -1566,7 +1699,8 @@ onMounted(() => {
   }
 
   .stl-page__actions .stl-btn,
-  .stl-page__actions .stl-input {
+  .stl-page__actions .stl-input,
+  .stl-page__actions .stl-datepicker {
     width: 100%;
     min-width: 0;
   }

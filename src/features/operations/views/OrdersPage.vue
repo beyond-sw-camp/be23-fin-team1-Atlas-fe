@@ -2833,12 +2833,6 @@ onBeforeUnmount(() => header.clearActions())
       </div>
 
       <div class="design-trigger-row">
-        <button class="page-button page-button--secondary" type="button" @click="downloadOrdersCsv">
-          {{ copy.export }}
-        </button>
-        <button class="page-button page-button--secondary" type="button" @click="refreshOrdersPage">
-          {{ copy.refresh }}
-        </button>
         <button
           class="page-button page-button--primary"
           type="button"

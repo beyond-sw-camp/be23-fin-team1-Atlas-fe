@@ -7,10 +7,13 @@ import {
   getItems,
   getItem,
   getManagedItems,
+  getManagedItemHistories,
   getManagedItemLinkedOrders,
+  recordItemMediaChanged,
   updateItem,
   type ItemResponseDto,
   type ManageableItemStatus,
+  type SupplyType,
   type SupplierItemQualityGrade,
 } from '../../../services/item'
 import { apiClient } from '../../../services/http'
@@ -32,6 +35,7 @@ import {
 } from '../../../services/file'
 import {
   getInventory,
+  getInventoryHistories,
   getItemInventories,
   getNodeInventories,
   updateInventory,
@@ -465,7 +469,7 @@ const itemEditableMedia = ref<EditableItemMedia[]>([])
 const itemRemovedMediaPublicIds = ref<string[]>([])
 const itemDraggedMediaIndex = ref<number | null>(null)
 const itemEditForm = ref({
-  itemName: '',
+  supplyType: 'STOCK_BASED' as SupplyType,
   unitPrice: null as number | null,
   spec: '',
   shelfLifeDays: 0,
@@ -857,19 +861,94 @@ const inventoryRows = computed(() => {
       : []
 
   return inventories.map((row: any) => [
-    row.itemCode,
     row.itemName,
     row.unit,
     formatNumber(row.remainingQty),
     formatNumber(row.reservedQty),
     formatNumber(row.availableQty),
-    displayStatus(row.status),
     row.expirationDate ?? '-',
+    displayStatus(row.status),
   ])
 })
 
+const inventoryDetailMetrics = computed(() => {
+  const inventories = Array.isArray(related.value.itemInventories)
+    ? related.value.itemInventories
+    : data.value && kind.value === 'inventory'
+      ? [data.value]
+      : []
+  const item = related.value.itemDetail ?? data.value ?? {}
+  const totalRemaining = inventories.reduce((sum: number, row: any) => sum + Number(row.remainingQty ?? 0), 0)
+  const unitPrice = Number(item.unitPrice ?? item.unitPriceHint ?? 0)
+  const totalAmount = totalRemaining * unitPrice
+  const expirationDays = inventories
+    .map((row: any) => row.expirationDate ? daysUntil(row.expirationDate) : null)
+    .filter((days: number | null): days is number => days !== null)
+    .sort((a: number, b: number) => a - b)
+  const nearestExpirationDays = expirationDays.length > 0 ? expirationDays[0] : null
+  const linkedOrders = Array.isArray(related.value.linkedOrders) ? related.value.linkedOrders : []
+  const pendingOrderCount = linkedOrders.filter((order: any) => String(order.poStatus ?? '').toUpperCase() === 'CREATED').length
+  const metricHistories = Array.isArray(related.value.inventoryMetricHistories)
+    ? related.value.inventoryMetricHistories
+    : Array.isArray(related.value.histories)
+      ? related.value.histories
+      : []
+  const last30DaysShipmentQty = metricHistories
+    .filter((history: any) => {
+      const actionType = String(history.actionType ?? '').toUpperCase()
+      return actionType === 'SHIPMENT_DEDUCTED' && isWithinLastDays(history.recordedAt ?? history.createdAt, 30)
+    })
+    .reduce((sum: number, history: any) => {
+      const qty = Number(history.quantityChange ?? 0)
+      return sum + Math.abs(qty)
+    }, 0)
+  const unit = display(data.value?.unit ?? item.unit)
+
+  return [
+    { label: '현재 잔여 재고', value: `${formatNumber(totalRemaining)} ${unit}`, tone: '' },
+    { label: '현재 재고 금액', value: formatAmount(totalAmount, 'KRW'), tone: '' },
+    { label: '유통기한', value: formatExpirationDays(nearestExpirationDays), tone: expirationDaysTone(nearestExpirationDays) },
+    { label: '승인 대기 발주', value: `${formatNumber(pendingOrderCount)}건`, tone: pendingOrderCount > 0 ? 'is-warning' : '' },
+    { label: '최근 30일 출하량', value: `${formatNumber(last30DaysShipmentQty)} ${unit}`, tone: '' },
+  ]
+})
+
+function daysUntil(value: string) {
+  const target = new Date(`${value}T00:00:00`)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diff = target.getTime() - today.getTime()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+function formatExpirationDays(days: number | null) {
+  if (days == null) return '-'
+  if (days < 0) return `${formatNumber(Math.abs(days))}일 경과`
+  if (days === 0) return '오늘 만료'
+  return `${formatNumber(days)}일 남음`
+}
+
+function expirationDaysTone(days: number | null) {
+  if (days == null) return ''
+  if (days < 0) return 'is-alert'
+  if (days < 30) return 'is-warning'
+  return ''
+}
+
+function isWithinLastDays(value: string | undefined | null, days: number) {
+  if (!value) return false
+  const target = new Date(value)
+  if (Number.isNaN(target.getTime())) return false
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
+  const start = new Date(today)
+  start.setDate(start.getDate() - days)
+  start.setHours(0, 0, 0, 0)
+  return target >= start && target <= today
+}
+
 const hasConfirmedLinkedOrder = computed(() => {
-  const lockedStatuses = new Set(['PARTIALLY_CONFIRMED', 'CONFIRMED', 'COMPLETED'])
+  const lockedStatuses = new Set(['CREATED', 'PARTIALLY_CONFIRMED', 'CONFIRMED'])
   const linkedOrders = Array.isArray(related.value.linkedOrders) ? related.value.linkedOrders : []
   return linkedOrders.some((order: any) => lockedStatuses.has(String(order.poStatus ?? '').toUpperCase()))
 })
@@ -922,7 +1001,7 @@ const itemInformationGroups = computed(() => {
       rows: [
         [t('출발 창고', 'Origin Warehouse'), item.originLogisticsNodeName ?? item.originLogisticsNodeCode ?? '출발 창고'],
         [t('월간 생산량', 'Monthly Capacity'), formatNumber(item.monthlyCapacity)],
-        [t('공급 유형', 'Supply Type'), item.supplyType],
+        [t('공급 유형', 'Supply Type'), displaySupplyType(item.supplyType)],
         [t('상태', 'Status'), displayItemStatus(item.status)],
       ],
     },
@@ -1624,6 +1703,8 @@ const historyRows = computed(() => {
   if (rows.length > 0) return sortHistoryRows(rows)
 
   if (kind.value === 'orders') return []
+  if (kind.value === 'items') return []
+  if (kind.value === 'inventory') return []
 
   if (kind.value === 'logistics-nodes' && data.value) {
     const createdAt = data.value.createdAt ?? data.value.updatedAt
@@ -1694,6 +1775,14 @@ function historyChangeLabel(row: any) {
     return row.actionLabel ?? displayStatus(row.actionType ?? row.afterStatus ?? row.statusCode ?? status.value)
   }
 
+  if (kind.value === 'items') {
+    return row.actionLabel ?? displayStatus(row.actionType ?? row.afterStatus ?? row.statusCode ?? status.value)
+  }
+
+  if (kind.value === 'inventory') {
+    return row.actionLabel ?? displayStatus(row.actionType ?? row.afterStatus ?? row.statusCode ?? status.value)
+  }
+
   return displayStatus(row.statusCode ?? row.returnStatus ?? row.status ?? status.value)
 }
 
@@ -1706,12 +1795,32 @@ function historyDescription(row: any) {
     return row.memo ?? row.description ?? buildOrderHistoryDescription(row)
   }
 
+  if (kind.value === 'items') {
+    return row.memo ?? row.description ?? '품목 처리 이력'
+  }
+
+  if (kind.value === 'inventory') {
+    return row.memo ?? row.description ?? buildInventoryHistoryDescription(row)
+  }
+
   return row.memo ?? row.description ?? aiSummary.value
 }
 
 function historyActorLabel(row: any) {
   if (kind.value === 'logistics-nodes') {
     return display(row.processedByUserName)
+  }
+
+  if (kind.value === 'items') {
+    const actorId = row.processedByUserPublicId ?? row.recordedBy ?? row.createdBy
+    if (!actorId || actorId === '-') return '-'
+    return userNamesMap.value[String(actorId)] ?? '-'
+  }
+
+  if (kind.value === 'inventory') {
+    const actorId = row.processedByUserPublicId ?? row.recordedBy ?? row.createdBy
+    if (!actorId || actorId === '-') return '-'
+    return userNamesMap.value[String(actorId)] ?? '-'
   }
 
   return formatActor(row.processedByUserPublicId ?? row.recordedBy ?? row.createdBy)
@@ -1722,6 +1831,12 @@ function buildOrderHistoryDescription(row: any) {
     return `${row.itemName} ${row.actionLabel ?? '처리'}`
   }
   return '발주 처리 이력'
+}
+
+function buildInventoryHistoryDescription(row: any) {
+  const qty = Number(row.quantityChange ?? 0)
+  const qtyText = qty === 0 ? '' : ` (${qty > 0 ? '+' : ''}${formatNumber(qty)})`
+  return `${row.actionLabel ?? '재고 처리'}${qtyText}`
 }
 
 function section(title: string, rows: [string, unknown][]): DetailSection {
@@ -1798,6 +1913,13 @@ function displayItemStatus(value: unknown) {
   return display(value)
 }
 
+function displaySupplyType(value: unknown) {
+  const supplyType = String(value || '').toUpperCase()
+  if (supplyType === 'STOCK_BASED') return '재고 기반'
+  if (supplyType === 'MAKE_TO_ORDER') return '주문 생산'
+  return display(value)
+}
+
 function displayLogisticsCapacityStatus(value: unknown) {
   const statusValue = String(value || '').toUpperCase()
   if (statusValue === 'AVAILABLE') return '사용 가능'
@@ -1862,8 +1984,7 @@ function formatActor(publicId: unknown) {
   if (!publicId || publicId === '-') return '-'
   const str = String(publicId)
   if (userNamesMap.value[str]) return userNamesMap.value[str]
-  if (str.length > 10) return `담당자 (${str.slice(-6)})`
-  return str
+  return '-'
 }
 
 async function loadUserName(publicId: unknown) {
@@ -1873,7 +1994,7 @@ async function loadUserName(publicId: unknown) {
   const userDetail = await getUserDetailByPublicId(key).catch(() => null)
   if (!userDetail) return
   const name = `${userDetail.lastName || ''}${userDetail.firstName || ''}`.trim()
-  userNamesMap.value[key] = name || key
+  if (name) userNamesMap.value[key] = name
 }
 
 function formatShortId(publicId: unknown) {
@@ -2249,6 +2370,10 @@ async function saveItemMediaEdit() {
     await changeItemPrimaryMedia(publicId.value, nextPrimaryFilePublicId)
   }
 
+  if (existingChanged || newMedia.length > 0) {
+    await recordItemMediaChanged(publicId.value)
+  }
+
   return true
 }
 
@@ -2264,7 +2389,7 @@ async function handleEditItem() {
   const capability = await getSupplierItemCapability(data.value.supplierPublicId, publicId.value).catch(() => null)
 
   itemEditForm.value = {
-    itemName: display(data.value.itemName) === '-' ? '' : String(data.value.itemName),
+    supplyType: data.value.supplyType,
     unitPrice: typeof data.value.unitPrice === 'number' ? data.value.unitPrice : null,
     spec: display(data.value.spec) === '-' ? '' : String(data.value.spec),
     shelfLifeDays: Number(data.value.shelfLifeDays ?? 0),
@@ -2402,16 +2527,15 @@ async function submitItemEdit() {
 
   if (hasConfirmedLinkedOrder.value) {
     showItemEditError(t(
-      '확정된 발주가 연결된 품목은 수정할 수 없습니다.',
-      'Items linked to confirmed purchase orders cannot be edited.',
+      '해당 품목과 관계된 발주가 있어 수정이 불가능합니다.',
+      'This item cannot be edited because it has related purchase orders.',
     ))
     return
   }
 
-  const nextName = itemEditForm.value.itemName.trim()
   const nextSpec = itemEditForm.value.spec.trim()
-  if (!nextName || !nextSpec) {
-    showItemEditError(t('품목명과 정보을 입력해 주세요.', 'Enter item name and info.'))
+  if (!nextSpec) {
+    showItemEditError(t('정보를 입력해 주세요.', 'Enter item info.'))
     return
   }
   if (!isPositiveInteger(itemEditForm.value.unitPrice)) {
@@ -2438,7 +2562,7 @@ async function submitItemEdit() {
     const nextUnitPrice = Number(itemEditForm.value.unitPrice ?? data.value.unitPrice ?? 0)
     const nextShelfLifeDays = Number(itemEditForm.value.shelfLifeDays)
     const masterChanged =
-      nextName !== String(data.value.itemName ?? '') ||
+      itemEditForm.value.supplyType !== data.value.supplyType ||
       nextSpec !== String(data.value.spec ?? '') ||
       nextUnitPrice !== Number(data.value.unitPrice ?? 0) ||
       nextShelfLifeDays !== Number(data.value.shelfLifeDays ?? 0)
@@ -2456,8 +2580,8 @@ async function submitItemEdit() {
 
       await updateItem(publicId.value, {
         itemCategoryPublicId: data.value.itemCategoryPublicId,
-        supplyType: data.value.supplyType,
-        itemName: nextName,
+        supplyType: itemEditForm.value.supplyType,
+        itemName: data.value.itemName,
         unitPrice: nextUnitPrice,
         unit: data.value.unit,
         spec: nextSpec,
@@ -2638,13 +2762,36 @@ async function fetchDetail() {
       data.value = detail as Record<string, any>
       related.value = { histories, sourceShipment, returnAttachments }
     } else if (kind.value === 'inventory') {
-      const detail = await getInventory(publicId.value)
-      const itemInventories = await getItemInventories(detail.itemPublicId).catch(() => [detail])
+      const [detail, histories] = await Promise.all([
+        getInventory(publicId.value),
+        getInventoryHistories(publicId.value).catch(() => []),
+      ])
+      const [itemInventories, itemDetail, linkedOrders] = await Promise.all([
+        getItemInventories(detail.itemPublicId).catch(() => [detail]),
+        getItem(detail.itemPublicId).catch(() => null),
+        getManagedItemLinkedOrders(detail.itemPublicId).catch(() => []),
+      ])
+      const inventoryMetricHistories = (await Promise.all(
+        itemInventories.map((inventory: any) => {
+          const inventoryPublicId = inventory.inventoryPublicId ?? inventory.publicId
+          if (!inventoryPublicId) return Promise.resolve([])
+          if (inventoryPublicId === publicId.value) return Promise.resolve(histories)
+          return getInventoryHistories(inventoryPublicId).catch(() => [])
+        })
+      )).flat()
 
       data.value = detail as Record<string, any>
-      related.value = { itemInventories }
+      related.value = { itemInventories, histories, itemDetail, linkedOrders, inventoryMetricHistories }
+
+      const actorIds = new Set<string>()
+      histories.forEach((history: any) => {
+        if (history.processedByUserPublicId) {
+          actorIds.add(history.processedByUserPublicId)
+        }
+      })
+      await Promise.all(Array.from(actorIds).map((actorId) => loadUserName(actorId)))
     } else if (kind.value === 'items') {
-      const [itemDetail, linkedOrders] = await Promise.all([
+      const [itemDetail, linkedOrders, histories] = await Promise.all([
         getItem(publicId.value).catch(async () => {
           const managedPage = await getManagedItems(0, 500)
           const managedItem = managedPage.content.find((row) => row.publicId === publicId.value)
@@ -2652,6 +2799,7 @@ async function fetchDetail() {
           return managedItem
         }),
         getManagedItemLinkedOrders(publicId.value).catch(() => []),
+        getManagedItemHistories(publicId.value).catch(() => []),
       ])
 
       const detail = itemDetail as Record<string, any>
@@ -2686,10 +2834,19 @@ async function fetchDetail() {
       data.value = detailWithCapability as Record<string, any>
       related.value = {
         linkedOrders,
+        histories,
         itemCapability,
         itemMedia: media,
         itemMediaAttachmentPublicId: mediaAttachment?.attachmentPublicId ?? detailWithCapability.mediaAttachmentPublicId,
       }
+
+      const actorIds = new Set<string>()
+      histories.forEach((history: any) => {
+        if (history.processedByUserPublicId) {
+          actorIds.add(history.processedByUserPublicId)
+        }
+      })
+      await Promise.all(Array.from(actorIds).map((actorId) => loadUserName(actorId)))
     } else if (kind.value === 'suppliers') {
       const [detail, capabilities] = await Promise.all([
         getSupplier(publicId.value),
@@ -2823,25 +2980,9 @@ watch(
         <p class="terminal-page__eyebrow">{{ config.eyebrow }}</p>
         <h1 class="terminal-page__title">{{ title }}</h1>
       </div>
-      <div class="operation-detail-page__actions">
+      <div v-if="kind !== 'items'" class="operation-detail-page__actions">
         <button
-          v-if="kind === 'items' && !itemInlineEditMode"
-          class="page-button page-button--primary"
-          type="button"
-          @click="handleEditItem"
-        >
-          수정
-        </button>
-        <template v-else-if="kind === 'items' && itemInlineEditMode">
-          <button class="page-button page-button--secondary" type="button" @click="cancelInlineItemEdit">
-            {{ t('취소', 'Cancel') }}
-          </button>
-          <button class="page-button page-button--primary" type="button" :disabled="itemEditLoading" @click="submitItemEdit">
-            {{ itemEditLoading ? t('저장 중', 'Saving') : t('저장', 'Save') }}
-          </button>
-        </template>
-        <button
-          v-if="!itemInlineEditMode && kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory'"
+          v-if="kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory'"
           class="page-button page-button--secondary"
           type="button"
           @click="goBack"
@@ -2971,14 +3112,14 @@ watch(
 
             <div class="operation-detail-page__bottom-actions operation-detail-page__order-bottom-actions">
               <template v-if="canAcceptOrRejectOrder">
-                <button class="page-button page-button--secondary" type="button" @click="goBack">
-                  {{ detailCopy.backToList }}
-                </button>
                 <button class="page-button page-button--secondary" type="button" @click="handleRejectOrder">
                   반려
                 </button>
                 <button class="page-button page-button--primary" type="button" @click="openConfirmOrderModal">
                   수락
+                </button>
+                <button class="page-button page-button--secondary" type="button" @click="goBack">
+                  {{ detailCopy.backToList }}
                 </button>
 
               </template>
@@ -3198,7 +3339,12 @@ watch(
 
         <main v-else class="operation-detail-page__document-grid">
           <section class="operation-detail-page__document-main">
-            <section v-if="kind !== 'items'" class="operation-detail-page__metric-row"><div><span>전체 품목</span><strong>1,248 EA</strong></div><div><span>전체 재고 금액</span><strong>2,451,830,000원</strong></div><div><span>정상</span><strong>1,012</strong></div><div><span>부족 임박</span><strong>156</strong></div><div><span>부족 감지</span><strong class="is-alert">80</strong></div></section>
+            <section v-if="kind === 'inventory'" class="operation-detail-page__metric-row">
+              <div v-for="metric in inventoryDetailMetrics" :key="metric.label">
+                <span>{{ metric.label }}</span>
+                <strong :class="metric.tone">{{ metric.value }}</strong>
+              </div>
+            </section>
             <article v-if="kind === 'items'" class="operation-detail-page__domain-card">
               <div class="operation-detail-page__item-media-head">
                 <h3>{{ t('품목 미디어', 'Item Media') }}</h3>
@@ -3282,8 +3428,11 @@ watch(
               <div v-if="itemInlineEditMode" class="operation-detail-page__edit-form operation-detail-page__inline-edit-form">
                 <section class="operation-detail-page__edit-section">
                   <label class="operation-detail-page__edit-field">
-                    <span>품목명</span>
-                    <input v-model="itemEditForm.itemName" type="text" />
+                    <span>공급 유형</span>
+                    <select v-model="itemEditForm.supplyType">
+                      <option value="STOCK_BASED">재고 기반</option>
+                      <option value="MAKE_TO_ORDER">주문 생산</option>
+                    </select>
                   </label>
 
                   <label class="operation-detail-page__edit-field">
@@ -3367,17 +3516,137 @@ watch(
                 </div>
               </template>
             </article>
+            <article v-if="kind === 'items'" class="operation-detail-page__domain-card">
+              <h3>{{ detailCopy.common.history }}</h3>
+              <table class="operation-detail-page__domain-table operation-detail-page__history-table">
+                <thead>
+                  <tr>
+                    <th>{{ detailCopy.common.dateTime }}</th>
+                    <th>{{ detailCopy.common.step }}</th>
+                    <th>{{ detailCopy.common.processor }}</th>
+                    <th>{{ detailCopy.common.description }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="paginatedHistoryRows.length === 0">
+                    <td class="operation-detail-page__history-empty" colspan="4">히스토리 로그가 없습니다.</td>
+                  </tr>
+                  <tr v-for="(row, rowIndex) in paginatedHistoryRows" :key="rowKey(row, rowIndex)">
+                    <td>{{ formatDate(row.createdAt ?? row.recordedAt ?? row.updatedAt) }}</td>
+                    <td>
+                      <span
+                        :class="[
+                          'operation-detail-page__state-chip',
+                          `is-${chipTone(historyChangeLabel(row))}`,
+                        ]"
+                      >
+                        {{ historyChangeLabel(row) }}
+                      </span>
+                    </td>
+                    <td>{{ historyActorLabel(row) }}</td>
+                    <td>{{ historyDescription(row) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-if="shouldPaginateHistory" class="operation-detail-page__history-pagination">
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="historyPage <= 1"
+                  @click="moveHistoryPage(-1)"
+                >
+                  이전
+                </button>
+                <span>{{ historyPage }} / {{ historyTotalPages }}</span>
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="historyPage >= historyTotalPages"
+                  @click="moveHistoryPage(1)"
+                >
+                  다음
+                </button>
+              </div>
+            </article>
+            <div v-if="kind === 'items'" class="operation-detail-page__bottom-actions operation-detail-page__item-bottom-actions">
+              <template v-if="!itemInlineEditMode">
+                <button
+                  class="page-button page-button--primary"
+                  type="button"
+                  @click="handleEditItem"
+                >
+                  수정
+                </button>
+                <button class="page-button page-button--secondary" type="button" @click="goBack">
+                  {{ detailCopy.backToList }}
+                </button>
+              </template>
+              <template v-else>
+                <button class="page-button page-button--secondary" type="button" @click="cancelInlineItemEdit">
+                  {{ t('취소', 'Cancel') }}
+                </button>
+                <button class="page-button page-button--primary" type="button" :disabled="itemEditLoading" @click="submitItemEdit">
+                  {{ itemEditLoading ? t('저장 중', 'Saving') : t('저장', 'Save') }}
+                </button>
+              </template>
+            </div>
             <article v-if="kind !== 'items'" class="operation-detail-page__domain-card">
               <h3>재고 상태</h3>
-              <table class="operation-detail-page__domain-table"><thead><tr><th>품목 코드</th><th>품목명</th><th>단위</th><th>잔여 수량</th><th>예약 수량</th><th>주문 가능</th><th>상태</th><th>유통기한</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="`${row[0]}-${row[7]}`"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td>{{ row[7] }}</td></tr></tbody></table>
+              <table class="operation-detail-page__domain-table"><thead><tr><th>품목명</th><th>단위</th><th>잔여 수량</th><th>예약 수량</th><th>주문 가능</th><th>유통기한</th><th>상태</th></tr></thead><tbody><tr v-for="row in inventoryRows" :key="`${row[0]}-${row[5]}`"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td></tr></tbody></table>
             </article>
-            <div v-if="kind === 'inventory'" class="operation-detail-page__bottom-actions">
-              <button class="page-button page-button--secondary" type="button" @click="goBack">
-                {{ detailCopy.backToList }}
-              </button>
-
-              <span></span>
-
+            <article v-if="kind === 'inventory'" class="operation-detail-page__domain-card">
+              <h3>{{ detailCopy.common.history }}</h3>
+              <table class="operation-detail-page__domain-table operation-detail-page__history-table">
+                <thead>
+                  <tr>
+                    <th>{{ detailCopy.common.dateTime }}</th>
+                    <th>{{ detailCopy.common.step }}</th>
+                    <th>{{ detailCopy.common.processor }}</th>
+                    <th>{{ detailCopy.common.description }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="paginatedHistoryRows.length === 0">
+                    <td class="operation-detail-page__history-empty" colspan="4">히스토리 로그가 없습니다.</td>
+                  </tr>
+                  <tr v-for="(row, rowIndex) in paginatedHistoryRows" :key="rowKey(row, rowIndex)">
+                    <td>{{ formatDate(row.createdAt ?? row.recordedAt ?? row.updatedAt) }}</td>
+                    <td>
+                      <span
+                        :class="[
+                          'operation-detail-page__state-chip',
+                          `is-${chipTone(historyChangeLabel(row))}`,
+                        ]"
+                      >
+                        {{ historyChangeLabel(row) }}
+                      </span>
+                    </td>
+                    <td>{{ historyActorLabel(row) }}</td>
+                    <td>{{ historyDescription(row) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-if="shouldPaginateHistory" class="operation-detail-page__history-pagination">
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="historyPage <= 1"
+                  @click="moveHistoryPage(-1)"
+                >
+                  이전
+                </button>
+                <span>{{ historyPage }} / {{ historyTotalPages }}</span>
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="historyPage >= historyTotalPages"
+                  @click="moveHistoryPage(1)"
+                >
+                  다음
+                </button>
+              </div>
+            </article>
+            <div v-if="kind === 'inventory'" class="operation-detail-page__bottom-actions operation-detail-page__inventory-bottom-actions">
               <button
                 class="page-button page-button--primary"
                 type="button"
@@ -3385,6 +3654,10 @@ watch(
                 @click="openInventoryEditModal"
               >
                 수정
+              </button>
+
+              <button class="page-button page-button--secondary" type="button" @click="goBack">
+                {{ detailCopy.backToList }}
               </button>
             </div>
           </section>
@@ -3950,7 +4223,7 @@ watch(
     <BaseModal
       v-model="itemLockedModalOpen"
       title="품목 수정 불가"
-      description="발주 확정 품목은 수정 불가합니다."
+      description="해당 품목과 관계된 발주가 있어 수정이 불가능합니다."
       size="sm"
     >
       <div class="operation-detail-page__bottom-actions">
@@ -4008,18 +4281,17 @@ watch(
           {{ inventoryEditErrorMessage }}
         </p>
 
-        <div class="operation-detail-page__bottom-actions">
+        <div class="operation-detail-page__bottom-actions operation-detail-page__bottom-actions--end">
           <button class="page-button page-button--secondary" type="button" @click="closeInventoryEditModal">
             {{ t('취소', 'Cancel') }}
           </button>
-          <span></span>
           <button
             class="page-button page-button--primary"
             type="button"
             :disabled="inventoryEditLoading"
             @click="submitInventoryEdit"
           >
-            {{ inventoryEditLoading ? t('저장 중', 'Saving') : t('재고 수정', 'Save Inventory') }}
+            {{ inventoryEditLoading ? t('저장 중', 'Saving') : t('수정', 'Save') }}
           </button>
         </div>
       </div>
@@ -5477,6 +5749,11 @@ watch(
   font-weight: 950;
 }
 
+.operation-detail-page__metric-row .is-warning {
+  color: #c26a00;
+  font-weight: 950;
+}
+
 .operation-detail-page__risk-band p,
 .operation-detail-page__analysis-panel p,
 .operation-detail-page__analysis-panel li {
@@ -5533,6 +5810,16 @@ watch(
 
 .operation-detail-page__order-bottom-actions .page-button {
   min-width: 96px;
+}
+
+.operation-detail-page__item-bottom-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.operation-detail-page__inventory-bottom-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .operation-detail-page__recommendation {

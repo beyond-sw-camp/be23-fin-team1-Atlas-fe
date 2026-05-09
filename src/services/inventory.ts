@@ -25,6 +25,35 @@ export interface ItemInventoryResponseDto {
   updatedAt: string
 }
 
+export interface ItemInventoryHistoryResponseDto {
+  id: number
+  inventoryPublicId: string
+  itemPublicId: string
+  itemCode: string
+  itemName: string
+  actionType: string
+  actionLabel: string
+  quantityChange?: number | null
+  beforeInitialQty?: number | null
+  afterInitialQty?: number | null
+  beforeRemainingQty?: number | null
+  afterRemainingQty?: number | null
+  beforeReservedQty?: number | null
+  afterReservedQty?: number | null
+  beforeDefectiveQty?: number | null
+  afterDefectiveQty?: number | null
+  beforeStatus?: InventoryStatus | null
+  afterStatus?: InventoryStatus | null
+  beforeManufacturedDate?: string | null
+  afterManufacturedDate?: string | null
+  beforeExpirationDate?: string | null
+  afterExpirationDate?: string | null
+  referenceId?: string | null
+  memo?: string | null
+  recordedAt: string
+  processedByUserPublicId?: string | null
+}
+
 export interface CreateItemInventoryRequestDto {
   itemPublicId: string
   logisticsNodePublicId: string
@@ -48,6 +77,13 @@ export async function getInventories() {
 export async function getInventory(inventoryPublicId: string) {
   const response = await apiClient.get<ItemInventoryResponseDto>(
     `/api/supply/inventories/${inventoryPublicId}`,
+  )
+  return response.data
+}
+
+export async function getInventoryHistories(inventoryPublicId: string) {
+  const response = await apiClient.get<ItemInventoryHistoryResponseDto[]>(
+    `/api/supply/inventories/${inventoryPublicId}/histories`,
   )
   return response.data
 }
