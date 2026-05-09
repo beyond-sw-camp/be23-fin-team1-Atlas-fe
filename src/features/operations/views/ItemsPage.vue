@@ -199,6 +199,8 @@ const copy = computed(() => ({
         deleteConfirm: '이 품목을 삭제하시겠습니까?',
         deleteFailed: '품목 삭제에 실패했습니다.',
         editFailed: '품목 수정에 실패했습니다.',
+        listFailed: '품목 목록을 불러오지 못했습니다.',
+        listUnavailable: '품목 목록을 불러올 수 없습니다. 로그인한 조직의 품목 조회 권한을 확인해 주세요.',
         createComplete: '등록 완료',
         saveLabel: '저장',
         loading: '불러오는 중...',
@@ -744,8 +746,18 @@ async function fetchItems() {
     )
   } catch (error: any) {
     rows.value = []
-    errorMessage.value = error.message ?? '품목 목록을 불러오지 못했습니다.'
+    errorMessage.value = itemListErrorMessage(error)
   }
+}
+
+function itemListErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : ''
+
+  if (message.includes('협력사')) {
+    return copy.value.listUnavailable
+  }
+
+  return message || copy.value.listFailed
 }
 
 

@@ -273,7 +273,7 @@ const copy = computed(() =>
         selectedSubOrderFallback: '선택한 서브발주의 상세 정보를 확인합니다.',
         previousPage: '이전',
         nextPage: '다음',
-        columns: ['발주번호', '거래처', '품목', '수량', '총금액(원)', '발주일', '예상 납기일', '상태', '작업'],
+        columns: ['번호', '거래처', '품목', '수량', '총금액(원)', '발주일', '예상 납기일', '상태', '작업'],
         directionOptions: [
           { key: 'ALL' as const, label: '전체' },
           { key: 'ISSUED' as const, label: '발주' },
@@ -324,6 +324,7 @@ const copy = computed(() =>
           invalidItemSupplierMapping: '품목과 협력사 매핑이 올바르지 않습니다.',
           itemAdded: '해당 품목이 추가되었습니다.',
           itemSearchFail: '품목 검색에 실패했습니다.',
+          createSuccess: '발주 등록되었습니다.',
           createFail: '발주 등록에 실패했습니다.',
           loadDetailFail: '발주 상세 정보를 불러오지 못했습니다.',
           noConfirmItems: '확정할 품목이 없습니다.',
@@ -490,7 +491,7 @@ const copy = computed(() =>
         selectedSubOrderFallback: 'Review the selected sub order detail.',
         previousPage: 'Previous',
         nextPage: 'Next',
-        columns: ['Document No.', 'Counterparty', 'Item', 'Qty', 'Total Amount', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
+        columns: ['No.', 'Counterparty', 'Item', 'Qty', 'Total Amount', 'Order Date', 'Expected Due Date', 'Status', 'Action'],
         directionOptions: [
           { key: 'ALL' as const, label: 'All' },
           { key: 'ISSUED' as const, label: 'Issued' },
@@ -541,6 +542,7 @@ const copy = computed(() =>
           invalidItemSupplierMapping: 'The item and supplier mapping is invalid.',
           itemAdded: '해당 품목이 추가되었습니다.',
           itemSearchFail: 'Failed to search items.',
+          createSuccess: 'Purchase order created.',
           createFail: 'Failed to create purchase order.',
           loadDetailFail: 'Failed to load order detail.',
           noConfirmItems: 'No items to confirm.',
@@ -2073,6 +2075,11 @@ async function submitCreateOrder() {
       })
     }
 
+    await dialog.alert(
+      isSubOrderCreateMode.value
+        ? copy.value.messages.subOrderCreateSuccess
+        : copy.value.messages.createSuccess,
+    )
     closeCreateOrderModal()
     await loadOrderDashboard()
   } catch (error) {
@@ -2995,11 +3002,11 @@ onBeforeUnmount(() => header.clearActions())
 
             <template v-else>
               <div
-                v-for="order in pagedOrders"
+                v-for="(order, orderIndex) in pagedOrders"
                 :key="`${order.kind}-${order.id}`"
                 class="page-table__row"
               >
-                <span>{{ order.number }}</span>
+                <span>{{ orderTablePage * ORDER_TABLE_PAGE_SIZE + orderIndex + 1 }}</span>
                 <span>{{ order.counterpartyName }}</span>
                 <span>{{ order.itemLabel }}</span>
                 <span>{{ order.qtyLabel }}</span>
