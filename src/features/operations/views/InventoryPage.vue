@@ -185,6 +185,7 @@ const copy = computed(() =>
         },
         messages: {
           listFail: '재고 목록을 불러오지 못했습니다.',
+          listUnavailable: '재고 목록을 불러올 수 없습니다. 로그인한 조직의 재고 조회 권한을 확인해 주세요.',
           selectItem: '품목을 선택해 주세요.',
           manufacturedDate: '제조일을 입력해 주세요.',
           expirationDate: '유통기한을 입력해 주세요.',
@@ -286,8 +287,18 @@ async function fetchPageData() {
 
   } catch (error: any) {
     rows.value = []
-    errorMessage.value = error.message ?? copy.value.messages.listFail
+    errorMessage.value = inventoryListErrorMessage(error)
   }
+}
+
+function inventoryListErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : ''
+
+  if (message.includes('협력사')) {
+    return copy.value.messages.listUnavailable
+  }
+
+  return message || copy.value.messages.listFail
 }
 
 function resetForm() {
