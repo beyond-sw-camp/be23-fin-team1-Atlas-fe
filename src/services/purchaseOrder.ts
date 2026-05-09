@@ -22,6 +22,19 @@ export type PurchaseOrderItemStatus =
   | 'CANCELLED'
   | 'DELETED'
 
+export type PurchaseOrderHistoryActionType =
+  | 'CREATED'
+  | 'UPDATED'
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'DELETED'
+  | 'REJECTED'
+  | 'ITEM_ADDED'
+  | 'ITEM_UPDATED'
+  | 'ITEM_DELETED'
+  | 'PARTIALLY_CONFIRMED'
+  | 'CONFIRMED'
+
 export interface GetPurchaseOrdersParams {
   viewType: PurchaseOrderViewType
   supplierPublicId?: string
@@ -121,6 +134,26 @@ export interface PurchaseOrderDetailResponseDto extends PurchaseOrderSummaryResp
   items: PurchaseOrderItemResponseDto[]
 }
 
+export interface PurchaseOrderHistoryResponseDto {
+  id: number
+  purchaseOrderPublicId: string
+  poNumber: string
+  actionType: PurchaseOrderHistoryActionType
+  actionLabel: string
+  beforeStatus: PoStatus | null
+  afterStatus: PoStatus | null
+  poItemPublicId: string | null
+  itemPublicId: string | null
+  itemName: string | null
+  beforeOrderedQty: number | null
+  afterOrderedQty: number | null
+  beforeConfirmedQty: number | null
+  afterConfirmedQty: number | null
+  memo: string | null
+  recordedAt: string
+  processedByUserPublicId: string | null
+}
+
 export async function getOrderDashboardSummary() {
   const response = await apiClient.get<OrderDashboardSummaryResponseDto>(
     '/api/supply/purchase-order/dashboard',
@@ -149,6 +182,13 @@ export async function getPurchaseOrders(params: GetPurchaseOrdersParams) {
 export async function getPurchaseOrder(poPublicId: string) {
   const response = await apiClient.get<PurchaseOrderDetailResponseDto>(
     `/api/supply/purchase-order/${poPublicId}`,
+  )
+  return response.data
+}
+
+export async function getPurchaseOrderHistories(poPublicId: string) {
+  const response = await apiClient.get<PurchaseOrderHistoryResponseDto[]>(
+    `/api/supply/purchase-order/${poPublicId}/histories`,
   )
   return response.data
 }

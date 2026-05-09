@@ -195,7 +195,7 @@ const copy = computed(() =>
         monthlyCapacity: '월간 생산량',
         minimumOrderQty: '최소 주문 수량',
         availableQty: '주문 가능 수량',
-        spec: '규격',
+        spec: '정보',
         shelfLife: '보관기한',
         days: '일',
         all: '전체',
@@ -1747,8 +1747,11 @@ function itemRemainingQtyLabel(item: ItemResponseDto | null | undefined) {
 }
 
 function leadTimeDaysOf(item: ItemResponseDto | null | undefined) {
-  const itemWithCapability = item as (ItemResponseDto & { leadTimeDays?: number | null }) | null | undefined
-  return itemWithCapability?.leadTimeDays ?? null
+  const itemWithCapability = item as (ItemResponseDto & {
+    leadTimeDays?: number | null
+    capability?: { leadTimeDays?: number | null } | null
+  }) | null | undefined
+  return itemWithCapability?.capability?.leadTimeDays ?? itemWithCapability?.leadTimeDays ?? null
 }
 
 function partialConfirmationAllowedOf(item: ItemResponseDto | null | undefined) {
@@ -2168,16 +2171,30 @@ async function refreshSelectedOrder() {
   await loadParentSubOrders(refreshed.poPublicId)
 }
 
+function isOrderIssuedByCurrentOrganization(order: PurchaseOrderDetailResponseDto | null) {
+  return !!order && order.buyerOrganizationPublicId === actor.organizationPublicId.value
+}
+
 function canSupplierRespondOrder(order: PurchaseOrderDetailResponseDto | null) {
-  return actor.isSupplierOrganization.value && order?.poStatus === 'CREATED'
+  return (
+    actor.isSupplierOrganization.value &&
+    !isOrderIssuedByCurrentOrganization(order) &&
+    order?.poStatus === 'CREATED'
+  )
 }
 
 function canBuyerEditOrder(order: PurchaseOrderDetailResponseDto | null) {
-  return actor.canManagePurchaseOrdersAsBuyer.value && order?.poStatus === 'CREATED'
+  return (
+    (actor.canManagePurchaseOrdersAsBuyer.value || isOrderIssuedByCurrentOrganization(order)) &&
+    order?.poStatus === 'CREATED'
+  )
 }
 
 function canBuyerCancelOrder(order: PurchaseOrderDetailResponseDto | null) {
-  return actor.canManagePurchaseOrdersAsBuyer.value && order?.poStatus === 'CREATED'
+  return (
+    (actor.canManagePurchaseOrdersAsBuyer.value || isOrderIssuedByCurrentOrganization(order)) &&
+    order?.poStatus === 'CREATED'
+  )
 }
 
 function canCreateSubOrder(order: PurchaseOrderDetailResponseDto | null) {
@@ -2802,7 +2819,6 @@ onMounted(async () => {
     loadCategoryOptions(),
     loadLogisticsNodeOptions(),
   ])
-
 })
 
 onBeforeUnmount(() => header.clearActions())
@@ -3314,6 +3330,10 @@ onBeforeUnmount(() => header.clearActions())
               <span>
                 품목 타입
                 <strong>{{ supplyTypeText(item.supplyType) }}</strong>
+              </span>
+              <span>
+                리드타임
+                <strong>{{ leadTimeDaysOf(item) == null ? '-' : `${formatNumber(leadTimeDaysOf(item))}일` }}</strong>
               </span>
               <span>
                 납기 예정일
