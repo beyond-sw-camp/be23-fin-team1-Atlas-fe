@@ -170,6 +170,7 @@ const copy = computed(() =>
         loadingDetail: '발주 상세 정보를 불러오는 중입니다.',
         createTitle: '발주 등록',
         createDescription: '카테고리와 품목을 먼저 고른 뒤, 협력사와 도착거점을 지정해 발주 행을 구성합니다.',
+        categorySearch: '카테고리 검색',
         itemSearch: '품목 검색',
         rootCategory: '상위 카테고리',
         secondCategory: '중간 카테고리',
@@ -177,11 +178,13 @@ const copy = computed(() =>
         itemSearchPlaceholder: '품목명 또는 품목코드를 입력하세요.',
         uncategorized: '미분류',
         selectItem: '품목 선택',
+        select: '선택',
         emptyItems: '조건에 맞는 외부 등록 품목이 없습니다.',
         itemCapability: '품목 capability',
         itemCode: '품목 코드',
         itemName: '품목명',
         supplier: '협력사',
+        supplierColumn: '납품사',
         unit: '유닛',
         unitPrice: '단가',
         unitPricePerUnit: '단가',
@@ -202,13 +205,13 @@ const copy = computed(() =>
         selectedItems: '선택한 발주 품목',
         selectHint: '검색 결과에서 품목을 선택하면 아래에 발주 행이 생성됩니다.',
         itemLine: '품목 행',
-        deleteLine: '행 삭제',
+        deleteLine: '삭제',
         selectItemName: '품목명을 선택하세요.',
         selectSupplier: '협력사를 선택하세요.',
         orderQty: '발주 수량',
         expectedAmount: '예상 금액',
-        arrivalNode: '도착거점',
-        selectArrivalNode: '도착거점을 선택하세요.',
+        arrivalNode: '도착 창고',
+        selectArrivalNode: '도착 창고를 선택하세요.',
         selectedItemInfo: '선택 품목 정보',
         category: '카테고리',
         supplierCandidates: '협력사 후보',
@@ -384,6 +387,7 @@ const copy = computed(() =>
         loadingDetail: 'Loading order detail.',
         createTitle: 'Create Purchase Order',
         createDescription: 'Select categories and items, then assign suppliers and arrival nodes.',
+        categorySearch: 'Category Search',
         itemSearch: 'Item Search',
         rootCategory: 'Root Category',
         secondCategory: 'Middle Category',
@@ -391,11 +395,13 @@ const copy = computed(() =>
         itemSearchPlaceholder: 'Enter item name or item code.',
         uncategorized: 'Uncategorized',
         selectItem: 'Select Item',
+        select: 'Select',
         emptyItems: '조건에 맞는 외부 등록 품목이 없습니다.',
         itemCapability: 'Item Capability',
         itemCode: 'Item Code',
         itemName: 'Item Name',
         supplier: 'Supplier',
+        supplierColumn: 'Supplier',
         unit: 'Unit',
         unitPrice: 'Unit Price',
         unitPricePerUnit: '단가',
@@ -421,8 +427,8 @@ const copy = computed(() =>
         selectSupplier: 'Select a supplier.',
         orderQty: 'Order Qty',
         expectedAmount: 'Expected Amount',
-        arrivalNode: 'Arrival Node',
-        selectArrivalNode: 'Select an arrival node.',
+        arrivalNode: 'Arrival Warehouse',
+        selectArrivalNode: 'Select an arrival warehouse.',
         selectedItemInfo: 'Selected Item Info',
         category: 'Category',
         supplierCandidates: 'Supplier Candidates',
@@ -633,6 +639,12 @@ const selectedMiddleCategoryId = ref('')
 const selectedLeafCategoryId = ref('')
 const itemSearchKeyword = ref('')
 const expandedItemPublicId = ref<string | null>(null)
+const itemThumbPreview = ref({
+  publicId: '',
+  left: 0,
+  top: 0,
+  size: 360,
+})
 
 type ConfirmOrderLineForm = {
   poItemPublicId: string
@@ -768,6 +780,7 @@ const createForm = ref({
   searchResultPublicIds: [] as string[],
   detailItemPublicId: '',
   searchLoading: false,
+  searchSubmitted: false,
   lines: [] as CreateOrderLineForm[],
 })
 
@@ -1624,6 +1637,7 @@ function resetCreateOrderForm() {
     searchResultPublicIds: [],
     detailItemPublicId: '',
     searchLoading: false,
+    searchSubmitted: false,
     lines: [],
   }
 }
@@ -1664,8 +1678,6 @@ function openCreateOrderModal(parentPoPublicId = '') {
   } else {
     router.replace(nextRoute)
   }
-
-  void searchItemsForCreateOrder()
 }
 
 
@@ -1831,10 +1843,73 @@ function showCreateItemCapability(itemPublicId: string) {
     createForm.value.detailItemPublicId === itemPublicId ? '' : itemPublicId
 }
 
+function showItemThumbPreview(item: ItemResponseDto, event: MouseEvent | FocusEvent) {
+  if (!itemThumbnailOf(item)) return
+
+  const target = event.currentTarget as HTMLElement | null
+  if (!target) return
+
+  const rect = target.getBoundingClientRect()
+  const margin = 16
+  const gap = 18
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  const size = Math.min(viewportWidth <= 768 ? 280 : 360, viewportWidth - margin * 2, viewportHeight - margin * 2)
+
+  const rightLeft = rect.right + gap
+  const leftLeft = rect.left - gap - size
+  let left = rightLeft + size <= viewportWidth - margin ? rightLeft : leftLeft
+
+  if (left < margin) {
+    left = Math.min(Math.max(rect.left, margin), viewportWidth - size - margin)
+  }
+
+  let top = rect.top + rect.height / 2 - size / 2
+
+  if (viewportWidth <= 768) {
+    const belowTop = rect.bottom + 10
+    const aboveTop = rect.top - 10 - size
+    top = belowTop + size <= viewportHeight - margin ? belowTop : aboveTop
+    left = Math.min(Math.max(rect.left, margin), viewportWidth - size - margin)
+  }
+
+  top = Math.min(Math.max(top, margin), viewportHeight - size - margin)
+
+  itemThumbPreview.value = {
+    publicId: item.publicId,
+    left,
+    top,
+    size,
+  }
+}
+
+function hideItemThumbPreview() {
+  itemThumbPreview.value.publicId = ''
+}
+
 async function selectCreateSearchItem(item: ItemResponseDto) {
   const line = createEmptyOrderLine(item)
   createForm.value.lines.push(line)
   await dialog.alert(copy.value.messages.itemAdded)
+}
+
+function isCreateSearchItemSelected(item: ItemResponseDto) {
+  return createForm.value.lines.some((line) => resolveSelectedItemPublicId(line) === item.publicId)
+}
+
+function toggleCreateSearchItem(item: ItemResponseDto, event: Event) {
+  const checked = (event.target as HTMLInputElement).checked
+
+  if (checked) {
+    if (!isCreateSearchItemSelected(item)) {
+      createForm.value.lines.push(createEmptyOrderLine(item))
+    }
+    return
+  }
+
+  createForm.value.lines = createForm.value.lines.filter(
+    (line) => resolveSelectedItemPublicId(line) !== item.publicId,
+  )
 }
 
 function handleCreateLineItemNameChange(line: CreateOrderLineForm) {
@@ -1847,6 +1922,7 @@ async function searchItemsForCreateOrder() {
 
   try {
     createForm.value.searchLoading = true
+    createForm.value.searchSubmitted = true
     createErrorMessage.value = ''
     createForm.value.detailItemPublicId = ''
 
@@ -1944,6 +2020,21 @@ function selectedCreateLineAmount(line: CreateOrderLineForm) {
   return unitPrice * Number(line.orderedQty)
 }
 
+function isCreateLineQtyOutOfRange(line: CreateOrderLineForm) {
+  if (line.orderedQty == null) return false
+
+  const qty = Number(line.orderedQty)
+  if (!Number.isFinite(qty)) return false
+
+  const item = selectedCreateLineItem(line)
+  const minQty = Number(moqOf(item))
+  const maxQty = Number(availableQtyOf(item))
+  const hasMinQty = Number.isFinite(minQty)
+  const hasMaxQty = Number.isFinite(maxQty)
+
+  return (hasMinQty && qty < minQty) || (hasMaxQty && qty > maxQty)
+}
+
 function removeCreateOrderLine(lineId: number) {
   createForm.value.lines = createForm.value.lines.filter((line) => line.id !== lineId)
 }
@@ -1951,7 +2042,8 @@ function removeCreateOrderLine(lineId: number) {
 async function submitCreateOrder() {
   const validationMessage = validateCreateOrderForm()
   if (validationMessage) {
-    createErrorMessage.value = validationMessage
+    createErrorMessage.value = ''
+    await dialog.alert(validationMessage)
     return
   }
 
@@ -2704,9 +2796,6 @@ onMounted(async () => {
     loadLogisticsNodeOptions(),
   ])
 
-  if (isCreatePage.value) {
-    await searchItemsForCreateOrder()
-  }
 })
 
 onBeforeUnmount(() => header.clearActions())
@@ -2997,11 +3086,11 @@ onBeforeUnmount(() => header.clearActions())
           </span>
         </div>
 
-        <label class="orders-page__form-field orders-page__form-field--wide">
-          <span>{{ copy.parentOrderSelect }}</span>
+        <label class="orders-page__form-field orders-page__form-field--wide orders-page__parent-order-field">
           <select
             v-model="createForm.parentPoPublicId"
             :disabled="createLoading"
+            :aria-label="copy.parentOrderSelect"
             @change="handleCreateParentOrderChange"
           >
             <option value="">{{ copy.mainOrderMode }}</option>
@@ -3019,7 +3108,7 @@ onBeforeUnmount(() => header.clearActions())
 
       <section class="orders-page__detail-section orders-page__create-section orders-page__create-section--search">
         <div class="orders-page__section-head">
-          <strong>{{ copy.itemSearch }}</strong>
+          <strong>{{ copy.categorySearch }}</strong>
         </div>
 
         <div class="orders-page__create-filter-grid">
@@ -3041,7 +3130,10 @@ onBeforeUnmount(() => header.clearActions())
             </select>
           </label>
 
-          <label class="orders-page__form-field">
+          <label
+            class="orders-page__form-field"
+            :class="{ 'orders-page__form-field--mobile-deferred': !createForm.categoryLevel1PublicId }"
+          >
             <span>{{ copy.secondCategory }}</span>
             <select
               v-model="createForm.categoryLevel2PublicId"
@@ -3059,7 +3151,10 @@ onBeforeUnmount(() => header.clearActions())
             </select>
           </label>
 
-          <label class="orders-page__form-field">
+          <label
+            class="orders-page__form-field"
+            :class="{ 'orders-page__form-field--mobile-deferred': !createForm.categoryLevel2PublicId }"
+          >
             <span>{{ copy.thirdCategory }}</span>
             <select
               v-model="createForm.categoryLevel3PublicId"
@@ -3076,50 +3171,87 @@ onBeforeUnmount(() => header.clearActions())
               </option>
             </select>
           </label>
+        </div>
+      </section>
 
-          <label class="orders-page__form-field orders-page__form-field--wide">
-              <span class="orders-page__field-label">{{ copy.item }}</span>
-            <div class="orders-page__field-with-button">
-              <span
-                v-if="!createForm.itemKeyword"
-                class="material-symbols-outlined orders-page__search-icon"
-                aria-hidden="true"
-              >
-                search
-              </span>
-              <input
-                v-model="createForm.itemKeyword"
-                type="text"
-                placeholder=""
-                :aria-label="copy.itemSearchPlaceholder"
-                :disabled="createForm.searchLoading"
-                @input="handleCreateKeywordInput"
-                @keyup.enter="searchItemsForCreateOrder"
-              />
-              <button
-                class="page-button page-button--secondary"
-                type="button"
-                :disabled="createForm.searchLoading"
-                @click="searchItemsForCreateOrder"
-                :aria-label="copy.search"
-              >
-                <span class="material-symbols-outlined" aria-hidden="true">
-                  {{ createForm.searchLoading ? 'hourglass_top' : 'search' }}
-                </span>
-              </button>
-            </div>
-          </label>
+      <section class="orders-page__detail-section orders-page__create-section orders-page__create-section--item-search">
+        <div class="orders-page__section-head">
+          <strong>{{ copy.itemSearch }}</strong>
         </div>
 
+        <label class="orders-page__form-field orders-page__form-field--wide">
+          <div class="orders-page__field-with-button">
+            <span
+              v-if="!createForm.itemKeyword"
+              class="material-symbols-outlined orders-page__search-icon"
+              aria-hidden="true"
+            >
+              search
+            </span>
+            <input
+              v-model="createForm.itemKeyword"
+              type="text"
+              placeholder=""
+              :aria-label="copy.itemSearchPlaceholder"
+              :disabled="createForm.searchLoading"
+              @input="handleCreateKeywordInput"
+              @keyup.enter="searchItemsForCreateOrder"
+            />
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :disabled="createForm.searchLoading"
+              @click="searchItemsForCreateOrder"
+              :aria-label="copy.search"
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">
+                {{ createForm.searchLoading ? 'hourglass_top' : 'search' }}
+              </span>
+            </button>
+          </div>
+        </label>
+
         <div v-if="filteredSelectableItems.length" class="orders-page__item-picker-list">
+          <div class="orders-page__item-picker-head" aria-hidden="true">
+            <span></span>
+            <span>{{ copy.itemName }}</span>
+            <span>{{ copy.category }}</span>
+            <span>{{ copy.supplierColumn }}</span>
+            <span>{{ copy.unit }}</span>
+            <span>{{ copy.detail }}</span>
+            <span>{{ copy.select }}</span>
+          </div>
+
           <div
             v-for="item in filteredSelectableItems"
             :key="item.publicId"
             class="orders-page__item-picker-row-wrap"
           >
             <div class="orders-page__item-picker-row">
-              <span class="orders-page__item-thumb" aria-hidden="true">
-                <img v-if="itemThumbnailOf(item)" :src="itemThumbnailOf(item)" :alt="itemDisplayName(item.itemName, item.itemCode)" />
+              <span
+                class="orders-page__item-thumb"
+                tabindex="0"
+                @mouseenter="showItemThumbPreview(item, $event)"
+                @focus="showItemThumbPreview(item, $event)"
+                @mouseleave="hideItemThumbPreview"
+                @blur="hideItemThumbPreview"
+              >
+                <template v-if="itemThumbnailOf(item)">
+                  <img :src="itemThumbnailOf(item)" :alt="itemDisplayName(item.itemName, item.itemCode)" />
+                  <span
+                    v-if="itemThumbPreview.publicId === item.publicId"
+                    class="orders-page__item-thumb-preview"
+                    :style="{
+                      left: `${itemThumbPreview.left}px`,
+                      top: `${itemThumbPreview.top}px`,
+                      width: `${itemThumbPreview.size}px`,
+                      height: `${itemThumbPreview.size}px`,
+                    }"
+                    aria-hidden="true"
+                  >
+                    <img :src="itemThumbnailOf(item)" :alt="itemDisplayName(item.itemName, item.itemCode)" />
+                  </span>
+                </template>
                 <span v-else class="material-symbols-outlined">inventory_2</span>
               </span>
               <span>{{ item.itemCode }}</span>
@@ -3134,21 +3266,26 @@ onBeforeUnmount(() => header.clearActions())
               <span>{{ supplierDisplayName(item.supplierName) }}</span>
               <span>{{ item.unit }}</span>
 
-              <button
-                class="page-button page-button--secondary"
-                type="button"
-                @click="expandedItemPublicId = expandedItemPublicId === item.publicId ? null : item.publicId"
-              >
-                {{ expandedItemPublicId === item.publicId ? copy.close : copy.detail }}
-              </button>
+              <div class="orders-page__item-picker-actions">
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  @click="expandedItemPublicId = expandedItemPublicId === item.publicId ? null : item.publicId"
+                >
+                  {{ expandedItemPublicId === item.publicId ? copy.close : copy.detail }}
+                </button>
 
-              <button
-                class="page-button page-button--secondary orders-page__select-button"
-                type="button"
-                @click="selectCreateSearchItem(item)"
-              >
-                {{ copy.selectItem }}
-              </button>
+                <label
+                  class="orders-page__item-picker-check"
+                  :aria-label="copy.selectItem"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="isCreateSearchItemSelected(item)"
+                    @change="toggleCreateSearchItem(item, $event)"
+                  />
+                </label>
+              </div>
             </div>
 
             <div
@@ -3196,7 +3333,7 @@ onBeforeUnmount(() => header.clearActions())
           </div>
         </div>
 
-        <p v-else-if="!createForm.searchLoading" class="orders-page__empty">
+        <p v-else-if="createForm.searchSubmitted && !createForm.searchLoading" class="orders-page__empty">
           {{ copy.emptyItems }}
         </p>
       </section>
@@ -3228,7 +3365,10 @@ onBeforeUnmount(() => header.clearActions())
                   />
                   <span v-else class="material-symbols-outlined">inventory_2</span>
                 </span>
-                <strong>{{ line.selectedItemName || copy.itemLine }}</strong>
+                <span class="orders-page__line-summary">
+                  <strong>{{ selectedCreateLineItem(line)?.itemName || line.selectedItemName || copy.itemLine }}</strong>
+                  <small>{{ supplierDisplayName(selectedCreateLineItem(line)?.supplierName) }}</small>
+                </span>
               </span>
               <button
                 class="page-button page-button--secondary"
@@ -3254,47 +3394,20 @@ onBeforeUnmount(() => header.clearActions())
                 </select>
               </label>
               <label class="orders-page__form-field">
-                <span>{{ copy.itemName }}</span>
-                <select
-                  v-model="line.selectedItemName"
-                  @change="handleCreateLineItemNameChange(line)"
-                >
-                  <option value="">{{ copy.selectItemName }}</option>
-                  <option
-                    v-for="itemName in itemNameOptionsOf()"
-                    :key="itemName"
-                    :value="itemName"
-                  >
-                    {{ itemName }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="orders-page__form-field">
-                <span>{{ copy.supplier }}</span>
-                <select
-                  v-model="line.selectedSupplierPublicId"
-                  @change="handleCreateLineSupplierChange(line)"
-                >
-                  <option value="">{{ copy.selectSupplier }}</option>
-                  <option
-                    v-for="supplier in supplierOptionsOf(line)"
-                    :key="`${supplier.supplierPublicId}-${supplier.itemPublicId}`"
-                    :value="supplier.supplierPublicId"
-                  >
-                    {{ supplierDisplayName(supplier.supplierName) }} / {{ formatPlainAmount(supplier.unitPrice) }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="orders-page__form-field">
                 <span>{{ copy.orderQty }}</span>
-                <input
-                  v-model.number="line.orderedQty"
-                  type="number"
-                  min="1"
-                  step="1"
-                />
+                <span class="orders-page__quantity-input-wrap">
+                  <input
+                    v-model.number="line.orderedQty"
+                    :class="{ 'is-quantity-invalid': isCreateLineQtyOutOfRange(line) }"
+                    :aria-invalid="isCreateLineQtyOutOfRange(line)"
+                    type="number"
+                    min="1"
+                    step="1"
+                  />
+                  <strong class="orders-page__quantity-unit">
+                    {{ selectedCreateLineItem(line)?.unit || '-' }}
+                  </strong>
+                </span>
               </label>
 
               <label class="orders-page__form-field">
@@ -3343,10 +3456,6 @@ onBeforeUnmount(() => header.clearActions())
                 <div>
                   <span>{{ copy.category }}</span>
                   <strong>{{ selectedCreateLineItem(line)?.categoryName }}</strong>
-                </div>
-                <div>
-                  <span>{{ copy.unit }}</span>
-                  <strong>{{ selectedCreateLineItem(line)?.unit }}</strong>
                 </div>
                 <div>
                   <span>{{ copy.leadTime }}</span>
