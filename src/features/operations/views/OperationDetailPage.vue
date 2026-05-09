@@ -4,17 +4,22 @@ import { useActorScope } from '../../../composables/useActorScope'
 import {
   changeItemStatus,
   changeItemPrimaryMedia,
+  getItems,
   getItem,
   getManagedItems,
   getManagedItemLinkedOrders,
   updateItem,
+  type ItemResponseDto,
   type ManageableItemStatus,
   type SupplierItemQualityGrade,
 } from '../../../services/item'
+import { apiClient } from '../../../services/http'
 import {
   confirmPurchaseOrderItem,
   getPurchaseOrder,
+  getPurchaseOrderHistories,
   rejectPurchaseOrder,
+  type PurchaseOrderDetailResponseDto,
 } from '../../../services/purchaseOrder'
 import { useRoute, useRouter } from 'vue-router'
 import { getCertificate, getCertificateHistories } from '../../../services/certificate'
@@ -35,8 +40,10 @@ import {
   activateLogisticsNode,
   deactivateLogisticsNode,
   getLogisticsNode,
+  getLogisticsNodes,
   getLogisticsNodeHistories,
   updateLogisticsNode,
+  type LogisticsNodeResponseDto,
   type LogisticsNodeCapacityStatus,
 } from '../../../services/logistics'
 import { getReturnHistories, getReturnRequest, updateReturnStatus, type ReturnStatus } from '../../../services/return'
@@ -63,6 +70,7 @@ import {
   normalizeItemMediaFiles,
   resolveItemMediaUrl,
   resolveItemOriginalMediaUrl,
+  resolveItemThumbnailUrl,
   uploadItemMedia,
   type ItemMediaFile,
 } from '../../../services/itemMedia'
@@ -108,6 +116,26 @@ type EditableItemMedia = {
   previewUrl: string
   source: 'existing' | 'new'
   file?: File
+}
+
+type EditExistingOrderLine = {
+  poItemPublicId: string
+  itemPublicId: string
+  itemCode: string
+  itemName: string
+  unit: string
+  orderedQty: number | null
+  originalOrderedQty: number
+  arrivalLogisticsNodePublicId: string
+  originalArrivalLogisticsNodePublicId: string
+  deleted: boolean
+}
+
+type EditNewOrderLine = {
+  key: number
+  itemPublicId: string
+  arrivalLogisticsNodePublicId: string
+  orderedQty: number | null
 }
 
 const route = useRoute()
@@ -238,6 +266,19 @@ const confirmLines = ref<Array<{
   partialConfirmationAllowed: boolean | null
 }>>([])
 const confirmErrorMessage = ref('')
+const orderEditModalOpen = ref(false)
+const orderEditLoading = ref(false)
+const orderEditSaving = ref(false)
+const orderEditErrorMessage = ref('')
+const orderEditAvailableItems = ref<ItemResponseDto[]>([])
+const orderEditLogisticsNodeOptions = ref<LogisticsNodeResponseDto[]>([])
+const orderEditForm = ref({
+  memo: '',
+  existingLines: [] as EditExistingOrderLine[],
+  newLines: [] as EditNewOrderLine[],
+})
+
+let orderEditLineSeed = 1
 
 function t(ko: string, _en: string) {
   return ko
@@ -410,6 +451,11 @@ const historyPage = ref(1)
 const historyPageSize = 10
 const itemMediaViewerOpen = ref(false)
 const itemMediaViewerIndex = ref(0)
+const itemMap = ref<Record<string, ItemResponseDto>>({})
+const itemMediaMap = ref<Record<string, ItemMediaFile[]>>({})
+const orderItemDetailModalOpen = ref(false)
+const selectedOrderItem = ref<Record<string, any> | null>(null)
+const selectedOrderItemMediaIndex = ref(0)
 const itemEditModalOpen = ref(false)
 const itemEditLoading = ref(false)
 const itemEditErrorMessage = ref('')
@@ -526,12 +572,21 @@ const statusTone = computed<DetailMetric['tone']>(() => {
 
 const isOrderDetail = computed(() => kind.value === 'orders')
 
+const isOrderIssuedByCurrentOrganization = computed(() =>
+  isOrderDetail.value &&
+  !!data.value?.buyerOrganizationPublicId &&
+  data.value.buyerOrganizationPublicId === actor.organizationPublicId.value,
+)
+
 const isReceivedOrderDetail = computed(() =>
-  isOrderDetail.value && actor.isSupplierOrganization.value,
+  isOrderDetail.value &&
+  actor.isSupplierOrganization.value &&
+  !isOrderIssuedByCurrentOrganization.value,
 )
 
 const isBuyerOrderDetail = computed(() =>
-  isOrderDetail.value && actor.isBuyerOrganization.value,
+  isOrderDetail.value &&
+  (actor.isBuyerOrganization.value || isOrderIssuedByCurrentOrganization.value),
 )
 
 const isAcceptedOrder = computed(() => {
@@ -572,6 +627,135 @@ const riskLevel = computed(() => {
 const orderItems = computed(() => {
   return Array.isArray(data.value?.items) ? data.value.items : []
 })
+
+const orderBasicInfoRows = computed(() => {
+  const order = data.value
+  const items = orderItems.value
+  const destinations = Array.from(
+    new Set(
+      items
+        .map((item: any) => item.arrivalLogisticsNodeName ?? item.arrivalLogisticsNodeAddress)
+        .filter(Boolean)
+    )
+  )
+  const dueDates = items
+    .map((item: any) => item.expectedDueDate)
+    .filter(Boolean)
+    .sort()
+  const leadTimes = items
+    .map((item: any) => Number(item.leadTimeDays))
+    .filter((value: number) => Number.isFinite(value))
+  const orderedQty = items.reduce((sum: number, item: any) => sum + Number(item.orderedQty ?? 0), 0)
+  const confirmedQtyValues = items
+    .map((item: any) => item.confirmedQty)
+    .filter((value: unknown) => value !== null && value !== undefined)
+  const confirmedQty = confirmedQtyValues.reduce((sum: number, value: unknown) => sum + Number(value ?? 0), 0)
+
+  return [
+    { label: '협력사', value: display(order?.supplierName) },
+    { label: '협력사 코드', value: display(order?.supplierCode) },
+    { label: '발주자', value: formatActor(order?.createdByUserPublicId) },
+    { label: '품목 수', value: `${formatNumber(items.length)}개` },
+    { label: '총 발주 수량', value: formatNumber(orderedQty) },
+    { label: '총 확정 수량', value: confirmedQtyValues.length ? formatNumber(confirmedQty) : '-' },
+    { label: '배송지', value: destinations.length ? destinations.join(', ') : '-' },
+    { label: '예상 납기일', value: formatDateRange(dueDates) },
+    { label: '리드타임', value: formatLeadTimeRange(leadTimes) },
+    { label: '메모', value: display(order?.memo) },
+  ]
+})
+
+const selectedOrderItemDetail = computed(() => {
+  const line = selectedOrderItem.value
+  if (!line?.itemPublicId) return line
+  return {
+    ...itemMap.value[line.itemPublicId],
+    ...line,
+  }
+})
+
+const selectedOrderItemMediaFiles = computed(() => {
+  const itemPublicId = selectedOrderItemDetail.value?.itemPublicId
+  return itemMediaOf(itemPublicId)
+})
+
+const selectedOrderItemMedia = computed(() => {
+  return selectedOrderItemMediaFiles.value[selectedOrderItemMediaIndex.value] ?? null
+})
+
+const selectedOrderItemPreviewUrl = computed(() => {
+  if (selectedOrderItemMedia.value) return orderItemMediaPreviewUrl(selectedOrderItemMedia.value)
+  return orderLineThumbnail(selectedOrderItemDetail.value)
+})
+
+function itemMediaOf(itemPublicId: string | null | undefined) {
+  if (!itemPublicId) return []
+  return itemMediaMap.value[itemPublicId] ?? itemMediaFilesFromItem(itemMap.value[itemPublicId])
+}
+
+function orderLineThumbnail(item: Record<string, any> | null | undefined) {
+  if (!item?.itemPublicId) return ''
+  return resolveItemThumbnailUrl(itemMap.value[item.itemPublicId], itemMediaOf(item.itemPublicId))
+}
+
+function orderItemMediaPreviewUrl(file: ItemMediaFile) {
+  return resolveItemMediaUrl(file)
+}
+
+async function loadItemMediaForItems(items: ItemResponseDto[]) {
+  const unloadedItems = items.filter((item) => !itemMediaMap.value[item.publicId])
+  if (!unloadedItems.length) return
+
+  const entries = await Promise.all(
+    unloadedItems.map(async (item) => [
+      item.publicId,
+      itemMediaFilesFromItem(item).length
+        ? itemMediaFilesFromItem(item)
+        : item.primaryMediaFilePublicId
+          ? await getItemMedia(item.publicId)
+          : [],
+    ] as const),
+  )
+
+  itemMediaMap.value = {
+    ...itemMediaMap.value,
+    ...Object.fromEntries(entries),
+  }
+}
+
+async function loadOrderItemDetails(items: Record<string, any>[]) {
+  const itemPublicIds = Array.from(
+    new Set(items.map((item) => item.itemPublicId).filter(Boolean)),
+  )
+  const missingIds = itemPublicIds.filter((itemPublicId) => !itemMap.value[itemPublicId])
+
+  const loadedItems = missingIds.length
+    ? await Promise.all(missingIds.map((itemPublicId) => getItem(itemPublicId).catch(() => null)))
+    : []
+  const validItems = loadedItems.filter((item): item is ItemResponseDto => !!item)
+
+  itemMap.value = {
+    ...itemMap.value,
+    ...Object.fromEntries(validItems.map((item) => [item.publicId, item])),
+  }
+
+  const mediaTargets = itemPublicIds
+    .map((itemPublicId) => itemMap.value[itemPublicId])
+    .filter((item): item is ItemResponseDto => !!item)
+  await loadItemMediaForItems(mediaTargets)
+}
+
+function openOrderItemDetailModal(item: Record<string, any>) {
+  selectedOrderItem.value = item
+  selectedOrderItemMediaIndex.value = 0
+  orderItemDetailModalOpen.value = true
+}
+
+function closeOrderItemDetailModal() {
+  orderItemDetailModalOpen.value = false
+  selectedOrderItem.value = null
+  selectedOrderItemMediaIndex.value = 0
+}
 
 const shipmentPathRows = computed(() => {
   const histories = Array.isArray(related.value.histories) ? related.value.histories : []
@@ -727,7 +911,7 @@ const itemInformationGroups = computed(() => {
     {
       title: t('기본 정보', 'Basic Info'),
       rows: [
-        [t('규격', 'Spec'), item.spec ?? item.specification],
+        [t('정보', 'Info'), item.spec ?? item.specification],
         [t('단가', 'Unit Price'), formatAmount(item.unitPrice, 'KRW')],
         [t('품질 등급', 'Quality Grade'), qualityGradeText(item.qualityGrade)],
         [t('부분 확정', 'Partial Confirm'), item.partialConfirmationAllowed === false ? t('불가', 'Not Allowed') : t('가능', 'Allowed')],
@@ -770,6 +954,252 @@ function closeConfirmOrderModal() {
   confirmModalOpen.value = false
   confirmErrorMessage.value = ''
   confirmLines.value = []
+}
+
+function toNumber(value: number | null | undefined) {
+  return value == null ? 0 : Number(value)
+}
+
+function normalizeErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message
+  return fallback
+}
+
+function createEmptyOrderEditLine(): EditNewOrderLine {
+  return {
+    key: orderEditLineSeed++,
+    itemPublicId: '',
+    arrivalLogisticsNodePublicId: orderItems.value[0]?.arrivalLogisticsNodePublicId ?? '',
+    orderedQty: null,
+  }
+}
+
+async function patchPurchaseOrderMemo(poPublicId: string, memo: string) {
+  const response = await apiClient.patch<PurchaseOrderDetailResponseDto>(
+    `/api/supply/purchase-order/${poPublicId}`,
+    { memo },
+  )
+  return response.data
+}
+
+async function addPurchaseOrderItemRequest(
+  poPublicId: string,
+  payload: { itemPublicId: string; orderedQty: number; arrivalLogisticsNodePublicId: string },
+) {
+  const response = await apiClient.post<PurchaseOrderDetailResponseDto>(
+    `/api/supply/purchase-order/${poPublicId}/items`,
+    payload,
+  )
+  return response.data
+}
+
+async function updatePurchaseOrderItemRequest(
+  poPublicId: string,
+  poItemPublicId: string,
+  payload: { orderedQty: number; arrivalLogisticsNodePublicId: string },
+) {
+  const response = await apiClient.patch<PurchaseOrderDetailResponseDto>(
+    `/api/supply/purchase-order/${poPublicId}/items/${poItemPublicId}`,
+    payload,
+  )
+  return response.data
+}
+
+async function deletePurchaseOrderItemRequest(poPublicId: string, poItemPublicId: string) {
+  await apiClient.delete(`/api/supply/purchase-order/${poPublicId}/items/${poItemPublicId}`)
+}
+
+async function loadEditableSupplierItems(supplierPublicId: string) {
+  const response = await getItems({
+    supplierPublicId,
+    status: 'ACTIVE',
+    page: 0,
+    size: 100,
+    sort: 'publicId,asc',
+  })
+
+  orderEditAvailableItems.value = response.content
+    .slice()
+    .sort((a, b) => a.itemName.localeCompare(b.itemName, 'ko-KR'))
+}
+
+async function loadOrderEditLogisticsNodes() {
+  const response = await getLogisticsNodes({ page: 0, size: 100 })
+  orderEditLogisticsNodeOptions.value = response.content
+    .filter((node) => node.active)
+    .slice()
+    .sort((a, b) => a.nodeName.localeCompare(b.nodeName, 'ko-KR'))
+}
+
+function resetOrderEditForm(order: PurchaseOrderDetailResponseDto) {
+  orderEditErrorMessage.value = ''
+  orderEditForm.value = {
+    memo: order.memo ?? '',
+    existingLines: order.items.map((item) => ({
+      poItemPublicId: item.poItemPublicId,
+      itemPublicId: item.itemPublicId,
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      unit: item.unit,
+      orderedQty: toNumber(item.orderedQty),
+      originalOrderedQty: toNumber(item.orderedQty),
+      arrivalLogisticsNodePublicId: item.arrivalLogisticsNodePublicId ?? '',
+      originalArrivalLogisticsNodePublicId: item.arrivalLogisticsNodePublicId ?? '',
+      deleted: false,
+    })),
+    newLines: [],
+  }
+}
+
+async function openOrderEditModal() {
+  if (!data.value?.poPublicId || !canEditOrder.value) return
+
+  try {
+    orderEditModalOpen.value = true
+    orderEditLoading.value = true
+    orderEditErrorMessage.value = ''
+
+    const detail = await getPurchaseOrder(data.value.poPublicId)
+    data.value = detail as Record<string, any>
+
+    await Promise.all([
+      loadEditableSupplierItems(detail.supplierPublicId),
+      loadOrderEditLogisticsNodes(),
+    ])
+    resetOrderEditForm(detail)
+  } catch (error) {
+    orderEditErrorMessage.value = normalizeErrorMessage(error, '발주 수정 정보를 불러오지 못했습니다.')
+  } finally {
+    orderEditLoading.value = false
+  }
+}
+
+function closeOrderEditModal() {
+  orderEditModalOpen.value = false
+  orderEditLoading.value = false
+  orderEditSaving.value = false
+  orderEditErrorMessage.value = ''
+  orderEditAvailableItems.value = []
+  orderEditLogisticsNodeOptions.value = []
+  orderEditForm.value = {
+    memo: '',
+    existingLines: [],
+    newLines: [],
+  }
+}
+
+function addOrderEditLine() {
+  orderEditForm.value.newLines.push(createEmptyOrderEditLine())
+}
+
+function removeOrderEditNewLine(key: number) {
+  orderEditForm.value.newLines = orderEditForm.value.newLines.filter((line) => line.key !== key)
+}
+
+function orderEditSelectableItems(currentKey: number) {
+  const existingItemIds = new Set(orderEditForm.value.existingLines.map((line) => line.itemPublicId))
+  const newItemIds = new Set(
+    orderEditForm.value.newLines
+      .filter((line) => line.key !== currentKey && !!line.itemPublicId)
+      .map((line) => line.itemPublicId),
+  )
+
+  return orderEditAvailableItems.value.filter(
+    (item) => !existingItemIds.has(item.publicId) && !newItemIds.has(item.publicId),
+  )
+}
+
+function activeOrderEditNewLines() {
+  return orderEditForm.value.newLines.filter((line) => line.itemPublicId || line.orderedQty)
+}
+
+function validateOrderEditForm() {
+  const keptExistingLines = orderEditForm.value.existingLines.filter((line) => !line.deleted)
+  const newLines = activeOrderEditNewLines()
+
+  if (!keptExistingLines.length && !newLines.length) return '발주 품목은 1개 이상 남아 있어야 합니다.'
+
+  for (const line of keptExistingLines) {
+    if (!line.orderedQty || line.orderedQty <= 0) return '기존 품목 수량은 1개 이상이어야 합니다.'
+  }
+
+  const selectedNewItemIds = new Set<string>()
+  for (const line of newLines) {
+    if (!line.itemPublicId) return '추가할 품목을 선택해 주세요.'
+    if (!line.arrivalLogisticsNodePublicId) return '추가 품목의 도착 창고를 선택해 주세요.'
+    if (!line.orderedQty || line.orderedQty <= 0) return '추가 품목 수량은 1개 이상이어야 합니다.'
+    if (selectedNewItemIds.has(line.itemPublicId)) return '동일한 추가 품목이 중복되었습니다.'
+    selectedNewItemIds.add(line.itemPublicId)
+  }
+
+  return ''
+}
+
+async function submitOrderEdit() {
+  if (!data.value?.poPublicId) return
+
+  const validationMessage = validateOrderEditForm()
+  if (validationMessage) {
+    orderEditErrorMessage.value = validationMessage
+    return
+  }
+
+  const poPublicId = data.value.poPublicId
+  const originalMemo = data.value.memo ?? ''
+  const nextMemo = orderEditForm.value.memo
+  const newLines = activeOrderEditNewLines()
+  const updatedExistingLines = orderEditForm.value.existingLines.filter(
+    (line) => !line.deleted && (
+      Number(line.orderedQty) !== line.originalOrderedQty ||
+      line.arrivalLogisticsNodePublicId !== line.originalArrivalLogisticsNodePublicId
+    ),
+  )
+  const deletedExistingLines = orderEditForm.value.existingLines.filter((line) => line.deleted)
+  const hasChanges =
+    originalMemo !== nextMemo ||
+    newLines.length > 0 ||
+    updatedExistingLines.length > 0 ||
+    deletedExistingLines.length > 0
+
+  if (!hasChanges) {
+    closeOrderEditModal()
+    return
+  }
+
+  try {
+    orderEditSaving.value = true
+    orderEditErrorMessage.value = ''
+
+    if (originalMemo !== nextMemo) {
+      await patchPurchaseOrderMemo(poPublicId, nextMemo)
+    }
+
+    for (const line of newLines) {
+      await addPurchaseOrderItemRequest(poPublicId, {
+        itemPublicId: line.itemPublicId,
+        orderedQty: Number(line.orderedQty),
+        arrivalLogisticsNodePublicId: line.arrivalLogisticsNodePublicId,
+      })
+    }
+
+    for (const line of updatedExistingLines) {
+      await updatePurchaseOrderItemRequest(poPublicId, line.poItemPublicId, {
+        orderedQty: Number(line.orderedQty),
+        arrivalLogisticsNodePublicId: line.arrivalLogisticsNodePublicId,
+      })
+    }
+
+    for (const line of deletedExistingLines) {
+      await deletePurchaseOrderItemRequest(poPublicId, line.poItemPublicId)
+    }
+
+    await fetchDetail()
+    closeOrderEditModal()
+  } catch (error) {
+    orderEditErrorMessage.value = normalizeErrorMessage(error, '발주 수정에 실패했습니다.')
+  } finally {
+    orderEditSaving.value = false
+  }
 }
 
 function validateConfirmLines() {
@@ -1021,7 +1451,7 @@ const sections = computed<DetailSection[]>(() => {
         ['품목코드', item.itemCode],
         ['품목명', item.itemName],
         ['단위', item.unit],
-        ['규격', item.specification],
+        ['정보', item.specification],
         ['공급사', item.supplierName],
         ['상태', displayItemStatus(item.status)],
       ]),
@@ -1142,7 +1572,7 @@ function chipTone(value?: string, fallback: DetailMetric['tone'] = 'neutral') {
   const text = String(value ?? '').toUpperCase()
 
   if (/(REJECT|CANCEL|DELAY|EXPIRED|SUSPEND|TERMINAT|FAILED|SHORTAGE|비활성|높음)/.test(text)) return 'critical'
-  if (/(PENDING|READY|WARNING|PARTIAL|OPEN|CREATED|가득 참|보통)/.test(text)) return 'warning'
+  if (/(PENDING|READY|WARNING|PARTIAL|OPEN|CREATED|가득 참|보통|진행 중)/.test(text)) return 'warning'
   if (/(APPROVED|CONFIRMED|COMPLETE|ARRIVED|ACTIVE|VALID|SAFE|활성|사용 가능|낮음)/.test(text)) return 'success'
   return fallback ?? 'neutral'
 }
@@ -1192,6 +1622,8 @@ const aiChecklist = computed(() => [
 const historyRows = computed(() => {
   const rows = Array.isArray(related.value.histories) ? related.value.histories : []
   if (rows.length > 0) return sortHistoryRows(rows)
+
+  if (kind.value === 'orders') return []
 
   if (kind.value === 'logistics-nodes' && data.value) {
     const createdAt = data.value.createdAt ?? data.value.updatedAt
@@ -1258,12 +1690,20 @@ function historyChangeLabel(row: any) {
     return row.changeType ?? row.actionType ?? '변경사항'
   }
 
+  if (kind.value === 'orders') {
+    return row.actionLabel ?? displayStatus(row.actionType ?? row.afterStatus ?? row.statusCode ?? status.value)
+  }
+
   return displayStatus(row.statusCode ?? row.returnStatus ?? row.status ?? status.value)
 }
 
 function historyDescription(row: any) {
   if (kind.value === 'logistics-nodes') {
     return row.memo ?? row.description ?? '창고 정보 변경'
+  }
+
+  if (kind.value === 'orders') {
+    return row.memo ?? row.description ?? buildOrderHistoryDescription(row)
   }
 
   return row.memo ?? row.description ?? aiSummary.value
@@ -1274,7 +1714,14 @@ function historyActorLabel(row: any) {
     return display(row.processedByUserName)
   }
 
-  return formatActor(row.processedByUserPublicId ?? row.createdBy)
+  return formatActor(row.processedByUserPublicId ?? row.recordedBy ?? row.createdBy)
+}
+
+function buildOrderHistoryDescription(row: any) {
+  if (row.itemName) {
+    return `${row.itemName} ${row.actionLabel ?? '처리'}`
+  }
+  return '발주 처리 이력'
 }
 
 function section(title: string, rows: [string, unknown][]): DetailSection {
@@ -1300,18 +1747,18 @@ const statusTextMap: Record<string, string> = {
   HIGH: '높음',
   MEDIUM: '보통',
   LOW: '낮음',
-  CREATED: '생성됨',
+  CREATED: '확인 대기',
   READY: '준비',
   PENDING: '대기',
   OPEN: '진행 중',
   APPROVED: '승인됨',
-  CONFIRMED: '확정됨',
+  CONFIRMED: '확정',
   PARTIALLY_CONFIRMED: '부분 확정',
   COMPLETED: '완료',
   COMPLETE: '완료',
-  REJECTED: '반려됨',
-  CANCELLED: '취소됨',
-  CANCELED: '취소됨',
+  REJECTED: '반려',
+  CANCELLED: '취소',
+  CANCELED: '취소',
   DELAYED: '지연',
   DEPARTED: '출발',
   ARRIVED: '도착',
@@ -1419,6 +1866,16 @@ function formatActor(publicId: unknown) {
   return str
 }
 
+async function loadUserName(publicId: unknown) {
+  if (!publicId) return
+  const key = String(publicId)
+  if (userNamesMap.value[key]) return
+  const userDetail = await getUserDetailByPublicId(key).catch(() => null)
+  if (!userDetail) return
+  const name = `${userDetail.lastName || ''}${userDetail.firstName || ''}`.trim()
+  userNamesMap.value[key] = name || key
+}
+
 function formatShortId(publicId: unknown) {
   if (!publicId || publicId === '-') return '-'
   const str = String(publicId)
@@ -1434,6 +1891,21 @@ function formatAmount(value: unknown, _currency?: string) {
 function formatDate(value: unknown) {
   if (!value) return '-'
   return String(value).replace('T', ' ').slice(0, 16)
+}
+
+function formatDateRange(values: unknown[]) {
+  const dates = values.map((value) => String(value).slice(0, 10)).filter(Boolean)
+  if (!dates.length) return '-'
+  const first = dates[0]
+  const last = dates[dates.length - 1]
+  return first === last ? first : `${first} ~ ${last}`
+}
+
+function formatLeadTimeRange(values: number[]) {
+  if (!values.length) return '-'
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  return min === max ? `${min}일` : `${min}~${max}일`
 }
 
 function formatShipmentEta(value: unknown) {
@@ -1567,15 +2039,6 @@ async function handleRejectOrder() {
   } finally {
     loading.value = false
   }
-}
-
-function handleEditOrder() {
-  router.push({
-    name: 'ordersDesk',
-    query: {
-      edit: publicId.value,
-    },
-  })
 }
 
 function isPositiveInteger(value: unknown) {
@@ -1948,7 +2411,7 @@ async function submitItemEdit() {
   const nextName = itemEditForm.value.itemName.trim()
   const nextSpec = itemEditForm.value.spec.trim()
   if (!nextName || !nextSpec) {
-    showItemEditError(t('품목명과 규격을 입력해 주세요.', 'Enter item name and spec.'))
+    showItemEditError(t('품목명과 정보을 입력해 주세요.', 'Enter item name and info.'))
     return
   }
   if (!isPositiveInteger(itemEditForm.value.unitPrice)) {
@@ -2086,7 +2549,25 @@ async function fetchDetail() {
 
   try {
     if (kind.value === 'orders') {
-      data.value = await getPurchaseOrder(publicId.value)
+      const [detail, histories] = await Promise.all([
+        getPurchaseOrder(publicId.value),
+        getPurchaseOrderHistories(publicId.value),
+      ])
+      data.value = detail
+      related.value = { histories }
+      const actorIds = new Set<string>()
+      if (detail.createdByUserPublicId) {
+        actorIds.add(detail.createdByUserPublicId)
+      }
+      histories.forEach((history: any) => {
+        if (history.processedByUserPublicId) {
+          actorIds.add(history.processedByUserPublicId)
+        }
+      })
+      await Promise.all([
+        loadOrderItemDetails(detail.items),
+        ...Array.from(actorIds).map((actorId) => loadUserName(actorId)),
+      ])
     } else if (kind.value === 'sub-orders') {
       data.value = await getSubPurchaseOrder(publicId.value)
     } else if (kind.value === 'shipments') {
@@ -2360,7 +2841,7 @@ watch(
           </button>
         </template>
         <button
-          v-if="!itemInlineEditMode && kind !== 'logistics-nodes' && kind !== 'inventory'"
+          v-if="!itemInlineEditMode && kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory'"
           class="page-button page-button--secondary"
           type="button"
           @click="goBack"
@@ -2387,8 +2868,7 @@ watch(
               <span :class="['operation-detail-page__status', `is-${statusTone}`]">{{ displayStatus(status || 'CONFIRMED') }}</span>
               <dl>
                 <div><dt>{{ detailCopy.order.orderDate }}</dt><dd>{{ formatDate(data.orderedAt ?? data.createdAt) }}</dd></div>
-                <div><dt>{{ detailCopy.order.requestedDue }}</dt><dd>{{ display(orderItems[0]?.expectedDueDate) }}</dd></div>
-                <div><dt>{{ detailCopy.order.currency }}</dt><dd>원화</dd></div>
+                <div><dt>예상 납기일</dt><dd>{{ display(orderItems[0]?.expectedDueDate) }}</dd></div>
                 <div><dt>{{ detailCopy.order.totalAmount }}</dt><dd>{{ formatAmount(data.totalAmount, data.currencyCode) }}</dd></div>
               </dl>
             </article>
@@ -2396,56 +2876,104 @@ watch(
             <article class="operation-detail-page__domain-card">
               <h3>{{ detailCopy.order.basicInfo }}</h3>
               <dl class="operation-detail-page__kv-grid is-two-col">
-                <div><dt>{{ detailCopy.order.buyerOrg }}</dt><dd>{{ display(data.buyerOrganizationName ?? '구매 조직') }}</dd></div>
-                <div><dt>{{ detailCopy.order.docType }}</dt><dd>표준 발주</dd></div>
-                <div><dt>{{ detailCopy.order.supplier }}</dt><dd>{{ display(data.supplierName) }}</dd></div>
-                <div><dt>{{ detailCopy.order.shipTo }}</dt><dd>{{ display(orderItems[0]?.arrivalLogisticsNodeName ?? orderItems[0]?.arrivalLogisticsNodeAddress) }}</dd></div>
-                <div><dt>{{ detailCopy.order.owner }}</dt><dd>{{ formatActor(data.createdByUserPublicId) }}</dd></div>
-                <div><dt>{{ detailCopy.order.shippingMethod }}</dt><dd>해상 운송</dd></div>
-                <div><dt>{{ detailCopy.order.paymentTerms }}</dt><dd>30일 후 지급</dd></div>
-                <div><dt>{{ detailCopy.order.memo }}</dt><dd>{{ display(data.memo) }}</dd></div>
+                <div v-for="row in orderBasicInfoRows" :key="row.label">
+                  <dt>{{ row.label }}</dt>
+                  <dd>{{ row.value }}</dd>
+                </div>
               </dl>
             </article>
 
             <article class="operation-detail-page__domain-card">
               <h3>{{ detailCopy.order.items }} ({{ orderItems.length }})</h3>
               <table class="operation-detail-page__domain-table">
-                <thead><tr><th>번호</th><th>품목 코드</th><th>품목명</th><th>규격</th><th>단위</th><th>{{ detailCopy.common.qty }}</th><th>단가</th><th>{{ detailCopy.common.amount }}</th><th>{{ detailCopy.order.requestedDue }}</th></tr></thead>
+                <thead><tr><th>번호</th><th>이미지</th><th>품목명</th><th>{{ detailCopy.common.qty }}</th><th>단위</th><th>단가</th><th>{{ detailCopy.common.amount }}</th><th>예상 납기일</th><th>상세</th></tr></thead>
                 <tbody>
                   <tr v-for="(item, index) in orderItems" :key="rowKey(item, index)">
                     <td>{{ index + 1 }}</td>
-                    <td>{{ display(item.itemCode) }}</td>
+                    <td>
+                      <div class="operation-detail-page__item-thumb">
+                        <img
+                          v-if="orderLineThumbnail(item)"
+                          :src="orderLineThumbnail(item)"
+                          :alt="display(item.itemName)"
+                        />
+                        <span v-else class="material-symbols-outlined">inventory_2</span>
+                      </div>
+                    </td>
                     <td>{{ display(item.itemName) }}</td>
-                    <td>{{ display(item.specification ?? 'SPCC 1.2t') }}</td>
-                    <td>{{ display(item.unit) }}</td>
                     <td>{{ formatNumber(item.orderedQty) }}</td>
+                    <td>{{ display(item.unit) }}</td>
                     <td>{{ formatAmount(item.unitPrice, data.currencyCode) }}</td>
                     <td>{{ formatAmount(item.lineAmount, data.currencyCode) }}</td>
                     <td>{{ display(item.expectedDueDate) }}</td>
+                    <td>
+                      <button class="page-button page-button--secondary operation-detail-page__table-action" type="button" @click="openOrderItemDetailModal(item)">
+                        상세보기
+                      </button>
+                    </td>
                   </tr>
                 </tbody>
               </table>
             </article>
 
             <article class="operation-detail-page__domain-card">
-              <h3>{{ detailCopy.order.changeHistory }}</h3>
-              <table class="operation-detail-page__domain-table">
+              <h3>{{ detailCopy.common.history }}</h3>
+              <table class="operation-detail-page__domain-table operation-detail-page__history-table">
+                <thead>
+                  <tr>
+                    <th>{{ detailCopy.common.dateTime }}</th>
+                    <th>{{ detailCopy.common.step }}</th>
+                    <th>{{ detailCopy.common.processor }}</th>
+                    <th>{{ detailCopy.common.description }}</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  <tr><th>{{ detailCopy.order.requestedDueChange }}</th><td>{{ display(orderItems[0]?.expectedDueDate) }}</td><td>→</td><td>2026-05-20</td><td>{{ detailCopy.order.dueChangeReason }}</td></tr>
-                  <tr><th>{{ detailCopy.order.quantityChange }}</th><td>{{ formatNumber(orderItems.reduce((sum: number, item: any) => sum + Number(item.orderedQty ?? 0), 0)) }}</td><td>→</td><td>1,500</td><td>{{ detailCopy.order.qtyChangeReason }}</td></tr>
-                  <tr><th>{{ detailCopy.order.paymentTermsChange }}</th><td>30일 후 지급</td><td>→</td><td>30일 후 지급</td><td>-</td></tr>
+                  <tr v-if="paginatedHistoryRows.length === 0">
+                    <td class="operation-detail-page__history-empty" colspan="4">히스토리 로그가 없습니다.</td>
+                  </tr>
+                  <tr v-for="(row, rowIndex) in paginatedHistoryRows" :key="rowKey(row, rowIndex)">
+                    <td>{{ formatDate(row.createdAt ?? row.recordedAt ?? row.updatedAt) }}</td>
+                    <td>
+                      <span
+                        :class="[
+                          'operation-detail-page__state-chip',
+                          `is-${chipTone(historyChangeLabel(row))}`,
+                        ]"
+                      >
+                        {{ historyChangeLabel(row) }}
+                      </span>
+                    </td>
+                    <td>{{ historyActorLabel(row) }}</td>
+                    <td>{{ historyDescription(row) }}</td>
+                  </tr>
                 </tbody>
               </table>
+              <div v-if="shouldPaginateHistory" class="operation-detail-page__history-pagination">
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="historyPage <= 1"
+                  @click="moveHistoryPage(-1)"
+                >
+                  이전
+                </button>
+                <span>{{ historyPage }} / {{ historyTotalPages }}</span>
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="historyPage >= historyTotalPages"
+                  @click="moveHistoryPage(1)"
+                >
+                  다음
+                </button>
+              </div>
             </article>
 
-            <div class="operation-detail-page__bottom-actions">
-              <button class="page-button page-button--secondary" type="button" @click="goBack">
-                {{ detailCopy.backToList }}
-              </button>
-
-              <span></span>
-
+            <div class="operation-detail-page__bottom-actions operation-detail-page__order-bottom-actions">
               <template v-if="canAcceptOrRejectOrder">
+                <button class="page-button page-button--secondary" type="button" @click="goBack">
+                  {{ detailCopy.backToList }}
+                </button>
                 <button class="page-button page-button--secondary" type="button" @click="handleRejectOrder">
                   반려
                 </button>
@@ -2455,14 +2983,19 @@ watch(
 
               </template>
 
-              <button
-                v-else-if="canEditOrder && !isAcceptedOrder"
-                class="page-button page-button--primary"
-                type="button"
-                @click="handleEditOrder"
-              >
-                수정
-              </button>
+              <template v-else>
+                <button
+                  v-if="canEditOrder && !isAcceptedOrder"
+                  class="page-button page-button--primary"
+                  type="button"
+                  @click="openOrderEditModal"
+                >
+                  수정
+                </button>
+                <button class="page-button page-button--secondary" type="button" @click="goBack">
+                  {{ detailCopy.backToList }}
+                </button>
+              </template>
             </div>
 
           </section>
@@ -2772,7 +3305,7 @@ watch(
                   </label>
 
                   <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
-                    <span>규격</span>
+                    <span>정보</span>
                     <textarea v-model="itemEditForm.spec" />
                   </label>
 
@@ -3201,6 +3734,220 @@ watch(
     </BaseModal>
 
     <BaseModal
+      v-model="orderItemDetailModalOpen"
+      title="품목 상세"
+      size="md"
+      modal-class="operation-detail-page__order-item-modal-shell"
+      @close="closeOrderItemDetailModal"
+    >
+      <div v-if="selectedOrderItemDetail" class="operation-detail-page__order-item-modal">
+        <div class="operation-detail-page__order-item-media">
+          <video
+            v-if="selectedOrderItemMedia?.kind === 'video' && selectedOrderItemPreviewUrl"
+            :src="selectedOrderItemPreviewUrl"
+            controls
+            playsinline
+          />
+          <img
+            v-else-if="selectedOrderItemPreviewUrl"
+            :src="selectedOrderItemPreviewUrl"
+            :alt="display(selectedOrderItemDetail.itemName)"
+          />
+          <span v-else class="material-symbols-outlined">inventory_2</span>
+        </div>
+
+        <div v-if="selectedOrderItemMediaFiles.length > 1" class="operation-detail-page__order-item-media-strip">
+          <button
+            v-for="(file, mediaIndex) in selectedOrderItemMediaFiles"
+            :key="itemMediaPublicId(file)"
+            :class="[
+              'operation-detail-page__order-item-media-thumb',
+              { 'is-active': selectedOrderItemMediaIndex === mediaIndex },
+            ]"
+            type="button"
+            @click="selectedOrderItemMediaIndex = mediaIndex"
+          >
+            <img
+              v-if="file.kind === 'image'"
+              :src="orderItemMediaPreviewUrl(file)"
+              :alt="file.originalFileName"
+            />
+            <span v-else class="material-symbols-outlined">play_circle</span>
+          </button>
+        </div>
+
+        <div class="operation-detail-page__order-item-info-block">
+          <div class="operation-detail-page__order-item-summary">
+            <span>
+              <small>품목명</small>
+              <strong>{{ display(selectedOrderItemDetail.itemName) }}</strong>
+            </span>
+            <span>
+              <small>품목 코드</small>
+              <strong>{{ display(selectedOrderItemDetail.itemCode) }}</strong>
+            </span>
+            <span>
+              <small>공급사</small>
+              <strong>{{ display(selectedOrderItemDetail.supplierName ?? data?.supplierName) }}</strong>
+            </span>
+          </div>
+
+          <div class="operation-detail-page__order-item-description">
+            <small>정보</small>
+            <strong>{{ display(selectedOrderItemDetail.spec ?? selectedOrderItemDetail.specification) }}</strong>
+          </div>
+
+          <div class="operation-detail-page__order-item-info-row is-three">
+            <span>
+              <small>단위</small>
+              <strong>{{ display(selectedOrderItemDetail.unit) }}</strong>
+            </span>
+            <span>
+              <small>최소 발주수량</small>
+              <strong>{{ formatNumber(selectedOrderItemDetail.moq) }}</strong>
+            </span>
+            <span>
+              <small>확정수량</small>
+              <strong>{{ display(selectedOrderItemDetail.confirmedQty) }}</strong>
+            </span>
+          </div>
+
+          <div class="operation-detail-page__order-item-info-row is-three">
+            <span>
+              <small>나의 발주 수량</small>
+              <strong>{{ formatNumber(selectedOrderItemDetail.orderedQty) }}</strong>
+            </span>
+            <span>
+              <small>단가</small>
+              <strong>{{ formatAmount(selectedOrderItemDetail.unitPrice, data?.currencyCode) }}</strong>
+            </span>
+            <span>
+              <small>총 금액</small>
+              <strong>{{ formatAmount(selectedOrderItemDetail.lineAmount, data?.currencyCode) }}</strong>
+            </span>
+          </div>
+
+          <div class="operation-detail-page__order-item-info-row is-three">
+            <span>
+              <small>리드타임</small>
+              <strong>{{ selectedOrderItemDetail.leadTimeDays ? `${formatNumber(selectedOrderItemDetail.leadTimeDays)}일` : '-' }}</strong>
+            </span>
+            <span>
+              <small>수락 후 예상 납기일</small>
+              <strong>{{ display(selectedOrderItemDetail.expectedDueDate) }}</strong>
+            </span>
+            <span>
+              <small>부분확정</small>
+              <strong>{{ selectedOrderItemDetail.partialConfirmationAllowed === false ? '불가' : '가능' }}</strong>
+            </span>
+          </div>
+        </div>
+
+        <div class="operation-detail-page__order-item-actions">
+          <button class="page-button page-button--primary operation-detail-page__order-item-close-button" type="button" @click="closeOrderItemDetailModal">
+            확인
+          </button>
+        </div>
+      </div>
+    </BaseModal>
+
+    <BaseModal
+      v-model="orderEditModalOpen"
+      title="발주 수정"
+      size="lg"
+      @close="closeOrderEditModal"
+    >
+      <div v-if="orderEditLoading" class="operation-detail-page__state">
+        발주 수정 정보를 불러오는 중입니다.
+      </div>
+
+      <div v-else class="operation-detail-page__edit-form">
+        <section class="operation-detail-page__edit-section">
+          <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
+            <span>메모</span>
+            <input v-model="orderEditForm.memo" type="text" placeholder="발주 메모를 입력하세요." />
+          </label>
+        </section>
+
+        <section class="operation-detail-page__edit-section">
+          <div class="operation-detail-page__section-head">
+            <h3>기존 품목</h3>
+          </div>
+
+          <div class="operation-detail-page__edit-line-list">
+            <div
+              v-for="line in orderEditForm.existingLines"
+              :key="line.poItemPublicId"
+              :class="['operation-detail-page__edit-line-card', { 'is-deleted': line.deleted }]"
+            >
+              <div class="operation-detail-page__edit-line-head">
+                <strong>{{ display(line.itemCode) }} / {{ display(line.itemName) }}</strong>
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="orderEditSaving"
+                  @click="line.deleted = !line.deleted"
+                >
+                  {{ line.deleted ? '삭제 취소' : '품목 삭제' }}
+                </button>
+              </div>
+
+              <div class="operation-detail-page__edit-section">
+                <label class="operation-detail-page__edit-field">
+                  <span>단위</span>
+                  <input :value="line.unit" type="text" disabled />
+                </label>
+
+                <label class="operation-detail-page__edit-field">
+                  <span>발주 수량</span>
+                  <input
+                    v-model.number="line.orderedQty"
+                    type="number"
+                    min="1"
+                    step="1"
+                    :disabled="line.deleted || orderEditSaving"
+                  />
+                </label>
+
+                <label class="operation-detail-page__edit-field operation-detail-page__edit-field--full">
+                  <span>도착 창고</span>
+                  <select v-model="line.arrivalLogisticsNodePublicId" :disabled="line.deleted || orderEditSaving">
+                    <option value="">도착 창고를 선택하세요.</option>
+                    <option
+                      v-for="node in orderEditLogisticsNodeOptions"
+                      :key="node.publicId"
+                      :value="node.publicId"
+                    >
+                      {{ node.nodeName }} / {{ node.nodeType }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <p v-if="orderEditErrorMessage" class="operation-detail-page__error">
+          {{ orderEditErrorMessage }}
+        </p>
+
+        <div class="operation-detail-page__bottom-actions operation-detail-page__bottom-actions--end">
+          <button class="page-button page-button--secondary" type="button" @click="closeOrderEditModal">
+            취소
+          </button>
+          <button
+            class="page-button page-button--primary"
+            type="button"
+            :disabled="orderEditSaving"
+            @click="submitOrderEdit"
+          >
+            {{ orderEditSaving ? '저장 중' : '수정 완료' }}
+          </button>
+        </div>
+      </div>
+    </BaseModal>
+
+    <BaseModal
       v-model="itemLockedModalOpen"
       title="품목 수정 불가"
       description="발주 확정 품목은 수정 불가합니다."
@@ -3400,15 +4147,21 @@ watch(
 
 .operation-detail-page__status,
 .operation-detail-page__ai-status {
-  min-height: 38px;
-  padding: 9px 13px;
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  justify-content: center;
+  height: fit-content;
+  min-height: 28px;
+  padding: 5px 10px;
   border: 1px solid var(--detail-border);
   background: var(--detail-surface-plain);
   color: var(--on-surface, #2d3435);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 900;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  line-height: 1.15;
+  letter-spacing: 0;
+  white-space: nowrap;
 }
 
 .operation-detail-page__status.is-critical,
@@ -4147,6 +4900,10 @@ watch(
   border: 1px solid var(--detail-border);
 }
 
+.operation-detail-page__doc-hero dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .operation-detail-page__doc-hero dl > div,
 .operation-detail-page__shipment-hero dl > div,
 .operation-detail-page__supplier-head dl > div {
@@ -4415,6 +5172,255 @@ watch(
   text-transform: uppercase;
 }
 
+.operation-detail-page__domain-table td.operation-detail-page__history-empty {
+  text-align: center;
+}
+
+.operation-detail-page__item-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--detail-border);
+  background: rgb(var(--surface-container-rgb, 235 238 239) / 0.45);
+  overflow: hidden;
+}
+
+.operation-detail-page__item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.operation-detail-page__item-thumb span {
+  color: var(--detail-muted);
+  font-size: 1.25rem;
+}
+
+.operation-detail-page__table-action {
+  min-height: 34px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.operation-detail-page__order-item-modal {
+  display: grid;
+  gap: 18px;
+  background: transparent;
+}
+
+.operation-detail-page__order-item-info-block {
+  display: grid;
+  gap: 0;
+}
+
+.operation-detail-page__order-item-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+  border-top: 1px solid #d9dee0;
+  border-left: 1px solid #d9dee0;
+  background: #fff;
+}
+
+.operation-detail-page__order-item-summary span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 11px 12px;
+  border-right: 1px solid #d9dee0;
+  border-bottom: 1px solid #d9dee0;
+}
+
+.operation-detail-page__order-item-summary small {
+  color: var(--detail-muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.operation-detail-page__order-item-summary strong {
+  min-width: 0;
+  color: var(--on-surface, #2d3435);
+  font-size: 0.86rem;
+  font-weight: 900;
+  word-break: break-word;
+}
+
+.operation-detail-page__order-item-description,
+.operation-detail-page__order-item-info-row {
+  border-top: 1px solid #d9dee0;
+  border-left: 1px solid #d9dee0;
+  background: #fff;
+}
+
+.operation-detail-page__order-item-description {
+  display: grid;
+  gap: 5px;
+  min-height: 54px;
+  padding: 11px 12px;
+  border-top: 0;
+  border-right: 1px solid #d9dee0;
+  border-bottom: 1px solid #d9dee0;
+}
+
+.operation-detail-page__order-item-info-block .operation-detail-page__order-item-info-row {
+  border-top: 0;
+}
+
+.operation-detail-page__order-item-description small,
+.operation-detail-page__order-item-info-row span {
+  min-height: 54px;
+  padding: 11px 12px;
+  border-right: 1px solid #d9dee0;
+  border-bottom: 1px solid #d9dee0;
+}
+
+.operation-detail-page__order-item-description small,
+.operation-detail-page__order-item-description strong {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+}
+
+.operation-detail-page__order-item-description small,
+.operation-detail-page__order-item-info-row small {
+  color: var(--detail-muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.operation-detail-page__order-item-description strong,
+.operation-detail-page__order-item-info-row strong {
+  min-width: 0;
+  color: var(--on-surface, #2d3435);
+  font-size: 0.86rem;
+  font-weight: 900;
+  word-break: break-word;
+}
+
+.operation-detail-page__order-item-info-row {
+  display: grid;
+}
+
+.operation-detail-page__order-item-info-row.is-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.operation-detail-page__order-item-info-row.is-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.operation-detail-page__order-item-info-row span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  align-content: start;
+}
+
+.operation-detail-page__order-item-info-row .operation-detail-page__state-chip {
+  align-self: start;
+  justify-self: start;
+  min-height: 0;
+  padding: 5px 10px;
+  line-height: 1.2;
+}
+
+.operation-detail-page__order-item-modal .operation-detail-page__order-item-definition-grid {
+  grid-template-columns: 132px minmax(0, 1fr);
+  margin-top: 0;
+  border-top: 1px solid #d9dee0;
+  border-left: 1px solid #d9dee0;
+  background: #fff;
+}
+
+.operation-detail-page__order-item-modal .operation-detail-page__order-item-definition-grid dt,
+.operation-detail-page__order-item-modal .operation-detail-page__order-item-definition-grid dd {
+  min-height: 54px;
+  border-right: 1px solid #d9dee0;
+  border-bottom: 1px solid #d9dee0;
+}
+
+.operation-detail-page__order-item-modal .operation-detail-page__order-item-definition-grid dt {
+  background: #fff;
+  color: var(--on-surface, #2d3435);
+}
+
+.operation-detail-page__order-item-modal .operation-detail-page__order-item-definition-grid dd {
+  background: #fff;
+}
+
+.operation-detail-page__order-item-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  margin: 2px 0 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.operation-detail-page__order-item-media img,
+.operation-detail-page__order-item-media video {
+  width: 100%;
+  height: 100%;
+  max-height: 260px;
+  object-fit: contain;
+}
+
+.operation-detail-page__order-item-media span {
+  color: var(--detail-muted);
+  font-size: 2rem;
+}
+
+.operation-detail-page__order-item-media-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 54px);
+  gap: 10px;
+  margin-top: 4px;
+  padding-bottom: 2px;
+  justify-content: start;
+}
+
+.operation-detail-page__order-item-media-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  border: 1px solid #d9dee0;
+  background: #fff;
+  color: var(--detail-muted);
+  text-decoration: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.operation-detail-page__order-item-media-thumb.is-active {
+  border-color: var(--on-surface, #2d3435);
+  box-shadow: inset 0 0 0 1px var(--on-surface, #2d3435);
+}
+
+.operation-detail-page__order-item-media-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.operation-detail-page__order-item-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.operation-detail-page__order-item-close-button {
+  min-width: 92px;
+  min-height: 38px;
+  padding: 8px 16px;
+}
+
 .operation-detail-page__analysis-panel {
   display: grid;
   gap: 12px;
@@ -4513,6 +5519,20 @@ watch(
 .operation-detail-page__bottom-actions--start {
   display: flex;
   justify-content: flex-end;
+}
+
+.operation-detail-page__bottom-actions--end {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.operation-detail-page__order-bottom-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.operation-detail-page__order-bottom-actions .page-button {
+  min-width: 96px;
 }
 
 .operation-detail-page__recommendation {
@@ -4856,6 +5876,49 @@ watch(
   font-weight: 950;
 }
 
+.operation-detail-page__section-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.operation-detail-page__edit-line-list {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+}
+
+.operation-detail-page__edit-line-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--detail-border);
+  background: var(--detail-surface-plain);
+}
+
+.operation-detail-page__edit-line-card.is-deleted {
+  opacity: 0.58;
+}
+
+.operation-detail-page__edit-line-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.operation-detail-page__edit-line-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--on-surface, #2d3435);
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+
 .operation-detail-page__edit-field {
   display: grid;
   gap: 7px;
@@ -4873,14 +5936,19 @@ watch(
 .operation-detail-page__edit-field textarea {
   width: 100%;
   min-height: 44px;
-  border: 1px solid var(--outline-variant, var(--line));
+  border: 1px solid #d9dee0;
   background: #fff;
+  box-shadow: inset 0 0 0 1px rgb(217 222 224 / 0.18);
   padding: 10px 12px;
   color: var(--text);
   font: inherit;
 }
 
-.operation-detail-page__edit-field input[readonly] {
+.operation-detail-page__edit-field input[readonly],
+.operation-detail-page__edit-field input:disabled,
+.operation-detail-page__edit-field select:disabled,
+.operation-detail-page__edit-field textarea:disabled {
+  border-color: #d9dee0;
   background: rgb(var(--surface-container-low-rgb, 245 245 245) / 0.72);
   color: var(--text-muted);
   cursor: not-allowed;
