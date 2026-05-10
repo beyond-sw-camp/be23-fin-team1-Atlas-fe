@@ -5847,8 +5847,8 @@ select:not(.app-language-select select):focus {
 }
 
 .returns-page .terminal-page__filter {
-  display: flex;
-  justify-content: flex-end;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  justify-content: stretch;
 }
 
 .returns-page .terminal-page__tabs {
@@ -5925,6 +5925,7 @@ select:not(.app-language-select select):focus {
 
 @media (max-width: 640px) {
   .returns-page .terminal-page__filter {
+    grid-template-columns: 1fr;
     justify-content: stretch;
   }
 
@@ -5990,7 +5991,36 @@ select:not(.app-language-select select):focus {
 }
 
 .suppliers-page .terminal-page__filter {
-  grid-template-columns: minmax(0, 1fr) max-content;
+  grid-template-columns: minmax(0, 1fr) max-content minmax(120px, 150px);
+  align-items: stretch;
+}
+
+.suppliers-page__relation-select {
+  display: block;
+  min-width: 120px;
+}
+
+.suppliers-page__relation-select select {
+  width: 100%;
+  height: 100%;
+  min-height: 42px !important;
+  font-size: 0.7rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em;
+}
+
+.terminal-page__search--icon-only {
+  position: relative;
+}
+
+.terminal-page__search--icon-only input {
+  min-height: 40px;
+}
+
+.terminal-page__search-icon {
+  color: var(--on-surface-variant, #596061);
+  font-size: 20px !important;
+  line-height: 1;
 }
 
 .suppliers-page__table {

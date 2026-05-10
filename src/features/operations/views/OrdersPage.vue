@@ -167,7 +167,7 @@ const copy = computed(() =>
         counterpartyTitle: '주요 거래처',
         counterpartyEmpty: '표시할 거래처 집계가 없습니다.',
         searchLabel: '검색',
-        searchPlaceholder: '발주번호, 거래처, 품목명으로 검색하세요.',
+        searchPlaceholder: '발주번호, 거래처, 품목명 검색',
         tableTitle: '주문 테이블',
         loadingOrders: '주문 데이터를 불러오는 중입니다.',
         emptyOrders: '조건에 맞는 주문이 없습니다.',
@@ -3074,7 +3074,7 @@ onBeforeUnmount(() => {
             <input
               v-model="search"
               type="text"
-              placeholder=""
+              :placeholder="copy.searchPlaceholder"
               :aria-label="copy.searchPlaceholder"
             />
           </label>
