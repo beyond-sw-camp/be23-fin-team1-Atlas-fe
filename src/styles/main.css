@@ -6083,6 +6083,10 @@ select:not(.app-language-select select):focus {
   background: var(--surface-hover, var(--surface-muted));
 }
 
+.suppliers-page__feed-summary {
+  cursor: default;
+}
+
 .suppliers-page .terminal-page__bar {
   margin-top: 4px;
 }
