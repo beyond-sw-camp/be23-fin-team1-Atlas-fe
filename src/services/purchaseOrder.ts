@@ -77,6 +77,21 @@ export interface OrderDashboardSummaryResponseDto {
   issuedOrderCount: number
   receivedOrderCount: number
   totalAmount: number
+  shortageOrderCount: number
+  shortageOrders: OrderShortageResponseDto[]
+}
+
+export interface OrderShortageResponseDto {
+  poPublicId: string
+  poNumber: string
+  poItemPublicId?: string | null
+  supplierPublicId: string
+  supplierName: string
+  itemPublicId?: string | null
+  itemName?: string | null
+  shortageItemCount: number
+  shortageQty: number
+  unit?: string | null
 }
 
 export interface CreatePurchaseOrderBatchLineRequestDto {

@@ -148,7 +148,7 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'ordersDesk',
-    label: '발주 관리',
+    label: '주문 관리',
     icon: 'shopping_cart',
     description: '발주 승인, ETA, 우선순위 운영',
     pageSubtitle: '발주 승인 상태, ETA 변동, 공급처별 우선순위 제어',

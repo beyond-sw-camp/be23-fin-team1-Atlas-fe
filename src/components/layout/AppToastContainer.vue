@@ -16,25 +16,32 @@ const toast = useAtlasToastStore()
 const router = useRouter()
 
 function normalizeToastUrl(url: string) {
-  if (url.startsWith('/purchase-orders/')) {
-    return url.replace('/purchase-orders/', '/operations/orders/')
+  let normalizedUrl = url
+  try {
+    normalizedUrl = new URL(url, window.location.origin).pathname
+  } catch {
+    normalizedUrl = url
   }
-  if (url.startsWith('/sub-purchase-orders/')) {
-    return url.replace('/sub-purchase-orders/', '/operations/sub-orders/')
+
+  if (normalizedUrl.startsWith('/purchase-orders/')) {
+    return normalizedUrl.replace('/purchase-orders/', '/operations/orders/')
   }
-  if (url.startsWith('/shipments/')) {
-    return url.replace('/shipments/', '/operations/shipments/')
+  if (normalizedUrl.startsWith('/sub-purchase-orders/')) {
+    return normalizedUrl.replace('/sub-purchase-orders/', '/operations/sub-orders/')
   }
-  if (url.startsWith('/returns/')) {
-    return url.replace('/returns/', '/operations/returns/')
+  if (normalizedUrl.startsWith('/shipments/')) {
+    return normalizedUrl.replace('/shipments/', '/operations/shipments/')
   }
-  return url
+  if (normalizedUrl.startsWith('/returns/')) {
+    return normalizedUrl.replace('/returns/', '/operations/returns/')
+  }
+  return normalizedUrl
 }
 
-function openToast(item: { id: number; actionUrl?: string }) {
+async function openToast(item: { id: number; actionUrl?: string }) {
   if (!item.actionUrl) return
 
-  router.push(normalizeToastUrl(item.actionUrl))
+  await router.push(normalizeToastUrl(item.actionUrl))
   toast.dismiss(item.id)
 }
 </script>
@@ -70,6 +77,7 @@ function openToast(item: { id: number; actionUrl?: string }) {
             <div class="atlas-toast__content">
               <strong class="atlas-toast__title">{{ item.title }}</strong>
               <span class="atlas-toast__message">{{ item.message }}</span>
+              <span v-if="item.actionUrl" class="atlas-toast__action">상세 보기</span>
             </div>
             <button
               class="atlas-toast__dismiss"

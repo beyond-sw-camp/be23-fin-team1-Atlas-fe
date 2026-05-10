@@ -54,9 +54,31 @@ const TOAST_EVENT_TYPES = new Set([
   'recommendation.rejected',
 ])
 
+export const ATLAS_NOTIFICATION_EVENT = 'atlas:notification'
+
 function shouldShowToast(notification: NotificationDto) {
   if (!notification.eventType) return true
   return TOAST_EVENT_TYPES.has(notification.eventType)
+}
+
+function resolveNotificationActionUrl(notification: NotificationDto) {
+  if (notification.deepLinkUrl) return notification.deepLinkUrl
+  if (!notification.referencePublicId || !notification.eventType) return undefined
+
+  if (notification.eventType.startsWith('purchase-order.')) {
+    return `/operations/orders/${notification.referencePublicId}`
+  }
+  if (notification.eventType.startsWith('sub-purchase-order.')) {
+    return `/operations/sub-orders/${notification.referencePublicId}`
+  }
+  if (notification.eventType.startsWith('shipment.') || notification.eventType.startsWith('delivery-exception.')) {
+    return `/operations/shipments/${notification.referencePublicId}`
+  }
+  if (notification.eventType.startsWith('return-request.')) {
+    return `/operations/returns/${notification.referencePublicId}`
+  }
+
+  return undefined
 }
 
 export const useAtlasNotificationStore = defineStore('atlasNotification', () => {
@@ -106,6 +128,8 @@ export const useAtlasNotificationStore = defineStore('atlasNotification', () => 
       unreadCount.value++
     }
 
+    window.dispatchEvent(new CustomEvent(ATLAS_NOTIFICATION_EVENT, { detail: notification }))
+
     if (!shouldShowToast(notification)) return
 
     // 토스트 알림 자동 표시
@@ -114,7 +138,7 @@ export const useAtlasNotificationStore = defineStore('atlasNotification', () => 
       : notification.notificationType === 'WARNING' ? 'warning'
       : notification.notificationType === 'SUCCESS' ? 'nominal'
       : 'info'
-    toast.show(notification.title, notification.message, tone, 7000, notification.deepLinkUrl)
+    toast.show(notification.title, notification.message, tone, 7000, resolveNotificationActionUrl(notification))
   }
 
   async function readNotification(publicId: string) {

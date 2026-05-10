@@ -60,8 +60,8 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     en: { label: '공급망 네트워크', description: '공급망 네트워크 시각화', pageSubtitle: 'Tier 연결, 병목 지점, 대체 경로 가시화' },
   },
   ordersDesk: {
-    ko: { label: '발주 관리', description: '발주 승인, ETA, 우선순위 운영', pageSubtitle: '발주 승인 상태, ETA 변동, 공급처별 우선순위 제어' },
-    en: { label: '발주 관리', description: '발주 승인, ETA, 우선순위 운영', pageSubtitle: '발주 승인 상태, ETA 변동, 공급처별 우선순위 제어' },
+    ko: { label: '주문 관리', description: '발주 승인, ETA, 우선순위 운영', pageSubtitle: '발주 승인 상태, ETA 변동, 공급처별 우선순위 제어' },
+    en: { label: '주문 관리', description: '발주 승인, ETA, 우선순위 운영', pageSubtitle: '발주 승인 상태, ETA 변동, 공급처별 우선순위 제어' },
   },
   supplierControl: {
     ko: { label: '협력사 관리', description: '협력사 상태, 등급, 온보딩 관리', pageSubtitle: '협력사 등급, 인증, 온보딩 및 성과 상태 관리' },

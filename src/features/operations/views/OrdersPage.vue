@@ -5,6 +5,8 @@ import { BaseModal } from '../../shared'
 import { useAtlasHeaderStore } from '../../../stores/header'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
+import { ATLAS_NOTIFICATION_EVENT } from '../../../stores/notification'
+import type { NotificationDto } from '../../../services/notification'
 import { useActorScope } from '../../../composables/useActorScope'
 import { apiClient } from '../../../services/http'
 import {
@@ -144,26 +146,29 @@ const preferences = useAtlasPreferencesStore()
 const copy = computed(() =>
   true
     ? {
-        pageEyebrow: '공급망 운영 / 발주 관리',
-        pageTitle: '발주 관리',
+        pageEyebrow: '공급망 운영 / 주문 관리',
+        pageTitle: '주문 관리',
         export: '내보내기',
         refresh: '새로고침',
         createOrder: '신규 발주',
-        queueTitle: '확인 대기함',
-        queueEmpty: '확인 대기 건이 없습니다.',
+        queueTitle: '미처리 발주 건',
+        queueEmpty: '미처리 발주 건이 없습니다.',
+        shortageEyebrow: '부족 발주',
+        shortageTitle: '추가 발주 필요',
+        shortageEmpty: '추가 발주가 필요한 부분 확정 건이 없습니다.',
+        shortageAction: '추가 발주',
+        shortageQty: '부족',
         parentOrderSelect: '상위 발주 선택',
         mainOrderMode: '메인 발주',
         selectParentOrder: '선택하면 서브발주로 연결되고, 선택하지 않으면 메인 발주로 등록됩니다.',
         parentOrderItem: '상위 발주 품목',
         selectParentOrderItem: '연결할 상위 발주 품목을 선택하세요.',
 
-        valueTitle: '카테고리별 금액',
-        valueEmpty: '표시할 카테고리 금액이 없습니다.',
         counterpartyTitle: '주요 거래처',
         counterpartyEmpty: '표시할 거래처 집계가 없습니다.',
         searchLabel: '검색',
         searchPlaceholder: '발주번호, 거래처, 품목명으로 검색하세요.',
-        tableTitle: '발주 테이블',
+        tableTitle: '주문 테이블',
         loadingOrders: '주문 데이터를 불러오는 중입니다.',
         emptyOrders: '조건에 맞는 주문이 없습니다.',
         detail: '상세',
@@ -297,8 +302,10 @@ const copy = computed(() =>
           completedMeta: '완료 처리된 발주',
           totalAmount: '총금액(원)',
           amountMeta: '발주 기준 총금액(원)',
+          orderFlow: '발주 / 수주',
           issuedCount: '발주 수',
           receivedCount: '수주 수',
+          shortageNeeded: '추가 발주 필요',
           totalAmountIssued: '총금액(원)',
         },
         supplierStatuses: {
@@ -363,8 +370,8 @@ const copy = computed(() =>
         },
       }
     : {
-        pageEyebrow: 'Supply Operations / Purchase Orders',
-        pageTitle: 'Purchase Orders',
+        pageEyebrow: 'Supply Operations / Orders',
+        pageTitle: 'Orders',
         parentOrderSelect: 'Parent Order',
         mainOrderMode: 'Main Order',
         selectParentOrder: 'Selecting a parent order creates linked sub orders. Leaving it empty creates a main order.',
@@ -373,10 +380,13 @@ const copy = computed(() =>
         export: 'Export',
         refresh: 'Refresh',
         createOrder: 'New Order',
-        queueTitle: 'Approval Queue',
-        queueEmpty: 'No orders waiting for confirmation.',
-        valueTitle: 'Category Amounts',
-        valueEmpty: 'No category amount to display.',
+        queueTitle: 'Unhandled Orders',
+        queueEmpty: 'No unhandled orders.',
+        shortageEyebrow: 'Shortage',
+        shortageTitle: 'Additional Orders Needed',
+        shortageEmpty: 'No partially confirmed orders need additional ordering.',
+        shortageAction: 'Create Order',
+        shortageQty: 'Shortage',
         counterpartyTitle: 'Top Counterparties',
         counterpartyEmpty: 'No counterparty aggregate to display.',
         searchLabel: 'Search',
@@ -515,8 +525,10 @@ const copy = computed(() =>
           completedMeta: 'Completed orders',
           totalAmount: 'Total Amount',
           amountMeta: 'Total issued amount',
+          orderFlow: 'Issued / Received',
           issuedCount: 'Issued',
           receivedCount: 'Received',
+          shortageNeeded: 'Needs Additional Order',
           totalAmountIssued: 'Total Amount',
         },
         supplierStatuses: {
@@ -715,6 +727,7 @@ const editForm = ref({
 
 let createLineSeed = 1
 let editLineSeed = 1
+let notificationRefreshTimer: ReturnType<typeof window.setTimeout> | undefined
 
 function createEmptyOrderLine(item: ItemResponseDto | null = null): CreateOrderLineForm {
   return {
@@ -822,6 +835,11 @@ const routeParentPoPublicId = computed(() => {
   return typeof value === 'string' ? value : ''
 })
 
+const routeShortageItemPublicId = computed(() => {
+  const value = route.query.shortageItemPublicId
+  return typeof value === 'string' ? value : ''
+})
+
 const isSubOrderCreateMode = computed(() => !!createForm.value.parentPoPublicId)
 
 const creatableParentOrders = computed(() =>
@@ -899,21 +917,28 @@ const issuedTotalAmount = computed(() =>
 
 const dashboardMetrics = computed(() => {
   const summary = dashboardSummary.value
+  const issuedCount = summary?.issuedOrderCount ?? 0
+  const receivedCount = summary?.receivedOrderCount ?? 0
+  const shortageCount = summary?.shortageOrderCount ?? 0
+  const orderFlowParts = [
+    { label: copy.value.metrics.issuedCount, value: formatNumber(issuedCount) },
+    { label: copy.value.metrics.receivedCount, value: formatNumber(receivedCount) },
+  ]
 
   if (actor.isBuyerOrganization.value) {
     return [
-      { label: copy.value.metrics.totalOrders, value: formatNumber(summary?.issuedOrderCount ?? 0), meta: copy.value.metrics.buyerMeta, tone: 'nominal' },
-      { label: copy.value.metrics.pending, value: formatNumber(summary?.pendingOrderCount ?? 0), meta: copy.value.metrics.pendingMeta, tone: 'warning' },
-      { label: copy.value.metrics.completed, value: formatNumber(summary?.completedOrderCount ?? 0), meta: copy.value.metrics.completedMeta, tone: 'info' },
-      { label: copy.value.metrics.totalAmount, value: formatThousandAmount(issuedTotalAmount.value), meta: copy.value.metrics.amountMeta, tone: 'critical' },
+      { label: copy.value.metrics.totalOrders, value: formatNumber(issuedCount), meta: copy.value.metrics.buyerMeta, tone: 'nominal' },
+      { label: copy.value.metrics.orderFlow, value: '', parts: orderFlowParts, tone: 'warning' },
+      { label: copy.value.metrics.shortageNeeded, value: formatNumber(shortageCount), meta: copy.value.shortageTitle, tone: 'info' },
+      { label: copy.value.metrics.totalAmount, value: formatKoreanCompactAmount(issuedTotalAmount.value), meta: copy.value.metrics.amountMeta, tone: 'critical' },
     ]
   }
 
   return [
     { label: copy.value.metrics.totalOrders, value: formatNumber(summary?.totalOrderCount ?? 0), tone: 'nominal' },
-    { label: copy.value.metrics.issuedCount, value: formatNumber(summary?.issuedOrderCount ?? 0), tone: 'warning' },
-    { label: copy.value.metrics.receivedCount, value: formatNumber(summary?.receivedOrderCount ?? 0), tone: 'info' },
-    { label: copy.value.metrics.totalAmountIssued, value: formatThousandAmount(issuedTotalAmount.value), tone: 'critical' },
+    { label: copy.value.metrics.orderFlow, value: '', parts: orderFlowParts, tone: 'warning' },
+    { label: copy.value.metrics.shortageNeeded, value: formatNumber(shortageCount), tone: 'info' },
+    { label: copy.value.metrics.totalAmountIssued, value: formatKoreanCompactAmount(issuedTotalAmount.value), tone: 'critical' },
   ]
 })
 
@@ -1090,70 +1115,55 @@ const queueEntries = computed<OrderQueueEntry[]>(() => {
 })
 
 
-const categoryRows = computed(() => {
-  const totals = new Map<string, number>()
-
-  if (actor.isSupplierOrganization.value) {
-    sentSubOrders.value.forEach((subOrder) => {
-      ;(subOrder.items ?? []).forEach((item) => {
-        const categoryName = itemCategoryPathOf(item.itemPublicId)
-        totals.set(categoryName, (totals.get(categoryName) ?? 0) + toNumber(item.lineAmount))
-      })
-    })
-  } else {
-    purchaseOrders.value.forEach((order) => {
-      order.items.forEach((item) => {
-        const categoryName = itemCategoryPathOf(item.itemPublicId)
-        totals.set(categoryName, (totals.get(categoryName) ?? 0) + toNumber(item.lineAmount))
-      })
-    })
-  }
-
-  const rows = Array.from(totals.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-
-  const maxValue = rows.length ? Math.max(...rows.map((row) => row[1])) : 1
-
-  return rows.map(([label, value]) => ({
-    label,
-    value: formatThousandAmount(value),
-    width: `${Math.max(16, Math.round((value / maxValue) * 100))}%`,
-  }))
-})
+const shortageEntries = computed(() => dashboardSummary.value?.shortageOrders ?? [])
 
 const topCounterpartyRows = computed(() => {
-  const totals = new Map<string, { orderCount: number; totalAmount: number }>()
+  const totals = new Map<string, {
+    issuedCount: number
+    receivedCount: number
+    totalAmount: number
+  }>()
 
-  if (actor.isSupplierOrganization.value) {
-    sentSubOrders.value.forEach((subOrder) => {
-      const supplierName = supplierDisplayName(subOrder.supplierName)
-      const current = totals.get(supplierName) ?? { orderCount: 0, totalAmount: 0 }
-      current.orderCount += 1
-      current.totalAmount += toNumber(subOrder.totalAmount)
-      totals.set(supplierName, current)
-    })
-  } else {
-    purchaseOrders.value.forEach((order) => {
-      const supplierName = supplierDisplayName(order.supplierName)
-      const current = totals.get(supplierName) ?? { orderCount: 0, totalAmount: 0 }
-      current.orderCount += 1
-      current.totalAmount += toNumber(order.totalAmount)
-      totals.set(supplierName, current)
-    })
-  }
+  orderRows.value.forEach((row) => {
+    const counterpartyName = row.counterpartyName || '-'
+    const current = totals.get(counterpartyName) ?? {
+      issuedCount: 0,
+      receivedCount: 0,
+      totalAmount: 0,
+    }
+
+    if (row.direction === 'ISSUED') {
+      current.issuedCount += 1
+    } else {
+      current.receivedCount += 1
+    }
+    current.totalAmount += row.totalAmount
+    totals.set(counterpartyName, current)
+  })
 
   return Array.from(totals.entries())
     .sort((a, b) => b[1].totalAmount - a[1].totalAmount)
     .slice(0, 4)
     .map(([name, summary]) => ({
       name,
-        text: copy.value.orderCountSummary(
-          summary.orderCount,
-          formatThousandAmount(summary.totalAmount),
-        ),
+      text: formatCounterpartySummary(summary),
     }))
 })
+
+function formatCounterpartySummary(summary: {
+  issuedCount: number
+  receivedCount: number
+  totalAmount: number
+}) {
+  const issuedLabel = copy.value.directionOptions.find((option) => option.key === 'ISSUED')?.label ?? '발주'
+  const receivedLabel = copy.value.directionOptions.find((option) => option.key === 'RECEIVED')?.label ?? '수주'
+  const countParts = [
+    summary.issuedCount ? `${issuedLabel} ${formatNumber(summary.issuedCount)}` : '',
+    summary.receivedCount ? `${receivedLabel} ${formatNumber(summary.receivedCount)}` : '',
+  ].filter(Boolean)
+
+  return `${countParts.join(' · ') || '0건'} / ${formatPlainAmount(summary.totalAmount)}`
+}
 
 const selectedOrderDescription = computed(() =>
   hasSelectedOrder.value
@@ -1203,6 +1213,8 @@ function emptyDashboardSummary(): OrderDashboardSummaryResponseDto {
     issuedOrderCount: 0,
     receivedOrderCount: 0,
     totalAmount: 0,
+    shortageOrderCount: 0,
+    shortageOrders: [],
   }
 }
 
@@ -1237,6 +1249,26 @@ function formatNumber(value: number | null | undefined) {
 function formatPlainAmount(value: number | null | undefined) {
   if (value == null || Number.isNaN(Number(value))) return '-'
   return `${formatNumber(value)} 원`
+}
+
+function formatKoreanCompactAmount(value: number | null | undefined) {
+  if (value == null || Number.isNaN(Number(value))) return '-'
+  const amount = Math.round(Number(value))
+  if (preferences.language !== 'ko') return formatPlainAmount(amount)
+  if (Math.abs(amount) < 10_000) return `${formatNumber(amount)} 원`
+
+  const sign = amount < 0 ? '-' : ''
+  const absoluteAmount = Math.abs(amount)
+  const eok = Math.floor(absoluteAmount / 100_000_000)
+  const man = Math.floor((absoluteAmount % 100_000_000) / 10_000)
+  const remainder = absoluteAmount % 10_000
+  const parts: string[] = []
+
+  if (eok) parts.push(`${formatNumber(eok)}억`)
+  if (man) parts.push(`${formatNumber(man)}만`)
+  if (!eok && !man && remainder) parts.push(formatNumber(remainder))
+
+  return `${sign}${parts.join(' ')} 원`
 }
 
 function formatAmount(
@@ -1644,29 +1676,6 @@ function resetCreateOrderForm() {
   }
 }
 
-function categoryPathOf(categoryPublicId: string | null | undefined) {
-  if (!categoryPublicId) return copy.value.uncategorized
-
-  const categoriesById = new Map(categoryOptions.value.map((category) => [category.publicId, category]))
-  const names: string[] = []
-  let current = categoriesById.get(categoryPublicId)
-
-  while (current) {
-    names.unshift(current.categoryName)
-    current = current.parentCategoryPublicId
-      ? categoriesById.get(current.parentCategoryPublicId)
-      : undefined
-  }
-
-  return names.length ? names.join(' > ') : copy.value.uncategorized
-}
-
-function itemCategoryPathOf(itemPublicId: string) {
-  return categoryPathOf(itemMap.value[itemPublicId]?.itemCategoryPublicId)
-}
-
-
-
 function openCreateOrderModal(parentPoPublicId = '') {
   resetCreateOrderForm()
   createForm.value.parentPoPublicId = parentPoPublicId
@@ -1680,6 +1689,71 @@ function openCreateOrderModal(parentPoPublicId = '') {
   } else {
     router.replace(nextRoute)
   }
+}
+
+function createCategoryPath(categoryPublicId: string | null | undefined) {
+  if (!categoryPublicId) return []
+
+  const categoriesById = new Map(categoryOptions.value.map((category) => [category.publicId, category]))
+  const path: ItemCategoryResponseDto[] = []
+  let current = categoriesById.get(categoryPublicId)
+
+  while (current) {
+    path.unshift(current)
+    current = current.parentCategoryPublicId
+      ? categoriesById.get(current.parentCategoryPublicId)
+      : undefined
+  }
+
+  return path
+}
+
+function applyCreateCategoryPath(categoryPublicId: string | null | undefined) {
+  const [level1, level2, level3] = createCategoryPath(categoryPublicId)
+  createForm.value.categoryLevel1PublicId = level1?.publicId ?? ''
+  createForm.value.categoryLevel2PublicId = level2?.publicId ?? ''
+  createForm.value.categoryLevel3PublicId = level3?.publicId ?? ''
+}
+
+async function openShortageCreateOrder(shortage: NonNullable<OrderDashboardSummaryResponseDto['shortageOrders']>[number]) {
+  resetCreateOrderForm()
+
+  const nextRoute = shortage.itemPublicId
+    ? { name: 'orderCreate' as const, query: { shortageItemPublicId: shortage.itemPublicId } }
+    : { name: 'orderCreate' as const }
+
+  if (!isCreatePage.value) {
+    await router.push(nextRoute)
+  } else {
+    await router.replace(nextRoute)
+  }
+
+  if (shortage.itemPublicId) {
+    await applyShortageItemSearch(shortage.itemPublicId, shortage.itemName ?? '')
+  }
+}
+
+async function applyShortageItemSearch(itemPublicId: string, fallbackKeyword = '') {
+  try {
+    const item = itemMap.value[itemPublicId] ?? await getItem(itemPublicId)
+    itemMap.value = {
+      ...itemMap.value,
+      [item.publicId]: item,
+    }
+    applyCreateCategoryPath(item.itemCategoryPublicId)
+    createForm.value.itemKeyword = ''
+    await searchItemsForCreateOrder()
+  } catch (error) {
+    console.error('Failed to prefill shortage order item', error)
+    createForm.value.itemKeyword = fallbackKeyword
+    await searchItemsForCreateOrder()
+  }
+}
+
+async function hydrateCreateOrderFromRoute() {
+  if (!isCreatePage.value || !routeShortageItemPublicId.value) return
+  if (selectedCreateCategoryPublicId.value || createForm.value.searchSubmitted) return
+  await applyShortageItemSearch(routeShortageItemPublicId.value)
 }
 
 
@@ -2806,11 +2880,31 @@ async function refreshOrdersPage() {
   ])
 }
 
+function shouldRefreshForNotification(notification: NotificationDto) {
+  return notification.eventType?.startsWith('purchase-order.') ||
+    notification.eventType?.startsWith('sub-purchase-order.')
+}
+
+function handleOrderNotification(event: Event) {
+  const notification = (event as CustomEvent<NotificationDto>).detail
+  if (!notification || !shouldRefreshForNotification(notification)) return
+
+  if (notificationRefreshTimer) {
+    window.clearTimeout(notificationRefreshTimer)
+  }
+
+  notificationRefreshTimer = window.setTimeout(() => {
+    notificationRefreshTimer = undefined
+    loadOrderDashboard()
+  }, 250)
+}
+
 function escapeCsvCell(value: unknown) {
   return `"${String(value ?? '').replace(/"/g, '""')}"`
 }
 
 onMounted(async () => {
+  window.addEventListener(ATLAS_NOTIFICATION_EVENT, handleOrderNotification)
   resetCreateOrderForm()
   await Promise.all([
     loadOrderDashboard(),
@@ -2819,13 +2913,20 @@ onMounted(async () => {
     loadCategoryOptions(),
     loadLogisticsNodeOptions(),
   ])
+  await hydrateCreateOrderFromRoute()
 })
 
-onBeforeUnmount(() => header.clearActions())
+onBeforeUnmount(() => {
+  window.removeEventListener(ATLAS_NOTIFICATION_EVENT, handleOrderNotification)
+  if (notificationRefreshTimer) {
+    window.clearTimeout(notificationRefreshTimer)
+  }
+  header.clearActions()
+})
 </script>
 
 <template>
-  <section v-if="!isCreatePage" class="app-screen terminal-page">
+  <section v-if="!isCreatePage" class="app-screen terminal-page orders-page">
     <header class="terminal-page__header">
       <div>
         <div class="terminal-page__eyebrow">{{ copy.pageEyebrow }}</div>
@@ -2851,7 +2952,12 @@ onBeforeUnmount(() => header.clearActions())
         :class="['page-metric', `is-${metric.tone}`]"
       >
         <span class="page-metric__label">{{ metric.label }}</span>
-        <strong class="page-metric__value">{{ metric.value }}</strong>
+        <div v-if="'parts' in metric && metric.parts?.length" class="orders-page__metric-ratio">
+          <strong class="orders-page__metric-ratio-value">
+            {{ metric.parts.map((part) => part.value).join(' / ') }}
+          </strong>
+        </div>
+        <strong v-else class="page-metric__value">{{ metric.value }}</strong>
       </article>
     </section>
 
@@ -2859,7 +2965,7 @@ onBeforeUnmount(() => header.clearActions())
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">확인 대기</div>
+            <div class="page-panel__eyebrow">미처리</div>
             <h3>{{ copy.queueTitle }}</h3>
           </div>
         </div>
@@ -2892,26 +2998,43 @@ onBeforeUnmount(() => header.clearActions())
       <article class="page-panel">
         <div class="page-panel__head">
           <div>
-            <div class="page-panel__eyebrow">금액</div>
-            <h3>{{ copy.valueTitle }}</h3>
+            <div class="page-panel__eyebrow">{{ copy.shortageEyebrow }}</div>
+            <h3>{{ copy.shortageTitle }}</h3>
           </div>
         </div>
 
-        <div v-if="categoryRows.length" class="page-feed orders-page__insight-feed">
+        <div v-if="shortageEntries.length" class="page-feed orders-page__insight-feed">
           <div
-            v-for="category in categoryRows"
-            :key="category.label"
-            class="page-feed__item"
+            v-for="shortage in shortageEntries"
+            :key="shortage.poPublicId"
+            class="page-feed__item orders-page__shortage-item"
           >
-            <span class="page-feed__label">{{ category.label }}</span>
-            <strong class="page-feed__text">{{ category.value }}</strong>
-            <div class="orders-page__bar">
-              <span :style="{ width: category.width }" />
-            </div>
+            <button
+              class="orders-page__queue-button"
+              type="button"
+              @click="openOrderDetailPage(shortage.poPublicId)"
+            >
+              <span class="page-feed__label">{{ shortage.poNumber }}</span>
+              <strong class="page-feed__text">{{ supplierDisplayName(shortage.supplierName) }}</strong>
+              <span class="orders-page__queue-subtext">
+                {{ shortage.itemName || '-' }}
+                · {{ copy.shortageQty }} {{ formatNumber(shortage.shortageQty) }} {{ shortage.unit || '' }}
+                <template v-if="shortage.shortageItemCount > 1">
+                  · +{{ formatNumber(shortage.shortageItemCount - 1) }}
+                </template>
+              </span>
+            </button>
+            <button
+              class="page-button page-button--secondary orders-page__shortage-action"
+              type="button"
+              @click="openShortageCreateOrder(shortage)"
+            >
+              {{ copy.shortageAction }}
+            </button>
           </div>
         </div>
 
-        <p v-else class="orders-page__empty">{{ copy.valueEmpty }}</p>
+        <p v-else class="orders-page__empty">{{ copy.shortageEmpty }}</p>
       </article>
 
       <article class="page-panel">

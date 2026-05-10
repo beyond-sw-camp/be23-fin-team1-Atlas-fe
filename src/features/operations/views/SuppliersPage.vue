@@ -19,6 +19,11 @@ import {
 } from '../../../services/supplier'
 
 import {
+  getPurchaseOrders,
+  type PurchaseOrderSummaryResponseDto,
+} from '../../../services/purchaseOrder'
+
+import {
   getMyOrganizationDetail,
   getOrganizations,
   type OrganizationListItem,
@@ -31,16 +36,24 @@ import { useActorScope } from '../../../composables/useActorScope'
 
 
 type SupplierTabKey = 'ALL' | 'ACTIVE' | 'AT_RISK'
+type SupplierRelationViewKey = 'SUPPLIERS' | 'CUSTOMERS' | 'ALL_RELATIONS'
 
 type SupplierTableRow = {
   supplierCode: string
   supplierName: string
   publicId?: string
+  relationView: 'SUPPLIER' | 'CUSTOMER'
+  organizationPublicId?: string
   supplierStatus: string
   relationStatus: string | null
+  onTimeRate: number | null
+  supplierScore: number | null
+  qualityScore: number | null
   purchaseOrderCount: number | null
   cumulativeAmount: number | null
   detail: SupplierResponseDto | null
+  latestOrderedAt?: string | null
+  pendingOrderCount?: number
   cells: string[]
 }
 
@@ -75,24 +88,29 @@ const CONTENT = {
     title: '협력사 관리',
     subtitle: '품질, 납기, 누적 거래 기준으로 협력사 현황을 관리합니다.',
     metrics: [
-      { label: '총 거래 협력사', value: '0', tone: 'nominal' },
-      { label: '위험 협력사', value: '0', tone: 'warning' },
+      { label: '공급처', value: '0', tone: 'nominal' },
+      { label: '고객사', value: '0', tone: 'warning' },
       { label: '평균 납기 준수율 (최근 90일)', value: '0%', tone: 'info' },
       { label: '평균 리드타임', value: '0일', tone: 'nominal' },
     ],
+    relationTabs: [
+      { key: 'SUPPLIERS', label: '공급처' },
+      { key: 'CUSTOMERS', label: '고객사' },
+      { key: 'ALL_RELATIONS', label: '전체 관계' },
+    ] as { key: SupplierRelationViewKey; label: string }[],
     tabs: [
       { key: 'ALL', label: '전체' },
       { key: 'ACTIVE', label: '정상' },
       { key: 'AT_RISK', label: '위험' },
     ] as { key: SupplierTabKey; label: string }[],
-    searchPlaceholder: '협력사명, 코드, 담당자 검색...',
+    searchPlaceholder: '거래처명, 코드, 담당자 검색...',
     exportLabel: '내보내기',
     createLabel: '협력사 등록',
-    tableTitle: '협력사 레지스트리',
-    columns: ['ID', '협력사', '거래 상태','납기율', '협력사 점수', '품질 점수', '발주 건수', '누적 금액', '상세'],
-    topTitle: '상위 성과 협력사',
+    tableTitle: '거래 관계 레지스트리',
+    columns: ['구분', '거래처', '거래 상태','납기율', '협력사 점수', '품질 점수', '주문 건수', '누적 금액', '상세'],
+    topTitle: '상위 거래 관계',
     riskTitle: '주의 필요',
-    regionTitle: '권역별 지출',
+    regionTitle: '거래 규모',
     detailTitle: '협력사 상세 조회',
     detailDescription: '선택한 협력사의 상세 정보를 확인합니다.',
     createDescription: '관리자 권한으로 협력사 마스터를 등록합니다.',
@@ -129,11 +147,16 @@ const CONTENT = {
     title: 'Supplier Directory',
     subtitle: 'Operate supplier portfolio by country, quality, lead time, and cumulative trading amount.',
     metrics: [
-      { label: 'TOTAL TRADING SUPPLIERS', value: '0', tone: 'nominal' },
-      { label: 'AT RISK', value: '0', tone: 'warning' },
+      { label: 'SUPPLIERS', value: '0', tone: 'nominal' },
+      { label: 'CUSTOMERS', value: '0', tone: 'warning' },
       { label: 'AVERAGE ON-TIME RATE (ROLLING 90 DAYS)', value: '0%', tone: 'info' },
       { label: 'AVG LEAD TIME', value: '0d', tone: 'nominal' },
     ],
+    relationTabs: [
+      { key: 'SUPPLIERS', label: 'SUPPLIERS' },
+      { key: 'CUSTOMERS', label: 'CUSTOMERS' },
+      { key: 'ALL_RELATIONS', label: 'ALL RELATIONS' },
+    ] as { key: SupplierRelationViewKey; label: string }[],
     tabs: [
       { key: 'ALL', label: 'ALL' },
       { key: 'ACTIVE', label: 'ACTIVE' },
@@ -142,11 +165,11 @@ const CONTENT = {
     searchPlaceholder: 'Search supplier, code, or contact...',
     exportLabel: 'EXPORT',
     createLabel: 'ADD SUPPLIER',
-    tableTitle: 'Supplier Registry',
-    columns: ['ID', 'SUPPLIER', 'RELATION STATUS', 'ON-TIME RATE', 'SUPPLIER SCORE', 'QUALITY SCORE', 'PO COUNT', 'CUMULATIVE AMOUNT', 'DETAIL'],
-    topTitle: 'Top Performers',
+    tableTitle: 'Relationship Registry',
+    columns: ['TYPE', 'COUNTERPARTY', 'RELATION STATUS', 'ON-TIME RATE', 'SUPPLIER SCORE', 'QUALITY SCORE', 'ORDER COUNT', 'CUMULATIVE AMOUNT', 'DETAIL'],
+    topTitle: 'Top Relationships',
     riskTitle: 'Needs Attention',
-    regionTitle: 'Spend By Region',
+    regionTitle: 'Spend By Supplier',
     detailTitle: 'Supplier Detail',
     detailDescription: 'Review the selected supplier detail information.',
     createDescription: 'Create supplier master data as admin.',
@@ -180,50 +203,7 @@ const CONTENT = {
   },
 }
 
-// 오른쪽 패널은 아직 손대지 않는다고 하셔서 더미 유지합니다.
-const TOP_ROWS = {
-  ko: [
-    ['SKF Nordic', '스웨덴 / 베어링', '98%'],
-    ['Toray', '일본 / 복합소재', '96%'],
-    ['Foxconn', '대만 / 전자', '91%'],
-  ],
-  en: [
-    ['SKF Nordic', 'Sweden / Bearings', '98%'],
-    ['Toray', 'Japan / Composites', '96%'],
-    ['Foxconn', 'Taiwan / Electronics', '91%'],
-  ],
-}
-
-const RISK_ROWS = {
-  ko: [
-    ['SiLink', '전력 이슈 이후 생산량 하락'],
-    ['Helix GmbH', '통관 지연으로 ETA 변동'],
-    ['Parker', '품질 편차 재검토 필요'],
-  ],
-  en: [
-    ['SiLink', 'Output dropped after power disruption'],
-    ['Helix GmbH', 'Customs delay impacting ETA'],
-    ['Parker', 'Quality variance requires review'],
-  ],
-}
-
-const REGION_ROWS = {
-  ko: [
-    ['아시아 태평양', '1,420만 원', '100%'],
-    ['유럽', '880만 원', '62%'],
-    ['북미', '410만 원', '29%'],
-  ],
-  en: [
-    ['아시아 태평양', '1,420만 원', '100%'],
-    ['유럽', '880만 원', '62%'],
-    ['북미', '410만 원', '29%'],
-  ],
-}
-
 const content = computed(() => CONTENT.ko)
-const topRows = computed(() => TOP_ROWS.ko)
-const riskRows = computed(() => RISK_ROWS.ko)
-const regionRows = computed(() => REGION_ROWS.ko)
 
 // 실제 협력사 목록 상태입니다.
 const rows = ref<SupplierTableRow[]>([])
@@ -236,6 +216,7 @@ const detailErrorMessage = ref('')
 const connectedSummary = ref<ConnectedSupplierSummaryResponseDto | null>(null)
 const selectedSupplier = ref<ConnectedSupplierDetailResponseDto | null>(null)
 const organizationNameMap = ref<Record<string, string>>({})
+const receivedOrderRows = ref<PurchaseOrderSummaryResponseDto[]>([])
 
 // 관리자 전용 협력사 등록 모달 상태입니다.
 const createModalOpen = ref(false)
@@ -255,6 +236,7 @@ const createForm = ref<CreateSupplierFormState>({
 
 const search = ref('')
 const activeTab = ref<SupplierTabKey>('ALL')
+const activeRelationView = ref<SupplierRelationViewKey>('SUPPLIERS')
 
 function formatPercent(value: number | null | undefined) {
   if (value == null) return '-'
@@ -269,6 +251,10 @@ function formatNumber(value: number | null | undefined) {
 function formatAmount(value: number | null | undefined) {
   if (value == null) return '-'
   return `${value.toLocaleString('ko-KR')}원`
+}
+
+function toAmountNumber(value: number | null | undefined) {
+  return value ?? 0
 }
 
 function formatDate(value: string | undefined) {
@@ -311,6 +297,61 @@ function relationStatusText(value: string) {
     case 'ENDED': return '종료'
     default: return value
   }
+}
+
+function supplierPerformanceScore(row: SupplierTableRow) {
+  if (row.supplierScore != null) return row.supplierScore
+  if (row.qualityScore != null) return row.qualityScore
+  if (row.onTimeRate != null) return row.onTimeRate
+  return row.purchaseOrderCount ?? 0
+}
+
+function hasSupplierPerformance(row: SupplierTableRow) {
+  return (
+    row.supplierScore != null ||
+    row.qualityScore != null ||
+    row.onTimeRate != null ||
+    toAmountNumber(row.cumulativeAmount) > 0 ||
+    (row.purchaseOrderCount ?? 0) > 0
+  )
+}
+
+function supplierPerformanceMeta(row: SupplierTableRow) {
+  const orderCount = row.purchaseOrderCount ?? 0
+  const orderLabel = row.relationView === 'CUSTOMER' ? '수주' : '발주'
+  if (row.qualityScore != null) {
+    return `품질 ${formatNumber(row.qualityScore)}점 / ${orderLabel} ${formatNumber(orderCount)}건`
+  }
+  if (row.onTimeRate != null) {
+    return `납기율 ${formatPercent(row.onTimeRate)} / ${orderLabel} ${formatNumber(orderCount)}건`
+  }
+  return `${orderLabel} ${formatNumber(orderCount)}건`
+}
+
+function supplierPerformanceValue(row: SupplierTableRow) {
+  if (row.supplierScore != null) return `${formatNumber(row.supplierScore)}점`
+  if (row.qualityScore != null) return `${formatNumber(row.qualityScore)}점`
+  if (row.onTimeRate != null) return formatPercent(row.onTimeRate)
+  return formatAmount(row.cumulativeAmount)
+}
+
+function supplierAttentionReason(row: SupplierTableRow) {
+  if (row.relationView === 'CUSTOMER' && (row.pendingOrderCount ?? 0) > 0) {
+    return `미처리 수주 ${formatNumber(row.pendingOrderCount)}건`
+  }
+  if (row.supplierStatus !== 'ACTIVE') return supplierStatusText(row.supplierStatus)
+  if (row.relationStatus && row.relationStatus !== 'ACTIVE') return relationStatusText(row.relationStatus)
+  if (row.qualityScore != null && row.qualityScore < 70) return `품질 점수 ${formatNumber(row.qualityScore)}점`
+  if (row.onTimeRate != null && row.onTimeRate < 90) return `납기율 ${formatPercent(row.onTimeRate)}`
+  return ''
+}
+
+function relationViewText(value: SupplierTableRow['relationView']) {
+  return value === 'CUSTOMER' ? '고객사' : '공급처'
+}
+
+function isPendingOrderStatus(status: string) {
+  return status === 'CREATED' || status === 'PARTIALLY_CONFIRMED'
 }
 
 function orderRoleText(value: 'ISSUED' | 'RECEIVED') {
@@ -370,13 +411,18 @@ function toDisplayRow(supplier: SupplierListResponseDto): SupplierTableRow {
     supplierCode: supplier.supplierCode,
     supplierName: supplier.supplierName,
     publicId: supplier.detail?.publicId,
+    relationView: 'SUPPLIER',
+    organizationPublicId: supplier.detail?.organizationPublicId,
     supplierStatus,
     relationStatus,
+    onTimeRate: supplier.onTimeRate,
+    supplierScore: supplier.supplierScore,
+    qualityScore: supplier.qualityScore,
     purchaseOrderCount: supplier.purchaseOrderCount,
     cumulativeAmount: supplier.cumulativeAmount,
     detail: supplier.detail,
     cells: [
-      supplier.supplierCode || '-',
+      relationViewText('SUPPLIER'),
       supplier.supplierName || '-',
       relationStatus ? relationStatusText(relationStatus) : '-',
       formatPercent(supplier.onTimeRate),
@@ -387,6 +433,121 @@ function toDisplayRow(supplier: SupplierListResponseDto): SupplierTableRow {
     ],
   }
 }
+
+function toCustomerDisplayRows(orders: PurchaseOrderSummaryResponseDto[]): SupplierTableRow[] {
+  const grouped = new Map<string, {
+    organizationPublicId: string
+    name: string
+    orderCount: number
+    pendingOrderCount: number
+    cumulativeAmount: number
+    latestOrderedAt: string | null
+  }>()
+
+  orders.forEach((order) => {
+    const key = order.buyerOrganizationPublicId || order.poPublicId
+    const current = grouped.get(key) ?? {
+      organizationPublicId: order.buyerOrganizationPublicId,
+      name: organizationNameMap.value[order.buyerOrganizationPublicId] ?? order.buyerOrganizationPublicId ?? '고객사 미확인',
+      orderCount: 0,
+      pendingOrderCount: 0,
+      cumulativeAmount: 0,
+      latestOrderedAt: null,
+    }
+
+    current.orderCount += 1
+    current.cumulativeAmount += order.totalAmount ?? 0
+    if (isPendingOrderStatus(order.poStatus)) {
+      current.pendingOrderCount += 1
+    }
+    if (!current.latestOrderedAt || new Date(order.orderedAt).getTime() > new Date(current.latestOrderedAt).getTime()) {
+      current.latestOrderedAt = order.orderedAt
+    }
+    grouped.set(key, current)
+  })
+
+  return Array.from(grouped.values()).map((customer) => ({
+    supplierCode: customer.organizationPublicId || '-',
+    supplierName: customer.name,
+    publicId: customer.organizationPublicId,
+    relationView: 'CUSTOMER',
+    organizationPublicId: customer.organizationPublicId,
+    supplierStatus: 'ACTIVE',
+    relationStatus: 'ACTIVE',
+    onTimeRate: null,
+    supplierScore: null,
+    qualityScore: null,
+    purchaseOrderCount: customer.orderCount,
+    cumulativeAmount: customer.cumulativeAmount,
+    detail: null,
+    latestOrderedAt: customer.latestOrderedAt,
+    pendingOrderCount: customer.pendingOrderCount,
+    cells: [
+      relationViewText('CUSTOMER'),
+      customer.name || '-',
+      '연결 유지',
+      '-',
+      '-',
+      '-',
+      formatNumber(customer.orderCount),
+      formatAmount(customer.cumulativeAmount),
+    ],
+  }))
+}
+
+const customerRows = computed(() => toCustomerDisplayRows(receivedOrderRows.value))
+
+const relationRows = computed(() => {
+  if (activeRelationView.value === 'CUSTOMERS') return customerRows.value
+  if (activeRelationView.value === 'ALL_RELATIONS') return [...rows.value, ...customerRows.value]
+  return rows.value
+})
+
+const topRows = computed(() =>
+  relationRows.value
+    .filter((row) => row.publicId && hasSupplierPerformance(row))
+    .slice()
+    .sort((a, b) => supplierPerformanceScore(b) - supplierPerformanceScore(a))
+    .slice(0, 3)
+    .map((row) => ({
+      publicId: row.publicId as string,
+      relationView: row.relationView,
+      name: row.supplierName || row.supplierCode,
+      meta: supplierPerformanceMeta(row),
+      value: supplierPerformanceValue(row),
+    })),
+)
+
+const riskRows = computed(() =>
+  relationRows.value
+    .filter((row) => row.publicId)
+    .map((row) => ({
+      publicId: row.publicId as string,
+      relationView: row.relationView,
+      name: row.supplierName || row.supplierCode,
+      reason: supplierAttentionReason(row),
+    }))
+    .filter((row) => row.reason)
+    .slice(0, 3),
+)
+
+const regionRows = computed(() => {
+  const topSpendRows = relationRows.value
+    .filter((row) => row.publicId && toAmountNumber(row.cumulativeAmount) > 0)
+    .slice()
+    .sort((a, b) => toAmountNumber(b.cumulativeAmount) - toAmountNumber(a.cumulativeAmount))
+    .slice(0, 3)
+
+  const maxAmount = Math.max(...topSpendRows.map((row) => toAmountNumber(row.cumulativeAmount)), 1)
+
+  return topSpendRows.map((row) => ({
+    publicId: row.publicId as string,
+    relationView: row.relationView,
+    label: row.supplierName || row.supplierCode,
+    value: formatAmount(row.cumulativeAmount),
+    width: `${Math.max(8, Math.round((toAmountNumber(row.cumulativeAmount) / maxAmount) * 100))}%`,
+  }))
+})
 
 
 async function fetchConnectedSummary() {
@@ -399,16 +560,29 @@ async function fetchConnectedSummary() {
 
 async function loadSupplierOrganizationNameMap() {
   try {
-    const response = await getOrganizations({ organizationType: 'SUPPLIER', page: 0, size: 200 })
+    const response = await getOrganizations({ page: 0, size: 300 })
     organizationNameMap.value = Object.fromEntries(
       response.content.map((org) => [org.organizationPublicId, org.organizationName]),
     )
     if (actor.canCreateSupplier.value) {
-      supplierOrganizationOptions.value = response.content
+      supplierOrganizationOptions.value = response.content.filter((org) => org.organizationType === 'SUPPLIER')
     }
   } catch {
     organizationNameMap.value = {}
     supplierOrganizationOptions.value = []
+  }
+}
+
+async function fetchCustomerRows() {
+  try {
+    const response = await getPurchaseOrders({
+      viewType: 'SUPPLIER',
+      page: 0,
+      size: 100,
+    })
+    receivedOrderRows.value = response.content
+  } catch {
+    receivedOrderRows.value = []
   }
 }
 
@@ -418,11 +592,7 @@ const metrics = computed(() => {
 
   base[0].value = formatNumber(connectedSummary.value?.connectedSupplierCount ?? rows.value.length)
 
-  base[1].value = formatNumber(
-    rows.value.filter(
-      (row) => row.supplierStatus === 'INACTIVE' || row.supplierStatus === 'SUSPENDED',
-    ).length,
-  )
+  base[1].value = formatNumber(customerRows.value.length)
 
   base[2].value = formatPercent(connectedSummary.value?.averageOnTimeRate)
 
@@ -470,9 +640,9 @@ async function fetchSupplierRows(keyword = '') {
 // ADMIN / BUYER 는 검색을 서버가 처리하므로 탭 필터만 적용합니다.
 // SUPPLIER 는 기존처럼 화면에서 검색어 필터를 한 번 더 적용합니다.
 const filteredRows = computed(() => {
-  const query = useServerSearch.value ? '' : search.value.trim().toLowerCase()
+  const query = search.value.trim().toLowerCase()
 
-  return rows.value.filter((row) => {
+  return relationRows.value.filter((row) => {
     const matchesQuery =
       !query ||
       row.supplierCode.toLowerCase().includes(query) ||
@@ -487,7 +657,7 @@ const filteredRows = computed(() => {
       case 'ACTIVE':
         return row.relationStatus === 'ACTIVE'
       case 'AT_RISK':
-        return row.supplierStatus === 'INACTIVE' || row.supplierStatus === 'SUSPENDED'
+        return !!supplierAttentionReason(row)
       default:
         return true
     }
@@ -522,6 +692,7 @@ onBeforeUnmount(() => {
 
 onMounted(() => {
   void fetchSupplierRows()
+  void fetchCustomerRows()
   void fetchConnectedSummary()
   void loadSupplierOrganizationNameMap()
 })
@@ -556,11 +727,23 @@ async function openSupplierDetail(publicId: string) {
   }
 }
 
-function openSupplierDetailPage(publicId: string) {
+function openRelationDetailPage(publicId: string, relationView: SupplierTableRow['relationView']) {
+  if (relationView === 'CUSTOMER') {
+    router.push({
+      name: 'organizationProfile',
+      params: { organizationPublicId: publicId },
+    })
+    return
+  }
+
   router.push({
     name: 'operationDetail',
     params: { kind: 'suppliers', publicId },
   })
+}
+
+function openSupplierDetailPage(publicId: string) {
+  openRelationDetailPage(publicId, 'SUPPLIER')
 }
 
 
@@ -700,6 +883,18 @@ async function submitCreateSupplier() {
 
     <section class="terminal-page__content">
       <div class="terminal-page__main">
+        <section class="terminal-page__tabs suppliers-page__relation-tabs">
+          <button
+            v-for="tab in content.relationTabs"
+            :key="tab.key"
+            :class="['terminal-page__tab', { 'is-active': activeRelationView === tab.key }]"
+            type="button"
+            @click="activeRelationView = tab.key"
+          >
+            {{ tab.label }}
+          </button>
+        </section>
+
         <section class="terminal-page__filter">
           <label class="terminal-page__search">
             <span>SEARCH</span>
@@ -734,7 +929,7 @@ async function submitCreateSupplier() {
                   v-if="row.publicId"
                   class="page-button page-button--secondary"
                   type="button"
-                  @click="openSupplierDetailPage(row.publicId)"
+                  @click="openRelationDetailPage(row.publicId, row.relationView)"
                 >
                   {{ '상세' }}
                 </button>
@@ -760,11 +955,20 @@ async function submitCreateSupplier() {
           </div>
 
           <div class="page-feed">
-            <div v-for="[name, meta, value] in topRows" :key="name" class="page-feed__item">
-              <span class="page-feed__label">{{ meta }}</span>
-              <strong class="page-feed__text">{{ name }}</strong>
-              <span>{{ value }}</span>
-            </div>
+            <button
+              v-for="row in topRows"
+              :key="row.publicId"
+              class="page-feed__item suppliers-page__feed-button"
+              type="button"
+              @click="openRelationDetailPage(row.publicId, row.relationView)"
+            >
+              <span class="page-feed__label">{{ row.meta }}</span>
+              <strong class="page-feed__text">{{ row.name }}</strong>
+              <span>{{ row.value }}</span>
+            </button>
+            <p v-if="topRows.length === 0" class="terminal-page__table-message">
+              표시할 성과 데이터가 없습니다.
+            </p>
           </div>
         </article>
 
@@ -777,29 +981,47 @@ async function submitCreateSupplier() {
           </div>
 
           <div class="page-feed">
-            <div v-for="[name, reason] in riskRows" :key="name" class="page-feed__item">
-              <span class="page-feed__label">{{ name }}</span>
-              <strong class="page-feed__text">{{ reason }}</strong>
-            </div>
+            <button
+              v-for="row in riskRows"
+              :key="row.publicId"
+              class="page-feed__item suppliers-page__feed-button"
+              type="button"
+              @click="openRelationDetailPage(row.publicId, row.relationView)"
+            >
+              <span class="page-feed__label">{{ row.name }}</span>
+              <strong class="page-feed__text">{{ row.reason }}</strong>
+            </button>
+            <p v-if="riskRows.length === 0" class="terminal-page__table-message">
+              주의가 필요한 협력사가 없습니다.
+            </p>
           </div>
         </article>
 
         <article class="page-panel">
           <div class="page-panel__head">
             <div>
-              <div class="page-panel__eyebrow">REGION</div>
+              <div class="page-panel__eyebrow">SPEND</div>
               <h3>{{ content.regionTitle }}</h3>
             </div>
           </div>
 
           <div class="page-feed">
-            <div v-for="[label, value, width] in regionRows" :key="label" class="page-feed__item">
-              <span class="page-feed__label">{{ label }}</span>
-              <strong class="page-feed__text">{{ value }}</strong>
+            <button
+              v-for="row in regionRows"
+              :key="row.publicId"
+              class="page-feed__item suppliers-page__feed-button"
+              type="button"
+              @click="openRelationDetailPage(row.publicId, row.relationView)"
+            >
+              <span class="page-feed__label">{{ row.label }}</span>
+              <strong class="page-feed__text">{{ row.value }}</strong>
               <div class="terminal-page__bar">
-                <span :style="{ width }" />
+                <span :style="{ width: row.width }" />
               </div>
-            </div>
+            </button>
+            <p v-if="regionRows.length === 0" class="terminal-page__table-message">
+              표시할 거래 금액이 없습니다.
+            </p>
           </div>
         </article>
       </aside>
