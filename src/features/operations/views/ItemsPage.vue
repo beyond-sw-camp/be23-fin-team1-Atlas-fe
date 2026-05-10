@@ -1202,9 +1202,20 @@ function getItemCategoryPath(item: ItemResponseDto | null) {
     </section>
 
     <section class="terminal-page__filter">
-      <label class="terminal-page__search">
-        <span>검색</span>
-        <input v-model="search" :placeholder="copy.searchPlaceholder" type="text" />
+      <label class="terminal-page__search terminal-page__search--icon-only">
+        <span
+          v-if="!search"
+          class="material-symbols-outlined terminal-page__search-icon"
+          aria-hidden="true"
+        >
+          search
+        </span>
+        <input
+          v-model="search"
+          :aria-label="copy.searchPlaceholder"
+          :placeholder="copy.searchPlaceholder"
+          type="text"
+        />
       </label>
 
       <div class="terminal-page__tabs">

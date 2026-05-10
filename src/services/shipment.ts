@@ -243,6 +243,12 @@ export interface DeliveryExceptionResponseDto {
 
 
 export interface GetShipmentsParams {
+  keyword?: string
+  status?: ShipmentStatus
+  originNodePublicId?: string
+  destinationNodePublicId?: string
+  currentNodePublicId?: string
+  temperatureRequired?: boolean
   page?: number
   size?: number
   sort?: string
@@ -388,4 +394,3 @@ export async function getDeliveryExceptions(
   )
   return response.data
 }
-

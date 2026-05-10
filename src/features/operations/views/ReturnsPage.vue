@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getReturnRequests, type ReturnRequestResponseDto } from '../../../services/return'
+import { getReturnRequests, searchReturnRequests, type ReturnRequestResponseDto } from '../../../services/return'
 import { getShipments } from '../../../services/shipment'
 import { getOrganizations } from '../../../services/organization'
 import { useAtlasHeaderStore } from '../../../stores/header'
@@ -15,6 +15,7 @@ const route = useRoute()
 const router = useRouter()
 
 const activeTab = ref<'ALL' | 'REQUESTED' | 'IN_TRANSIT' | 'COMPLETED'>('ALL')
+const search = ref('')
 const returns = ref<ReturnRequestResponseDto[]>([])
 const isLoading = ref(false)
 const errorMessage = ref('')
@@ -33,6 +34,7 @@ const CONTENT = {
     desc: '도착 완료된 출하를 기준으로 반품 요청과 반품 출하 흐름을 관리합니다.',
     newReturn: '반품 생성',
     refresh: '새로고침',
+    searchPlaceholder: '반품번호, 조직, 사유 검색',
     empty: '반품 내역이 없습니다.',
     loading: '반품 목록을 불러오는 중입니다.',
     loadFail: '반품 목록을 불러오지 못했습니다.',
@@ -73,6 +75,7 @@ const CONTENT = {
     desc: '도착 완료된 출하를 기준으로 반품 요청과 반품 출하 흐름을 관리합니다.',
     newReturn: '반품 생성',
     refresh: '새로고침',
+    searchPlaceholder: 'Search return no., organization, or reason.',
     empty: '반품 내역이 없습니다.',
     loading: '반품 목록을 불러오는 중입니다.',
     loadFail: '반품 목록을 불러오지 못했습니다.',
@@ -110,6 +113,7 @@ const CONTENT = {
 } as const
 
 const content = computed(() => CONTENT.ko)
+let searchDebounceTimer: number | undefined
 
 const filteredReturns = computed(() => {
   if (activeTab.value === 'ALL') return returns.value
@@ -277,8 +281,11 @@ async function fetchReturns() {
   errorMessage.value = ''
 
   try {
+    const keyword = search.value.trim()
     const [response, shipmentResponse] = await Promise.all([
-      getReturnRequests({ page: 0, size: 50 }),
+      keyword
+        ? searchReturnRequests({ keyword, page: 0, size: 50, sort: 'createdAt,desc' })
+        : getReturnRequests({ page: 0, size: 50 }),
       getShipments({ page: 0, size: 1 }).catch((error) => {
         console.error('Failed to load shipment base count:', error)
         return null
@@ -361,6 +368,16 @@ watchEffect(() => {
   ])
 })
 
+watch(search, () => {
+  if (searchDebounceTimer) {
+    window.clearTimeout(searchDebounceTimer)
+  }
+
+  searchDebounceTimer = window.setTimeout(() => {
+    fetchReturns()
+  }, 250)
+})
+
 onMounted(() => {
   fetchOrgNameMap()
   fetchReturns()
@@ -405,6 +422,22 @@ onBeforeUnmount(() => header.clearActions())
     <section v-if="!isCreatePage" class="terminal-page__content">
       <div class="terminal-page__main">
         <section class="terminal-page__filter">
+          <label class="terminal-page__search terminal-page__search--icon-only">
+            <span
+              v-if="!search"
+              class="material-symbols-outlined terminal-page__search-icon"
+              aria-hidden="true"
+            >
+              search
+            </span>
+            <input
+              v-model="search"
+              :aria-label="content.searchPlaceholder"
+              :placeholder="content.searchPlaceholder"
+              type="text"
+            />
+          </label>
+
           <div class="terminal-page__tabs">
             <button
               v-for="tab in tabs"

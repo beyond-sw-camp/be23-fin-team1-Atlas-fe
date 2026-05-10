@@ -94,20 +94,20 @@ const CONTENT = {
       { label: '평균 리드타임', value: '0일', tone: 'nominal' },
     ],
     relationTabs: [
+      { key: 'ALL_RELATIONS', label: '전체 관계' },
       { key: 'SUPPLIERS', label: '공급처' },
       { key: 'CUSTOMERS', label: '고객사' },
-      { key: 'ALL_RELATIONS', label: '전체 관계' },
     ] as { key: SupplierRelationViewKey; label: string }[],
     tabs: [
       { key: 'ALL', label: '전체' },
       { key: 'ACTIVE', label: '정상' },
       { key: 'AT_RISK', label: '위험' },
     ] as { key: SupplierTabKey; label: string }[],
-    searchPlaceholder: '거래처명, 코드, 담당자 검색...',
+    searchPlaceholder: '거래처명, 코드, 담당자 검색',
     exportLabel: '내보내기',
     createLabel: '협력사 등록',
     tableTitle: '거래 관계 레지스트리',
-    columns: ['구분', '거래처', '거래 상태','납기율', '협력사 점수', '품질 점수', '주문 건수', '누적 금액', '상세'],
+    columns: ['구분', '거래처', '거래 상태','납기율', '협력사 점수', '품질 점수', '거래 건수', '누적 금액', '상세'],
     topTitle: '상위 거래 관계',
     riskTitle: '주의 필요',
     regionTitle: '거래 규모',
@@ -153,9 +153,9 @@ const CONTENT = {
       { label: 'AVG LEAD TIME', value: '0d', tone: 'nominal' },
     ],
     relationTabs: [
+      { key: 'ALL_RELATIONS', label: 'ALL RELATIONS' },
       { key: 'SUPPLIERS', label: 'SUPPLIERS' },
       { key: 'CUSTOMERS', label: 'CUSTOMERS' },
-      { key: 'ALL_RELATIONS', label: 'ALL RELATIONS' },
     ] as { key: SupplierRelationViewKey; label: string }[],
     tabs: [
       { key: 'ALL', label: 'ALL' },
@@ -166,7 +166,7 @@ const CONTENT = {
     exportLabel: 'EXPORT',
     createLabel: 'ADD SUPPLIER',
     tableTitle: 'Relationship Registry',
-    columns: ['TYPE', 'COUNTERPARTY', 'RELATION STATUS', 'ON-TIME RATE', 'SUPPLIER SCORE', 'QUALITY SCORE', 'ORDER COUNT', 'CUMULATIVE AMOUNT', 'DETAIL'],
+    columns: ['TYPE', 'COUNTERPARTY', 'RELATION STATUS', 'ON-TIME RATE', 'SUPPLIER SCORE', 'QUALITY SCORE', 'TRADE COUNT', 'CUMULATIVE AMOUNT', 'DETAIL'],
     topTitle: 'Top Relationships',
     riskTitle: 'Needs Attention',
     regionTitle: 'Spend By Supplier',
@@ -236,7 +236,7 @@ const createForm = ref<CreateSupplierFormState>({
 
 const search = ref('')
 const activeTab = ref<SupplierTabKey>('ALL')
-const activeRelationView = ref<SupplierRelationViewKey>('SUPPLIERS')
+const activeRelationView = ref<SupplierRelationViewKey>('ALL_RELATIONS')
 
 function formatPercent(value: number | null | undefined) {
   if (value == null) return '-'
@@ -350,6 +350,14 @@ function relationViewText(value: SupplierTableRow['relationView']) {
   return value === 'CUSTOMER' ? '고객사' : '공급처'
 }
 
+function relationOrderCountText(value: SupplierTableRow['relationView'], orderCount: number | null | undefined) {
+  const label = value === 'CUSTOMER'
+    ? (preferences.language === 'ko' ? '수주' : 'Received')
+    : (preferences.language === 'ko' ? '발주' : 'Issued')
+  const suffix = preferences.language === 'ko' ? '건' : ''
+  return `${label} ${formatNumber(orderCount)}${suffix}`
+}
+
 function isPendingOrderStatus(status: string) {
   return status === 'CREATED' || status === 'PARTIALLY_CONFIRMED'
 }
@@ -428,7 +436,7 @@ function toDisplayRow(supplier: SupplierListResponseDto): SupplierTableRow {
       formatPercent(supplier.onTimeRate),
       formatNumber(supplier.supplierScore),
       formatNumber(supplier.qualityScore),
-      formatNumber(supplier.purchaseOrderCount),
+      relationOrderCountText('SUPPLIER', supplier.purchaseOrderCount),
       formatAmount(supplier.cumulativeAmount),
     ],
   }
@@ -489,7 +497,7 @@ function toCustomerDisplayRows(orders: PurchaseOrderSummaryResponseDto[]): Suppl
       '-',
       '-',
       '-',
-      formatNumber(customer.orderCount),
+      relationOrderCountText('CUSTOMER', customer.orderCount),
       formatAmount(customer.cumulativeAmount),
     ],
   }))
@@ -497,14 +505,16 @@ function toCustomerDisplayRows(orders: PurchaseOrderSummaryResponseDto[]): Suppl
 
 const customerRows = computed(() => toCustomerDisplayRows(receivedOrderRows.value))
 
+const allRelationRows = computed(() => [...rows.value, ...customerRows.value])
+
 const relationRows = computed(() => {
   if (activeRelationView.value === 'CUSTOMERS') return customerRows.value
-  if (activeRelationView.value === 'ALL_RELATIONS') return [...rows.value, ...customerRows.value]
+  if (activeRelationView.value === 'ALL_RELATIONS') return allRelationRows.value
   return rows.value
 })
 
 const topRows = computed(() =>
-  relationRows.value
+  allRelationRows.value
     .filter((row) => row.publicId && hasSupplierPerformance(row))
     .slice()
     .sort((a, b) => supplierPerformanceScore(b) - supplierPerformanceScore(a))
@@ -519,7 +529,7 @@ const topRows = computed(() =>
 )
 
 const riskRows = computed(() =>
-  relationRows.value
+  allRelationRows.value
     .filter((row) => row.publicId)
     .map((row) => ({
       publicId: row.publicId as string,
@@ -532,7 +542,7 @@ const riskRows = computed(() =>
 )
 
 const regionRows = computed(() => {
-  const topSpendRows = relationRows.value
+  const topSpendRows = allRelationRows.value
     .filter((row) => row.publicId && toAmountNumber(row.cumulativeAmount) > 0)
     .slice()
     .sort((a, b) => toAmountNumber(b.cumulativeAmount) - toAmountNumber(a.cumulativeAmount))
@@ -883,22 +893,21 @@ async function submitCreateSupplier() {
 
     <section class="terminal-page__content">
       <div class="terminal-page__main">
-        <section class="terminal-page__tabs suppliers-page__relation-tabs">
-          <button
-            v-for="tab in content.relationTabs"
-            :key="tab.key"
-            :class="['terminal-page__tab', { 'is-active': activeRelationView === tab.key }]"
-            type="button"
-            @click="activeRelationView = tab.key"
-          >
-            {{ tab.label }}
-          </button>
-        </section>
-
         <section class="terminal-page__filter">
-          <label class="terminal-page__search">
-            <span>SEARCH</span>
-            <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
+          <label class="terminal-page__search terminal-page__search--icon-only">
+            <span
+              v-if="!search"
+              class="material-symbols-outlined terminal-page__search-icon"
+              aria-hidden="true"
+            >
+              search
+            </span>
+            <input
+              v-model="search"
+              :aria-label="content.searchPlaceholder"
+              :placeholder="content.searchPlaceholder"
+              type="text"
+            />
           </label>
 
           <div class="terminal-page__tabs">
@@ -912,6 +921,18 @@ async function submitCreateSupplier() {
               {{ tab.label }}
             </button>
           </div>
+
+          <label class="suppliers-page__relation-select">
+            <select v-model="activeRelationView" aria-label="거래 관계 필터">
+              <option
+                v-for="tab in content.relationTabs"
+                :key="tab.key"
+                :value="tab.key"
+              >
+                {{ tab.label }}
+              </option>
+            </select>
+          </label>
         </section>
 
         <article class="page-panel">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
@@ -53,6 +53,7 @@ const CONTENT = {
     activeListTitle: '진행 중 출하',
     boardTitle: '출하 목록',
     boardEyebrow: 'SHIPMENT LIST',
+    searchPlaceholder: '출하번호, 창고, 운송장 검색',
     allBoard: '전체건',
     readyBoard: '준비완료',
     cancelledBoard: '취소건',
@@ -149,6 +150,7 @@ const CONTENT = {
     activeListTitle: 'Active Shipments',
     boardTitle: 'Shipment List',
     boardEyebrow: 'SHIPMENT LIST',
+    searchPlaceholder: 'Search shipment no., warehouse, or tracking no.',
     allBoard: 'All',
     readyBoard: 'Ready',
     cancelledBoard: 'Cancelled',
@@ -247,6 +249,7 @@ const shipmentKpiContent = computed(() => ({
 }))
 
 const shipments = ref<ShipmentListResponseDto[]>([])
+const search = ref('')
 const mapShipments = ref<ShipmentMapResponseDto[]>([])
 const acceptedPurchaseOrders = ref<ShipmentCreatableOrderDto[]>([])
 const selectedPurchaseOrderDetail = ref<ShipmentCreatableOrderDto | null>(null)
@@ -290,6 +293,7 @@ const isCreateModalOpen = ref(false)
 const isCreatePage = computed(() => route.name === 'shipmentCreate')
 const isTrackPanelOpen = ref(false)
 const isExceptionPanelOpen = ref(false)
+let searchDebounceTimer: number | undefined
 
 const createForm = ref<CreateShipmentRequestDto>({
   poId: null,
@@ -658,6 +662,7 @@ async function fetchShipments() {
 
   try {
     const response = await getShipments({
+      keyword: search.value.trim() || undefined,
       page: currentPage.value,
       size: pageSize.value,
       sort: 'id,desc',
@@ -1055,6 +1060,17 @@ async function handleCreateDeliveryExceptionSubmit() {
   }
 }
 
+watch(search, () => {
+  if (searchDebounceTimer) {
+    window.clearTimeout(searchDebounceTimer)
+  }
+
+  searchDebounceTimer = window.setTimeout(() => {
+    currentPage.value = 0
+    fetchShipments()
+  }, 250)
+})
+
 onMounted(() => {
   refreshShipments()
 
@@ -1358,6 +1374,24 @@ onMounted(() => {
           <h3>{{ content.boardTitle }}</h3>
         </div>
       </div>
+
+      <section class="terminal-page__filter shipment-board-filter">
+        <label class="terminal-page__search terminal-page__search--icon-only">
+          <span
+            v-if="!search"
+            class="material-symbols-outlined terminal-page__search-icon"
+            aria-hidden="true"
+          >
+            search
+          </span>
+          <input
+            v-model="search"
+            :aria-label="content.searchPlaceholder"
+            :placeholder="content.searchPlaceholder"
+            type="text"
+          />
+        </label>
+      </section>
 
       <div v-if="isShipmentListLoading" class="page-table__empty">{{ content.loading }}</div>
       <div v-else-if="shipmentErrorMessage" class="page-table__empty">{{ shipmentErrorMessage }}</div>

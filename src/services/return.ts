@@ -136,6 +136,15 @@ export interface GetReturnRequestsParams {
   size?: number
 }
 
+export interface SearchReturnRequestsParams {
+  keyword?: string
+  status?: ReturnStatus
+  type?: ReturnType
+  page?: number
+  size?: number
+  sort?: string
+}
+
 
 export async function createReturn(data: CreateReturnRequestDto): Promise<ReturnRequestResponseDto> {
   const response = await apiClient.post<ReturnRequestResponseDto>('/api/supply/returns', data)
@@ -146,6 +155,15 @@ export async function getReturnRequests(
   params?: GetReturnRequestsParams
 ): Promise<PageResponse<ReturnRequestResponseDto>> {
   const response = await apiClient.get<PageResponse<ReturnRequestResponseDto>>('/api/supply/returns', {
+    params,
+  })
+  return response.data
+}
+
+export async function searchReturnRequests(
+  params?: SearchReturnRequestsParams
+): Promise<PageResponse<ReturnRequestResponseDto>> {
+  const response = await apiClient.get<PageResponse<ReturnRequestResponseDto>>('/api/supply/returns/search', {
     params,
   })
   return response.data

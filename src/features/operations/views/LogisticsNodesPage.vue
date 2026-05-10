@@ -505,8 +505,20 @@ onBeforeUnmount(() => header.clearActions())
     <section class="terminal-page__content">
       <div class="terminal-page__main">
         <section class="logistics-filter-card">
-          <label class="logistics-search">
-            <input v-model="search" :placeholder="content.searchPlaceholder" type="text" />
+          <label class="logistics-search logistics-search--icon-only">
+            <span
+              v-if="!search"
+              class="material-symbols-outlined logistics-search__icon"
+              aria-hidden="true"
+            >
+              search
+            </span>
+            <input
+              v-model="search"
+              :aria-label="content.searchPlaceholder"
+              :placeholder="content.searchPlaceholder"
+              type="text"
+            />
           </label>
         </section>
 
@@ -897,17 +909,32 @@ onBeforeUnmount(() => header.clearActions())
 
 .logistics-search {
   display: flex;
+  align-items: center;
+  gap: 10px;
   flex: 1;
   min-width: 0;
+}
+
+.logistics-search--icon-only {
+  padding: 0 12px;
+  border: 1px solid var(--log-border);
+  background: #fff;
+}
+
+.logistics-search__icon {
+  flex: 0 0 auto;
+  color: var(--log-muted);
+  font-size: 20px;
+  line-height: 1;
 }
 
 .logistics-search input {
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid var(--log-border);
+  border: 0;
   border-radius: 0;
-  padding: 10px 12px;
-  background: #fff;
+  padding: 10px 0;
+  background: transparent;
   color: var(--log-text);
   font-family: inherit;
 }
@@ -1136,7 +1163,7 @@ onBeforeUnmount(() => header.clearActions())
 .logistics-filter-card .logistics-search input {
   min-height: 36px;
   height: 36px;
-  padding: 0 12px;
+  padding: 0;
 }
 
 .logistics-pagination .page-button {
