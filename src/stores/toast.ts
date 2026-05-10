@@ -12,6 +12,7 @@ export interface ToastItem {
   title: string
   message: string
   tone: ToastTone
+  actionUrl?: string
   /** 밀리초 단위 표시 시간. 0이면 수동 닫기 전까지 유지 */
   duration: number
   /** 토스트가 표시되기 시작한 시각 */
@@ -21,7 +22,7 @@ export interface ToastItem {
 }
 
 let nextId = 1
-const EXPEDITED_DISMISS_MS = 1200
+const DEFAULT_TOAST_DURATION_MS = 7000
 
 export const useAtlasToastStore = defineStore('atlasToast', () => {
   const toasts = ref<ToastItem[]>([])
@@ -29,17 +30,6 @@ export const useAtlasToastStore = defineStore('atlasToast', () => {
   function scheduleDismiss(item: ToastItem, delay: number) {
     if (item.timerId) clearTimeout(item.timerId)
     item.timerId = setTimeout(() => dismiss(item.id), delay)
-  }
-
-  function expeditePreviousToast() {
-    const previous = toasts.value[toasts.value.length - 1]
-    if (!previous || previous.duration <= 0) return
-
-    const elapsed = Date.now() - previous.createdAt
-    const remaining = previous.duration - elapsed
-    if (remaining > EXPEDITED_DISMISS_MS) {
-      scheduleDismiss(previous, EXPEDITED_DISMISS_MS)
-    }
   }
 
   /**
@@ -50,12 +40,12 @@ export const useAtlasToastStore = defineStore('atlasToast', () => {
     title: string,
     message: string,
     tone: ToastTone = 'info',
-    duration = 3000,
+    duration = DEFAULT_TOAST_DURATION_MS,
+    actionUrl?: string,
   ): number {
     const id = nextId++
-    expeditePreviousToast()
 
-    const item: ToastItem = { id, title, message, tone, duration, createdAt: Date.now() }
+    const item: ToastItem = { id, title, message, tone, actionUrl, duration, createdAt: Date.now() }
 
     // 자동 소멸 타이머 설정
     if (duration > 0) {

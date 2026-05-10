@@ -114,7 +114,7 @@ export const useAtlasNotificationStore = defineStore('atlasNotification', () => 
       : notification.notificationType === 'WARNING' ? 'warning'
       : notification.notificationType === 'SUCCESS' ? 'nominal'
       : 'info'
-    toast.show(notification.title, notification.message, tone, 3000)
+    toast.show(notification.title, notification.message, tone, 7000, notification.deepLinkUrl)
   }
 
   async function readNotification(publicId: string) {

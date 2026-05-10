@@ -62,6 +62,7 @@ import {
 import { getUserDetailByPublicId } from '../../../services/user'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSidebarBadgesStore } from '../../../stores/sidebarBadges'
+import { useAtlasDialogStore } from '../../../stores/dialog'
 import type { PageKey } from '../../../types'
 import { BaseModal } from '../../shared'
 import { getSubPurchaseOrder } from '../../../services/subPurchaseOrder'
@@ -146,6 +147,7 @@ const route = useRoute()
 const router = useRouter()
 const preferences = useAtlasPreferencesStore()
 const sidebarBadges = useAtlasSidebarBadgesStore()
+const dialog = useAtlasDialogStore()
 const actor = useActorScope()
 
 const itemInlineEditMode = ref(false)
@@ -2124,6 +2126,10 @@ async function handleAcceptOrder() {
     return
   }
 
+  if (!(await dialog.confirm('입력한 확정 수량으로 발주를 수락하시겠습니까?', '발주 수락', 'primary'))) {
+    return
+  }
+
   try {
     loading.value = true
 
@@ -2141,6 +2147,7 @@ async function handleAcceptOrder() {
 
     data.value = latest
     closeConfirmOrderModal()
+    await dialog.alert('발주를 수락했습니다.', '발주 수락')
   } catch (error: any) {
     confirmErrorMessage.value = error?.message ?? '발주 수락에 실패했습니다.'
   } finally {
@@ -2152,9 +2159,14 @@ async function handleAcceptOrder() {
 async function handleRejectOrder() {
   if (!data.value?.poPublicId) return
 
+  if (!(await dialog.confirm('이 발주를 반려하시겠습니까?', '발주 반려'))) {
+    return
+  }
+
   try {
     loading.value = true
     data.value = await rejectPurchaseOrder(data.value.poPublicId)
+    await dialog.alert('발주를 반려했습니다.', '발주 반려')
   } catch (error: any) {
     errorMessage.value = error?.message ?? '발주 반려에 실패했습니다.'
   } finally {
@@ -6671,11 +6683,18 @@ watch(
 .operation-detail-page__confirm-line input {
   width: 100%;
   min-height: 42px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1px solid var(--detail-border-strong, #737c7d);
+  background: #fff;
   padding: 0 12px;
   font: inherit;
   font-weight: 700;
+  color: var(--on-surface, #111);
+  outline: none;
+}
+
+.operation-detail-page__confirm-line input:focus {
+  border-color: var(--on-surface, #111);
+  box-shadow: 0 0 0 2px rgb(17 17 17 / 0.14);
 }
 
 .operation-detail-page__error {

@@ -13,6 +13,7 @@ import type {
 import { chatService } from '../services/chat'
 import { useAtlasSessionStore } from './session'
 import { useAtlasNotificationStore } from './notification'
+import { useAtlasSidebarBadgesStore } from './sidebarBadges'
 
 const WS_ENDPOINT = import.meta.env.VITE_WS_ENDPOINT || 'http://localhost:8080/ws-control'
 const ROOM_LIST_SIZE = 100
@@ -254,10 +255,12 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
       // 알림 구독 — 채팅 STOMP 클라이언트에 통합 (별도 연결 불필요)
       if (currentUserPublicId.value) {
         const notificationStore = useAtlasNotificationStore()
+        const sidebarBadgesStore = useAtlasSidebarBadgesStore()
         stompClient!.subscribe(`/sub/notify.user.${currentUserPublicId.value}`, (message) => {
           try {
             const notification = JSON.parse(message.body)
             notificationStore.handleIncomingNotification(notification)
+            void sidebarBadgesStore.fetchBadges()
             if (isChatNotification(notification)) {
               void fetchRooms()
             }
