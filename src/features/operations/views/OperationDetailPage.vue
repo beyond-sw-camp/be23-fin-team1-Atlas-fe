@@ -21,8 +21,10 @@ import {
   confirmPurchaseOrderItem,
   getPurchaseOrder,
   getPurchaseOrderHistories,
+  getPurchaseOrders,
   rejectPurchaseOrder,
   type PurchaseOrderDetailResponseDto,
+  type PurchaseOrderSummaryResponseDto,
 } from '../../../services/purchaseOrder'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -64,8 +66,10 @@ import {
   getSupplierItemCapabilities,
   getSupplierItemCapability,
   updateSupplierItemCapability,
+  type ConnectedSupplierDetailResponseDto,
+  type ConnectedSupplierOrderResponseDto,
 } from '../../../services/supplier'
-import { getOrganizationSupplySummary } from '../../../services/organization'
+import { getOrganizations, getOrganizationSupplySummary, type OrganizationListItem } from '../../../services/organization'
 import { getUserDetailByPublicId } from '../../../services/user'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSidebarBadgesStore } from '../../../stores/sidebarBadges'
@@ -524,6 +528,7 @@ const QUALITY_GRADE_OPTIONS: SupplierItemQualityGrade[] = [
 
 const kind = computed(() => route.params.kind as DetailKind)
 const publicId = computed(() => route.params.publicId as string)
+const supplierRelationKind = computed(() => route.query.relation === 'customer' ? 'customer' : 'supplier')
 
 const config = computed(() => {
   const routes: Record<DetailKind, string> = {
@@ -2797,6 +2802,60 @@ function rowKey(row: any, index: number) {
   return row.publicId ?? row.poItemPublicId ?? row.itemPublicId ?? row.id ?? `${index}`
 }
 
+function organizationContactName(organization?: OrganizationListItem) {
+  if (!organization) return ''
+  return [
+    organization.contactLastName,
+    organization.contactMiddleName,
+    organization.contactFirstName,
+  ].filter(Boolean).join(' ')
+}
+
+function toCustomerSupplierDetail(
+  organization: OrganizationListItem | undefined,
+  customerOrders: PurchaseOrderSummaryResponseDto[],
+): ConnectedSupplierDetailResponseDto {
+  const latestOrder = customerOrders
+    .slice()
+    .sort((a, b) => new Date(b.orderedAt ?? 0).getTime() - new Date(a.orderedAt ?? 0).getTime())[0]
+  const relationOrders: ConnectedSupplierOrderResponseDto[] = customerOrders.map((order) => ({
+    orderType: 'PURCHASE_ORDER',
+    poPublicId: order.poPublicId,
+    poNumber: order.poNumber,
+    subPoPublicId: null,
+    subPoNumber: null,
+    parentPoNumber: null,
+    orderRole: 'RECEIVED',
+    status: order.poStatus,
+    orderedAt: order.orderedAt,
+    totalAmount: Number(order.totalAmount ?? 0),
+  }))
+  const customerName = organization?.organizationName
+    ?? organization?.organizationAlias
+    ?? latestOrder?.supplierName
+    ?? publicId.value
+
+  return {
+    publicId: publicId.value,
+    organizationPublicId: organization?.organizationPublicId ?? publicId.value,
+    supplierCode: organization?.organizationAlias
+      ?? organization?.organizationEnglishName
+      ?? organization?.businessNo
+      ?? publicId.value,
+    supplierName: customerName,
+    supplierStatus: organization?.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+    primaryContactName: organizationContactName(organization) || '-',
+    primaryContactEmail: organization?.contactEmail ?? '',
+    primaryContactPhone: organization?.contactPhone ?? '',
+    createdAt: organization?.createdAt ?? latestOrder?.createdAt ?? latestOrder?.orderedAt ?? '',
+    updatedAt: latestOrder?.updatedAt ?? latestOrder?.orderedAt ?? organization?.createdAt ?? '',
+    onTimeRate: null,
+    purchaseOrderCount: customerOrders.length,
+    cumulativeAmount: customerOrders.reduce((sum, order) => sum + Number(order.totalAmount ?? 0), 0),
+    orders: relationOrders,
+  }
+}
+
 async function fetchDetail() {
   loading.value = true
   errorMessage.value = ''
@@ -2980,6 +3039,44 @@ async function fetchDetail() {
       })
       await Promise.all(Array.from(actorIds).map((actorId) => loadUserName(actorId)))
     } else if (kind.value === 'suppliers') {
+      if (supplierRelationKind.value === 'customer') {
+        const [ordersPage, organizationsPage] = await Promise.all([
+          getPurchaseOrders({ viewType: 'SUPPLIER', page: 0, size: 500 }).catch(() => ({
+            content: [],
+            totalElements: 0,
+            totalPages: 0,
+            size: 0,
+            number: 0,
+            first: true,
+            last: true,
+          })),
+          getOrganizations({ page: 0, size: 500 }).catch(() => ({
+            content: [],
+            totalElements: 0,
+            totalPages: 0,
+            size: 0,
+            number: 0,
+            first: true,
+            last: true,
+          })),
+        ])
+        const customerOrders = ordersPage.content.filter(
+          (order) => order.buyerOrganizationPublicId === publicId.value,
+        )
+        const organization = organizationsPage.content.find(
+          (row) => row.organizationPublicId === publicId.value,
+        )
+
+        data.value = toCustomerSupplierDetail(organization, customerOrders) as Record<string, any>
+        related.value = {
+          capabilities: [],
+          certificates: [],
+          certificateSummary: null,
+          organizationSupplySummary: null,
+        }
+        return
+      }
+
       const [detail, capabilities] = await Promise.all([
         getConnectedSupplierDetail(publicId.value).catch(() => getSupplier(publicId.value)),
         getSupplierItemCapabilities(publicId.value).catch(() => []),
@@ -3096,8 +3193,8 @@ function formatFileSize(size: unknown) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`
 }
 
-watch(() => [kind.value, publicId.value], fetchDetail, { immediate: true })
-watch(() => [kind.value, publicId.value], () => {
+watch(() => [kind.value, publicId.value, supplierRelationKind.value], fetchDetail, { immediate: true })
+watch(() => [kind.value, publicId.value, supplierRelationKind.value], () => {
   historyPage.value = 1
 })
 watch(historyTotalPages, (totalPages) => {

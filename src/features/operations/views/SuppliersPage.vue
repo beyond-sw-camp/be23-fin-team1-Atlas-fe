@@ -740,8 +740,9 @@ async function openSupplierDetail(publicId: string) {
 function openRelationDetailPage(publicId: string, relationView: SupplierTableRow['relationView']) {
   if (relationView === 'CUSTOMER') {
     router.push({
-      name: 'organizationProfile',
-      params: { organizationPublicId: publicId },
+      name: 'operationDetail',
+      params: { kind: 'suppliers', publicId },
+      query: { relation: 'customer' },
     })
     return
   }
@@ -976,17 +977,15 @@ async function submitCreateSupplier() {
           </div>
 
           <div class="page-feed">
-            <button
+            <div
               v-for="row in topRows"
               :key="row.publicId"
-              class="page-feed__item suppliers-page__feed-button"
-              type="button"
-              @click="openRelationDetailPage(row.publicId, row.relationView)"
+              class="page-feed__item suppliers-page__feed-summary"
             >
               <span class="page-feed__label">{{ row.meta }}</span>
               <strong class="page-feed__text">{{ row.name }}</strong>
               <span>{{ row.value }}</span>
-            </button>
+            </div>
             <p v-if="topRows.length === 0" class="terminal-page__table-message">
               표시할 성과 데이터가 없습니다.
             </p>
@@ -1002,16 +1001,14 @@ async function submitCreateSupplier() {
           </div>
 
           <div class="page-feed">
-            <button
+            <div
               v-for="row in riskRows"
               :key="row.publicId"
-              class="page-feed__item suppliers-page__feed-button"
-              type="button"
-              @click="openRelationDetailPage(row.publicId, row.relationView)"
+              class="page-feed__item suppliers-page__feed-summary"
             >
               <span class="page-feed__label">{{ row.name }}</span>
               <strong class="page-feed__text">{{ row.reason }}</strong>
-            </button>
+            </div>
             <p v-if="riskRows.length === 0" class="terminal-page__table-message">
               주의가 필요한 협력사가 없습니다.
             </p>
@@ -1027,19 +1024,17 @@ async function submitCreateSupplier() {
           </div>
 
           <div class="page-feed">
-            <button
+            <div
               v-for="row in regionRows"
               :key="row.publicId"
-              class="page-feed__item suppliers-page__feed-button"
-              type="button"
-              @click="openRelationDetailPage(row.publicId, row.relationView)"
+              class="page-feed__item suppliers-page__feed-summary"
             >
               <span class="page-feed__label">{{ row.label }}</span>
               <strong class="page-feed__text">{{ row.value }}</strong>
               <div class="terminal-page__bar">
                 <span :style="{ width: row.width }" />
               </div>
-            </button>
+            </div>
             <p v-if="regionRows.length === 0" class="terminal-page__table-message">
               표시할 거래 금액이 없습니다.
             </p>
