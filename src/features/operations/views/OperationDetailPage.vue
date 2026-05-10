@@ -25,7 +25,12 @@ import {
   type PurchaseOrderDetailResponseDto,
 } from '../../../services/purchaseOrder'
 import { useRoute, useRouter } from 'vue-router'
-import { getCertificate, getCertificateHistories } from '../../../services/certificate'
+import {
+  getCertificate,
+  getCertificateHistories,
+  getSupplierCertificates,
+  getSupplierCertificateSummary,
+} from '../../../services/certificate'
 import {
   getAttachment,
   getAttachmentByRef,
@@ -54,11 +59,13 @@ import { getReturnHistories, getReturnRequest, updateReturnStatus, type ReturnSt
 import { getSettlement } from '../../../services/settlement'
 import { getShipment, getShipmentEta, getShipmentStatusHistories } from '../../../services/shipment'
 import {
+  getConnectedSupplierDetail,
   getSupplier,
   getSupplierItemCapabilities,
   getSupplierItemCapability,
   updateSupplierItemCapability,
 } from '../../../services/supplier'
+import { getOrganizationSupplySummary } from '../../../services/organization'
 import { getUserDetailByPublicId } from '../../../services/user'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import { useAtlasSidebarBadgesStore } from '../../../stores/sidebarBadges'
@@ -848,11 +855,124 @@ const returnItems = computed(() => {
   ]
 })
 
-const supplierCertificateRows = computed(() => [
-  ['HACCP', 'HACCP-24-01520', '2024.04.10', '2026.05.10', '인증 만료 임박', '보통', '12일 전'],
-  ['ISO9001', 'ISO9001-23-0876', '2023.03.15', '2026.03.15', '만료됨', '높음', '-44일'],
-  ['원산지 증명', 'COO-26-000331', '2026.01.05', '2026.07.05', '유효', '낮음', '68일'],
-  ['식품안전관리 인증', 'FSMS-25-00211', '2025.02.20', '2027.02.19', '유효', '낮음', '296일'],
+const supplierCertificates = computed(() =>
+  Array.isArray(related.value.certificates) ? related.value.certificates : [],
+)
+
+const supplierCertificateSummary = computed(() => related.value.certificateSummary ?? null)
+
+const supplierOrganizationSupplySummary = computed(() => related.value.organizationSupplySummary ?? null)
+
+function certificateTypeName(type: any) {
+  return type?.name ?? type?.certificateName ?? type?.certificateCode ?? '-'
+}
+
+function certificateStatusText(value: string | null | undefined) {
+  switch (value) {
+    case 'REVIEW_REQUESTED':
+      return '검토 요청'
+    case 'APPROVED':
+      return '승인'
+    case 'REJECTED':
+      return '반려'
+    case 'EXPIRED':
+      return '만료'
+    case 'REVOKED':
+      return '취소'
+    default:
+      return displayStatus(value)
+  }
+}
+
+function certificateDaysUntil(value: string | null | undefined) {
+  if (!value) return null
+  const due = new Date(value)
+  if (Number.isNaN(due.getTime())) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  due.setHours(0, 0, 0, 0)
+  return Math.ceil((due.getTime() - today.getTime()) / 86_400_000)
+}
+
+function certificateRiskText(row: any) {
+  const left = certificateDaysUntil(row.expiredAt)
+  if (row.certificateStatus === 'EXPIRED' || (left != null && left < 0)) return '높음'
+  if (row.certificateStatus === 'REJECTED' || row.certificateStatus === 'REVOKED') return '높음'
+  if (row.certificateStatus === 'REVIEW_REQUESTED') return '보통'
+  if (left != null && left <= 30) return '보통'
+  return '낮음'
+}
+
+function certificateDaysText(row: any) {
+  const left = certificateDaysUntil(row.expiredAt)
+  if (left == null) return '-'
+  if (left < 0) return `${Math.abs(left)}일 경과`
+  return `${left}일 남음`
+}
+
+const supplierCertificateRows = computed(() =>
+  supplierCertificates.value.map((row: any) => ({
+    publicId: row.publicId,
+    name: certificateTypeName(row.certificateType),
+    number: row.certificateNo,
+    issuer: row.issuerName ?? '-',
+    issuedAt: row.issuedAt ?? '-',
+    expiredAt: row.expiredAt ?? '-',
+    status: certificateStatusText(row.certificateStatus),
+    risk: certificateRiskText(row),
+    days: certificateDaysText(row),
+  })),
+)
+
+const supplierDocumentScore = computed(() => {
+  const summary = supplierCertificateSummary.value
+  if (!summary || !summary.totalCount) return null
+  const base = Math.round((Number(summary.validCount ?? 0) / Math.max(Number(summary.totalCount), 1)) * 100)
+  const penalty = Number(summary.expiringSoonCount ?? 0) * 8 + Number(summary.renewalNeededCount ?? 0) * 12
+  return Math.max(0, Math.min(100, base - penalty))
+})
+
+const supplierDocumentMetrics = computed(() => {
+  const summary = supplierCertificateSummary.value
+  const orgSummary = supplierOrganizationSupplySummary.value
+  return [
+    { label: '문서 점수', value: supplierDocumentScore.value == null ? '-' : `${supplierDocumentScore.value}점` },
+    { label: '유효 인증', value: `${formatNumber(summary?.validCount ?? 0)}건` },
+    { label: '만료/갱신 필요', value: `${formatNumber(summary?.renewalNeededCount ?? 0)}건` },
+    { label: '만료 임박', value: `${formatNumber(summary?.expiringSoonCount ?? 0)}건` },
+    { label: 'ESG/인증 파일', value: `${formatNumber(orgSummary?.esgFileCount ?? 0)}건` },
+  ]
+})
+
+const supplierRelationOrders = computed(() => {
+  const orders = data.value?.orders
+  return Array.isArray(orders) ? orders : []
+})
+
+const supplierIssuedOrders = computed(() =>
+  supplierRelationOrders.value.filter((order: any) => order.orderRole === 'ISSUED'),
+)
+
+const supplierReceivedOrders = computed(() =>
+  supplierRelationOrders.value.filter((order: any) => order.orderRole === 'RECEIVED'),
+)
+
+const supplierRelationAmount = computed(() =>
+  supplierRelationOrders.value.reduce((sum: number, order: any) => sum + Number(order.totalAmount ?? 0), 0),
+)
+
+const supplierLatestOrder = computed(() =>
+  supplierRelationOrders.value
+    .slice()
+    .sort((a: any, b: any) => new Date(b.orderedAt ?? 0).getTime() - new Date(a.orderedAt ?? 0).getTime())[0],
+)
+
+const supplierDetailMetrics = computed(() => [
+  { label: '발주 관계', value: `${formatNumber(supplierIssuedOrders.value.length)}건` },
+  { label: '수주 관계', value: `${formatNumber(supplierReceivedOrders.value.length)}건` },
+  { label: '누적 거래 금액', value: formatAmount(data.value?.cumulativeAmount ?? supplierRelationAmount.value) },
+  { label: '납기율', value: data.value?.onTimeRate == null ? '-' : `${data.value.onTimeRate}%` },
+  { label: '최근 주문', value: supplierLatestOrder.value ? formatDate(supplierLatestOrder.value.orderedAt) : '-' },
 ])
 
 const inventoryRows = computed(() => {
@@ -2861,11 +2981,19 @@ async function fetchDetail() {
       await Promise.all(Array.from(actorIds).map((actorId) => loadUserName(actorId)))
     } else if (kind.value === 'suppliers') {
       const [detail, capabilities] = await Promise.all([
-        getSupplier(publicId.value),
+        getConnectedSupplierDetail(publicId.value).catch(() => getSupplier(publicId.value)),
         getSupplierItemCapabilities(publicId.value).catch(() => []),
       ])
+      const organizationPublicId = (detail as any).organizationPublicId
+      const [certificates, certificateSummary, organizationSupplySummary] = await Promise.all([
+        getSupplierCertificates(publicId.value).catch(() => []),
+        getSupplierCertificateSummary(publicId.value).catch(() => null),
+        organizationPublicId
+          ? getOrganizationSupplySummary(organizationPublicId).catch(() => null)
+          : Promise.resolve(null),
+      ])
       data.value = detail as Record<string, any>
-      related.value = { capabilities }
+      related.value = { capabilities, certificates, certificateSummary, organizationSupplySummary }
     } else if (kind.value === 'logistics-nodes') {
       const [detail, nodeInventories, histories] = await Promise.all([
         getLogisticsNode(publicId.value),
@@ -3340,10 +3468,92 @@ watch(
 
         <main v-else-if="kind === 'suppliers'" class="operation-detail-page__document-grid">
           <section class="operation-detail-page__document-main">
-            <article class="operation-detail-page__supplier-head"><div><p>협력사 상세</p><h2>{{ display(data.supplierName) }}</h2></div><dl><div><dt>협력사 코드</dt><dd>{{ display(data.supplierCode ?? data.supplierName ?? '협력사') }}</dd></div><div><dt>업종</dt><dd>식품 제조</dd></div><div><dt>국가</dt><dd>대한민국</dd></div><div><dt>리스크 점수</dt><dd>72 / 100 <span class="operation-detail-page__chip is-high">고위험</span></dd></div><div><dt>최종 수정</dt><dd>{{ formatDate(data.updatedAt) }}</dd></div></dl></article>
-            <section class="operation-detail-page__metric-row"><div><span>협력사 등급</span><strong>B</strong></div><div><span>ESG 점수</span><strong>68 / 100</strong></div><div><span>정시 납품률</span><strong>92.1%</strong></div><div><span>품질 점수</span><strong>84 / 100</strong></div><div><span>활성 발주</span><strong>{{ t('12건', '12') }}</strong></div></section>
-            <article class="operation-detail-page__domain-card"><h3>인증서 상태</h3><table class="operation-detail-page__domain-table"><thead><tr><th>인증명</th><th>인증서 번호</th><th>발급일</th><th>만료일</th><th>상태</th><th>위험도</th><th>잔여일</th><th>작업</th></tr></thead><tbody><tr v-for="row in supplierCertificateRows" :key="row[1]"><td>{{ row[0] }}</td><td>{{ row[1] }}</td><td>{{ row[2] }}</td><td>{{ row[3] }}</td><td>{{ row[4] }}</td><td>{{ row[5] }}</td><td>{{ row[6] }}</td><td><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.relatedDocuments }}</button></td></tr></tbody></table></article>
-            <article class="operation-detail-page__domain-card"><h3>리스크 이벤트 이력</h3><table class="operation-detail-page__domain-table"><tbody><tr><td>2026.04.28 10:15</td><td>인증 만료 임박</td><td>{{ t('HACCP 인증 만료 12일 전', 'HACCP expires in 12 days') }}</td><td>보통</td><td>인증 서비스</td></tr><tr><td>2026.04.28 09:02</td><td>인증 만료</td><td>{{ t('ISO9001 인증 만료', 'ISO9001 certificate expired') }}</td><td>높음</td><td>인증 서비스</td></tr><tr><td>2026.04.25 14:11</td><td>리스크 점수 변경</td><td>{{ t('리스크 점수 72점으로 변경', 'Risk score changed to 72') }}</td><td>보통</td><td>리스크 엔진</td></tr></tbody></table></article>
+            <article class="operation-detail-page__supplier-head">
+              <div>
+                <p>거래 관계 상세</p>
+                <h2>{{ display(data.supplierName) }}</h2>
+              </div>
+              <dl>
+                <div><dt>협력사 코드</dt><dd>{{ display(data.supplierCode ?? data.supplierName ?? '협력사') }}</dd></div>
+                <div><dt>거래 상태</dt><dd>{{ displayStatus(data.supplierStatus) }}</dd></div>
+                <div><dt>담당자</dt><dd>{{ display(data.primaryContactName) }}</dd></div>
+                <div><dt>연락처</dt><dd>{{ display(data.primaryContactPhone) }}</dd></div>
+                <div><dt>최종 수정</dt><dd>{{ formatDate(data.updatedAt) }}</dd></div>
+              </dl>
+            </article>
+            <section class="operation-detail-page__metric-row">
+              <div v-for="metric in supplierDetailMetrics" :key="metric.label">
+                <span>{{ metric.label }}</span>
+                <strong>{{ metric.value }}</strong>
+              </div>
+            </section>
+            <article class="operation-detail-page__domain-card">
+              <h3>ESG / 인증 문서</h3>
+              <section class="operation-detail-page__metric-row">
+                <div v-for="metric in supplierDocumentMetrics" :key="metric.label">
+                  <span>{{ metric.label }}</span>
+                  <strong>{{ metric.value }}</strong>
+                </div>
+              </section>
+              <table class="operation-detail-page__domain-table">
+                <thead>
+                  <tr><th>문서 유형</th><th>문서번호</th><th>발급기관</th><th>발급일</th><th>만료일</th><th>상태</th><th>위험도</th><th>잔여일</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-if="supplierCertificateRows.length === 0">
+                    <td class="operation-detail-page__history-empty" colspan="8">등록된 ESG/인증 문서가 없습니다.</td>
+                  </tr>
+                  <tr v-for="row in supplierCertificateRows" :key="row.publicId ?? row.number">
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.number }}</td>
+                    <td>{{ row.issuer }}</td>
+                    <td>{{ row.issuedAt }}</td>
+                    <td>{{ row.expiredAt }}</td>
+                    <td><span :class="['operation-detail-page__state-chip', `is-${chipTone(row.status)}`]">{{ row.status }}</span></td>
+                    <td>{{ row.risk }}</td>
+                    <td>{{ row.days }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </article>
+            <article class="operation-detail-page__domain-card">
+              <h3>거래 주문</h3>
+              <table class="operation-detail-page__domain-table">
+                <thead>
+                  <tr><th>문서번호</th><th>구분</th><th>상태</th><th>발주일</th><th>금액</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-if="supplierRelationOrders.length === 0">
+                    <td class="operation-detail-page__history-empty" colspan="5">연결된 주문 이력이 없습니다.</td>
+                  </tr>
+                  <tr v-for="row in supplierRelationOrders" :key="row.poPublicId ?? row.subPoPublicId ?? row.poNumber ?? row.subPoNumber">
+                    <td>{{ display(row.poNumber ?? row.subPoNumber) }}</td>
+                    <td>{{ row.orderRole === 'RECEIVED' ? '수주' : '발주' }}</td>
+                    <td><span :class="['operation-detail-page__state-chip', `is-${chipTone(row.status)}`]">{{ displayStatus(row.status) }}</span></td>
+                    <td>{{ formatDate(row.orderedAt) }}</td>
+                    <td>{{ formatAmount(row.totalAmount) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </article>
+            <article class="operation-detail-page__domain-card">
+              <h3>품목 공급 역량</h3>
+              <table class="operation-detail-page__domain-table">
+                <thead><tr><th>품목</th><th>등급</th><th>리드타임</th><th>가용 수량</th><th>상태</th></tr></thead>
+                <tbody>
+                  <tr v-if="lineItems.length === 0">
+                    <td class="operation-detail-page__history-empty" colspan="5">등록된 품목 공급 역량이 없습니다.</td>
+                  </tr>
+                  <tr v-for="(row, rowIndex) in lineItems" :key="rowKey(row, rowIndex)">
+                    <td>{{ display(row.itemName) }}</td>
+                    <td>{{ display(row.qualityGrade) }}</td>
+                    <td>{{ display(row.leadTimeDays) }}</td>
+                    <td>{{ formatNumber(row.availableQty) }}</td>
+                    <td>{{ displayStatus(row.status) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </article>
           </section>
           <!-- AI 섹션 임시 숨김: 필요 시 v-if 조건 제거 -->
           <aside v-if="false" class="operation-detail-page__analysis-panel"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 인증 리스크 요약', 'AI Certification Risk Summary') }}</h2><small>모델: ATLAS-RISK-1.0</small></div><div class="operation-detail-page__risk-band"><span>{{ t('종합 판단', 'Overall Decision') }}</span><strong>고위험</strong><p>{{ t('핵심 인증 만료로 품질 경영 체계 유효성이 상실되었습니다.', 'Core certification expiry invalidates the quality management system.') }}</p></div><section><h3>{{ t('비즈니스 영향 요약', 'Business Impact Summary') }}</h3><ul><li>{{ t('품질/식품안전 규정 준수 위험 증가', 'Quality and food-safety compliance risk increased') }}</li><li>{{ t('납품 중단 가능성 및 리콜 리스크 상승', 'Supply disruption and recall risk increased') }}</li><li>{{ t('고객사 감사 대응 시 컴플라이언스 이슈 발생 가능', 'Compliance issues may arise during customer audits') }}</li></ul></section><section><h3>{{ t('권장 액션 (AI)', 'Recommended Actions (AI)') }}</h3><ol><li>{{ t('ISO9001 갱신 상태 확인 및 갱신 일정 제출 요청', 'Request ISO9001 renewal status and schedule') }}</li><li>{{ t('대체 공급처 검토 및 위험 계획 수립', 'Review alternate suppliers and risk plan') }}</li><li>{{ t('인증 갱신 전까지 신규 발주 보류 검토', 'Review holding new orders until renewal') }}</li></ol></section><div class="operation-detail-page__action-list"><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.relatedDocuments }}</button><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.notifyOwner }}</button><button class="page-button page-button--secondary" type="button">{{ t('대체 후보 보기', 'View Alternatives') }}</button></div></aside>
