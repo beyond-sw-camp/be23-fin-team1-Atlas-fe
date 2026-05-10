@@ -10,8 +10,33 @@
  * - 한국어 dismiss 버튼
  */
 import { useAtlasToastStore } from '../../stores/toast'
+import { useRouter } from 'vue-router'
 
 const toast = useAtlasToastStore()
+const router = useRouter()
+
+function normalizeToastUrl(url: string) {
+  if (url.startsWith('/purchase-orders/')) {
+    return url.replace('/purchase-orders/', '/operations/orders/')
+  }
+  if (url.startsWith('/sub-purchase-orders/')) {
+    return url.replace('/sub-purchase-orders/', '/operations/sub-orders/')
+  }
+  if (url.startsWith('/shipments/')) {
+    return url.replace('/shipments/', '/operations/shipments/')
+  }
+  if (url.startsWith('/returns/')) {
+    return url.replace('/returns/', '/operations/returns/')
+  }
+  return url
+}
+
+function openToast(item: { id: number; actionUrl?: string }) {
+  if (!item.actionUrl) return
+
+  router.push(normalizeToastUrl(item.actionUrl))
+  toast.dismiss(item.id)
+}
 </script>
 
 <template>
@@ -22,7 +47,11 @@ const toast = useAtlasToastStore()
           v-for="item in toast.toasts"
           :key="item.id"
           :class="['atlas-toast', `atlas-toast--${item.tone}`]"
-          role="alert"
+          :role="item.actionUrl ? 'button' : 'alert'"
+          :tabindex="item.actionUrl ? 0 : undefined"
+          @click="openToast(item)"
+          @keydown.enter="openToast(item)"
+          @keydown.space.prevent="openToast(item)"
         >
           <!-- Status Ribbon (4px 좌측 컬러 바) -->
           <div class="atlas-toast__ribbon" />
@@ -46,7 +75,7 @@ const toast = useAtlasToastStore()
               class="atlas-toast__dismiss"
               type="button"
               aria-label="닫기"
-              @click="toast.dismiss(item.id)"
+              @click.stop="toast.dismiss(item.id)"
             >
               <span class="material-symbols-outlined">close</span>
             </button>
