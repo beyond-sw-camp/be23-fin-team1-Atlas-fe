@@ -1644,7 +1644,6 @@ const processSteps = computed<DetailStep[]>(() => {
       { label: '요청 생성', meta: formatDate(item?.createdAt), state: 'done' },
       { label: '검수', meta: display(item?.reason), state: current === 'INSPECTING' ? 'warning' : current.includes('REQUEST') ? 'active' : 'done' },
       { label: '승인/거절', meta: displayReturnStatus(item?.returnStatus), state: current === 'REJECTED' ? 'critical' : current === 'APPROVED' ? 'success' : statusTone.value === 'success' ? 'success' : 'active' },
-      { label: '완료', meta: formatDate(item?.updatedAt), state: current.includes('COMPLETE') ? 'done' : 'pending' },
     ]
   }
 
@@ -2214,6 +2213,24 @@ function displayReturnType(type: unknown) {
   if (!type) return '-'
   const str = String(type).toUpperCase()
   return returnTypeMap[str] || str
+}
+
+function displayReturnItemStatus(status: unknown) {
+  if (!status) return '-'
+  const st = String(status).toUpperCase()
+  if (st === 'REQUESTED') return '요청됨'
+  if (st === 'APPROVED') return '승인됨'
+  if (st === 'REJECTED') return '반려됨'
+  if (st === 'INSPECTING') return '검수 중'
+  if (st === 'COMPLETED') return '처리 완료'
+  return displayStatus(status)
+}
+
+function formatReturnRequester(item: Record<string, any>) {
+  const requester = formatActor(item.createdByUserPublicId)
+  const organization = display(item.requestOrganizationName ?? formatActorOrganization(item.createdByUserPublicId))
+  const values = [requester, organization].filter((value) => value && value !== '-')
+  return values.length > 0 ? values.join(' / ') : '-'
 }
 
 function displayResolutionType(type: unknown) {
@@ -3734,7 +3751,7 @@ watch(
               <span :class="['operation-detail-page__status', `is-${statusTone}`]">{{ displayReturnStatus(status || 'REJECTED') }}</span>
               <dl>
                 <div><dt>{{ t('요청일시', 'Requested At') }}</dt><dd>{{ formatDate(data.requestedAt ?? data.createdAt) }}</dd></div>
-                <div><dt>{{ t('요청자', 'Requester') }}</dt><dd>{{ formatActor(data.createdByUserPublicId) }}</dd></div>
+                <div><dt>{{ t('요청자 / 조직', 'Requester / Organization') }}</dt><dd>{{ formatReturnRequester(data) }}</dd></div>
                 <div><dt>{{ t('원출하', 'Source Shipment') }}</dt><dd>{{ display(related.sourceShipment?.shipmentNumber ?? (data.sourceShipmentPublicId ? '원출하 정보' : '-')) }}</dd></div>
                 <div><dt>{{ t('사유 코드', 'Reason Code') }}</dt><dd>{{ displayReturnType(data.returnType) }}</dd></div>
                 <div><dt>{{ t('우선순위', 'Priority') }}</dt><dd>높음</dd></div>
@@ -3751,7 +3768,7 @@ watch(
               <h3>{{ t('반품 품목 및 클레임 정보', 'Return Items and Claims') }}</h3>
               <table class="operation-detail-page__domain-table">
                 <thead><tr><th>#</th><th>{{ t('품목 코드', 'Item Code') }}</th><th>{{ t('품목명', 'Item Name') }}</th><th>{{ t('반품 수량', 'Return Qty') }}</th><th>{{ t('단위', 'Unit') }}</th><th>{{ t('클레임 사유', 'Claim Reason') }}</th><th>{{ t('판정', 'Decision') }}</th></tr></thead>
-                <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemCode ?? '품목 코드 없음') }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason ?? data.reason ?? displayReturnType(data.returnType)) }}</td><td>{{ displayStatus(item.itemStatus) }}</td></tr></tbody>
+                <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemCode ?? '품목 코드 없음') }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason ?? data.reason ?? displayReturnType(data.returnType)) }}</td><td>{{ displayReturnItemStatus(item.itemStatus) }}</td></tr></tbody>
               </table>
             </article>
             <article class="operation-detail-page__domain-card">
@@ -3764,7 +3781,26 @@ watch(
                 </a>
               </div>
             </article>
-            <article class="operation-detail-page__domain-card"><h3>{{ detailCopy.common.history }}</h3><table class="operation-detail-page__domain-table"><tbody><tr v-for="(row, index) in historyRows" :key="rowKey(row, index)"><td>{{ formatDate(row.recordedAt ?? row.createdAt) }}</td><td>{{ kind === 'returns' ? displayReturnStatus(row.afterStatus ?? row.statusCode) : display(row.afterStatus ?? row.statusCode) }}</td><td>{{ kind === 'returns' ? formatActor(row.recordedBy ?? row.processedByUserPublicId) : display(row.recordedBy ?? row.processedByUserPublicId) }}</td><td>{{ display(row.reason ?? row.memo) }}</td></tr></tbody></table></article>
+            <article class="operation-detail-page__domain-card">
+              <h3>{{ detailCopy.common.history }}</h3>
+              <table class="operation-detail-page__domain-table">
+                <thead>
+                  <tr><th>{{ t('기록 시각', 'Recorded At') }}</th><th>{{ detailCopy.common.status }}</th><th>{{ t('조직', 'Organization') }}</th><th>{{ detailCopy.common.processor }}</th><th>{{ t('메모', 'Memo') }}</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-if="historyRows.length === 0">
+                    <td class="operation-detail-page__history-empty" colspan="5">히스토리 로그가 없습니다.</td>
+                  </tr>
+                  <tr v-for="(row, index) in historyRows" :key="rowKey(row, index)">
+                    <td>{{ formatDate(row.recordedAt ?? row.createdAt) }}</td>
+                    <td>{{ displayReturnStatus(row.afterStatus ?? row.statusCode) }}</td>
+                    <td>{{ formatActorOrganization(row.recordedBy ?? row.processedByUserPublicId) }}</td>
+                    <td>{{ formatActor(row.recordedBy ?? row.processedByUserPublicId) }}</td>
+                    <td>{{ display(row.reason ?? row.memo) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </article>
             <div class="operation-detail-page__return-footer-actions">
               <button class="page-button page-button--secondary" type="button" @click="goBack">
                 {{ detailCopy.backToList }}
@@ -5457,8 +5493,12 @@ watch(
 }
 
 .operation-detail-page__timeline--returns::before {
-  left: 12.5%;
-  right: 12.5%;
+  left: 16.666%;
+  right: 16.666%;
+}
+
+.operation-detail-page__timeline--returns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .operation-detail-page__definition-grid {
