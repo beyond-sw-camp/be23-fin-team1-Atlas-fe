@@ -1203,15 +1203,26 @@ onBeforeUnmount(() => header.clearActions())
 @container atlas-page-table (max-width: 640px) {
   .logistics-table {
     grid-template-columns:
-      minmax(108px, 132px)
-      minmax(132px, 1fr)
-      64px !important;
+      minmax(92px, 1fr)
+      minmax(96px, 1fr)
+      52px !important;
+    column-gap: 10px;
+    padding: 14px 10px;
   }
 
   .logistics-table > span:nth-child(3):not(:last-child),
   .logistics-table > span:nth-child(4):not(:last-child),
   .logistics-table > span:nth-child(5):not(:last-child) {
     display: none !important;
+  }
+
+  .logistics-row-actions {
+    justify-content: center;
+  }
+
+  .logistics-row-actions .page-button {
+    min-width: 52px;
+    padding: 7px 8px;
   }
 }
 
@@ -1231,6 +1242,23 @@ onBeforeUnmount(() => header.clearActions())
     padding: 24px 18px;
   }
 
+  .logistics-page__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 12px;
+  }
+
+  .logistics-page__header .design-trigger-row {
+    width: auto;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .logistics-page__header .page-button {
+    white-space: nowrap;
+  }
+
   .logistics-filter-card {
     align-items: stretch;
     flex-direction: column;
@@ -1242,8 +1270,12 @@ onBeforeUnmount(() => header.clearActions())
   }
 
   .logistics-pagination {
-    justify-content: flex-end;
+    justify-content: center;
     width: 100%;
+  }
+
+  .logistics-table-footer {
+    justify-content: center;
   }
 
   .logistics-card {

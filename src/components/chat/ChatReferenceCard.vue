@@ -9,6 +9,7 @@ import { useAtlasChatStore } from '../../stores/chat'
 
 const props = defineProps<{
   referenceType: string
+  referencePublicId?: string
   referenceCode?: string
   referenceTitle?: string
 }>()
@@ -40,23 +41,34 @@ function getTypeLabel(type: string): string {
 }
 
 function handleCardClick() {
-  if (!props.referenceCode) return
-  
+  const detailKindByType: Record<string, string> = {
+    ORDER: 'orders',
+    RETURN_REQUEST: 'returns',
+    SUB_PURCHASE_ORDER: 'sub-orders',
+  }
+  const kind = detailKindByType[props.referenceType]
+
+  if (!kind || !props.referencePublicId) return
+
   // 클릭 시 채팅 패널을 잠시 숨기고 화면 이동
   chatStore.closePanel()
 
-  if (props.referenceType === 'ORDER') {
-    // 발주서 목록/상세 페이지로 이동
-    router.push(`/orders`)
-  } else if (props.referenceType === 'RETURN_REQUEST') {
-    // 반품 목록/상세 페이지로 이동
-    router.push(`/returns`)
-  }
+  router.push({
+    name: 'operationDetail',
+    params: { kind, publicId: props.referencePublicId },
+  })
 }
 </script>
 
 <template>
-  <div :class="['chat-ref-card', getRibbonClass(referenceType)]" @click="handleCardClick" role="button" tabindex="0">
+  <div
+    :class="['chat-ref-card', getRibbonClass(referenceType)]"
+    @click="handleCardClick"
+    @keydown.enter.prevent="handleCardClick"
+    @keydown.space.prevent="handleCardClick"
+    role="button"
+    tabindex="0"
+  >
     <div class="chat-ref-card__header">
       <span class="chat-ref-card__type">{{ getTypeLabel(referenceType) }}</span>
       <span class="material-symbols-outlined chat-ref-card__link-icon">open_in_new</span>

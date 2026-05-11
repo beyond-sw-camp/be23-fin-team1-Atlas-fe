@@ -2141,6 +2141,11 @@ function formatDate(value: unknown) {
   return String(value).replace('T', ' ').slice(0, 16)
 }
 
+function formatDateOnly(value: unknown) {
+  if (!value) return '-'
+  return String(value).slice(0, 10)
+}
+
 function formatDateRange(values: unknown[]) {
   const dates = values.map((value) => String(value).slice(0, 10)).filter(Boolean)
   if (!dates.length) return '-'
@@ -2813,6 +2818,15 @@ function organizationContactName(organization?: OrganizationListItem) {
   ].filter(Boolean).join(' ')
 }
 
+function formatKoreanContactName(value: unknown) {
+  const text = String(value ?? '').trim()
+  const parts = text.split(/\s+/).filter(Boolean)
+  if (parts.length === 2 && parts.every((part) => /^[가-힣]+$/.test(part))) {
+    return `${parts[1]}${parts[0]}`
+  }
+  return text
+}
+
 function toCustomerSupplierDetail(
   organization: OrganizationListItem | undefined,
   customerOrders: PurchaseOrderSummaryResponseDto[],
@@ -3123,6 +3137,24 @@ async function fetchDetail() {
 
 function goBack() {
   router.push({ name: config.value.listRoute })
+}
+
+function openSupplierRelationOrder(row: ConnectedSupplierOrderResponseDto) {
+  const publicId = row.orderType === 'SUB_PURCHASE_ORDER' ? row.subPoPublicId : row.poPublicId
+  if (!publicId) return
+
+  router.push({
+    name: 'operationDetail',
+    params: {
+      kind: row.orderType === 'SUB_PURCHASE_ORDER' ? 'sub-orders' : 'orders',
+      publicId,
+    },
+  })
+}
+
+function formatCapabilityStatus(row: Record<string, unknown>) {
+  const availableQty = Number(row.availableQty ?? 0)
+  return availableQty > 0 ? '재고 있음' : '재고 없음'
 }
 
 const certificateFiles = computed<AttachmentFileDto[]>(() => {
@@ -3572,9 +3604,9 @@ watch(
                 <p>거래 관계 상세</p>
               </div>
               <dl>
-                <div><dt>협력사 코드</dt><dd>{{ display(data.supplierCode ?? data.supplierName ?? '협력사') }}</dd></div>
+                <div><dt>협력사 회사</dt><dd>{{ display(data.supplierName ?? data.supplierCode ?? '협력사') }}</dd></div>
                 <div><dt>거래 상태</dt><dd>{{ displayStatus(data.supplierStatus) }}</dd></div>
-                <div><dt>담당자</dt><dd>{{ display(data.primaryContactName) }}</dd></div>
+                <div><dt>담당자</dt><dd>{{ display(formatKoreanContactName(data.primaryContactName)) }}</dd></div>
                 <div><dt>연락처</dt><dd>{{ display(data.primaryContactPhone) }}</dd></div>
                 <div><dt>최종 수정</dt><dd>{{ formatDate(data.updatedAt) }}</dd></div>
               </dl>
@@ -3616,27 +3648,37 @@ watch(
             </article>
             <article class="operation-detail-page__domain-card">
               <h3>거래 주문</h3>
-              <table class="operation-detail-page__domain-table">
+              <table class="operation-detail-page__domain-table operation-detail-page__supplier-orders-table">
                 <thead>
-                  <tr><th>문서번호</th><th>구분</th><th>상태</th><th>발주일</th><th>금액</th></tr>
+                  <tr><th>문서번호</th><th>구분</th><th>상태</th><th>발주일</th><th>금액</th><th>상세</th></tr>
                 </thead>
                 <tbody>
                   <tr v-if="supplierRelationOrders.length === 0">
-                    <td class="operation-detail-page__history-empty" colspan="5">연결된 주문 이력이 없습니다.</td>
+                    <td class="operation-detail-page__history-empty" colspan="6">연결된 주문 이력이 없습니다.</td>
                   </tr>
                   <tr v-for="row in supplierRelationOrders" :key="row.poPublicId ?? row.subPoPublicId ?? row.poNumber ?? row.subPoNumber">
                     <td>{{ display(row.poNumber ?? row.subPoNumber) }}</td>
                     <td>{{ row.orderRole === 'RECEIVED' ? '수주' : '발주' }}</td>
                     <td><span :class="['operation-detail-page__state-chip', `is-${chipTone(row.status)}`]">{{ displayStatus(row.status) }}</span></td>
-                    <td>{{ formatDate(row.orderedAt) }}</td>
+                    <td>{{ formatDateOnly(row.orderedAt) }}</td>
                     <td>{{ formatAmount(row.totalAmount) }}</td>
+                    <td>
+                      <button
+                        class="page-button page-button--secondary operation-detail-page__table-action"
+                        type="button"
+                        :disabled="!(row.poPublicId || row.subPoPublicId)"
+                        @click="openSupplierRelationOrder(row)"
+                      >
+                        상세보기
+                      </button>
+                    </td>
                   </tr>
                 </tbody>
               </table>
             </article>
             <article class="operation-detail-page__domain-card">
               <h3>품목 공급 역량</h3>
-              <table class="operation-detail-page__domain-table">
+              <table class="operation-detail-page__domain-table operation-detail-page__capability-table">
                 <thead><tr><th>품목</th><th>등급</th><th>리드타임</th><th>가용 수량</th><th>상태</th></tr></thead>
                 <tbody>
                   <tr v-if="lineItems.length === 0">
@@ -3647,7 +3689,7 @@ watch(
                     <td>{{ display(row.qualityGrade) }}</td>
                     <td>{{ display(row.leadTimeDays) }}</td>
                     <td>{{ formatNumber(row.availableQty) }}</td>
-                    <td>{{ displayStatus(row.status) }}</td>
+                    <td>{{ formatCapabilityStatus(row) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -5773,6 +5815,67 @@ watch(
   text-align: center;
 }
 
+.operation-detail-page__supplier-orders-table {
+  table-layout: fixed;
+}
+
+.operation-detail-page__supplier-orders-table th:nth-child(1),
+.operation-detail-page__supplier-orders-table td:nth-child(1) {
+  width: 30%;
+}
+
+.operation-detail-page__supplier-orders-table th:nth-child(2),
+.operation-detail-page__supplier-orders-table td:nth-child(2) {
+  width: 8%;
+}
+
+.operation-detail-page__supplier-orders-table th:nth-child(3),
+.operation-detail-page__supplier-orders-table td:nth-child(3) {
+  width: 14%;
+}
+
+.operation-detail-page__supplier-orders-table th:nth-child(4),
+.operation-detail-page__supplier-orders-table td:nth-child(4) {
+  width: 15%;
+}
+
+.operation-detail-page__supplier-orders-table th:nth-child(5),
+.operation-detail-page__supplier-orders-table td:nth-child(5) {
+  width: 20%;
+}
+
+.operation-detail-page__supplier-orders-table th:nth-child(6),
+.operation-detail-page__supplier-orders-table td:nth-child(6) {
+  width: 13%;
+}
+
+.operation-detail-page__table-action {
+  min-height: 30px;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.operation-detail-page__capability-table {
+  border: 1px solid var(--detail-border);
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.operation-detail-page__capability-table th,
+.operation-detail-page__capability-table td {
+  border-top: 0;
+  border-left: 0;
+}
+
+.operation-detail-page__capability-table th:last-child,
+.operation-detail-page__capability-table td:last-child {
+  border-right: 0;
+}
+
+.operation-detail-page__capability-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 .operation-detail-page__item-thumb {
   display: inline-flex;
   align-items: center;
@@ -6595,6 +6698,8 @@ watch(
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0;
+  border: 1px solid var(--detail-border);
+  background: var(--detail-surface-plain);
 }
 
 .operation-detail-page__metric-row > div {
@@ -6602,7 +6707,12 @@ watch(
   gap: 8px;
   min-height: 76px;
   padding: 13px 16px;
-  border-right: 0;
+  border: 0;
+  border-left: 1px solid var(--detail-border);
+}
+
+.operation-detail-page__metric-row > div:first-child {
+  border-left: 0;
 }
 
 .operation-detail-page__metric-row strong {
@@ -6866,6 +6976,15 @@ watch(
   .operation-detail-page__impact-grid,
   .operation-detail-page__action-list {
     grid-template-columns: 1fr;
+  }
+
+  .operation-detail-page__metric-row > div {
+    border-left: 0;
+    border-top: 1px solid var(--detail-border);
+  }
+
+  .operation-detail-page__metric-row > div:first-child {
+    border-top: 0;
   }
 
   .operation-detail-page__summary-cell,

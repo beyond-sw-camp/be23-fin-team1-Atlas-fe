@@ -255,6 +255,7 @@ onMounted(async () => {
             <ChatReferenceCard
               v-if="message.referenceType"
               :reference-type="message.referenceType"
+              :reference-public-id="message.referencePublicId"
               :reference-code="message.referenceCode"
               :reference-title="message.referenceTitle"
             />
