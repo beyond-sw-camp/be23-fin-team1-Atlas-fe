@@ -3395,6 +3395,8 @@ const returnProofFiles = computed<AttachmentFileDto[]>(() => {
   return related.value.returnAttachments.flatMap((att: any) => att.files || [])
 })
 
+const returnProofImageFiles = computed(() => returnProofFiles.value.filter(isImageAttachment))
+
 const itemMediaFiles = computed<ItemMediaFile[]>(() => {
   const files = related.value.itemMedia
   if (!Array.isArray(files)) return []
@@ -3446,6 +3448,13 @@ function prevItemMedia() {
 
 function fileLink(file: AttachmentFileDto) {
   return file.fileUrl ?? file.filePath ?? ''
+}
+
+function isImageAttachment(file: AttachmentFileDto) {
+  const contentType = String(file.contentType ?? '').toLowerCase()
+  if (contentType.startsWith('image/')) return true
+  const source = String(file.originalFileName ?? file.filePath ?? file.fileUrl ?? '')
+  return /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(source)
 }
 
 function formatFileSize(size: unknown) {
@@ -3819,11 +3828,18 @@ watch(
             </article>
             <article class="operation-detail-page__domain-card">
               <h3>{{ t('반품 증빙 사진', 'Return Proof Photos') }}</h3>
-              <div v-if="returnProofFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 사진이 없습니다.', 'No attached proof photos.') }}</div>
-              <div v-else class="operation-detail-page__proof-gallery">
-                <a v-for="file in returnProofFiles" :key="file.publicId" :href="fileLink(file)" target="_blank" rel="noreferrer">
-                  <img v-if="file.contentType?.startsWith('image/')" :src="fileLink(file)" :alt="file.originalFileName" />
-                  <span v-else class="material-symbols-outlined">description</span>
+              <div v-if="returnProofImageFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 이미지가 없습니다.', 'No attached proof images.') }}</div>
+              <div v-else class="operation-detail-page__item-media-grid">
+                <a
+                  v-for="file in returnProofImageFiles"
+                  :key="file.publicId"
+                  class="operation-detail-page__item-media operation-detail-page__proof-media"
+                  :href="fileLink(file)"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <img :src="fileLink(file)" :alt="file.originalFileName" />
+                  <small>{{ file.originalFileName }}</small>
                 </a>
               </div>
             </article>
@@ -4504,11 +4520,18 @@ watch(
 
           <article v-if="isReturnDetail" class="operation-detail-page__block">
             <h2>{{ t('반품 증빙 사진', 'Return Proof Photos') }}</h2>
-            <div v-if="returnProofFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 사진이 없습니다.', 'No attached proof photos.') }}</div>
-            <div v-else class="operation-detail-page__proof-gallery">
-              <a v-for="file in returnProofFiles" :key="file.publicId" :href="fileLink(file)" target="_blank" rel="noreferrer">
-                <img v-if="file.contentType?.startsWith('image/')" :src="fileLink(file)" :alt="file.originalFileName" />
-                <span v-else class="material-symbols-outlined">description</span>
+            <div v-if="returnProofImageFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 이미지가 없습니다.', 'No attached proof images.') }}</div>
+            <div v-else class="operation-detail-page__item-media-grid">
+              <a
+                v-for="file in returnProofImageFiles"
+                :key="file.publicId"
+                class="operation-detail-page__item-media operation-detail-page__proof-media"
+                :href="fileLink(file)"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <img :src="fileLink(file)" :alt="file.originalFileName" />
+                <small>{{ file.originalFileName }}</small>
               </a>
             </div>
           </article>
@@ -5368,6 +5391,10 @@ watch(
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.operation-detail-page__proof-media {
+  text-decoration: none;
 }
 
 .operation-detail-page__media-file-input {
