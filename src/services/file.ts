@@ -146,9 +146,16 @@ export async function getAttachmentOriginalImagePath(publicId: string): Promise<
 export async function downloadFileFromUrl(url: string): Promise<Blob> {
   // S3/CloudFront Pre-signed URL인 경우 (X-Amz-Signature 등 포함),
   // 임의의 쿼리 파라미터(예: ?_t=123)를 추가하면 서명이 깨져 AccessDenied 에러가 발생합니다.
-  // 따라서 서명이 포함된 URL이거나 이미 절대 경로인 경우에는 파라미터를 추가하지 않고 바로 요청합니다.
-  const isPresignedOrAbsolute = url.includes('X-Amz-Signature') || url.startsWith('http')
+  const isPresignedOrAbsolute = url.includes('X-Amz-Signature') || url.includes('Signature=') || url.startsWith('http')
   const fetchUrl = isPresignedOrAbsolute ? url : (url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`)
+
+  // 상대 경로이거나 API Base URL을 포함하는 경우 인증 헤더 추가
+  const isApiRequest = fetchUrl.startsWith('/') || (apiClient.defaults.baseURL && fetchUrl.startsWith(apiClient.defaults.baseURL))
+  
+  if (isApiRequest) {
+    const response = await apiClient.get(fetchUrl, { responseType: 'blob' })
+    return response.data as Blob
+  }
 
   const response = await fetch(fetchUrl)
   if (!response.ok) {
