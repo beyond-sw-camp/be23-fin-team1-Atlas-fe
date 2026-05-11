@@ -125,7 +125,7 @@ type DetailMetric = {
 type DetailStep = {
   label: string
   meta: string
-  state: 'done' | 'active' | 'pending' | 'critical'
+  state: 'done' | 'active' | 'pending' | 'critical' | 'success' | 'warning'
 }
 
 type EditableItemMedia = {
@@ -169,6 +169,7 @@ const itemInlineEditMode = ref(false)
 const itemLockedModalOpen = ref(false)
 
 const userNamesMap = ref<Record<string, string>>({})
+const userOrganizationNamesMap = ref<Record<string, string>>({})
 
 // ── 반품 상태 변경 ──
 const myOrgPublicId = window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
@@ -780,7 +781,7 @@ function closeOrderItemDetailModal() {
 }
 
 const shipmentPathRows = computed(() => {
-  const histories = Array.isArray(related.value.histories) ? related.value.histories : []
+  const histories = sortByRecentTime(Array.isArray(related.value.histories) ? related.value.histories : [])
   if (histories.length > 0) {
     return histories.map((row: any, index: number) => ({
       seq: index + 1,
@@ -798,6 +799,7 @@ const shipmentPathRows = computed(() => {
       nodeKey: data.value?.originNodePublicId ?? data.value?.originNodeCode ?? 'origin',
       node: display(data.value?.originNodeName ?? data.value?.originNodeCode),
       eta: formatShipmentEta(data.value?.departureEta),
+      sortTime: data.value?.departureEta,
       delay: '0',
       status: data.value?.actualDepartedAt ? displayShipmentStatus('DEPARTED') : displayShipmentStatus('READY'),
       statusCode: data.value?.actualDepartedAt ? 'departed' : 'ready',
@@ -807,6 +809,7 @@ const shipmentPathRows = computed(() => {
       nodeKey: data.value?.currentNodePublicId ?? data.value?.currentNodeCode ?? 'current',
       node: display(data.value?.currentNodeName ?? data.value?.currentNodeCode),
       eta: formatShipmentEta(related.value.eta?.lastCheckpointAt ?? data.value?.actualDepartedAt ?? data.value?.departureEta),
+      sortTime: related.value.eta?.lastCheckpointAt ?? data.value?.actualDepartedAt ?? data.value?.departureEta,
       delay: shipmentDelayMinutes.value > 0 ? shipmentDelayText.value : '0',
       status: displayShipmentStatus(data.value?.status),
       statusCode: String(data.value?.status || '').toLowerCase(),
@@ -816,6 +819,7 @@ const shipmentPathRows = computed(() => {
       nodeKey: data.value?.destinationNodePublicId ?? data.value?.destinationNodeCode ?? 'destination',
       node: display(data.value?.destinationNodeName ?? data.value?.destinationNodeCode),
       eta: shipmentArrivalEta.value,
+      sortTime: related.value.eta?.estimatedArrivalAt ?? data.value?.arrivalEta,
       delay: shipmentDelayMinutes.value > 0 ? shipmentDelayText.value : '0',
       status: data.value?.actualArrivedAt ? displayShipmentStatus('ARRIVED') : displayShipmentStatus('PENDING'),
       statusCode: data.value?.actualArrivedAt ? 'arrived' : 'pending',
@@ -827,7 +831,7 @@ const shipmentPathRows = computed(() => {
     row.node !== '-' && array.findIndex((candidate) => candidate.nodeKey === row.nodeKey) === index
   ))
 
-  return uniqueRows.map((row, index) => ({ ...row, seq: index + 1 }))
+  return sortByRecentTime(uniqueRows, 'sortTime').map((row, index) => ({ ...row, seq: index + 1 }))
 })
 
 const shipmentDelayMinutes = computed(() => {
@@ -852,7 +856,11 @@ const shipmentSummaryMeta = computed(() => {
   if (shipmentDelayMinutes.value > 0 || data.value?.status === 'DELAYED') {
     return t('지연 발생', 'Delay Detected')
   }
-  return related.value.eta?.etaBasis ? display(related.value.eta.etaBasis) : t('실시간 상태', 'Live Status')
+  const etaBasis = related.value.eta?.etaBasis
+  if (!etaBasis || String(etaBasis).toUpperCase() === 'SCHEDULED') {
+    return ''
+  }
+  return display(etaBasis)
 })
 
 const shipmentActualDepartureAt = computed(() => {
@@ -878,7 +886,7 @@ const shipmentRelatedOrderText = computed(() => {
 })
 
 const shipmentStatusHistoryRows = computed(() => {
-  const histories = Array.isArray(related.value.histories) ? related.value.histories : []
+  const histories = sortByRecentTime(Array.isArray(related.value.histories) ? related.value.histories : [])
   return histories.map((row: any, index: number) => ({
     key: `${row.shipmentPublicId ?? data.value?.publicId ?? 'shipment'}-${row.recordedAt ?? index}`,
     recordedAt: formatDate(row.recordedAt),
@@ -886,7 +894,8 @@ const shipmentStatusHistoryRows = computed(() => {
     statusCode: String(row.statusCode || '').toLowerCase(),
     location: display(row.locationText || row.location),
     message: display(row.statusMessage),
-    actor: display(row.recordedBy),
+    organization: display(row.recordedOrganizationName ?? formatActorOrganization(row.recordedBy)),
+    actor: formatActor(row.recordedBy),
   }))
 })
 
@@ -1631,11 +1640,19 @@ const processSteps = computed<DetailStep[]>(() => {
   }
 
   if (kind.value === 'returns') {
+    const decisionStatus = current === 'APPROVED' ? '승인' : current === 'REJECTED' ? '거절' : '승인/거절'
+    const decisionMeta = current === 'APPROVED' || current === 'REJECTED'
+      ? returnHistoryDate([current], item?.updatedAt)
+      : '-'
+    const decisionState = current === 'APPROVED'
+      ? 'success'
+      : current === 'REJECTED'
+        ? 'critical'
+        : 'pending'
     return [
-      { label: '요청 생성', meta: formatDate(item?.createdAt), state: 'done' },
-      { label: '검수', meta: display(item?.reason), state: current.includes('REQUEST') ? 'active' : 'done' },
-      { label: '승인/거절', meta: displayReturnStatus(item?.returnStatus), state: statusTone.value === 'critical' ? 'critical' : statusTone.value === 'success' ? 'done' : 'active' },
-      { label: '완료', meta: formatDate(item?.updatedAt), state: current.includes('COMPLETE') ? 'done' : 'pending' },
+      { label: '요청 생성', meta: formatDate(item?.requestedAt ?? item?.createdAt), state: 'done' },
+      { label: '검수', meta: returnHistoryDate(['INSPECTING', 'REQUESTED'], item?.requestedAt ?? item?.createdAt), state: current === 'INSPECTING' ? 'warning' : current.includes('REQUEST') ? 'active' : 'done' },
+      { label: decisionStatus, meta: decisionMeta, state: decisionState },
     ]
   }
 
@@ -1985,6 +2002,16 @@ function moveHistoryPage(direction: -1 | 1) {
   historyPage.value = Math.min(historyTotalPages.value, Math.max(1, historyPage.value + direction))
 }
 
+function returnHistoryDate(statuses: string[], fallback?: unknown) {
+  const statusSet = new Set(statuses.map((value) => value.toUpperCase()))
+  const rows = Array.isArray(related.value.histories) ? related.value.histories : []
+  const matched = sortHistoryRows(rows).find((row: any) => {
+    const status = String(row.afterStatus ?? row.statusCode ?? row.returnStatus ?? '').toUpperCase()
+    return statusSet.has(status)
+  })
+  return formatDate(matched?.recordedAt ?? matched?.createdAt ?? fallback)
+}
+
 function sortHistoryRows(rows: any[]) {
   return [...rows].sort((first, second) => {
     const firstTime = historyRowTime(first)
@@ -2207,6 +2234,24 @@ function displayReturnType(type: unknown) {
   return returnTypeMap[str] || str
 }
 
+function displayReturnItemStatus(status: unknown) {
+  if (!status) return '-'
+  const st = String(status).toUpperCase()
+  if (st === 'REQUESTED') return '요청됨'
+  if (st === 'APPROVED') return '승인됨'
+  if (st === 'REJECTED') return '반려됨'
+  if (st === 'INSPECTING') return '검수 중'
+  if (st === 'COMPLETED') return '처리 완료'
+  return displayStatus(status)
+}
+
+function formatReturnRequester(item: Record<string, any>) {
+  const requester = formatActor(item.createdByUserPublicId)
+  const organization = display(item.requestOrganizationName ?? formatActorOrganization(item.createdByUserPublicId))
+  const values = [requester, organization].filter((value) => value && value !== '-')
+  return values.length > 0 ? values.join(' / ') : '-'
+}
+
 function displayResolutionType(type: unknown) {
   if (!type) return '-'
   const str = String(type).toUpperCase()
@@ -2220,14 +2265,23 @@ function formatActor(publicId: unknown) {
   return '-'
 }
 
+function formatActorOrganization(publicId: unknown) {
+  if (!publicId || publicId === '-') return '-'
+  const str = String(publicId)
+  if (userOrganizationNamesMap.value[str]) return userOrganizationNamesMap.value[str]
+  return '-'
+}
+
 async function loadUserName(publicId: unknown) {
   if (!publicId) return
   const key = String(publicId)
-  if (userNamesMap.value[key]) return
+  if (userNamesMap.value[key] && userOrganizationNamesMap.value[key]) return
   const userDetail = await getUserDetailByPublicId(key).catch(() => null)
   if (!userDetail) return
   const name = `${userDetail.lastName || ''}${userDetail.firstName || ''}`.trim()
   if (name) userNamesMap.value[key] = name
+  const organizationName = userDetail.organizationName || userDetail.organizationEnglishName
+  if (organizationName) userOrganizationNamesMap.value[key] = organizationName
 }
 
 function formatShortId(publicId: unknown) {
@@ -2265,6 +2319,16 @@ function formatLeadTimeRange(values: number[]) {
   const min = Math.min(...values)
   const max = Math.max(...values)
   return min === max ? `${min}일` : `${min}~${max}일`
+}
+
+function getTimeValue(value: unknown) {
+  if (!value || value === '-') return 0
+  const parsed = new Date(String(value).replace(/\./g, '-')).getTime()
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+function sortByRecentTime<T extends Record<string, any>>(rows: T[], key = 'recordedAt') {
+  return [...rows].sort((left, right) => getTimeValue(right[key]) - getTimeValue(left[key]))
 }
 
 function formatShipmentEta(value: unknown) {
@@ -3082,6 +3146,8 @@ async function fetchDetail() {
             if (userDetail) {
               const name = `${userDetail.lastName || ''}${userDetail.firstName || ''}`.trim()
               userNamesMap.value[uid] = name || uid
+              const organizationName = userDetail.organizationName || userDetail.organizationEnglishName
+              if (organizationName) userOrganizationNamesMap.value[uid] = organizationName
             }
           }
         })
@@ -3388,7 +3454,7 @@ watch(
       </div>
       <div v-if="kind !== 'items'" class="operation-detail-page__actions">
         <button
-          v-if="kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory' && kind !== 'suppliers' && kind !== 'shipments'"
+          v-if="kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory' && kind !== 'suppliers' && kind !== 'shipments' && kind !== 'returns'"
           class="page-button page-button--secondary"
           type="button"
           @click="goBack"
@@ -3565,7 +3631,7 @@ watch(
             <article class="operation-detail-page__shipment-summary-card">
               <span>{{ shipmentSummaryTitle }}</span>
               <strong :class="{ 'is-alert': shipmentDelayMinutes > 0 || data.status === 'DELAYED' }">{{ shipmentDelayEtaText }}</strong>
-              <small>{{ shipmentSummaryMeta }}</small>
+              <small v-if="shipmentSummaryMeta">{{ shipmentSummaryMeta }}</small>
             </article>
             <article class="operation-detail-page__shipment-summary-card operation-detail-page__shipment-summary-card--nodes">
               <dl>
@@ -3611,12 +3677,13 @@ watch(
                       <th>{{ detailCopy.common.status }}</th>
                       <th>{{ t('위치', 'Location') }}</th>
                       <th>{{ t('내용', 'Message') }}</th>
+                      <th>{{ t('조직', 'Organization') }}</th>
                       <th>{{ t('처리자', 'Actor') }}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr v-if="shipmentStatusHistoryRows.length === 0">
-                      <td class="operation-detail-page__history-empty" colspan="5">
+                      <td class="operation-detail-page__history-empty" colspan="6">
                         {{ t('상태 이력이 없습니다.', 'No status history.') }}
                       </td>
                     </tr>
@@ -3629,6 +3696,7 @@ watch(
                       </td>
                       <td>{{ row.location }}</td>
                       <td>{{ row.message }}</td>
+                      <td>{{ row.organization }}</td>
                       <td>{{ row.actor }}</td>
                     </tr>
                   </tbody>
@@ -3698,11 +3766,11 @@ watch(
         <main v-else-if="kind === 'returns'" class="operation-detail-page__document-grid">
           <section class="operation-detail-page__document-main">
             <article class="operation-detail-page__doc-hero">
-              <div><p>반품 요청</p><h2>{{ title }}</h2></div>
+              <div><p>반품 요청</p></div>
               <span :class="['operation-detail-page__status', `is-${statusTone}`]">{{ displayReturnStatus(status || 'REJECTED') }}</span>
               <dl>
                 <div><dt>{{ t('요청일시', 'Requested At') }}</dt><dd>{{ formatDate(data.requestedAt ?? data.createdAt) }}</dd></div>
-                <div><dt>{{ t('요청자', 'Requester') }}</dt><dd>{{ formatActor(data.createdByUserPublicId) }}</dd></div>
+                <div><dt>{{ t('요청자 / 조직', 'Requester / Organization') }}</dt><dd>{{ formatReturnRequester(data) }}</dd></div>
                 <div><dt>{{ t('원출하', 'Source Shipment') }}</dt><dd>{{ display(related.sourceShipment?.shipmentNumber ?? (data.sourceShipmentPublicId ? '원출하 정보' : '-')) }}</dd></div>
                 <div><dt>{{ t('사유 코드', 'Reason Code') }}</dt><dd>{{ displayReturnType(data.returnType) }}</dd></div>
                 <div><dt>{{ t('우선순위', 'Priority') }}</dt><dd>높음</dd></div>
@@ -3711,7 +3779,7 @@ watch(
             </article>
             <article class="operation-detail-page__domain-card operation-detail-page__process">
               <h3>{{ t('반품 진행 상태', 'Return Progress') }}</h3>
-              <div class="operation-detail-page__timeline">
+              <div class="operation-detail-page__timeline operation-detail-page__timeline--returns">
                 <div v-for="step in processSteps" :key="step.label" :class="['operation-detail-page__timeline-step', `is-${step.state}`]"><span class="operation-detail-page__timeline-node"></span><strong>{{ step.label }}</strong><small>{{ step.meta }}</small></div>
               </div>
             </article>
@@ -3719,7 +3787,7 @@ watch(
               <h3>{{ t('반품 품목 및 클레임 정보', 'Return Items and Claims') }}</h3>
               <table class="operation-detail-page__domain-table">
                 <thead><tr><th>#</th><th>{{ t('품목 코드', 'Item Code') }}</th><th>{{ t('품목명', 'Item Name') }}</th><th>{{ t('반품 수량', 'Return Qty') }}</th><th>{{ t('단위', 'Unit') }}</th><th>{{ t('클레임 사유', 'Claim Reason') }}</th><th>{{ t('판정', 'Decision') }}</th></tr></thead>
-                <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemCode ?? '품목 코드 없음') }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason) }}</td><td>{{ displayStatus(item.itemStatus) }}</td></tr></tbody>
+                <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemCode ?? '품목 코드 없음') }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason ?? data.reason ?? displayReturnType(data.returnType)) }}</td><td>{{ displayReturnItemStatus(item.itemStatus) }}</td></tr></tbody>
               </table>
             </article>
             <article class="operation-detail-page__domain-card">
@@ -3732,7 +3800,31 @@ watch(
                 </a>
               </div>
             </article>
-            <article class="operation-detail-page__domain-card"><h3>{{ detailCopy.common.history }}</h3><table class="operation-detail-page__domain-table"><tbody><tr v-for="(row, index) in historyRows" :key="rowKey(row, index)"><td>{{ formatDate(row.recordedAt ?? row.createdAt) }}</td><td>{{ kind === 'returns' ? displayReturnStatus(row.afterStatus ?? row.statusCode) : display(row.afterStatus ?? row.statusCode) }}</td><td>{{ kind === 'returns' ? formatActor(row.recordedBy ?? row.processedByUserPublicId) : display(row.recordedBy ?? row.processedByUserPublicId) }}</td><td>{{ display(row.reason ?? row.memo) }}</td></tr></tbody></table></article>
+            <article class="operation-detail-page__domain-card">
+              <h3>{{ detailCopy.common.history }}</h3>
+              <table class="operation-detail-page__domain-table">
+                <thead>
+                  <tr><th>{{ t('기록 시각', 'Recorded At') }}</th><th>{{ detailCopy.common.status }}</th><th>{{ t('조직', 'Organization') }}</th><th>{{ detailCopy.common.processor }}</th><th>{{ t('메모', 'Memo') }}</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-if="historyRows.length === 0">
+                    <td class="operation-detail-page__history-empty" colspan="5">히스토리 로그가 없습니다.</td>
+                  </tr>
+                  <tr v-for="(row, index) in historyRows" :key="rowKey(row, index)">
+                    <td>{{ formatDate(row.recordedAt ?? row.createdAt) }}</td>
+                    <td>{{ displayReturnStatus(row.afterStatus ?? row.statusCode) }}</td>
+                    <td>{{ formatActorOrganization(row.recordedBy ?? row.processedByUserPublicId) }}</td>
+                    <td>{{ formatActor(row.recordedBy ?? row.processedByUserPublicId) }}</td>
+                    <td>{{ display(row.reason ?? row.memo) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </article>
+            <div class="operation-detail-page__return-footer-actions">
+              <button class="page-button page-button--secondary" type="button" @click="goBack">
+                {{ detailCopy.backToList }}
+              </button>
+            </div>
 
             <!-- 반품 상태 변경 -->
             <article v-if="returnNextActions.length > 0" class="operation-detail-page__domain-card operation-detail-page__return-actions">
@@ -5391,6 +5483,21 @@ watch(
   border-color: var(--error, #9f403d);
 }
 
+.operation-detail-page__timeline-step.is-success .operation-detail-page__timeline-node {
+  background: #2d7d46;
+  border-color: #2d7d46;
+}
+
+.operation-detail-page__timeline-step.is-warning .operation-detail-page__timeline-node {
+  width: 0;
+  height: 0;
+  border-right: 13px solid transparent;
+  border-bottom: 24px solid #c27a16;
+  border-left: 13px solid transparent;
+  border-top: 0;
+  background: transparent;
+}
+
 .operation-detail-page__timeline-step strong {
   color: var(--on-surface, #2d3435);
   font-size: 0.82rem;
@@ -5402,6 +5509,15 @@ watch(
   font-size: 0.72rem;
   font-weight: 700;
   line-height: 1.35;
+}
+
+.operation-detail-page__timeline--returns::before {
+  left: 16.666%;
+  right: 16.666%;
+}
+
+.operation-detail-page__timeline--returns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .operation-detail-page__definition-grid {
@@ -6558,6 +6674,7 @@ watch(
   color: var(--on-surface, #2d3435);
   font-size: 0.86rem;
   font-weight: 760;
+  white-space: nowrap;
 }
 
 .operation-detail-page__shipment-content-grid {
@@ -6634,6 +6751,13 @@ watch(
 .operation-detail-page__shipment-table--affected td:last-child {
   width: 64px;
   text-align: center;
+}
+
+.operation-detail-page__shipment-table--affected th:nth-child(4),
+.operation-detail-page__shipment-table--affected td:nth-child(4),
+.operation-detail-page__shipment-table--affected th:nth-child(5),
+.operation-detail-page__shipment-table--affected td:nth-child(5) {
+  width: 68px;
 }
 
 .operation-detail-page__shipment-table td.is-delay {
@@ -7388,6 +7512,11 @@ watch(
 .operation-detail-page__return-buttons {
   display: flex;
   gap: 8px;
+  justify-content: flex-end;
+}
+
+.operation-detail-page__return-footer-actions {
+  display: flex;
   justify-content: flex-end;
 }
 

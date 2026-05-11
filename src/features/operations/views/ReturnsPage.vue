@@ -273,6 +273,14 @@ function returnStatusText(status: string) {
   return labels[status] ?? status
 }
 
+function returnStatusTone(status: string) {
+  const normalized = String(status ?? '').toUpperCase()
+  if (normalized === 'COMPLETED' || normalized === 'APPROVED' || normalized === 'RECEIVED') return 'success'
+  if (normalized === 'REJECTED' || normalized === 'DISPOSED') return 'critical'
+  if (normalized === 'REQUESTED' || normalized === 'INSPECTING' || normalized === 'IN_TRANSIT' || normalized === 'RESHIPPED') return 'warning'
+  return 'muted'
+}
+
 async function fetchReturns() {
   isLoading.value = true
   errorMessage.value = ''
@@ -477,7 +485,11 @@ onBeforeUnmount(() => header.clearActions())
                 <span>
                   <span :class="['resolution-chip', `resolution-chip--${(item.resolutionType || 'RETURN').toLowerCase()}`]">{{ resolutionTypeText(item.resolutionType) }}</span>
                 </span>
-                <span>{{ returnStatusText(item.returnStatus) }}</span>
+                <span>
+                  <span :class="['page-status-chip', 'returns-page__status-chip', `is-${returnStatusTone(item.returnStatus)}`]">
+                    {{ returnStatusText(item.returnStatus) }}
+                  </span>
+                </span>
                 <span>{{ formatDate(item.requestedAt) }}</span>
                 <span>
                   <button
@@ -514,3 +526,9 @@ onBeforeUnmount(() => header.clearActions())
     />
   </section>
 </template>
+
+<style scoped>
+.returns-page__status-chip {
+  min-width: 64px;
+}
+</style>

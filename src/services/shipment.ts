@@ -208,6 +208,8 @@ export interface ShipmentStatusHistoryResponseDto {
   longitude?: number | null
   recordedAt: string
   recordedBy: string
+  recordedOrganizationPublicId?: string | null
+  recordedOrganizationName?: string | null
 }
 export interface TrackShipmentRequestDto {
   nodePublicId: string
