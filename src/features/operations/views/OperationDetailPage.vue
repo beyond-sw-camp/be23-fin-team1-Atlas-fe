@@ -1640,10 +1640,19 @@ const processSteps = computed<DetailStep[]>(() => {
   }
 
   if (kind.value === 'returns') {
+    const decisionStatus = current === 'APPROVED' ? '승인' : current === 'REJECTED' ? '거절' : '승인/거절'
+    const decisionMeta = current === 'APPROVED' || current === 'REJECTED'
+      ? returnHistoryDate([current], item?.updatedAt)
+      : '-'
+    const decisionState = current === 'APPROVED'
+      ? 'success'
+      : current === 'REJECTED'
+        ? 'critical'
+        : 'pending'
     return [
-      { label: '요청 생성', meta: formatDate(item?.createdAt), state: 'done' },
-      { label: '검수', meta: display(item?.reason), state: current === 'INSPECTING' ? 'warning' : current.includes('REQUEST') ? 'active' : 'done' },
-      { label: '승인/거절', meta: displayReturnStatus(item?.returnStatus), state: current === 'REJECTED' ? 'critical' : current === 'APPROVED' ? 'success' : statusTone.value === 'success' ? 'success' : 'active' },
+      { label: '요청 생성', meta: formatDate(item?.requestedAt ?? item?.createdAt), state: 'done' },
+      { label: '검수', meta: returnHistoryDate(['INSPECTING', 'REQUESTED'], item?.requestedAt ?? item?.createdAt), state: current === 'INSPECTING' ? 'warning' : current.includes('REQUEST') ? 'active' : 'done' },
+      { label: decisionStatus, meta: decisionMeta, state: decisionState },
     ]
   }
 
@@ -1991,6 +2000,16 @@ const shouldPaginateHistory = computed(() => historyRows.value.length > historyP
 
 function moveHistoryPage(direction: -1 | 1) {
   historyPage.value = Math.min(historyTotalPages.value, Math.max(1, historyPage.value + direction))
+}
+
+function returnHistoryDate(statuses: string[], fallback?: unknown) {
+  const statusSet = new Set(statuses.map((value) => value.toUpperCase()))
+  const rows = Array.isArray(related.value.histories) ? related.value.histories : []
+  const matched = sortHistoryRows(rows).find((row: any) => {
+    const status = String(row.afterStatus ?? row.statusCode ?? row.returnStatus ?? '').toUpperCase()
+    return statusSet.has(status)
+  })
+  return formatDate(matched?.recordedAt ?? matched?.createdAt ?? fallback)
 }
 
 function sortHistoryRows(rows: any[]) {
