@@ -184,7 +184,7 @@ function handleReturnFileChange(event: Event) {
     returnAttachmentFiles.value = []
   }
 }
-const isReturnUpdating = ref(false)
+const returnUpdatingStatus = ref<ReturnStatus | null>(null)
 
 const isReturnDetail = computed(() => kind.value === 'returns' && !!data.value)
 const returnStatus = computed(() => String(data.value?.returnStatus ?? '').toUpperCase() as ReturnStatus)
@@ -239,7 +239,7 @@ const returnNextActions = computed<Array<{ label: string; status: ReturnStatus; 
 
 async function handleReturnStatusChange(nextStatus: ReturnStatus) {
   if (!data.value?.publicId) return
-  isReturnUpdating.value = true
+  returnUpdatingStatus.value = nextStatus
   try {
     let attachmentPublicIds: string[] | undefined = undefined
 
@@ -259,11 +259,38 @@ async function handleReturnStatusChange(nextStatus: ReturnStatus) {
     
     // 이력도 다시 로드
     related.value.histories = await getReturnHistories(data.value.publicId).catch(() => [])
+    await dialog.alert(returnStatusSuccessMessage(nextStatus), t('상태 변경', 'Change Status'))
   } catch (error: any) {
     errorMessage.value = error?.message ?? t('상태 변경에 실패했습니다.', 'Failed to update status.')
   } finally {
-    isReturnUpdating.value = false
+    returnUpdatingStatus.value = null
   }
+}
+
+function isReturnActionUpdating(status: ReturnStatus) {
+  return returnUpdatingStatus.value === status
+}
+
+function isAnyReturnActionUpdating() {
+  return returnUpdatingStatus.value !== null
+}
+
+function returnActionLabel(action: { label: string; status: ReturnStatus }) {
+  return isReturnActionUpdating(action.status) ? t('처리 중...', 'Processing...') : action.label
+}
+
+function returnStatusSuccessMessage(status: ReturnStatus) {
+  const messages: Record<string, string> = {
+    APPROVED: t('승인되었습니다.', 'Approved.'),
+    REJECTED: t('반려되었습니다.', 'Rejected.'),
+    IN_TRANSIT: t('회수 중으로 변경되었습니다.', 'Marked as in transit.'),
+    RECEIVED: t('입고 완료되었습니다.', 'Marked as received.'),
+    INSPECTING: t('검수 중으로 변경되었습니다.', 'Inspection started.'),
+    RESHIPPED: t('교체품 출하로 변경되었습니다.', 'Marked as reshipped.'),
+    DISPOSED: t('폐기 처리되었습니다.', 'Disposed.'),
+    COMPLETED: t('처리 완료되었습니다.', 'Completed.'),
+  }
+  return messages[status] ?? t('상태가 변경되었습니다.', 'Status changed.')
 }
 
 const DETAIL_BADGE_KEY_BY_KIND: Record<DetailKind, PageKey> = {
@@ -473,6 +500,7 @@ const historyPage = ref(1)
 const historyPageSize = 10
 const itemMediaViewerOpen = ref(false)
 const itemMediaViewerIndex = ref(0)
+const mediaViewerSource = ref<'item' | 'return-proof'>('item')
 const itemMap = ref<Record<string, ItemResponseDto>>({})
 const itemMediaMap = ref<Record<string, ItemMediaFile[]>>({})
 const orderItemDetailModalOpen = ref(false)
@@ -3368,6 +3396,8 @@ const returnProofFiles = computed<AttachmentFileDto[]>(() => {
   return related.value.returnAttachments.flatMap((att: any) => att.files || [])
 })
 
+const returnProofImageFiles = computed(() => returnProofFiles.value.filter(isImageAttachment))
+
 const itemMediaFiles = computed<ItemMediaFile[]>(() => {
   const files = related.value.itemMedia
   if (!Array.isArray(files)) return []
@@ -3397,6 +3427,13 @@ const itemMediaCount = computed(() => (
 const canAddItemMedia = computed(() => itemEditableMedia.value.length < ITEM_MEDIA_MAX_UPLOAD_COUNT)
 
 function openItemMediaViewer(index: number) {
+  mediaViewerSource.value = 'item'
+  itemMediaViewerIndex.value = index
+  itemMediaViewerOpen.value = true
+}
+
+function openReturnProofViewer(index: number) {
+  mediaViewerSource.value = 'return-proof'
   itemMediaViewerIndex.value = index
   itemMediaViewerOpen.value = true
 }
@@ -3405,8 +3442,24 @@ function closeItemMediaViewer() {
   itemMediaViewerOpen.value = false
 }
 
+const mediaViewerFiles = computed(() => (
+  mediaViewerSource.value === 'return-proof' ? returnProofImageFiles.value : itemMediaFiles.value
+))
+
+const mediaViewerCurrentFile = computed(() => mediaViewerFiles.value[itemMediaViewerIndex.value])
+
+function mediaViewerFileUrl(file: ItemMediaFile | AttachmentFileDto) {
+  if (mediaViewerSource.value === 'return-proof') return fileLink(file as AttachmentFileDto)
+  return resolveItemOriginalMediaUrl(file as ItemMediaFile)
+}
+
+function isMediaViewerImage(file: ItemMediaFile | AttachmentFileDto) {
+  if (mediaViewerSource.value === 'return-proof') return true
+  return (file as ItemMediaFile).kind === 'image'
+}
+
 function nextItemMedia() {
-  if (itemMediaViewerIndex.value < itemMediaFiles.value.length - 1) {
+  if (itemMediaViewerIndex.value < mediaViewerFiles.value.length - 1) {
     itemMediaViewerIndex.value += 1
   }
 }
@@ -3419,6 +3472,13 @@ function prevItemMedia() {
 
 function fileLink(file: AttachmentFileDto) {
   return file.fileUrl ?? file.filePath ?? ''
+}
+
+function isImageAttachment(file: AttachmentFileDto) {
+  const contentType = String(file.contentType ?? '').toLowerCase()
+  if (contentType.startsWith('image/')) return true
+  const source = String(file.originalFileName ?? file.filePath ?? file.fileUrl ?? '')
+  return /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(source)
 }
 
 function formatFileSize(size: unknown) {
@@ -3792,11 +3852,17 @@ watch(
             </article>
             <article class="operation-detail-page__domain-card">
               <h3>{{ t('반품 증빙 사진', 'Return Proof Photos') }}</h3>
-              <div v-if="returnProofFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 사진이 없습니다.', 'No attached proof photos.') }}</div>
-              <div v-else class="operation-detail-page__proof-gallery">
-                <a v-for="file in returnProofFiles" :key="file.publicId" :href="fileLink(file)" target="_blank" rel="noreferrer">
-                  <img v-if="file.contentType?.startsWith('image/')" :src="fileLink(file)" :alt="file.originalFileName" />
-                  <span v-else class="material-symbols-outlined">description</span>
+              <div v-if="returnProofImageFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 이미지가 없습니다.', 'No attached proof images.') }}</div>
+              <div v-else class="operation-detail-page__item-media-grid">
+                <a
+                  v-for="(file, index) in returnProofImageFiles"
+                  :key="file.publicId"
+                  class="operation-detail-page__item-media operation-detail-page__proof-media"
+                  href=""
+                  @click.prevent="openReturnProofViewer(index)"
+                >
+                  <img :src="fileLink(file)" :alt="file.originalFileName" />
+                  <small>{{ file.originalFileName }}</small>
                 </a>
               </div>
             </article>
@@ -3843,10 +3909,10 @@ watch(
                   :key="action.status"
                   :class="['page-button', `page-button--${action.tone}`]"
                   type="button"
-                  :disabled="isReturnUpdating"
+                  :disabled="isAnyReturnActionUpdating()"
                   @click="handleReturnStatusChange(action.status)"
                 >
-                  {{ isReturnUpdating ? t('처리 중...', 'Processing...') : action.label }}
+                  {{ returnActionLabel(action) }}
                 </button>
               </div>
             </article>
@@ -4477,11 +4543,17 @@ watch(
 
           <article v-if="isReturnDetail" class="operation-detail-page__block">
             <h2>{{ t('반품 증빙 사진', 'Return Proof Photos') }}</h2>
-            <div v-if="returnProofFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 사진이 없습니다.', 'No attached proof photos.') }}</div>
-            <div v-else class="operation-detail-page__proof-gallery">
-              <a v-for="file in returnProofFiles" :key="file.publicId" :href="fileLink(file)" target="_blank" rel="noreferrer">
-                <img v-if="file.contentType?.startsWith('image/')" :src="fileLink(file)" :alt="file.originalFileName" />
-                <span v-else class="material-symbols-outlined">description</span>
+            <div v-if="returnProofImageFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 이미지가 없습니다.', 'No attached proof images.') }}</div>
+            <div v-else class="operation-detail-page__item-media-grid">
+              <a
+                v-for="(file, index) in returnProofImageFiles"
+                :key="file.publicId"
+                class="operation-detail-page__item-media operation-detail-page__proof-media"
+                href=""
+                @click.prevent="openReturnProofViewer(index)"
+              >
+                <img :src="fileLink(file)" :alt="file.originalFileName" />
+                <small>{{ file.originalFileName }}</small>
               </a>
             </div>
           </article>
@@ -4503,10 +4575,10 @@ watch(
                 :key="action.status"
                 :class="['page-button', `page-button--${action.tone}`]"
                 type="button"
-                :disabled="isReturnUpdating"
+                :disabled="isAnyReturnActionUpdating()"
                 @click="handleReturnStatusChange(action.status)"
               >
-                {{ isReturnUpdating ? t('처리 중...', 'Processing...') : action.label }}
+                {{ returnActionLabel(action) }}
               </button>
             </div>
           </article>
@@ -4975,7 +5047,7 @@ watch(
 
     <Teleport to="body">
       <div
-        v-if="itemMediaViewerOpen && itemMediaFiles[itemMediaViewerIndex]"
+        v-if="itemMediaViewerOpen && mediaViewerCurrentFile"
         class="operation-detail-page__media-viewer"
         @click.self="closeItemMediaViewer"
       >
@@ -4992,20 +5064,20 @@ watch(
         </button>
         <div class="operation-detail-page__media-viewer-content">
           <img
-            v-if="itemMediaFiles[itemMediaViewerIndex].kind === 'image'"
-            :src="resolveItemOriginalMediaUrl(itemMediaFiles[itemMediaViewerIndex])"
-            :alt="itemMediaFiles[itemMediaViewerIndex].originalFileName"
+            v-if="isMediaViewerImage(mediaViewerCurrentFile)"
+            :src="mediaViewerFileUrl(mediaViewerCurrentFile)"
+            :alt="mediaViewerCurrentFile.originalFileName"
           />
           <video
             v-else
-            :src="resolveItemOriginalMediaUrl(itemMediaFiles[itemMediaViewerIndex])"
+            :src="mediaViewerFileUrl(mediaViewerCurrentFile)"
             controls
             autoplay
           />
-          <span>{{ itemMediaViewerIndex + 1 }} / {{ itemMediaFiles.length }}</span>
+          <span>{{ itemMediaViewerIndex + 1 }} / {{ mediaViewerFiles.length }}</span>
         </div>
         <button
-          v-if="itemMediaViewerIndex < itemMediaFiles.length - 1"
+          v-if="itemMediaViewerIndex < mediaViewerFiles.length - 1"
           class="operation-detail-page__media-viewer-nav operation-detail-page__media-viewer-nav--next"
           type="button"
           @click.stop="nextItemMedia"
@@ -5341,6 +5413,10 @@ watch(
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.operation-detail-page__proof-media {
+  text-decoration: none;
 }
 
 .operation-detail-page__media-file-input {
