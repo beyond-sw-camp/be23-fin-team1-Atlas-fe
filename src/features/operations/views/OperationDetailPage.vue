@@ -781,7 +781,7 @@ function closeOrderItemDetailModal() {
 }
 
 const shipmentPathRows = computed(() => {
-  const histories = Array.isArray(related.value.histories) ? related.value.histories : []
+  const histories = sortByRecentTime(Array.isArray(related.value.histories) ? related.value.histories : [])
   if (histories.length > 0) {
     return histories.map((row: any, index: number) => ({
       seq: index + 1,
@@ -799,6 +799,7 @@ const shipmentPathRows = computed(() => {
       nodeKey: data.value?.originNodePublicId ?? data.value?.originNodeCode ?? 'origin',
       node: display(data.value?.originNodeName ?? data.value?.originNodeCode),
       eta: formatShipmentEta(data.value?.departureEta),
+      sortTime: data.value?.departureEta,
       delay: '0',
       status: data.value?.actualDepartedAt ? displayShipmentStatus('DEPARTED') : displayShipmentStatus('READY'),
       statusCode: data.value?.actualDepartedAt ? 'departed' : 'ready',
@@ -808,6 +809,7 @@ const shipmentPathRows = computed(() => {
       nodeKey: data.value?.currentNodePublicId ?? data.value?.currentNodeCode ?? 'current',
       node: display(data.value?.currentNodeName ?? data.value?.currentNodeCode),
       eta: formatShipmentEta(related.value.eta?.lastCheckpointAt ?? data.value?.actualDepartedAt ?? data.value?.departureEta),
+      sortTime: related.value.eta?.lastCheckpointAt ?? data.value?.actualDepartedAt ?? data.value?.departureEta,
       delay: shipmentDelayMinutes.value > 0 ? shipmentDelayText.value : '0',
       status: displayShipmentStatus(data.value?.status),
       statusCode: String(data.value?.status || '').toLowerCase(),
@@ -817,6 +819,7 @@ const shipmentPathRows = computed(() => {
       nodeKey: data.value?.destinationNodePublicId ?? data.value?.destinationNodeCode ?? 'destination',
       node: display(data.value?.destinationNodeName ?? data.value?.destinationNodeCode),
       eta: shipmentArrivalEta.value,
+      sortTime: related.value.eta?.estimatedArrivalAt ?? data.value?.arrivalEta,
       delay: shipmentDelayMinutes.value > 0 ? shipmentDelayText.value : '0',
       status: data.value?.actualArrivedAt ? displayShipmentStatus('ARRIVED') : displayShipmentStatus('PENDING'),
       statusCode: data.value?.actualArrivedAt ? 'arrived' : 'pending',
@@ -828,7 +831,7 @@ const shipmentPathRows = computed(() => {
     row.node !== '-' && array.findIndex((candidate) => candidate.nodeKey === row.nodeKey) === index
   ))
 
-  return uniqueRows.map((row, index) => ({ ...row, seq: index + 1 }))
+  return sortByRecentTime(uniqueRows, 'sortTime').map((row, index) => ({ ...row, seq: index + 1 }))
 })
 
 const shipmentDelayMinutes = computed(() => {
@@ -883,7 +886,7 @@ const shipmentRelatedOrderText = computed(() => {
 })
 
 const shipmentStatusHistoryRows = computed(() => {
-  const histories = Array.isArray(related.value.histories) ? related.value.histories : []
+  const histories = sortByRecentTime(Array.isArray(related.value.histories) ? related.value.histories : [])
   return histories.map((row: any, index: number) => ({
     key: `${row.shipmentPublicId ?? data.value?.publicId ?? 'shipment'}-${row.recordedAt ?? index}`,
     recordedAt: formatDate(row.recordedAt),
@@ -2280,6 +2283,16 @@ function formatLeadTimeRange(values: number[]) {
   const min = Math.min(...values)
   const max = Math.max(...values)
   return min === max ? `${min}일` : `${min}~${max}일`
+}
+
+function getTimeValue(value: unknown) {
+  if (!value || value === '-') return 0
+  const parsed = new Date(String(value).replace(/\./g, '-')).getTime()
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+function sortByRecentTime<T extends Record<string, any>>(rows: T[], key = 'recordedAt') {
+  return [...rows].sort((left, right) => getTimeValue(right[key]) - getTimeValue(left[key]))
 }
 
 function formatShipmentEta(value: unknown) {
