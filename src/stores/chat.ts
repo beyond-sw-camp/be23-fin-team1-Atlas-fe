@@ -236,7 +236,8 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     if (stompClient && stompClient.connected) return
 
     const accessToken = window.sessionStorage.getItem('atlas-access-token') || ''
-    const socketUrl = `${WS_ENDPOINT}?token=${accessToken}`
+    const formattedEndpoint = WS_ENDPOINT.replace(/^wss:\/\//i, 'https://').replace(/^ws:\/\//i, 'http://')
+    const socketUrl = `${formattedEndpoint}?token=${accessToken}`
 
     stompClient = new Client({
       webSocketFactory: () => new SockJS(socketUrl),
