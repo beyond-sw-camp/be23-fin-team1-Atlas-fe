@@ -853,7 +853,11 @@ const shipmentSummaryMeta = computed(() => {
   if (shipmentDelayMinutes.value > 0 || data.value?.status === 'DELAYED') {
     return t('지연 발생', 'Delay Detected')
   }
-  return related.value.eta?.etaBasis ? display(related.value.eta.etaBasis) : t('실시간 상태', 'Live Status')
+  const etaBasis = related.value.eta?.etaBasis
+  if (!etaBasis || String(etaBasis).toUpperCase() === 'SCHEDULED') {
+    return ''
+  }
+  return display(etaBasis)
 })
 
 const shipmentActualDepartureAt = computed(() => {
@@ -3578,7 +3582,7 @@ watch(
             <article class="operation-detail-page__shipment-summary-card">
               <span>{{ shipmentSummaryTitle }}</span>
               <strong :class="{ 'is-alert': shipmentDelayMinutes > 0 || data.status === 'DELAYED' }">{{ shipmentDelayEtaText }}</strong>
-              <small>{{ shipmentSummaryMeta }}</small>
+              <small v-if="shipmentSummaryMeta">{{ shipmentSummaryMeta }}</small>
             </article>
             <article class="operation-detail-page__shipment-summary-card operation-detail-page__shipment-summary-card--nodes">
               <dl>
@@ -6573,6 +6577,7 @@ watch(
   color: var(--on-surface, #2d3435);
   font-size: 0.86rem;
   font-weight: 760;
+  white-space: nowrap;
 }
 
 .operation-detail-page__shipment-content-grid {
@@ -6649,6 +6654,13 @@ watch(
 .operation-detail-page__shipment-table--affected td:last-child {
   width: 64px;
   text-align: center;
+}
+
+.operation-detail-page__shipment-table--affected th:nth-child(4),
+.operation-detail-page__shipment-table--affected td:nth-child(4),
+.operation-detail-page__shipment-table--affected th:nth-child(5),
+.operation-detail-page__shipment-table--affected td:nth-child(5) {
+  width: 68px;
 }
 
 .operation-detail-page__shipment-table td.is-delay {
