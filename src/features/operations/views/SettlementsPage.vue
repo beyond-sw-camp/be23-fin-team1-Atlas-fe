@@ -393,8 +393,11 @@ const targetTypeDonutChartOptions = computed(() => {
       },
       dropShadow: {
         enabled: true,
-        blur: 2,
-        opacity: 0.4,
+        top: 0,
+        left: 0,
+        blur: 4,
+        color: '#000000',
+        opacity: 0.85,
       },
     },
     legend: {
@@ -1664,6 +1667,14 @@ onMounted(() => {
 .stl-chart-card :deep(.apexcharts-datalabel-label),
 .stl-chart-card :deep(.apexcharts-datalabel-value) {
   font-family: Pretendard, "Segoe UI", sans-serif !important;
+}
+
+.stl-chart-card :deep(.apexcharts-datalabel) {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 3px rgba(0, 0, 0, 0.9));
+  paint-order: stroke fill;
+  stroke: rgba(0, 0, 0, 0.72);
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 
 @keyframes spin {
