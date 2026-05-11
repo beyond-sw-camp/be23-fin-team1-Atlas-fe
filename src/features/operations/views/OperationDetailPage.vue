@@ -169,6 +169,7 @@ const itemInlineEditMode = ref(false)
 const itemLockedModalOpen = ref(false)
 
 const userNamesMap = ref<Record<string, string>>({})
+const userOrganizationNamesMap = ref<Record<string, string>>({})
 
 // ── 반품 상태 변경 ──
 const myOrgPublicId = window.sessionStorage.getItem('atlas-organization-public-id') ?? ''
@@ -886,7 +887,8 @@ const shipmentStatusHistoryRows = computed(() => {
     statusCode: String(row.statusCode || '').toLowerCase(),
     location: display(row.locationText || row.location),
     message: display(row.statusMessage),
-    actor: display(row.recordedBy),
+    organization: formatActorOrganization(row.recordedBy),
+    actor: formatActor(row.recordedBy),
   }))
 })
 
@@ -2220,14 +2222,23 @@ function formatActor(publicId: unknown) {
   return '-'
 }
 
+function formatActorOrganization(publicId: unknown) {
+  if (!publicId || publicId === '-') return '-'
+  const str = String(publicId)
+  if (userOrganizationNamesMap.value[str]) return userOrganizationNamesMap.value[str]
+  return '-'
+}
+
 async function loadUserName(publicId: unknown) {
   if (!publicId) return
   const key = String(publicId)
-  if (userNamesMap.value[key]) return
+  if (userNamesMap.value[key] && userOrganizationNamesMap.value[key]) return
   const userDetail = await getUserDetailByPublicId(key).catch(() => null)
   if (!userDetail) return
   const name = `${userDetail.lastName || ''}${userDetail.firstName || ''}`.trim()
   if (name) userNamesMap.value[key] = name
+  const organizationName = userDetail.organizationName || userDetail.organizationEnglishName
+  if (organizationName) userOrganizationNamesMap.value[key] = organizationName
 }
 
 function formatShortId(publicId: unknown) {
@@ -3082,6 +3093,8 @@ async function fetchDetail() {
             if (userDetail) {
               const name = `${userDetail.lastName || ''}${userDetail.firstName || ''}`.trim()
               userNamesMap.value[uid] = name || uid
+              const organizationName = userDetail.organizationName || userDetail.organizationEnglishName
+              if (organizationName) userOrganizationNamesMap.value[uid] = organizationName
             }
           }
         })
@@ -3611,12 +3624,13 @@ watch(
                       <th>{{ detailCopy.common.status }}</th>
                       <th>{{ t('위치', 'Location') }}</th>
                       <th>{{ t('내용', 'Message') }}</th>
+                      <th>{{ t('조직', 'Organization') }}</th>
                       <th>{{ t('처리자', 'Actor') }}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr v-if="shipmentStatusHistoryRows.length === 0">
-                      <td class="operation-detail-page__history-empty" colspan="5">
+                      <td class="operation-detail-page__history-empty" colspan="6">
                         {{ t('상태 이력이 없습니다.', 'No status history.') }}
                       </td>
                     </tr>
@@ -3629,6 +3643,7 @@ watch(
                       </td>
                       <td>{{ row.location }}</td>
                       <td>{{ row.message }}</td>
+                      <td>{{ row.organization }}</td>
                       <td>{{ row.actor }}</td>
                     </tr>
                   </tbody>

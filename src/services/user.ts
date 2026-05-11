@@ -121,6 +121,8 @@ export interface UserDetailResponse {
   userId: number
   userPublicId: string
   organizationPublicId: string
+  organizationName?: string | null
+  organizationEnglishName?: string | null
   loginId: string
   firstName: string
   middleName?: string | null
