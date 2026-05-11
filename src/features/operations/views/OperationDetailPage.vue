@@ -500,6 +500,7 @@ const historyPage = ref(1)
 const historyPageSize = 10
 const itemMediaViewerOpen = ref(false)
 const itemMediaViewerIndex = ref(0)
+const mediaViewerSource = ref<'item' | 'return-proof'>('item')
 const itemMap = ref<Record<string, ItemResponseDto>>({})
 const itemMediaMap = ref<Record<string, ItemMediaFile[]>>({})
 const orderItemDetailModalOpen = ref(false)
@@ -3426,6 +3427,13 @@ const itemMediaCount = computed(() => (
 const canAddItemMedia = computed(() => itemEditableMedia.value.length < ITEM_MEDIA_MAX_UPLOAD_COUNT)
 
 function openItemMediaViewer(index: number) {
+  mediaViewerSource.value = 'item'
+  itemMediaViewerIndex.value = index
+  itemMediaViewerOpen.value = true
+}
+
+function openReturnProofViewer(index: number) {
+  mediaViewerSource.value = 'return-proof'
   itemMediaViewerIndex.value = index
   itemMediaViewerOpen.value = true
 }
@@ -3434,8 +3442,24 @@ function closeItemMediaViewer() {
   itemMediaViewerOpen.value = false
 }
 
+const mediaViewerFiles = computed(() => (
+  mediaViewerSource.value === 'return-proof' ? returnProofImageFiles.value : itemMediaFiles.value
+))
+
+const mediaViewerCurrentFile = computed(() => mediaViewerFiles.value[itemMediaViewerIndex.value])
+
+function mediaViewerFileUrl(file: ItemMediaFile | AttachmentFileDto) {
+  if (mediaViewerSource.value === 'return-proof') return fileLink(file as AttachmentFileDto)
+  return resolveItemOriginalMediaUrl(file as ItemMediaFile)
+}
+
+function isMediaViewerImage(file: ItemMediaFile | AttachmentFileDto) {
+  if (mediaViewerSource.value === 'return-proof') return true
+  return (file as ItemMediaFile).kind === 'image'
+}
+
 function nextItemMedia() {
-  if (itemMediaViewerIndex.value < itemMediaFiles.value.length - 1) {
+  if (itemMediaViewerIndex.value < mediaViewerFiles.value.length - 1) {
     itemMediaViewerIndex.value += 1
   }
 }
@@ -3831,12 +3855,11 @@ watch(
               <div v-if="returnProofImageFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 이미지가 없습니다.', 'No attached proof images.') }}</div>
               <div v-else class="operation-detail-page__item-media-grid">
                 <a
-                  v-for="file in returnProofImageFiles"
+                  v-for="(file, index) in returnProofImageFiles"
                   :key="file.publicId"
                   class="operation-detail-page__item-media operation-detail-page__proof-media"
-                  :href="fileLink(file)"
-                  target="_blank"
-                  rel="noreferrer"
+                  href=""
+                  @click.prevent="openReturnProofViewer(index)"
                 >
                   <img :src="fileLink(file)" :alt="file.originalFileName" />
                   <small>{{ file.originalFileName }}</small>
@@ -4523,12 +4546,11 @@ watch(
             <div v-if="returnProofImageFiles.length === 0" class="page-table__empty">{{ t('첨부된 증빙 이미지가 없습니다.', 'No attached proof images.') }}</div>
             <div v-else class="operation-detail-page__item-media-grid">
               <a
-                v-for="file in returnProofImageFiles"
+                v-for="(file, index) in returnProofImageFiles"
                 :key="file.publicId"
                 class="operation-detail-page__item-media operation-detail-page__proof-media"
-                :href="fileLink(file)"
-                target="_blank"
-                rel="noreferrer"
+                href=""
+                @click.prevent="openReturnProofViewer(index)"
               >
                 <img :src="fileLink(file)" :alt="file.originalFileName" />
                 <small>{{ file.originalFileName }}</small>
@@ -5025,7 +5047,7 @@ watch(
 
     <Teleport to="body">
       <div
-        v-if="itemMediaViewerOpen && itemMediaFiles[itemMediaViewerIndex]"
+        v-if="itemMediaViewerOpen && mediaViewerCurrentFile"
         class="operation-detail-page__media-viewer"
         @click.self="closeItemMediaViewer"
       >
@@ -5042,20 +5064,20 @@ watch(
         </button>
         <div class="operation-detail-page__media-viewer-content">
           <img
-            v-if="itemMediaFiles[itemMediaViewerIndex].kind === 'image'"
-            :src="resolveItemOriginalMediaUrl(itemMediaFiles[itemMediaViewerIndex])"
-            :alt="itemMediaFiles[itemMediaViewerIndex].originalFileName"
+            v-if="isMediaViewerImage(mediaViewerCurrentFile)"
+            :src="mediaViewerFileUrl(mediaViewerCurrentFile)"
+            :alt="mediaViewerCurrentFile.originalFileName"
           />
           <video
             v-else
-            :src="resolveItemOriginalMediaUrl(itemMediaFiles[itemMediaViewerIndex])"
+            :src="mediaViewerFileUrl(mediaViewerCurrentFile)"
             controls
             autoplay
           />
-          <span>{{ itemMediaViewerIndex + 1 }} / {{ itemMediaFiles.length }}</span>
+          <span>{{ itemMediaViewerIndex + 1 }} / {{ mediaViewerFiles.length }}</span>
         </div>
         <button
-          v-if="itemMediaViewerIndex < itemMediaFiles.length - 1"
+          v-if="itemMediaViewerIndex < mediaViewerFiles.length - 1"
           class="operation-detail-page__media-viewer-nav operation-detail-page__media-viewer-nav--next"
           type="button"
           @click.stop="nextItemMedia"
