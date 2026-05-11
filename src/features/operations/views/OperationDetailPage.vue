@@ -184,7 +184,7 @@ function handleReturnFileChange(event: Event) {
     returnAttachmentFiles.value = []
   }
 }
-const isReturnUpdating = ref(false)
+const returnUpdatingStatus = ref<ReturnStatus | null>(null)
 
 const isReturnDetail = computed(() => kind.value === 'returns' && !!data.value)
 const returnStatus = computed(() => String(data.value?.returnStatus ?? '').toUpperCase() as ReturnStatus)
@@ -239,7 +239,7 @@ const returnNextActions = computed<Array<{ label: string; status: ReturnStatus; 
 
 async function handleReturnStatusChange(nextStatus: ReturnStatus) {
   if (!data.value?.publicId) return
-  isReturnUpdating.value = true
+  returnUpdatingStatus.value = nextStatus
   try {
     let attachmentPublicIds: string[] | undefined = undefined
 
@@ -259,11 +259,38 @@ async function handleReturnStatusChange(nextStatus: ReturnStatus) {
     
     // 이력도 다시 로드
     related.value.histories = await getReturnHistories(data.value.publicId).catch(() => [])
+    await dialog.alert(returnStatusSuccessMessage(nextStatus), t('상태 변경', 'Change Status'))
   } catch (error: any) {
     errorMessage.value = error?.message ?? t('상태 변경에 실패했습니다.', 'Failed to update status.')
   } finally {
-    isReturnUpdating.value = false
+    returnUpdatingStatus.value = null
   }
+}
+
+function isReturnActionUpdating(status: ReturnStatus) {
+  return returnUpdatingStatus.value === status
+}
+
+function isAnyReturnActionUpdating() {
+  return returnUpdatingStatus.value !== null
+}
+
+function returnActionLabel(action: { label: string; status: ReturnStatus }) {
+  return isReturnActionUpdating(action.status) ? t('처리 중...', 'Processing...') : action.label
+}
+
+function returnStatusSuccessMessage(status: ReturnStatus) {
+  const messages: Record<string, string> = {
+    APPROVED: t('승인되었습니다.', 'Approved.'),
+    REJECTED: t('반려되었습니다.', 'Rejected.'),
+    IN_TRANSIT: t('회수 중으로 변경되었습니다.', 'Marked as in transit.'),
+    RECEIVED: t('입고 완료되었습니다.', 'Marked as received.'),
+    INSPECTING: t('검수 중으로 변경되었습니다.', 'Inspection started.'),
+    RESHIPPED: t('교체품 출하로 변경되었습니다.', 'Marked as reshipped.'),
+    DISPOSED: t('폐기 처리되었습니다.', 'Disposed.'),
+    COMPLETED: t('처리 완료되었습니다.', 'Completed.'),
+  }
+  return messages[status] ?? t('상태가 변경되었습니다.', 'Status changed.')
 }
 
 const DETAIL_BADGE_KEY_BY_KIND: Record<DetailKind, PageKey> = {
@@ -3843,10 +3870,10 @@ watch(
                   :key="action.status"
                   :class="['page-button', `page-button--${action.tone}`]"
                   type="button"
-                  :disabled="isReturnUpdating"
+                  :disabled="isAnyReturnActionUpdating()"
                   @click="handleReturnStatusChange(action.status)"
                 >
-                  {{ isReturnUpdating ? t('처리 중...', 'Processing...') : action.label }}
+                  {{ returnActionLabel(action) }}
                 </button>
               </div>
             </article>
@@ -4503,10 +4530,10 @@ watch(
                 :key="action.status"
                 :class="['page-button', `page-button--${action.tone}`]"
                 type="button"
-                :disabled="isReturnUpdating"
+                :disabled="isAnyReturnActionUpdating()"
                 @click="handleReturnStatusChange(action.status)"
               >
-                {{ isReturnUpdating ? t('처리 중...', 'Processing...') : action.label }}
+                {{ returnActionLabel(action) }}
               </button>
             </div>
           </article>
