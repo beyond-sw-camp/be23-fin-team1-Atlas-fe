@@ -2271,6 +2271,7 @@ async function handleAcceptOrder() {
     }
 
     data.value = latest
+    await fetchDetail()
     closeConfirmOrderModal()
     await dialog.alert('발주를 수락했습니다.', '발주 수락')
   } catch (error: any) {
@@ -2291,6 +2292,7 @@ async function handleRejectOrder() {
   try {
     loading.value = true
     data.value = await rejectPurchaseOrder(data.value.poPublicId)
+    await fetchDetail()
     await dialog.alert('발주를 반려했습니다.', '발주 반려')
   } catch (error: any) {
     errorMessage.value = error?.message ?? '발주 반려에 실패했습니다.'
@@ -3219,7 +3221,7 @@ watch(
       </div>
       <div v-if="kind !== 'items'" class="operation-detail-page__actions">
         <button
-          v-if="kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory'"
+          v-if="kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory' && kind !== 'suppliers'"
           class="page-button page-button--secondary"
           type="button"
           @click="goBack"
@@ -3568,7 +3570,6 @@ watch(
             <article class="operation-detail-page__supplier-head">
               <div>
                 <p>거래 관계 상세</p>
-                <h2>{{ display(data.supplierName) }}</h2>
               </div>
               <dl>
                 <div><dt>협력사 코드</dt><dd>{{ display(data.supplierCode ?? data.supplierName ?? '협력사') }}</dd></div>
@@ -3651,6 +3652,11 @@ watch(
                 </tbody>
               </table>
             </article>
+            <div class="operation-detail-page__bottom-actions operation-detail-page__supplier-bottom-actions">
+              <button class="page-button page-button--secondary" type="button" @click="goBack">
+                {{ detailCopy.backToList }}
+              </button>
+            </div>
           </section>
           <!-- AI 섹션 임시 숨김: 필요 시 v-if 조건 제거 -->
           <aside v-if="false" class="operation-detail-page__analysis-panel"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 인증 리스크 요약', 'AI Certification Risk Summary') }}</h2><small>모델: ATLAS-RISK-1.0</small></div><div class="operation-detail-page__risk-band"><span>{{ t('종합 판단', 'Overall Decision') }}</span><strong>고위험</strong><p>{{ t('핵심 인증 만료로 품질 경영 체계 유효성이 상실되었습니다.', 'Core certification expiry invalidates the quality management system.') }}</p></div><section><h3>{{ t('비즈니스 영향 요약', 'Business Impact Summary') }}</h3><ul><li>{{ t('품질/식품안전 규정 준수 위험 증가', 'Quality and food-safety compliance risk increased') }}</li><li>{{ t('납품 중단 가능성 및 리콜 리스크 상승', 'Supply disruption and recall risk increased') }}</li><li>{{ t('고객사 감사 대응 시 컴플라이언스 이슈 발생 가능', 'Compliance issues may arise during customer audits') }}</li></ul></section><section><h3>{{ t('권장 액션 (AI)', 'Recommended Actions (AI)') }}</h3><ol><li>{{ t('ISO9001 갱신 상태 확인 및 갱신 일정 제출 요청', 'Request ISO9001 renewal status and schedule') }}</li><li>{{ t('대체 공급처 검토 및 위험 계획 수립', 'Review alternate suppliers and risk plan') }}</li><li>{{ t('인증 갱신 전까지 신규 발주 보류 검토', 'Review holding new orders until renewal') }}</li></ol></section><div class="operation-detail-page__action-list"><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.relatedDocuments }}</button><button class="page-button page-button--secondary" type="button">{{ detailCopy.common.notifyOwner }}</button><button class="page-button page-button--secondary" type="button">{{ t('대체 후보 보기', 'View Alternatives') }}</button></div></aside>
@@ -6139,6 +6145,18 @@ watch(
 .operation-detail-page__inventory-bottom-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.operation-detail-page__supplier-bottom-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.operation-detail-page__supplier-bottom-actions .page-button {
+  min-height: 34px;
+  min-width: 78px;
+  padding: 0 12px;
+  font-size: 0.72rem;
 }
 
 .operation-detail-page__recommendation {

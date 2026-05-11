@@ -316,6 +316,35 @@ function hasSupplierPerformance(row: SupplierTableRow) {
   )
 }
 
+function hasSupplierTrade(supplier: SupplierListResponseDto) {
+  return (
+    (supplier.purchaseOrderCount ?? 0) > 0 ||
+    toAmountNumber(supplier.cumulativeAmount) > 0 ||
+    toAmountNumber(supplier.totalAmount) > 0
+  )
+}
+
+const subOrderRelationCache = new Map<string, boolean>()
+
+async function hasSupplierSubOrderRelation(supplier: SupplierListResponseDto) {
+  const supplierPublicId = supplier.detail?.publicId
+  if (!supplierPublicId) return false
+
+  if (subOrderRelationCache.has(supplierPublicId)) {
+    return subOrderRelationCache.get(supplierPublicId) ?? false
+  }
+
+  try {
+    const detail = await getConnectedSupplierDetail(supplierPublicId)
+    const hasSubOrder = detail.orders.some((order) => order.orderType === 'SUB_PURCHASE_ORDER')
+    subOrderRelationCache.set(supplierPublicId, hasSubOrder)
+    return hasSubOrder
+  } catch {
+    subOrderRelationCache.set(supplierPublicId, false)
+    return false
+  }
+}
+
 function supplierPerformanceMeta(row: SupplierTableRow) {
   const orderCount = row.purchaseOrderCount ?? 0
   const orderLabel = row.relationView === 'CUSTOMER' ? '수주' : '발주'
@@ -627,17 +656,25 @@ async function fetchSupplierRows(keyword = '') {
       size: 100,
     })
 
-    rows.value = response.content
-      .filter((supplier) => {
+    const connectedSuppliers = await Promise.all(
+      response.content.map(async (supplier) => {
         const supplierOrgId = supplier.detail?.organizationPublicId
 
         // 내 조직은 목록에서 제외
         if (supplierOrgId && supplierOrgId === session.organizationPublicId) {
-          return false
+          return null
         }
 
-        return true
-      })
+        if (hasSupplierTrade(supplier)) {
+          return supplier
+        }
+
+        return (await hasSupplierSubOrderRelation(supplier)) ? supplier : null
+      }),
+    )
+
+    rows.value = connectedSuppliers
+      .filter((supplier): supplier is SupplierListResponseDto => supplier != null)
       .map(toDisplayRow)
   } catch (error: any) {
     rows.value = []
