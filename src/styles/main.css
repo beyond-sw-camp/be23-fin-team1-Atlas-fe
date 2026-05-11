@@ -5274,104 +5274,12 @@ select:not(.app-language-select select):focus {
 }
 
 .phone-field {
-  display: grid;
-  grid-template-columns: 128px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
+  display: block;
 }
 
-.phone-field__country-wrap,
 .phone-field__input-wrap,
-.phone-field__number,
-.phone-field__selector {
+.phone-field__number {
   width: 100%;
-}
-
-.phone-field__country-wrap {
-  position: relative;
-}
-
-.phone-field__selector {
-  min-height: 42px;
-  padding: 0 28px 0 10px;
-  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
-  border-radius: 0;
-  background: var(--surface-container-lowest, #fff);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.phone-field__selector-value,
-.phone-field__option-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.phone-field__flag {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.phone-field__chevron {
-  position: absolute;
-  top: 50%;
-  right: 12px;
-  width: 8px;
-  height: 8px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: translateY(-65%) rotate(45deg);
-  pointer-events: none;
-}
-
-.phone-field__menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 10;
-  display: grid;
-  width: 320px;
-  max-height: 280px;
-  overflow-y: auto;
-  border: 1px solid rgb(var(--outline-rgb, 117 124 125) / 0.4);
-  background: var(--surface-container-lowest, #fff);
-}
-
-.phone-field__country-wrap.is-open-upward .phone-field__menu {
-  top: auto;
-  bottom: calc(100% + 4px);
-}
-
-.phone-field__option {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  width: 100%;
-  padding: 10px 12px;
-  border: 0;
-  border-bottom: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.16);
-  background: var(--surface-container-lowest, #fff);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.phone-field__option:last-child {
-  border-bottom: 0;
-}
-
-.phone-field__option:hover {
-  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.7);
-}
-
-.phone-field__option-name {
-  color: var(--on-surface-variant, #596061);
-  font-size: 0.78rem;
 }
 
 .phone-field__error {
@@ -5385,7 +5293,7 @@ select:not(.app-language-select select):focus {
 
 .settings-form select:focus,
 .settings-form input:focus,
-.phone-field__selector:focus {
+.phone-field__number:focus {
   outline: none;
   border-color: rgb(var(--outline-rgb, 117 124 125) / 0.65);
 }
@@ -5395,9 +5303,6 @@ select:not(.app-language-select select):focus {
     grid-template-columns: 1fr;
   }
 
-  .phone-field {
-    grid-template-columns: 1fr;
-  }
 }
 
 .settings-toggle-list {
