@@ -60,11 +60,11 @@ const CONTENT = {
     insight: {
       reason: '반품 사유',
       resolution: '처리 방식',
-      quantity: '반품 수량',
+      quantity: '반품 건수',
       watch: '주의 필요',
       reasonMeta: '최다 발생 사유',
       resolutionMeta: '주요 처리 방식',
-      quantityMeta: '품목 수량 합계',
+      quantityMeta: '반품 요청 기준',
       watchMeta: '요청/승인 대기',
       noData: '데이터 없음',
     },
@@ -101,11 +101,11 @@ const CONTENT = {
     insight: {
       reason: '반품 사유',
       resolution: '처리 방식',
-      quantity: '반품 수량',
+      quantity: '반품 건수',
       watch: '주의 필요',
       reasonMeta: '최다 발생 사유',
       resolutionMeta: '주요 처리 방식',
-      quantityMeta: '품목 수량 합계',
+      quantityMeta: '반품 요청 기준',
       watchMeta: '요청/승인 대기',
       noData: '데이터 없음',
     },
@@ -187,10 +187,7 @@ const metrics = computed(() => {
 const insights = computed(() => {
   const topReturnType = getTopValue(returns.value.map((item) => item.returnType))
   const topResolutionType = getTopValue(returns.value.map((item) => item.resolutionType))
-  const returnedItems = returns.value.reduce(
-    (sum, item) => sum + item.items.reduce((itemSum, returnItem) => itemSum + returnItem.returnQty, 0),
-    0,
-  )
+  const returnRequestCount = totalReturnCount.value || returns.value.length
   const pending = returns.value.filter(
     (item) => item.returnStatus === 'REQUESTED' || item.returnStatus === 'APPROVED',
   ).length
@@ -208,7 +205,7 @@ const insights = computed(() => {
     },
     {
       label: content.value.insight.quantity,
-      value: String(returnedItems),
+      value: String(returnRequestCount),
       meta: content.value.insight.quantityMeta,
     },
     {
