@@ -9,6 +9,7 @@ import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 import ChatAvatar from './ChatAvatar.vue'
 import { useAtlasChatStore } from '../../stores/chat'
+import { useAtlasDialogStore } from '../../stores/dialog'
 
 const props = defineProps<{
   roomName: string
@@ -27,6 +28,7 @@ const emit = defineEmits<{
 }>()
 
 const chatStore = useAtlasChatStore()
+const dialog = useAtlasDialogStore()
 const messagesContainer = ref<HTMLElement | null>(null)
 const moreButtonRef = ref<HTMLElement | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
@@ -111,10 +113,9 @@ function handleSendReference(refType: string, refPublicId: string, refCode: stri
 }
 
 /** 메시지 삭제 핸들러 */
-function handleDeleteMessage(messagePublicId: string) {
-  if (confirm(copy.value.deleteConfirm)) {
-    emit('deleteMessage', messagePublicId)
-  }
+async function handleDeleteMessage(messagePublicId: string) {
+  if (!(await dialog.confirm(copy.value.deleteConfirm, '메시지 삭제'))) return
+  emit('deleteMessage', messagePublicId)
 }
 
 /** 메시지 답장 핸들러 */
@@ -174,11 +175,12 @@ function showParticipantsPanel() {
 }
 
 /** 채팅방 나가기 핸들러 */
-function handleLeaveRoom() {
-  if (confirm(copy.value.leaveConfirm)) {
-    chatStore.leaveRoom()
-    isMoreMenuOpen.value = false
-  }
+async function handleLeaveRoom() {
+  const confirmed = await dialog.confirm(copy.value.leaveConfirm, '채팅방 나가기')
+  if (!confirmed) return
+
+  await chatStore.leaveRoom()
+  isMoreMenuOpen.value = false
 }
 
 const isEditingName = ref(false)
