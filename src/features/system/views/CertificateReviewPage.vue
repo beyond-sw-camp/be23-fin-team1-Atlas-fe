@@ -81,6 +81,20 @@ function formatDate(value: string | undefined) {
   return value
 }
 
+function formatReviewDateTime(value: string | null | undefined) {
+  if (!value) return '-'
+  const normalized = value.length >= 16 ? value.substring(0, 16).replace('T', ' ') : value
+  return normalized.replace(/-/g, '.')
+}
+
+function reviewerOrganizationName(certificate: SupplierCertificateResponseDto) {
+  return certificate.reviewerOrganizationName || certificate.reviewedByOrganizationPublicId || '-'
+}
+
+function shouldShowReviewMeta(certificate: SupplierCertificateResponseDto) {
+  return certificate.certificateStatus === 'APPROVED' || certificate.certificateStatus === 'REJECTED'
+}
+
 function certificateStatusText(status: SupplierCertificateResponseDto['certificateStatus'] | null | undefined) {
   if (status === 'REVIEW_REQUESTED') return '심사 요청'
   if (status === 'APPROVED') return '승인'
@@ -303,6 +317,10 @@ watch(search, () => {
               <span :class="['page-status-chip', certificateStatusTone(certificate.certificateStatus)]">
                 {{ certificateStatusText(certificate.certificateStatus) }}
               </span>
+              <span v-if="shouldShowReviewMeta(certificate)" class="certificate-review-page__review-meta">
+                <span>심사자 {{ reviewerOrganizationName(certificate) }}</span>
+                <span>심사 시간 {{ formatReviewDateTime(certificate.reviewedAt) }}</span>
+              </span>
             </span>
             <span>
               <button class="page-button page-button--secondary certificate-review-page__detail-button" type="button" @click="openCertificateDetail(certificate)">
@@ -357,8 +375,8 @@ watch(search, () => {
 }
 
 .certificate-review-page__table .page-table__row {
-  grid-template-columns: 1.15fr 1fr 1.1fr 0.9fr 0.85fr 0.85fr 0.85fr 0.65fr;
-  min-width: 1160px;
+  grid-template-columns: 1.1fr 0.95fr 1.05fr 0.85fr 0.8fr 0.8fr 1.25fr 0.6fr;
+  min-width: 1240px;
 }
 
 .certificate-review-page__row.is-active {
@@ -373,14 +391,26 @@ watch(search, () => {
 }
 
 .certificate-review-page__status-cell {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .certificate-review-page__status-cell .page-status-chip {
   justify-content: center;
   min-width: 72px;
   white-space: nowrap;
+}
+
+.certificate-review-page__review-meta {
+  color: var(--color-on-surface-variant);
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 2px;
+  line-height: 1.35;
+  min-width: 0;
 }
 
 .certificate-review-page__detail-screen {
