@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
+import '@vuepic/vue-datepicker/dist/main.css'
+import { ko } from 'date-fns/locale/ko'
 import { BaseModal } from '../../shared'
 import { useAtlasPreferencesStore } from '../../../stores/preferences'
 import ShipmentKoreaMap from '../components/ShipmentKoreaMap.vue'
@@ -25,6 +28,7 @@ import {
   type DeliveryExceptionResponseDto,
   type EtaProjectionResponseDto,
   type ShipmentCreatableOrderDto,
+  type ShipmentCreatableOrderItemDto,
   type ShipmentEtaResponseDto,
   type ShipmentListResponseDto,
   type ShipmentMapResponseDto,
@@ -45,7 +49,7 @@ const CONTENT = {
     title: '출하',
     refresh: '새로고침',
     openCreate: '출하 등록',
-    closeCreate: '생성 닫기',
+    closeCreate: '취소',
     createTitle: '출하 생성',
     createEyebrow: 'READY 생성',
     mapTitle: '진행 중 출하 지도',
@@ -54,8 +58,10 @@ const CONTENT = {
     boardTitle: '출하 목록',
     boardEyebrow: 'SHIPMENT LIST',
     searchPlaceholder: '출하번호, 창고, 운송장 검색',
-    allBoard: '전체건',
+    allBoard: '전체',
     readyBoard: '준비완료',
+    inTransitBoard: '배송중',
+    arrivedBoard: '도착완료',
     cancelledBoard: '취소건',
     boardEmpty: '대상 출하가 없습니다.',
     manageShipment: '관리 열기',
@@ -70,9 +76,9 @@ const CONTENT = {
     order: '승인 발주',
     orderIdentity: '주문 식별 정보',
     sourceType: '출하 유형',
-    sourcePublicId: '기준 주문 ID',
-    purchaseOrderId: '상위 발주 ID',
-    subPurchaseOrderId: '하위 발주 ID',
+    sourcePublicId: '기준 주문',
+    purchaseOrderId: '상위 발주',
+    subPurchaseOrderId: '하위 발주',
     shipmentItems: '출하 품목',
     originNode: '출발 창고',
     destinationNode: '도착 창고',
@@ -142,7 +148,7 @@ const CONTENT = {
     title: 'Shipments',
     refresh: 'REFRESH',
     openCreate: 'CREATE SHIPMENT',
-    closeCreate: 'CLOSE FORM',
+    closeCreate: 'CANCEL',
     createTitle: 'Create Shipment',
     createEyebrow: 'READY',
     mapTitle: 'Active Shipment Map',
@@ -153,6 +159,8 @@ const CONTENT = {
     searchPlaceholder: 'Search shipment no., warehouse, or tracking no.',
     allBoard: 'All',
     readyBoard: 'Ready',
+    inTransitBoard: 'In Transit',
+    arrivedBoard: 'Arrived',
     cancelledBoard: 'Cancelled',
     boardEmpty: 'No shipments.',
     manageShipment: 'Open Management',
@@ -167,9 +175,9 @@ const CONTENT = {
     order: 'Accepted Order',
     orderIdentity: 'Order Identity',
     sourceType: 'Shipment Type',
-    sourcePublicId: 'Source Order ID',
-    purchaseOrderId: 'Purchase Order ID',
-    subPurchaseOrderId: 'Sub Order ID',
+    sourcePublicId: 'Source Order',
+    purchaseOrderId: 'Purchase Order',
+    subPurchaseOrderId: 'Sub Order',
     shipmentItems: 'Shipment Items',
     originNode: 'Origin Warehouse',
     destinationNode: 'Destination Warehouse',
@@ -238,12 +246,12 @@ const CONTENT = {
 
 const content = computed(() => CONTENT.ko)
 const shipmentKpiContent = computed(() => ({
-        active: '진행 중 출하',
+        active: '출하 진행 중',
         ready: '상품 준비 완료',
         inTransit: '배송 중',
         delayed: '지연',
-        activeSub: '지도 표시 대상',
-        readySub: '배송 시작 대기',
+        activeSub: '',
+        readySub: '배송대기',
         inTransitSub: '운송 진행',
         delayedSub: '확인 필요',
 }))
@@ -254,6 +262,7 @@ const mapShipments = ref<ShipmentMapResponseDto[]>([])
 const acceptedPurchaseOrders = ref<ShipmentCreatableOrderDto[]>([])
 const selectedPurchaseOrderDetail = ref<ShipmentCreatableOrderDto | null>(null)
 const createLineQuantities = ref<Record<string, number>>({})
+const isQuantityLimitModalOpen = ref(false)
 
 const currentPage = ref(0)
 const pageSize = ref(10)
@@ -286,7 +295,7 @@ const selectedShipmentEta = ref<ShipmentEtaResponseDto | null>(null)
 const selectedShipmentHistories = ref<ShipmentStatusHistoryResponseDto[]>([])
 const etaProjections = ref<EtaProjectionResponseDto[]>([])
 const deliveryExceptions = ref<DeliveryExceptionResponseDto[]>([])
-type ShipmentBoardFilter = 'ALL' | 'READY' | 'CANCELLED'
+type ShipmentBoardFilter = 'ALL' | 'READY' | 'IN_TRANSIT' | 'ARRIVED' | 'CANCELLED'
 const activeBoardFilter = ref<ShipmentBoardFilter>('ALL')
 
 const isCreateModalOpen = ref(false)
@@ -310,6 +319,14 @@ const createForm = ref<CreateShipmentRequestDto>({
 
 const createDepartureDate = ref('')
 const createDepartureTime = ref('')
+const createDepartureDatePickerValue = computed<Date | null>({
+  get() {
+    return parseDateValue(createDepartureDate.value)
+  },
+  set(date) {
+    createDepartureDate.value = formatDateForApi(date)
+  },
+})
 
 const updateForm = ref<UpdateShipmentRequestDto>({
   departureEta: '',
@@ -319,6 +336,20 @@ const updateForm = ref<UpdateShipmentRequestDto>({
 })
 const updateDepartureDate = ref('')
 const updateDepartureTime = ref('')
+const updateDepartureDatePickerValue = computed<Date | null>({
+  get() {
+    return parseDateValue(updateDepartureDate.value)
+  },
+  set(date) {
+    updateDepartureDate.value = formatDateForApi(date)
+  },
+})
+
+const datepickerTimeConfig = { enableTimePicker: false }
+const datepickerFormats = {
+  input: 'yyyy. MM. dd.',
+  preview: 'yyyy. MM. dd.',
+}
 
 const trackForm = ref<TrackShipmentRequestDto>({
   nodePublicId: '',
@@ -338,6 +369,14 @@ const exceptionForm = ref<CreateDeliveryExceptionRequestDto>({
 })
 const exceptionDetectedDate = ref('')
 const exceptionDetectedTime = ref('')
+const exceptionDetectedDatePickerValue = computed<Date | null>({
+  get() {
+    return parseDateValue(exceptionDetectedDate.value)
+  },
+  set(date) {
+    exceptionDetectedDate.value = formatDateForApi(date)
+  },
+})
 
 const checkpointTypeOptions = ['TRANSIT']
 const checkpointStatusOptions = ['PASSED']
@@ -364,6 +403,16 @@ const boardFilterOptions = computed(() => [
     value: 'READY' as ShipmentBoardFilter,
     label: content.value.readyBoard,
     count: displayShipments.value.filter((shipment) => shipment.status === 'READY').length,
+  },
+  {
+    value: 'IN_TRANSIT' as ShipmentBoardFilter,
+    label: content.value.inTransitBoard,
+    count: displayShipments.value.filter((shipment) => shipment.status === 'IN_TRANSIT').length,
+  },
+  {
+    value: 'ARRIVED' as ShipmentBoardFilter,
+    label: content.value.arrivedBoard,
+    count: displayShipments.value.filter((shipment) => shipment.status === 'ARRIVED').length,
   },
   {
     value: 'CANCELLED' as ShipmentBoardFilter,
@@ -437,6 +486,33 @@ const selectedShipmentLinesForCreate = computed(() =>
     .filter((line) => line.quantity > 0),
 )
 
+function handleCreateLineQuantityInput(item: ShipmentCreatableOrderItemDto, event: Event) {
+  const input = event.target as HTMLInputElement
+  const quantity = Number(input.value)
+  const maxQuantity = Number(item.shippableQty ?? 0)
+
+  if (!Number.isFinite(quantity)) {
+    createLineQuantities.value = {
+      ...createLineQuantities.value,
+      [item.sourceItemPublicId]: 0,
+    }
+    return
+  }
+
+  const normalizedQuantity = Math.max(0, Math.trunc(quantity))
+  const nextQuantity = Math.min(normalizedQuantity, maxQuantity)
+
+  if (normalizedQuantity > maxQuantity) {
+    isQuantityLimitModalOpen.value = true
+  }
+
+  input.value = String(nextQuantity)
+  createLineQuantities.value = {
+    ...createLineQuantities.value,
+    [item.sourceItemPublicId]: nextQuantity,
+  }
+}
+
 const trackNodeOptions = computed(() => {
   if (!selectedShipmentDetail.value) return []
 
@@ -463,6 +539,9 @@ const trackNodeOptions = computed(() => {
   )
 })
 
+const canEditSelectedShipment = computed(() =>
+  selectedShipmentDetail.value?.status === 'READY' && selectedShipmentDetail.value?.sourceType === 'ORDER',
+)
 const canUpdateDepartureEta = computed(() => selectedShipmentDetail.value?.canUpdate === true)
 const canStartSelectedShipment = computed(() => selectedShipmentDetail.value?.canStart === true)
 const canCancelSelectedShipment = computed(() => selectedShipmentDetail.value?.canCancel === true)
@@ -484,6 +563,29 @@ function dedupeShipments<T extends ShipmentListResponseDto | ShipmentMapResponse
 function formatDate(value?: string | null) {
   if (!value) return '-'
   return value.replace('T', ' ').slice(0, 16)
+}
+
+function parseDateValue(value?: string | null) {
+  if (!value) return null
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return null
+  return new Date(year, month - 1, day)
+}
+
+function formatDateForApi(date: Date | null) {
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDateForDisplay(date: Date | null) {
+  if (!date) return '연도. 월. 일.'
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}. ${month}. ${day}.`
 }
 
 function splitDateTime(value?: string | null) {
@@ -897,7 +999,7 @@ async function handleUpdateShipmentSubmit() {
 
   updateErrorMessage.value = ''
 
-  if (!canUpdateDepartureEta.value) {
+  if (!canEditSelectedShipment.value) {
     updateErrorMessage.value = content.value.readyOnlyUpdate
     return
   }
@@ -1108,7 +1210,7 @@ onMounted(() => {
         <div class="shipment-kpi-card__body">
           <span>{{ shipmentKpiContent.active }}</span>
           <strong>{{ activeShipmentCount }}</strong>
-          <small>{{ shipmentKpiContent.activeSub }}</small>
+          <small v-if="shipmentKpiContent.activeSub">{{ shipmentKpiContent.activeSub }}</small>
         </div>
       </article>
 
@@ -1208,11 +1310,185 @@ onMounted(() => {
       </div>
     </article>
 
+    <section v-if="isCreatePage" class="shipment-create-page">
+      <header class="shipment-create-page__header">
+        <div>
+          <div class="terminal-page__eyebrow">{{ content.createEyebrow }}</div>
+          <h2 class="terminal-page__title">{{ content.createTitle }}</h2>
+          <p>{{ content.autoTransportNotice }}</p>
+        </div>
+      </header>
+
+      <div class="shipment-create-page__body">
+        <div class="shipment-create-modal">
+          <div class="shipment-create-shell">
+            <section class="shipment-create-primary">
+              <div class="shipment-create-section-head">
+                <div>
+                  <span>{{ content.createEyebrow }}</span>
+                  <h3>{{ content.createTitle }}</h3>
+                </div>
+                <strong>{{ createDepartureEta || '--:--' }}</strong>
+              </div>
+
+              <div class="shipment-form-grid shipment-create-form-grid">
+                <label class="shipment-field shipment-field--wide">
+                  <span>{{ content.order }} <strong class="shipment-required-mark">*</strong></span>
+                  <select
+                    :value="createForm.purchaseOrderPublicId"
+                    class="page-input"
+                    :disabled="isOrderOptionsLoading"
+                    @change="handlePurchaseOrderSelect(($event.target as HTMLSelectElement).value)"
+                  >
+                    <option value="">{{ isOrderOptionsLoading ? content.loading : content.select }}</option>
+                    <option v-for="order in acceptedPurchaseOrders" :key="order.sourcePublicId" :value="order.sourcePublicId">
+                      {{ order.orderNumber }} / {{ order.supplierName }} / {{ formatShipmentStatus(order.status) }}
+                    </option>
+                  </select>
+                </label>
+
+                <label class="shipment-field">
+                  <span>{{ content.departureEta }} <strong class="shipment-required-mark">*</strong></span>
+                  <div class="shipment-date-time-row">
+                    <VueDatePicker
+                      v-model="createDepartureDatePickerValue"
+                      class="shipment-datepicker"
+                      :locale="ko"
+                      :formats="datepickerFormats"
+                      :time-config="datepickerTimeConfig"
+                      auto-apply
+                      :clearable="false"
+                      teleport="body"
+                    >
+                      <template #trigger>
+                        <button class="shipment-date-trigger" type="button">
+                          <span :class="{ 'is-placeholder': !createDepartureDatePickerValue }">
+                            {{ formatDateForDisplay(createDepartureDatePickerValue) }}
+                          </span>
+                          <span class="material-symbols-outlined">calendar_month</span>
+                        </button>
+                      </template>
+                    </VueDatePicker>
+                    <select v-model="createDepartureTime" class="page-input">
+                      <option value="">{{ content.select }}</option>
+                      <option v-for="time in departureTimeOptions" :key="time" :value="time">
+                        {{ time }}
+                      </option>
+                    </select>
+                  </div>
+                </label>
+              </div>
+
+              <div class="shipment-create-route">
+                <div>
+                  <span>{{ content.originNode }}</span>
+                  <strong>{{ selectedOriginLogisticsNodeText }}</strong>
+                </div>
+                <em>→</em>
+                <div>
+                  <span>{{ content.destinationNode }}</span>
+                  <strong>{{ selectedArrivalLogisticsNodeText }}</strong>
+                </div>
+              </div>
+
+              <aside class="shipment-create-aside">
+                <section class="shipment-create-spec-grid">
+                  <div>
+                    <span>품목</span>
+                    <strong>{{ selectedOrderItemCount }}</strong>
+                  </div>
+                  <div>
+                    <span>수량</span>
+                    <strong>{{ selectedOrderTotalQuantity }}</strong>
+                  </div>
+                  <div>
+                    <span>{{ content.status }}</span>
+                    <strong>{{ selectedCreateOrder ? formatShipmentStatus(selectedCreateOrder.status) : '-' }}</strong>
+                  </div>
+                  <div>
+                    <span>{{ content.destinationNode }}</span>
+                    <strong>{{ selectedOrderHasDestinationNode ? '준비 완료' : '-' }}</strong>
+                  </div>
+                </section>
+
+                <section class="shipment-create-options">
+                  <span>{{ content.options }}</span>
+                  <div class="shipment-option-row">
+                    <label :class="{ 'is-selected': createForm.temperatureRequired }">
+                      <input v-model="createForm.temperatureRequired" type="checkbox" />
+                      {{ content.temperatureRequired }}
+                    </label>
+                    <label :class="{ 'is-selected': createForm.sealedPackagingRequired }">
+                      <input v-model="createForm.sealedPackagingRequired" type="checkbox" />
+                      {{ content.sealedPackagingRequired }}
+                    </label>
+                    <label :class="{ 'is-selected': createForm.fragile }">
+                      <input v-model="createForm.fragile" type="checkbox" />
+                      {{ content.fragile }}
+                    </label>
+                  </div>
+                </section>
+              </aside>
+
+              <section v-if="selectedOrderItems.length > 0" class="shipment-create-options">
+                <span>출하 품목 / 수량</span>
+                <div class="shipment-line-list">
+                  <label
+                    v-for="item in selectedOrderItems"
+                    :key="item.sourceItemPublicId"
+                    class="shipment-line-row"
+                  >
+                    <div>
+                      <strong>{{ item.itemName }} ({{ item.itemCode }})</strong>
+                      <small>
+                        출하 가능 {{ item.shippableQty }} / 도착 {{ formatNodeDisplay(item.destinationNodeName, item.destinationNodeCode, item.destinationNodePublicId) }}
+                      </small>
+                      <small>
+                        출발 후보 {{ item.originNodeOptions.map((node) => `${node.nodeName} (${node.nodeCode}) ${node.availableQty}`).join(', ') }}
+                      </small>
+                    </div>
+                    <input
+                      :value="createLineQuantities[item.sourceItemPublicId] ?? 0"
+                      type="number"
+                      min="0"
+                      :max="item.shippableQty"
+                      class="page-input"
+                      @input="handleCreateLineQuantityInput(item, $event)"
+                    />
+                  </label>
+                </div>
+              </section>
+            </section>
+          </div>
+
+          <div v-if="orderErrorMessage" class="page-table__empty">{{ orderErrorMessage }}</div>
+          <div v-else-if="!isOrderOptionsLoading && acceptedPurchaseOrders.length === 0" class="page-table__empty">
+            {{ content.emptyOrders }}
+          </div>
+          <div v-if="createErrorMessage" class="shipment-error">{{ createErrorMessage }}</div>
+        </div>
+      </div>
+
+      <footer class="shipment-create-page__footer">
+        <button class="page-button page-button--secondary" type="button" @click="closeCreateModal">
+          {{ content.closeCreate }}
+        </button>
+        <button
+          class="page-button page-button--primary"
+          type="button"
+          :disabled="isCreateSubmitting"
+          @click="handleCreateShipmentSubmit"
+        >
+          {{ isCreateSubmitting ? content.loading : content.submitCreate }}
+        </button>
+      </footer>
+    </section>
+
     <BaseModal
-      :model-value="isCreatePage || isCreateModalOpen"
+      v-else
+      :model-value="isCreateModalOpen"
       :title="content.createTitle"
       :description="content.autoTransportNotice"
-      :presentation="isCreatePage ? 'page' : 'modal'"
       size="lg"
       hide-eyebrow
       @update:model-value="handleCreateModalOpenChange"
@@ -1230,7 +1506,7 @@ onMounted(() => {
 
             <div class="shipment-form-grid shipment-create-form-grid">
               <label class="shipment-field shipment-field--wide">
-                <span>{{ content.order }} <strong>*</strong></span>
+                <span>{{ content.order }} <strong class="shipment-required-mark">*</strong></span>
                 <select
                   :value="createForm.purchaseOrderPublicId"
                   class="page-input"
@@ -1245,9 +1521,27 @@ onMounted(() => {
               </label>
 
               <label class="shipment-field">
-                <span>{{ content.departureEta }} <strong>*</strong></span>
+                <span>{{ content.departureEta }} <strong class="shipment-required-mark">*</strong></span>
                 <div class="shipment-date-time-row">
-                  <input v-model="createDepartureDate" type="date" class="page-input" />
+                  <VueDatePicker
+                    v-model="createDepartureDatePickerValue"
+                    class="shipment-datepicker"
+                    :locale="ko"
+                    :formats="datepickerFormats"
+                    :time-config="datepickerTimeConfig"
+                    auto-apply
+                    :clearable="false"
+                    teleport="body"
+                  >
+                    <template #trigger>
+                      <button class="shipment-date-trigger" type="button">
+                        <span :class="{ 'is-placeholder': !createDepartureDatePickerValue }">
+                          {{ formatDateForDisplay(createDepartureDatePickerValue) }}
+                        </span>
+                        <span class="material-symbols-outlined">calendar_month</span>
+                      </button>
+                    </template>
+                  </VueDatePicker>
                   <select v-model="createDepartureTime" class="page-input">
                     <option value="">{{ content.select }}</option>
                     <option v-for="time in departureTimeOptions" :key="time" :value="time">
@@ -1288,11 +1582,12 @@ onMounted(() => {
                     </small>
                   </div>
                   <input
-                    v-model.number="createLineQuantities[item.sourceItemPublicId]"
+                    :value="createLineQuantities[item.sourceItemPublicId] ?? 0"
                     type="number"
                     min="0"
                     :max="item.shippableQty"
                     class="page-input"
+                    @input="handleCreateLineQuantityInput(item, $event)"
                   />
                 </label>
               </div>
@@ -1300,12 +1595,6 @@ onMounted(() => {
           </section>
 
           <aside class="shipment-create-aside">
-            <section class="shipment-create-spec">
-              <span>{{ content.order }}</span>
-              <strong>{{ selectedCreateOrder?.orderNumber ?? '-' }}</strong>
-              <p>{{ selectedCreateOrder?.supplierName ?? content.destinationFromOrder }}</p>
-            </section>
-
             <section class="shipment-create-spec-grid">
               <div>
                 <span>품목</span>
@@ -1367,15 +1656,21 @@ onMounted(() => {
       </template>
     </BaseModal>
 
-    <article v-if="!isCreatePage" class="stl-card shipment-board-card">
-      <div class="stl-card__head">
-        <div>
-          <div class="page-panel__eyebrow">{{ content.boardEyebrow }}</div>
-          <h3>{{ content.boardTitle }}</h3>
-        </div>
-      </div>
+    <BaseModal
+      v-model="isQuantityLimitModalOpen"
+      title="출하 수량 확인"
+      description="출하 가능한 수량보다 높은 숫자는 입력할 수 없습니다."
+      size="sm"
+      hide-eyebrow
+    >
+      <template #footer>
+        <button class="page-button page-button--primary" type="button" @click="isQuantityLimitModalOpen = false">
+          확인
+        </button>
+      </template>
+    </BaseModal>
 
-      <section class="terminal-page__filter shipment-board-filter">
+    <section v-if="!isCreatePage" class="terminal-page__filter shipment-board-filter">
         <label class="terminal-page__search terminal-page__search--icon-only">
           <span
             v-if="!search"
@@ -1391,11 +1686,7 @@ onMounted(() => {
             type="text"
           />
         </label>
-      </section>
 
-      <div v-if="isShipmentListLoading" class="page-table__empty">{{ content.loading }}</div>
-      <div v-else-if="shipmentErrorMessage" class="page-table__empty">{{ shipmentErrorMessage }}</div>
-      <div v-else class="shipment-work-board shipment-work-board--list">
         <div class="shipment-board-tabs">
           <button
             v-for="option in boardFilterOptions"
@@ -1406,10 +1697,21 @@ onMounted(() => {
             @click="activeBoardFilter = option.value"
           >
             <span>{{ option.label }}</span>
-            <strong>{{ option.count }}</strong>
           </button>
         </div>
+      </section>
 
+    <article v-if="!isCreatePage" class="stl-card shipment-board-card">
+      <div class="stl-card__head">
+        <div>
+          <div class="page-panel__eyebrow">{{ content.boardEyebrow }}</div>
+          <h3>{{ content.boardTitle }}</h3>
+        </div>
+      </div>
+
+      <div v-if="isShipmentListLoading" class="page-table__empty">{{ content.loading }}</div>
+      <div v-else-if="shipmentErrorMessage" class="page-table__empty">{{ shipmentErrorMessage }}</div>
+      <div v-else class="shipment-work-board shipment-work-board--list">
         <div class="shipment-board-list">
           <button
             v-for="shipment in filteredBoardShipments"
@@ -1447,6 +1749,7 @@ onMounted(() => {
       :title="selectedShipmentDetail?.shipmentNumber ?? content.detailTitle"
       size="lg"
       hide-eyebrow
+      hide-close-button
       @update:model-value="handleDetailModalOpenChange"
       @close="closeShipmentDetailModal"
     >
@@ -1473,15 +1776,15 @@ onMounted(() => {
             </div>
             <div>
               <span>{{ content.sourcePublicId }}</span>
-              <strong>{{ selectedShipmentDetail.sourcePublicId || selectedShipmentDetail.purchaseOrderPublicId || selectedShipmentDetail.subPurchaseOrderPublicId || '-' }}</strong>
+              <strong>{{ selectedShipmentDetail.sourceNumber || '-' }}</strong>
             </div>
             <div>
               <span>{{ content.purchaseOrderId }}</span>
-              <strong>{{ selectedShipmentDetail.purchaseOrderPublicId || '-' }}</strong>
+              <strong>{{ selectedShipmentDetail.purchaseOrderNumber || '-' }}</strong>
             </div>
             <div>
               <span>{{ content.subPurchaseOrderId }}</span>
-              <strong>{{ selectedShipmentDetail.subPurchaseOrderPublicId || '-' }}</strong>
+              <strong>{{ selectedShipmentDetail.subPurchaseOrderNumber || '-' }}</strong>
             </div>
           </div>
 
@@ -1503,12 +1806,12 @@ onMounted(() => {
               <strong>{{ formatDate(selectedShipmentDetail.departureEta) }}</strong>
             </div>
             <div>
-              <span>{{ content.arrivalEta }}</span>
-              <strong>{{ formatDate(selectedShipmentDetail.arrivalEta) }}</strong>
-            </div>
-            <div>
               <span>{{ content.actualDepartedAt }}</span>
               <strong>{{ formatDate(selectedShipmentDetail.actualDepartedAt) }}</strong>
+            </div>
+            <div>
+              <span>{{ content.arrivalEta }}</span>
+              <strong>{{ formatDate(selectedShipmentDetail.arrivalEta) }}</strong>
             </div>
             <div>
               <span>{{ content.actualArrivedAt }}</span>
@@ -1549,7 +1852,7 @@ onMounted(() => {
                 <input
                   v-model="updateForm.temperatureRequired"
                   type="checkbox"
-                  :disabled="!canUpdateDepartureEta"
+                  :disabled="!canEditSelectedShipment"
                 />
                 {{ content.temperatureRequired }}
               </label>
@@ -1557,7 +1860,7 @@ onMounted(() => {
                 <input
                   v-model="updateForm.sealedPackagingRequired"
                   type="checkbox"
-                  :disabled="!canUpdateDepartureEta"
+                  :disabled="!canEditSelectedShipment"
                 />
                 {{ content.sealedPackagingRequired }}
               </label>
@@ -1565,7 +1868,7 @@ onMounted(() => {
                 <input
                   v-model="updateForm.fragile"
                   type="checkbox"
-                  :disabled="!canUpdateDepartureEta"
+                  :disabled="!canEditSelectedShipment"
                 />
                 {{ content.fragile }}
               </label>
@@ -1576,7 +1879,7 @@ onMounted(() => {
             <div>
               <button
                 v-if="canStartSelectedShipment"
-                class="page-button page-button--primary"
+                class="page-button page-button--secondary"
                 type="button"
                 :disabled="isStatusSubmitting"
                 @click="handleStartShipment"
@@ -1603,14 +1906,6 @@ onMounted(() => {
               </button>
             </div>
             <div>
-              <button
-                v-if="canTrackSelectedShipment"
-                class="page-button page-button--secondary"
-                type="button"
-                @click="isTrackPanelOpen = !isTrackPanelOpen"
-              >
-                {{ isTrackPanelOpen ? content.closeTrack : content.openTrack }}
-              </button>
               <button
                 v-if="canRegisterExceptionSelectedShipment"
                 class="page-button page-button--secondary"
@@ -1647,7 +1942,7 @@ onMounted(() => {
           </div>
         </article>
 
-        <article class="stl-card shipment-detail-card">
+        <article v-if="canEditSelectedShipment" class="stl-card shipment-detail-card">
           <div class="stl-card__head">
             <div>
               <div class="page-panel__eyebrow">준비 완료</div>
@@ -1658,13 +1953,31 @@ onMounted(() => {
             <label class="shipment-field">
               <span>{{ content.departureEta }}</span>
               <div class="shipment-date-time-row">
-                <input
-                  v-model="updateDepartureDate"
-                  type="date"
-                  class="page-input"
-                  :disabled="!canUpdateDepartureEta"
-                />
-                <select v-model="updateDepartureTime" class="page-input" :disabled="!canUpdateDepartureEta">
+                <VueDatePicker
+                  v-model="updateDepartureDatePickerValue"
+                  class="shipment-datepicker"
+                  :locale="ko"
+                  :formats="datepickerFormats"
+                  :time-config="datepickerTimeConfig"
+                  auto-apply
+                  :clearable="false"
+                  :disabled="!canEditSelectedShipment"
+                  teleport="body"
+                >
+                  <template #trigger>
+                    <button
+                      class="shipment-date-trigger"
+                      type="button"
+                      :disabled="!canEditSelectedShipment"
+                    >
+                      <span :class="{ 'is-placeholder': !updateDepartureDatePickerValue }">
+                        {{ formatDateForDisplay(updateDepartureDatePickerValue) }}
+                      </span>
+                      <span class="material-symbols-outlined">calendar_month</span>
+                    </button>
+                  </template>
+                </VueDatePicker>
+                <select v-model="updateDepartureTime" class="page-input" :disabled="!canEditSelectedShipment">
                   <option value="">{{ content.select }}</option>
                   <option v-for="time in departureTimeOptions" :key="time" :value="time">
                     {{ time }}
@@ -1679,7 +1992,6 @@ onMounted(() => {
         <article class="stl-card shipment-detail-card">
           <div class="stl-card__head">
             <div>
-              <div class="page-panel__eyebrow">{{ selectedShipmentHistories.length }}</div>
               <h3>{{ content.historyTitle }}</h3>
             </div>
           </div>
@@ -1771,7 +2083,25 @@ onMounted(() => {
             <label class="shipment-field">
               <span>{{ content.detectedAt }}</span>
               <div class="shipment-date-time-row">
-                <input v-model="exceptionDetectedDate" type="date" class="page-input" />
+                <VueDatePicker
+                  v-model="exceptionDetectedDatePickerValue"
+                  class="shipment-datepicker"
+                  :locale="ko"
+                  :formats="datepickerFormats"
+                  :time-config="datepickerTimeConfig"
+                  auto-apply
+                  :clearable="false"
+                  teleport="body"
+                >
+                  <template #trigger>
+                    <button class="shipment-date-trigger" type="button">
+                      <span :class="{ 'is-placeholder': !exceptionDetectedDatePickerValue }">
+                        {{ formatDateForDisplay(exceptionDetectedDatePickerValue) }}
+                      </span>
+                      <span class="material-symbols-outlined">calendar_month</span>
+                    </button>
+                  </template>
+                </VueDatePicker>
                 <select v-model="exceptionDetectedTime" class="page-input">
                   <option value="">{{ content.select }}</option>
                   <option v-for="time in departureTimeOptions" :key="time" :value="time">
@@ -1822,7 +2152,7 @@ onMounted(() => {
           {{ content.cancelDetail }}
         </button>
         <button
-          v-if="canUpdateDepartureEta"
+          v-if="canEditSelectedShipment"
           class="page-button page-button--primary"
           type="button"
           :disabled="isUpdateSubmitting"
@@ -2083,6 +2413,11 @@ onMounted(() => {
   margin-top: 16px;
 }
 
+.shipment-board-filter {
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-top: 16px;
+}
+
 .korea-map-layout {
   display: grid;
   grid-template-columns: minmax(420px, 1.45fr) minmax(300px, 0.85fr);
@@ -2243,6 +2578,18 @@ onMounted(() => {
   background: #f8fafc;
 }
 
+.shipment-field > span .shipment-required-mark {
+  display: inline;
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #d92d20;
+  font-size: 0.78rem;
+  line-height: 1;
+  vertical-align: baseline;
+}
+
 .shipment-field--wide {
   grid-column: 1 / -1;
 }
@@ -2281,6 +2628,10 @@ onMounted(() => {
 .shipment-line-row small {
   color: var(--ship-muted);
   line-height: 1.4;
+}
+
+.shipment-line-row > input {
+  text-align: right;
 }
 
 .shipment-option-row label,
@@ -2324,7 +2675,8 @@ onMounted(() => {
 .shipment-choice-row label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  min-height: 38px;
   border: 1px solid var(--ship-border);
   border-radius: 0;
   padding: 9px 12px;
@@ -2337,13 +2689,15 @@ onMounted(() => {
 }
 
 .shipment-choice-row label.is-selected {
-  border-color: #111827;
-  background: #111827;
+  border-color: #666;
+  background: #666;
   color: #fff;
 }
 
 .shipment-choice-row input {
-  accent-color: #111827;
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .shipment-option-row--readonly {
@@ -2374,7 +2728,7 @@ onMounted(() => {
 }
 
 .shipment-actions--split {
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 
 .shipment-actions--split > div {
@@ -2418,38 +2772,41 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .shipment-board-tab {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-height: 38px;
-  border: 1px solid var(--ship-border);
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
   border-radius: 0;
-  padding: 9px 13px;
-  background: #fff;
-  color: var(--ship-muted);
+  padding: 0 14px;
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.56);
+  color: inherit;
   cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 900;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .shipment-board-tab strong {
   display: inline-grid;
   place-items: center;
-  min-width: 24px;
-  min-height: 22px;
-  padding: 0 7px;
+  min-width: 22px;
+  min-height: 20px;
+  padding: 0 6px;
   background: #f1f5f9;
   color: var(--ship-text);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
 }
 
 .shipment-board-tab.is-active {
-  border-color: #111827;
-  background: #111827;
-  color: #fff;
+  border-color: var(--primary, #5e5e5e);
+  background: var(--primary, #5e5e5e);
+  color: var(--on-primary, #fff);
 }
 
 .shipment-board-tab.is-active strong {
@@ -2578,8 +2935,16 @@ onMounted(() => {
   max-height: min(88vh, 940px);
 }
 
+:global(.base-modal__surface:has(.shipment-detail-modal) .base-modal__header) {
+  border-bottom: 0;
+}
+
 :global(.base-modal__surface:has(.shipment-detail-modal) .base-modal__body) {
   padding: 22px 24px 24px;
+}
+
+:global(.base-modal__surface:has(.shipment-detail-modal) .base-modal__footer) {
+  border-top: 0;
 }
 
 :global(.base-modal__surface:has(.shipment-detail-modal) .base-modal__footer .page-button) {
@@ -2641,6 +3006,88 @@ onMounted(() => {
   color: #fff;
 }
 
+.shipment-create-page {
+  --ship-page-border: rgb(var(--outline-variant-rgb, 172 179 180) / 0.28);
+  --ship-page-surface: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.94);
+  display: grid;
+  gap: 22px;
+  max-width: 1240px;
+  margin: 0 auto 0 0;
+  padding: 0 0 32px;
+}
+
+.shipment-create-page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 0 18px;
+}
+
+.shipment-create-page__header p {
+  max-width: 720px;
+  margin: 8px 0 0;
+  color: var(--on-surface-variant, #474747);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.shipment-create-page__header .page-button,
+.shipment-create-page__footer .page-button {
+  min-height: 38px;
+  border-radius: 0;
+  padding: 9px 16px;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.shipment-create-page__body {
+  border: 1px solid var(--ship-page-border);
+  background: var(--ship-page-surface);
+  padding: 24px;
+}
+
+.shipment-create-page__footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 2px;
+  padding: 16px 0 0;
+  background: var(--background, #fff);
+}
+
+.shipment-create-page__footer .page-button--primary {
+  border-color: var(--primary, #5e5e5e);
+  background: var(--primary, #5e5e5e);
+  color: #fff;
+}
+
+.shipment-create-page .shipment-create-primary,
+.shipment-create-page .shipment-create-aside,
+.shipment-create-page .shipment-create-spec,
+.shipment-create-page .shipment-create-options {
+  border-color: transparent;
+  background: transparent;
+}
+
+.shipment-create-page .shipment-create-primary {
+  padding: 0;
+  border: 0;
+}
+
+.shipment-create-page .shipment-create-aside {
+  padding: 0;
+  align-self: stretch;
+}
+
+.shipment-create-page .shipment-create-spec,
+.shipment-create-page .shipment-create-options {
+  padding: 10px 0;
+}
+
 .shipment-create-modal {
   --ship-border: rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
   --ship-strong-border: rgb(var(--outline-variant-rgb, 71 71 71) / 0.42);
@@ -2659,6 +3106,10 @@ onMounted(() => {
   grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
   gap: 16px;
   align-items: stretch;
+}
+
+.shipment-create-page .shipment-create-shell {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .shipment-create-primary,
@@ -2843,6 +3294,86 @@ onMounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(120px, 0.8fr);
   gap: 8px;
+}
+
+.shipment-datepicker {
+  width: 100%;
+}
+
+.shipment-datepicker :deep(.dp__main),
+.shipment-datepicker :deep(.dp__input_wrap) {
+  width: 100%;
+  font-family: inherit;
+}
+
+.shipment-date-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  color: var(--color-on-surface, #2f3435);
+  background: var(--surface-container-lowest, #fff);
+  border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.45);
+  border-radius: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.shipment-date-trigger:focus-visible {
+  outline: none;
+  border-color: rgb(var(--outline-rgb, 117 124 125) / 0.72);
+}
+
+.shipment-date-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.shipment-date-trigger .is-placeholder {
+  color: var(--color-on-surface-variant, #919191);
+}
+
+.shipment-date-trigger .material-symbols-outlined {
+  color: var(--color-on-surface, #2f3435);
+  font-size: 1.2rem;
+}
+
+.shipment-datepicker :deep(.dp__clear_icon),
+.shipment-datepicker :deep(.dp__button_bottom) {
+  display: none;
+}
+
+.shipment-datepicker :deep(.dp__menu),
+:global(.dp__menu) {
+  border: 1px solid rgb(var(--outline-rgb, 117 124 125) / 0.38);
+  border-radius: 0;
+  background: var(--surface-container-lowest, #fff);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.16);
+  font-family: inherit;
+}
+
+.shipment-datepicker :deep(.dp__month_year_row),
+.shipment-datepicker :deep(.dp__calendar_header),
+:global(.dp__month_year_row),
+:global(.dp__calendar_header) {
+  color: var(--on-surface, #2f3435);
+  font-weight: 900;
+}
+
+.shipment-datepicker :deep(.dp__calendar_header_separator),
+:global(.dp__calendar_header_separator) {
+  background: rgb(var(--outline-variant-rgb, 172 179 180) / 0.42);
+}
+
+.shipment-datepicker :deep(.dp__cell_inner),
+:global(.dp__cell_inner) {
+  border-radius: 0;
 }
 
 .shipment-date-time-row select {
@@ -3202,6 +3733,23 @@ onMounted(() => {
   .shipment-create-shell,
   .shipment-create-route {
     grid-template-columns: 1fr;
+  }
+
+  .shipment-create-page__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .shipment-create-page__body {
+    padding: 16px;
+  }
+
+  .shipment-create-page__footer {
+    flex-direction: column-reverse;
+  }
+
+  .shipment-create-page__footer .page-button {
+    width: 100%;
   }
 
   .shipment-create-route em {

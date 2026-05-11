@@ -47,10 +47,13 @@ export interface ShipmentResponseDto {
   shipmentNumber: string
   sourceType?: ShipmentSourceType | null
   sourcePublicId?: string | null
+  sourceNumber?: string | null
   poId: number
   purchaseOrderPublicId?: string | null
+  purchaseOrderNumber?: string | null
   subPoId?: number | null
   subPurchaseOrderPublicId?: string | null
+  subPurchaseOrderNumber?: string | null
   carrierName?: string | null
   vehicleNo?: string | null
   trackingNo?: string | null

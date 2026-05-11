@@ -76,7 +76,11 @@ import { useAtlasSidebarBadgesStore } from '../../../stores/sidebarBadges'
 import { useAtlasDialogStore } from '../../../stores/dialog'
 import type { PageKey } from '../../../types'
 import { BaseModal } from '../../shared'
-import { getSubPurchaseOrder } from '../../../services/subPurchaseOrder'
+import {
+  getSubPurchaseOrder,
+  getSubPurchaseOrdersByParentPo,
+  type SubPurchaseOrderResponseDto,
+} from '../../../services/subPurchaseOrder'
 import {
   ITEM_MEDIA_MAX_UPLOAD_COUNT,
   getItemMedia,
@@ -785,21 +789,50 @@ const shipmentPathRows = computed(() => {
       delay: row.statusCode === 'DELAYED' ? shipmentDelayText.value : '0',
       status: displayShipmentStatus(row.statusCode),
       statusCode: String(row.statusCode || '').toLowerCase(),
-      order: data.value?.purchaseOrderNumber ?? data.value?.subPurchaseOrderNumber ?? '관련 발주',
+      order: shipmentRelatedOrderText.value,
     }))
   }
-  return [
-    { seq: 1, node: display(data.value?.originNodeName ?? data.value?.originNodeCode), eta: formatShipmentEta(data.value?.departureEta), delay: '0', status: displayShipmentStatus('DEPARTED'), statusCode: 'departed', order: display(data.value?.purchaseOrderNumber ?? '관련 발주') },
-    { seq: 2, node: display(data.value?.currentNodeName ?? data.value?.currentNodeCode), eta: formatShipmentEta(data.value?.departureEta), delay: '0', status: displayShipmentStatus('ARRIVED'), statusCode: 'arrived', order: display(data.value?.purchaseOrderNumber ?? '관련 발주') },
-    { seq: 3, node: display(data.value?.destinationNodeName ?? data.value?.destinationNodeCode), eta: formatShipmentEta(related.value.eta?.estimatedArrivalAt ?? data.value?.arrivalEta), delay: shipmentDelayText.value, status: displayShipmentStatus(status.value || 'DELAYED'), statusCode: 'delayed', order: display(data.value?.purchaseOrderNumber ?? '관련 발주') },
-    { seq: 4, node: t('인천물류센터 (ICN DC)', 'Incheon Logistics Center (ICN DC)'), eta: '04. 29. 11:30', delay: shipmentDelayText.value, status: displayShipmentStatus('PENDING'), statusCode: 'pending', order: display(data.value?.purchaseOrderNumber ?? '관련 발주') },
-    { seq: 5, node: t('고객사 창고 (CUSTOMER DC)', 'Customer Warehouse (CUSTOMER DC)'), eta: '04. 29. 14:00', delay: shipmentDelayText.value, status: displayShipmentStatus('PENDING'), statusCode: 'pending', order: display(data.value?.purchaseOrderNumber ?? '관련 발주') },
+
+  const rows = [
+    {
+      nodeKey: data.value?.originNodePublicId ?? data.value?.originNodeCode ?? 'origin',
+      node: display(data.value?.originNodeName ?? data.value?.originNodeCode),
+      eta: formatShipmentEta(data.value?.departureEta),
+      delay: '0',
+      status: data.value?.actualDepartedAt ? displayShipmentStatus('DEPARTED') : displayShipmentStatus('READY'),
+      statusCode: data.value?.actualDepartedAt ? 'departed' : 'ready',
+      order: shipmentRelatedOrderText.value,
+    },
+    {
+      nodeKey: data.value?.currentNodePublicId ?? data.value?.currentNodeCode ?? 'current',
+      node: display(data.value?.currentNodeName ?? data.value?.currentNodeCode),
+      eta: formatShipmentEta(related.value.eta?.lastCheckpointAt ?? data.value?.actualDepartedAt ?? data.value?.departureEta),
+      delay: shipmentDelayMinutes.value > 0 ? shipmentDelayText.value : '0',
+      status: displayShipmentStatus(data.value?.status),
+      statusCode: String(data.value?.status || '').toLowerCase(),
+      order: shipmentRelatedOrderText.value,
+    },
+    {
+      nodeKey: data.value?.destinationNodePublicId ?? data.value?.destinationNodeCode ?? 'destination',
+      node: display(data.value?.destinationNodeName ?? data.value?.destinationNodeCode),
+      eta: shipmentArrivalEta.value,
+      delay: shipmentDelayMinutes.value > 0 ? shipmentDelayText.value : '0',
+      status: data.value?.actualArrivedAt ? displayShipmentStatus('ARRIVED') : displayShipmentStatus('PENDING'),
+      statusCode: data.value?.actualArrivedAt ? 'arrived' : 'pending',
+      order: shipmentRelatedOrderText.value,
+    },
   ]
+
+  const uniqueRows = rows.filter((row, index, array) => (
+    row.node !== '-' && array.findIndex((candidate) => candidate.nodeKey === row.nodeKey) === index
+  ))
+
+  return uniqueRows.map((row, index) => ({ ...row, seq: index + 1 }))
 })
 
 const shipmentDelayMinutes = computed(() => {
   const value = related.value.eta?.delayMinutes
-  return typeof value === 'number' ? value : 142
+  return typeof value === 'number' ? value : 0
 })
 
 const shipmentDelayText = computed(() => detailCopy.value.minutes(shipmentDelayMinutes.value))
@@ -808,22 +841,95 @@ const shipmentDelayEtaText = computed(() => {
   return `ETA + ${shipmentDelayMinutes.value}분`
 })
 
-const shipmentDepartureEta = computed(() => formatShipmentEta(data.value?.departureEta))
+const shipmentSummaryTitle = computed(() => {
+  if (shipmentDelayMinutes.value > 0 || data.value?.status === 'DELAYED') {
+    return t('출하 지연', 'Shipment Delay')
+  }
+  return displayShipmentStatus(data.value?.status)
+})
+
+const shipmentSummaryMeta = computed(() => {
+  if (shipmentDelayMinutes.value > 0 || data.value?.status === 'DELAYED') {
+    return t('지연 발생', 'Delay Detected')
+  }
+  return related.value.eta?.etaBasis ? display(related.value.eta.etaBasis) : t('실시간 상태', 'Live Status')
+})
+
+const shipmentActualDepartureAt = computed(() => {
+  if (data.value?.actualDepartedAt) return data.value.actualDepartedAt
+  const histories = Array.isArray(related.value.histories) ? related.value.histories : []
+  const departureHistory = histories.find((row: any) => {
+    const status = String(row?.statusCode || '').toUpperCase()
+    return ['IN_TRANSIT', 'DEPARTED'].includes(status)
+  })
+  return departureHistory?.recordedAt ?? null
+})
+
+const shipmentDepartureLabel = computed(() => (
+  shipmentActualDepartureAt.value ? t('출발 시간', 'Departure Time') : t('출발 예정', 'Departure ETA')
+))
+
+const shipmentDepartureEta = computed(() => formatShipmentEta(shipmentActualDepartureAt.value ?? data.value?.departureEta))
 const shipmentArrivalEta = computed(() => formatShipmentEta(related.value.eta?.estimatedArrivalAt ?? data.value?.arrivalEta))
 
-const shipmentAffectedRows = computed(() => [
-  {
-    order: display(data.value?.purchaseOrderNumber ?? '관련 발주'),
-    item: 'LED DRIVER 60W',
-    qty: '1,200 EA',
-    due: '04. 29.',
-    impact: shipmentDelayText.value,
-      priority: '높음',
-  },
-  { order: 'PO-2026-000015', item: 'SMPS 24V 5A', qty: '800 EA', due: '04. 29.', impact: shipmentDelayText.value, priority: '높음' },
-  { order: 'PO-2026-000016', item: 'AL CASE - M', qty: '500 EA', due: '04. 29.', impact: shipmentDelayText.value, priority: '보통' },
-  { order: 'PO-2026-000017', item: 'CABLE ASSY', qty: '2,000 EA', due: '04. 30.', impact: '+82분', priority: '낮음' },
-])
+const shipmentRelatedOrderText = computed(() => {
+  const orders = [data.value?.purchaseOrderNumber, data.value?.subPurchaseOrderNumber].filter(Boolean)
+  return orders.length ? orders.join(' / ') : '관련 발주'
+})
+
+const shipmentStatusHistoryRows = computed(() => {
+  const histories = Array.isArray(related.value.histories) ? related.value.histories : []
+  return histories.map((row: any, index: number) => ({
+    key: `${row.shipmentPublicId ?? data.value?.publicId ?? 'shipment'}-${row.recordedAt ?? index}`,
+    recordedAt: formatDate(row.recordedAt),
+    status: displayShipmentStatus(row.statusCode),
+    statusCode: String(row.statusCode || '').toLowerCase(),
+    location: display(row.locationText || row.location),
+    message: display(row.statusMessage),
+    actor: display(row.recordedBy),
+  }))
+})
+
+const shipmentAffectedRows = computed(() => {
+  const parentOrder = related.value.parentOrder as PurchaseOrderDetailResponseDto | null | undefined
+  const subOrders = Array.isArray(related.value.subOrders)
+    ? related.value.subOrders as SubPurchaseOrderResponseDto[]
+    : []
+  const rows: Array<{ order: string; item: string; qty: string; due: string; impact: string; priority: string }> = []
+
+  if (parentOrder) {
+    rows.push(...(parentOrder.items ?? []).map((item) => ({
+      order: parentOrder.poNumber,
+      item: display(item.itemName ?? item.itemCode),
+      qty: formatOrderQuantity(item.confirmedQty ?? item.orderedQty, item.unit),
+      due: formatDueDate(item.expectedDueDate),
+      impact: shipmentDelayText.value,
+      priority: shipmentDelayMinutes.value > 60 ? '높음' : shipmentDelayMinutes.value > 0 ? '보통' : '낮음',
+    })))
+  } else if (Array.isArray(data.value?.shipmentLines) && data.value.shipmentLines.length > 0) {
+    rows.push(...data.value.shipmentLines.map((line: any) => ({
+      order: shipmentRelatedOrderText.value,
+      item: display(line.itemName ?? line.itemCode),
+      qty: formatOrderQuantity(line.quantity, ''),
+      due: '-',
+      impact: shipmentDelayText.value,
+      priority: shipmentDelayMinutes.value > 0 ? '보통' : '낮음',
+    })))
+  }
+
+  subOrders.forEach((subOrder) => {
+    rows.push(...(subOrder.items ?? []).map((item) => ({
+      order: subOrder.subPoNumber,
+      item: display(item.itemName ?? item.itemCode),
+      qty: formatOrderQuantity(item.confirmedQty ?? item.orderedQty, item.unit),
+      due: formatDueDate(item.expectedDueDate),
+      impact: shipmentDelayText.value,
+      priority: shipmentDelayMinutes.value > 60 ? '높음' : shipmentDelayMinutes.value > 0 ? '보통' : '낮음',
+    })))
+  })
+
+  return rows
+})
 
 const shipmentRecommendationRows = computed(() => [
   {
@@ -2174,14 +2280,31 @@ function formatShipmentEta(value: unknown) {
   return `${month}. ${day}. ${hour}:${minute}`
 }
 
+function formatDueDate(value: unknown) {
+  if (!value) return '-'
+  const raw = String(value)
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw.slice(5, 10).replace('-', '. ')
+
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${month}. ${day}.`
+}
+
+function formatOrderQuantity(quantity: unknown, unit: unknown) {
+  const unitText = display(unit)
+  return `${formatNumber(quantity)}${unitText !== '-' ? ` ${unitText}` : ''}`
+}
+
 function displayShipmentStatus(value: unknown) {
   const statusValue = String(value || '').toUpperCase()
   if (statusValue === 'DEPARTED') return '출발'
   if (statusValue === 'ARRIVED') return '도착'
   if (statusValue === 'DELAYED') return '지연'
   if (statusValue === 'PENDING') return '대기'
-  if (statusValue === 'READY') return '준비'
-  if (statusValue === 'IN_TRANSIT') return '운송 중'
+  if (statusValue === 'READY') return '출하 생성'
+  if (statusValue === 'IN_TRANSIT') return '배송중'
+  if (statusValue === 'CANCELLED') return '취소'
   return display(value)
 }
 
@@ -2907,8 +3030,20 @@ async function fetchDetail() {
         getShipmentEta(publicId.value).catch(() => null),
         getShipmentStatusHistories(publicId.value).catch(() => []),
       ])
+      const [parentOrder, subOrdersPage] = await Promise.all([
+        detail.purchaseOrderPublicId
+          ? getPurchaseOrder(detail.purchaseOrderPublicId).catch(() => null)
+          : Promise.resolve(null),
+        detail.purchaseOrderPublicId
+          ? getSubPurchaseOrdersByParentPo({
+              parentPoPublicId: detail.purchaseOrderPublicId,
+              page: 0,
+              size: 100,
+            }).catch(() => null)
+          : Promise.resolve(null),
+      ])
       data.value = detail as Record<string, any>
-      related.value = { eta, histories }
+      related.value = { eta, histories, parentOrder, subOrders: subOrdersPage?.content ?? [] }
     } else if (kind.value === 'returns') {
       const [detail, histories] = await Promise.all([
         getReturnRequest(publicId.value),
@@ -3253,7 +3388,7 @@ watch(
       </div>
       <div v-if="kind !== 'items'" class="operation-detail-page__actions">
         <button
-          v-if="kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory' && kind !== 'suppliers'"
+          v-if="kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory' && kind !== 'suppliers' && kind !== 'shipments'"
           class="page-button page-button--secondary"
           type="button"
           @click="goBack"
@@ -3427,17 +3562,10 @@ watch(
 
         <main v-else-if="kind === 'shipments'" class="operation-detail-page__shipment-layout">
           <section class="operation-detail-page__shipment-summary-strip">
-            <article class="operation-detail-page__shipment-summary-card operation-detail-page__shipment-summary-card--title">
-              <div class="operation-detail-page__shipment-icon-tile"><span class="material-symbols-outlined">local_shipping</span></div>
-              <div>
-                <h2>{{ title }}</h2>
-                <strong>{{ t('출하 상세', 'Shipment Detail') }}</strong>
-              </div>
-            </article>
             <article class="operation-detail-page__shipment-summary-card">
-              <span>출하 지연</span>
-              <strong class="is-alert">{{ shipmentDelayEtaText }}</strong>
-              <small>{{ t('지연 발생', 'Delay Detected') }}</small>
+              <span>{{ shipmentSummaryTitle }}</span>
+              <strong :class="{ 'is-alert': shipmentDelayMinutes > 0 || data.status === 'DELAYED' }">{{ shipmentDelayEtaText }}</strong>
+              <small>{{ shipmentSummaryMeta }}</small>
             </article>
             <article class="operation-detail-page__shipment-summary-card operation-detail-page__shipment-summary-card--nodes">
               <dl>
@@ -3447,7 +3575,7 @@ watch(
             </article>
             <article class="operation-detail-page__shipment-summary-card operation-detail-page__shipment-summary-card--eta">
               <dl>
-                <div><dt>출발 예정</dt><dd>{{ shipmentDepartureEta }}</dd></div>
+                <div><dt>{{ shipmentDepartureLabel }}</dt><dd>{{ shipmentDepartureEta }}</dd></div>
                 <div><dt>도착 예정</dt><dd>{{ shipmentArrivalEta }}</dd></div>
               </dl>
             </article>
@@ -3475,13 +3603,46 @@ watch(
               </article>
 
               <article class="operation-detail-page__shipment-card">
+                <h3>{{ t('상태 이력', 'Status History') }}</h3>
+                <table class="operation-detail-page__shipment-table operation-detail-page__shipment-table--history">
+                  <thead>
+                    <tr>
+                      <th>{{ t('기록 시각', 'Recorded At') }}</th>
+                      <th>{{ detailCopy.common.status }}</th>
+                      <th>{{ t('위치', 'Location') }}</th>
+                      <th>{{ t('내용', 'Message') }}</th>
+                      <th>{{ t('처리자', 'Actor') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="shipmentStatusHistoryRows.length === 0">
+                      <td class="operation-detail-page__history-empty" colspan="5">
+                        {{ t('상태 이력이 없습니다.', 'No status history.') }}
+                      </td>
+                    </tr>
+                    <tr v-for="row in shipmentStatusHistoryRows" :key="row.key">
+                      <td>{{ row.recordedAt }}</td>
+                      <td>
+                        <span :class="['operation-detail-page__shipment-status', `is-${row.statusCode}`]">
+                          {{ row.status }}
+                        </span>
+                      </td>
+                      <td>{{ row.location }}</td>
+                      <td>{{ row.message }}</td>
+                      <td>{{ row.actor }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </article>
+
+              <article class="operation-detail-page__shipment-card">
                 <h3>{{ t('영향 받는 발주', 'Affected Purchase Orders') }}</h3>
                 <table class="operation-detail-page__shipment-table operation-detail-page__shipment-table--affected">
                   <thead>
                     <tr><th>{{ t('발주번호', 'PO No.') }}</th><th>{{ detailCopy.common.item }}</th><th>{{ detailCopy.common.qty }}</th><th>{{ detailCopy.order.requestedDue }}</th><th>{{ t('지연 영향', 'Delay Impact') }}</th><th>{{ t('우선순위', 'Priority') }}</th></tr>
                   </thead>
                   <tbody>
-                    <tr v-for="row in shipmentAffectedRows" :key="row.order">
+                    <tr v-for="(row, index) in shipmentAffectedRows" :key="`${row.order}-${row.item}-${index}`">
                       <td>{{ row.order }}</td>
                       <td>{{ row.item }}</td>
                       <td>{{ row.qty }}</td>
@@ -3492,6 +3653,11 @@ watch(
                   </tbody>
                 </table>
               </article>
+              <div class="operation-detail-page__shipment-actions">
+                <button class="page-button page-button--secondary" type="button" @click="goBack">
+                  {{ detailCopy.backToList }}
+                </button>
+              </div>
             </section>
 
             <!-- AI 섹션 임시 숨김: 필요 시 v-if 조건 제거 -->
@@ -3576,8 +3742,8 @@ watch(
                 <span v-if="resolutionType">({{ displayResolutionType(resolutionType) }})</span>
               </p>
               <label class="operation-detail-page__return-reason">
-                <span>{{ t('사유', 'Reason') }}</span>
-                <input v-model="returnReasonText" type="text" :placeholder="t('사유를 입력하세요 (선택)', 'Enter reason (optional)')" />
+                <span>{{ t('사유', 'Reason') }} <strong>*</strong></span>
+                <input v-model="returnReasonText" type="text" :placeholder="t('사유를 입력하세요', 'Enter reason')" />
               </label>
               <div class="operation-detail-page__return-buttons">
                 <button
@@ -4236,8 +4402,8 @@ watch(
               <span v-if="resolutionType">({{ displayResolutionType(resolutionType) }})</span>
             </p>
             <label class="operation-detail-page__return-reason">
-              <span>{{ t('사유', 'Reason') }}</span>
-              <input v-model="returnReasonText" type="text" :placeholder="t('사유를 입력하세요 (선택)', 'Enter reason (optional)')" />
+              <span>{{ t('사유', 'Reason') }} <strong>*</strong></span>
+              <input v-model="returnReasonText" type="text" :placeholder="t('사유를 입력하세요', 'Enter reason')" />
             </label>
             <div class="operation-detail-page__return-buttons">
               <button
@@ -6279,12 +6445,13 @@ watch(
 .operation-detail-page__shipment-layout {
   display: grid;
   gap: 14px;
+  width: min(100%, 760px);
   min-width: 0;
 }
 
 .operation-detail-page__shipment-summary-strip {
   display: grid;
-  grid-template-columns: minmax(300px, 1.25fr) minmax(210px, 0.7fr) minmax(260px, 0.85fr) minmax(220px, 0.7fr);
+  grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 1fr) minmax(190px, 0.8fr);
   border: 1px solid var(--detail-border);
   background: var(--detail-surface-plain);
 }
@@ -6318,6 +6485,9 @@ watch(
 .operation-detail-page__shipment-icon-tile {
   width: 56px;
   height: 56px;
+  border: 1px solid var(--detail-border);
+  background: var(--detail-surface-plain);
+  color: var(--on-surface, #2d3435);
 }
 
 .operation-detail-page__shipment-icon-tile .material-symbols-outlined {
@@ -6392,7 +6562,7 @@ watch(
 
 .operation-detail-page__shipment-content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(420px, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -6418,6 +6588,11 @@ watch(
 .operation-detail-page__shipment-card h3 {
   margin: 0;
   font-size: 0.95rem;
+}
+
+.operation-detail-page__shipment-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .operation-detail-page__shipment-table {
@@ -6446,6 +6621,18 @@ watch(
 .operation-detail-page__shipment-table td:first-child,
 .operation-detail-page__shipment-table th:first-child {
   width: 52px;
+  text-align: center;
+}
+
+.operation-detail-page__shipment-table--history td:first-child,
+.operation-detail-page__shipment-table--history th:first-child {
+  width: 140px;
+  text-align: left;
+}
+
+.operation-detail-page__shipment-table--affected th:last-child,
+.operation-detail-page__shipment-table--affected td:last-child {
+  width: 64px;
   text-align: center;
 }
 
@@ -7148,7 +7335,8 @@ watch(
 
 /* ── 반품 상태 변경 ── */
 .operation-detail-page__return-actions {
-  border: 2px solid var(--primary, #4e4e4e);
+  border: 1px solid var(--detail-border);
+  background: var(--detail-surface-plain);
 }
 
 .operation-detail-page__return-status-label {
@@ -7175,12 +7363,26 @@ watch(
   color: var(--muted);
 }
 
+.operation-detail-page__return-reason span strong {
+  color: var(--error, #d32626);
+  font-weight: 950;
+}
+
 .operation-detail-page__return-reason input {
+  width: 100%;
+  min-height: 40px;
   padding: 10px 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1px solid var(--detail-border);
+  background: rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.78);
+  color: var(--on-surface, #2d3435);
   font: inherit;
   font-size: 0.85rem;
+  font-weight: 760;
+  outline: none;
+}
+
+.operation-detail-page__return-reason input:focus {
+  border-color: var(--on-surface, #2d3435);
 }
 
 .operation-detail-page__return-buttons {

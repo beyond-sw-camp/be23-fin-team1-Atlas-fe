@@ -32,6 +32,12 @@ const loadError = ref('')
 let map: MapLibreMap | null = null
 let maplibre: typeof import('maplibre-gl') | null = null
 const markers = new Map<string, MapLibreMarker>()
+const KOREA_CENTER: [number, number] = [127.75, 36.25]
+const KOREA_BOUNDS: [[number, number], [number, number]] = [
+  [124.7, 32.8],
+  [130.7, 39.2],
+]
+const KOREA_ZOOM = 6.55
 
 function roleLabel(role: MarkerRole) {
   const labels: Record<MarkerRole, { ko: string; en: string }> = {
@@ -217,30 +223,17 @@ function syncSelectedMarker() {
   const point = selected ? currentLngLat(selected) ?? originLngLat(selected) ?? destinationLngLat(selected) : null
 
   if (point) {
-    map.easeTo({ center: point, zoom: Math.max(map.getZoom(), 7), duration: 250 })
+    map.easeTo({ center: point, zoom: Math.max(map.getZoom(), KOREA_ZOOM), duration: 250 })
   }
 }
 
-function fitKoreaOrShipments() {
+function fitKoreaView() {
   if (!map || !maplibre) return
 
-  const points = props.shipments.flatMap((shipment) => {
-    return [originLngLat(shipment), currentLngLat(shipment), destinationLngLat(shipment)].filter(
-      (point): point is [number, number] => Boolean(point),
-    )
-  })
-
-  if (points.length === 0) {
-    map.jumpTo({ center: [127.8, 36.4], zoom: 6.1 })
-    return
-  }
-
-  const bounds = new maplibre.LngLatBounds(points[0], points[0])
-  points.forEach((point) => bounds.extend(point))
-
+  const bounds = new maplibre.LngLatBounds(KOREA_BOUNDS[0], KOREA_BOUNDS[1])
   map.fitBounds(bounds, {
-    padding: 86,
-    maxZoom: 8.4,
+    padding: 42,
+    maxZoom: KOREA_ZOOM,
     duration: 0,
   })
 }
@@ -249,7 +242,7 @@ function renderMapData() {
   if (!map?.isStyleLoaded()) return
 
   renderMarkers()
-  fitKoreaOrShipments()
+  fitKoreaView()
   syncSelectedMarker()
 }
 
@@ -263,8 +256,11 @@ onMounted(async () => {
     map = new maplibre.Map({
       container: mapElement.value,
       style,
-      center: [127.8, 36.4],
-      zoom: 6.1,
+      center: KOREA_CENTER,
+      zoom: KOREA_ZOOM,
+      minZoom: 6.1,
+      maxZoom: 16,
+      maxBounds: KOREA_BOUNDS,
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
@@ -272,7 +268,6 @@ onMounted(async () => {
 
     map.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right')
     map.on('load', renderMapData)
-    map.on('styledata', renderMapData)
   } catch (error) {
     console.error('Failed to initialize shipment Korea map:', error)
     loadError.value = '지도를 불러오지 못했습니다.'
@@ -316,7 +311,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .shipment-korea-map {
   position: relative;
-  min-height: 560px;
+  height: clamp(460px, 42vw, 560px);
+  min-height: 460px;
+  max-height: 560px;
   overflow: hidden;
   border: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.24);
   border-radius: 0;

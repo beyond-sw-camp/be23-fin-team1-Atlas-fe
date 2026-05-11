@@ -582,7 +582,7 @@ onBeforeUnmount(() => header.clearActions())
             </div>
           </div>
 
-          <div class="logistics-table-footer">
+          <div v-if="totalPages > 1" class="logistics-table-footer">
             <div class="logistics-pagination">
               <button
                 class="page-button page-button--secondary"
@@ -985,7 +985,7 @@ onBeforeUnmount(() => header.clearActions())
 
 .logistics-table-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px solid rgb(var(--outline-variant-rgb, 172 179 180) / 0.18);
