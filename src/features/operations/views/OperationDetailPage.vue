@@ -125,7 +125,7 @@ type DetailMetric = {
 type DetailStep = {
   label: string
   meta: string
-  state: 'done' | 'active' | 'pending' | 'critical'
+  state: 'done' | 'active' | 'pending' | 'critical' | 'success' | 'warning'
 }
 
 type EditableItemMedia = {
@@ -1642,8 +1642,8 @@ const processSteps = computed<DetailStep[]>(() => {
   if (kind.value === 'returns') {
     return [
       { label: '요청 생성', meta: formatDate(item?.createdAt), state: 'done' },
-      { label: '검수', meta: display(item?.reason), state: current.includes('REQUEST') ? 'active' : 'done' },
-      { label: '승인/거절', meta: displayReturnStatus(item?.returnStatus), state: statusTone.value === 'critical' ? 'critical' : statusTone.value === 'success' ? 'done' : 'active' },
+      { label: '검수', meta: display(item?.reason), state: current === 'INSPECTING' ? 'warning' : current.includes('REQUEST') ? 'active' : 'done' },
+      { label: '승인/거절', meta: displayReturnStatus(item?.returnStatus), state: current === 'REJECTED' ? 'critical' : current === 'APPROVED' ? 'success' : statusTone.value === 'success' ? 'success' : 'active' },
       { label: '완료', meta: formatDate(item?.updatedAt), state: current.includes('COMPLETE') ? 'done' : 'pending' },
     ]
   }
@@ -3418,7 +3418,7 @@ watch(
       </div>
       <div v-if="kind !== 'items'" class="operation-detail-page__actions">
         <button
-          v-if="kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory' && kind !== 'suppliers' && kind !== 'shipments'"
+          v-if="kind !== 'orders' && kind !== 'logistics-nodes' && kind !== 'inventory' && kind !== 'suppliers' && kind !== 'shipments' && kind !== 'returns'"
           class="page-button page-button--secondary"
           type="button"
           @click="goBack"
@@ -3730,7 +3730,7 @@ watch(
         <main v-else-if="kind === 'returns'" class="operation-detail-page__document-grid">
           <section class="operation-detail-page__document-main">
             <article class="operation-detail-page__doc-hero">
-              <div><p>반품 요청</p><h2>{{ title }}</h2></div>
+              <div><p>반품 요청</p></div>
               <span :class="['operation-detail-page__status', `is-${statusTone}`]">{{ displayReturnStatus(status || 'REJECTED') }}</span>
               <dl>
                 <div><dt>{{ t('요청일시', 'Requested At') }}</dt><dd>{{ formatDate(data.requestedAt ?? data.createdAt) }}</dd></div>
@@ -3743,7 +3743,7 @@ watch(
             </article>
             <article class="operation-detail-page__domain-card operation-detail-page__process">
               <h3>{{ t('반품 진행 상태', 'Return Progress') }}</h3>
-              <div class="operation-detail-page__timeline">
+              <div class="operation-detail-page__timeline operation-detail-page__timeline--returns">
                 <div v-for="step in processSteps" :key="step.label" :class="['operation-detail-page__timeline-step', `is-${step.state}`]"><span class="operation-detail-page__timeline-node"></span><strong>{{ step.label }}</strong><small>{{ step.meta }}</small></div>
               </div>
             </article>
@@ -3751,7 +3751,7 @@ watch(
               <h3>{{ t('반품 품목 및 클레임 정보', 'Return Items and Claims') }}</h3>
               <table class="operation-detail-page__domain-table">
                 <thead><tr><th>#</th><th>{{ t('품목 코드', 'Item Code') }}</th><th>{{ t('품목명', 'Item Name') }}</th><th>{{ t('반품 수량', 'Return Qty') }}</th><th>{{ t('단위', 'Unit') }}</th><th>{{ t('클레임 사유', 'Claim Reason') }}</th><th>{{ t('판정', 'Decision') }}</th></tr></thead>
-                <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemCode ?? '품목 코드 없음') }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason) }}</td><td>{{ displayStatus(item.itemStatus) }}</td></tr></tbody>
+                <tbody><tr v-for="(item, index) in returnItems" :key="rowKey(item, index)"><td>{{ index + 1 }}</td><td>{{ display(item.itemCode ?? '품목 코드 없음') }}</td><td>{{ display(item.itemName) }}</td><td>{{ formatNumber(item.returnQty) }}</td><td>{{ display(item.unit) }}</td><td>{{ display(item.detailReason ?? data.reason ?? displayReturnType(data.returnType)) }}</td><td>{{ displayStatus(item.itemStatus) }}</td></tr></tbody>
               </table>
             </article>
             <article class="operation-detail-page__domain-card">
@@ -3765,6 +3765,11 @@ watch(
               </div>
             </article>
             <article class="operation-detail-page__domain-card"><h3>{{ detailCopy.common.history }}</h3><table class="operation-detail-page__domain-table"><tbody><tr v-for="(row, index) in historyRows" :key="rowKey(row, index)"><td>{{ formatDate(row.recordedAt ?? row.createdAt) }}</td><td>{{ kind === 'returns' ? displayReturnStatus(row.afterStatus ?? row.statusCode) : display(row.afterStatus ?? row.statusCode) }}</td><td>{{ kind === 'returns' ? formatActor(row.recordedBy ?? row.processedByUserPublicId) : display(row.recordedBy ?? row.processedByUserPublicId) }}</td><td>{{ display(row.reason ?? row.memo) }}</td></tr></tbody></table></article>
+            <div class="operation-detail-page__return-footer-actions">
+              <button class="page-button page-button--secondary" type="button" @click="goBack">
+                {{ detailCopy.backToList }}
+              </button>
+            </div>
 
             <!-- 반품 상태 변경 -->
             <article v-if="returnNextActions.length > 0" class="operation-detail-page__domain-card operation-detail-page__return-actions">
@@ -5423,6 +5428,21 @@ watch(
   border-color: var(--error, #9f403d);
 }
 
+.operation-detail-page__timeline-step.is-success .operation-detail-page__timeline-node {
+  background: #2d7d46;
+  border-color: #2d7d46;
+}
+
+.operation-detail-page__timeline-step.is-warning .operation-detail-page__timeline-node {
+  width: 0;
+  height: 0;
+  border-right: 13px solid transparent;
+  border-bottom: 24px solid #c27a16;
+  border-left: 13px solid transparent;
+  border-top: 0;
+  background: transparent;
+}
+
 .operation-detail-page__timeline-step strong {
   color: var(--on-surface, #2d3435);
   font-size: 0.82rem;
@@ -5434,6 +5454,11 @@ watch(
   font-size: 0.72rem;
   font-weight: 700;
   line-height: 1.35;
+}
+
+.operation-detail-page__timeline--returns::before {
+  left: 12.5%;
+  right: 12.5%;
 }
 
 .operation-detail-page__definition-grid {
@@ -7428,6 +7453,11 @@ watch(
 .operation-detail-page__return-buttons {
   display: flex;
   gap: 8px;
+  justify-content: flex-end;
+}
+
+.operation-detail-page__return-footer-actions {
+  display: flex;
   justify-content: flex-end;
 }
 
