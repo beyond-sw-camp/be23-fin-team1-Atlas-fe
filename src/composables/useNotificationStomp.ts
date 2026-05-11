@@ -17,7 +17,15 @@ export function useNotificationStomp(userPublicId: string = 'user-001') {
     if (stompClient) return
 
     const accessToken = window.sessionStorage.getItem('atlas-access-token') || ''
-    const formattedEndpoint = WS_ENDPOINT.replace(/^wss:\/\//i, 'https://').replace(/^ws:\/\//i, 'http://')
+    
+    // 환경 변수에 설정된 엔드포인트를 가져옴
+    let formattedEndpoint = WS_ENDPOINT.replace(/^wss:\/\//i, 'https://').replace(/^ws:\/\//i, 'http://')
+    
+    // 배포 환경(https)에서 http:// 로 접근을 시도하면 브라우저 정책(Mixed Content/SecurityError)으로 차단되므로 강제 변환
+    if (window.location.protocol === 'https:' && formattedEndpoint.startsWith('http://')) {
+      formattedEndpoint = formattedEndpoint.replace(/^http:\/\//i, 'https://')
+    }
+
     const socketUrl = `${formattedEndpoint}?token=${accessToken}`
 
     stompClient = new Client({
