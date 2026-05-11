@@ -708,7 +708,8 @@
   <details>
     <summary><b>화면 설계서</b></summary>
     <img width="569" height="548" src="images/발주관리.png" />
-    <img width="569" height="548" src="images/출하관리.png" />
+    <img width="569" height="548" src="images/출하대표.png" />
+    <img width="569" height="548" src="images/정산관리2.png" />
   </details>
   
   ### ERD [상세보기](https://www.erdcloud.com/d/CTyFQXjoQ3my9vYvr)
