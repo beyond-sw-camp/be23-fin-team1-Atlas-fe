@@ -76,15 +76,21 @@ async function handleDownloadFiles() {
       if (!attachment.files || attachment.files.length === 0) continue
 
       for (const fileInfo of attachment.files) {
-        const cdnUrl = fileInfo.filePath || fileInfo.fileUrl
-        if (!cdnUrl) continue
+        let cdnUrl = fileInfo.filePath || fileInfo.fileUrl
+        if (!cdnUrl) {
+          cdnUrl = `/api/files/attachments/${attachmentId}/files/${fileInfo.publicId}`
+        }
+        
+        if (cdnUrl.startsWith('/')) {
+          cdnUrl = (apiClient.defaults.baseURL || '') + cdnUrl
+        }
 
         try {
-          // CDN URL → fetch → Blob → 원본 파일명으로 다운로드
+          // API URL 또는 CDN URL → fetch → Blob → 원본 파일명으로 다운로드
           const blob = await downloadFileFromUrl(cdnUrl)
           triggerBlobDownload(blob, fileInfo.originalFileName || '첨부파일')
         } catch {
-          // CORS 실패 시 숨겨진 a태그로 조용히 다운로드 (새 탭 없음, 화면 번쩍임 없음)
+          // CORS 실패 등 대비
           triggerLinkDownload(cdnUrl, fileInfo.originalFileName || '첨부파일')
         }
 
