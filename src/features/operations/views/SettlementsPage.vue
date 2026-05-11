@@ -924,6 +924,7 @@ onMounted(() => {
             </div>
             <apexchart
               v-else
+              class="stl-donut-chart"
               type="donut"
               height="240"
               :options="targetTypeDonutChartOptions"
@@ -1669,7 +1670,7 @@ onMounted(() => {
   font-family: Pretendard, "Segoe UI", sans-serif !important;
 }
 
-.stl-chart-card :deep(.apexcharts-datalabel) {
+.stl-donut-chart :deep(.apexcharts-datalabel) {
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 3px rgba(0, 0, 0, 0.9));
   paint-order: stroke fill;
   stroke: rgba(0, 0, 0, 0.72);
