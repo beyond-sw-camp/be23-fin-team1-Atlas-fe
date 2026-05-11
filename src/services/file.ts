@@ -144,17 +144,18 @@ export async function getAttachmentOriginalImagePath(publicId: string): Promise<
  * download 속성으로 원본 파일명을 강제할 수 있습니다.
  */
 export async function downloadFileFromUrl(url: string): Promise<Blob> {
-  // 브라우저나 CDN(CloudFront 등)에 이전 CORS 에러 상태가 캐싱되어 있을 수 있으므로
-  // 타임스탬프를 붙여서 항상 최신 상태의 응답(CORS 적용된 상태)을 받아오도록 강제합니다.
-  const cacheBustedUrl = url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`
-  
-  const response = await fetch(cacheBustedUrl)
+  // S3/CloudFront Pre-signed URL인 경우 (X-Amz-Signature 등 포함),
+  // 임의의 쿼리 파라미터(예: ?_t=123)를 추가하면 서명이 깨져 AccessDenied 에러가 발생합니다.
+  // 따라서 서명이 포함된 URL이거나 이미 절대 경로인 경우에는 파라미터를 추가하지 않고 바로 요청합니다.
+  const isPresignedOrAbsolute = url.includes('X-Amz-Signature') || url.startsWith('http')
+  const fetchUrl = isPresignedOrAbsolute ? url : (url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`)
+
+  const response = await fetch(fetchUrl)
   if (!response.ok) {
     throw new Error(`Download failed: ${response.status}`)
   }
   return response.blob()
 }
-
 /**
  * 개별 파일 상세 정보 조회
  * GET /api/files/attachments/{attachmentPublicId}/files/{filePublicId}
