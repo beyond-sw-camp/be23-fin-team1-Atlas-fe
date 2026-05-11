@@ -1188,6 +1188,7 @@ onMounted(() => {
             class="shipment-map-list__item"
             :class="{ 'is-selected': isSelectedShipment(shipment.publicId) }"
             type="button"
+            :aria-label="`${formatShortShipmentNumber(shipment.shipmentNumber)} ${content.manageShipment}`"
             @click="handleMapShipmentSelect(shipment)"
           >
             <div>
@@ -1202,7 +1203,6 @@ onMounted(() => {
               {{ formatNodeDisplay(shipment.destinationNodeName, shipment.destinationNodeCode, shipment.destinationNodePublicId) }}
             </p>
             <small>{{ content.currentNode }}: {{ formatNodeDisplay(shipment.currentNodeName, shipment.currentNodeCode, shipment.currentNodePublicId) }}</small>
-            <em>{{ content.manageShipment }}</em>
           </button>
         </aside>
       </div>

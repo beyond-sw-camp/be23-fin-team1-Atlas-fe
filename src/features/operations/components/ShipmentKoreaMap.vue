@@ -3,7 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl'
 import { fetchProgressiveLogisticsStyle } from '../../monitoring/services/mapStyle'
-import type { ShipmentMapResponseDto, ShipmentStatus } from '../../../services/shipment'
+import type { ShipmentMapResponseDto } from '../../../services/shipment'
 import type { AppLanguage } from '../../../types'
 
 const props = defineProps<{
@@ -33,13 +33,6 @@ let map: MapLibreMap | null = null
 let maplibre: typeof import('maplibre-gl') | null = null
 const markers = new Map<string, MapLibreMarker>()
 
-function statusColor(status: ShipmentStatus) {
-  if (status === 'READY') return '#b7791f'
-  if (status === 'IN_TRANSIT') return '#047857'
-  if (status === 'DELAYED') return '#dc2626'
-  return '#334155'
-}
-
 function roleLabel(role: MarkerRole) {
   const labels: Record<MarkerRole, { ko: string; en: string }> = {
     origin: { ko: '출', en: 'O' },
@@ -61,14 +54,15 @@ function roleTitle(role: MarkerRole) {
 }
 
 function shortShipmentNumber(value: string) {
-  const normalized = value.replace(/^SHIP-/, '')
-  const parts = normalized.split('-')
+  return value.replace(/^SHIP-/, '')
+}
 
-  if (parts.length >= 2) {
-    return parts.slice(-2).join('-')
-  }
+function isDelayedShipment(shipment: ShipmentMapResponseDto) {
+  if (shipment.delayed || shipment.status === 'DELAYED') return true
+  if (shipment.status !== 'IN_TRANSIT' || !shipment.arrivalEta) return false
 
-  return normalized.slice(-12)
+  const arrivalTime = new Date(shipment.arrivalEta).getTime()
+  return Number.isFinite(arrivalTime) && arrivalTime < Date.now()
 }
 
 function isValidCoordinate(latitude?: number | null, longitude?: number | null) {
@@ -184,14 +178,15 @@ function renderMarkers() {
   clearMarkers()
 
   buildMarkerPoints().forEach((point) => {
+    const isDelayed = isDelayedShipment(point.shipment)
     const markerElement = document.createElement('button')
     markerElement.type = 'button'
     markerElement.className = 'shipment-korea-map__marker'
     markerElement.classList.toggle('is-selected', point.shipment.publicId === props.selectedPublicId)
     markerElement.classList.add(`is-${point.role}`)
+    markerElement.classList.toggle('is-delayed', isDelayed)
     markerElement.dataset.shipmentPublicId = point.shipment.publicId
-    markerElement.style.setProperty('--marker-color', statusColor(point.shipment.status))
-    markerElement.title = `${roleTitle(point.role)} / ${point.shipment.shipmentNumber}`
+    markerElement.title = `${roleTitle(point.role)} / ${point.shipment.shipmentNumber}${isDelayed ? ' / 지연' : ''}`
     markerElement.innerHTML = `
       <span>${roleLabel(point.role)}</span>
       <strong>${shortShipmentNumber(point.shipment.shipmentNumber)}</strong>
@@ -310,6 +305,7 @@ onBeforeUnmount(() => {
       <span><i class="is-origin" /> {{ '출발' }}</span>
       <span><i class="is-current" /> {{ '현재' }}</span>
       <span><i class="is-destination" /> {{ '도착' }}</span>
+      <span><i class="is-delayed" /> {{ '지연' }}</span>
     </div>
     <div v-if="loadError" class="shipment-korea-map__fallback">
       {{ loadError }}
@@ -375,6 +371,10 @@ onBeforeUnmount(() => {
   background: #7c3aed;
 }
 
+.shipment-korea-map__legend .is-delayed {
+  background: #dc2626;
+}
+
 .shipment-korea-map__fallback {
   position: absolute;
   inset: 0;
@@ -388,12 +388,12 @@ onBeforeUnmount(() => {
 :global(.shipment-korea-map__marker) {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  min-width: 112px;
+  gap: 6px;
+  min-width: 142px;
   border: 1px solid rgb(var(--surface-container-lowest-rgb, 255 255 255) / 0.92);
   border-radius: 0;
-  padding: 5px 8px 5px 5px;
-  background: var(--marker-color, #334155);
+  padding: 7px 10px 7px 6px;
+  background: #1f2933;
   color: #fff;
   font-family: Pretendard, "Segoe UI", sans-serif;
   font-size: 0.7rem;
@@ -416,7 +416,7 @@ onBeforeUnmount(() => {
 }
 
 :global(.shipment-korea-map__marker strong) {
-  max-width: 76px;
+  max-width: 104px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -431,6 +431,11 @@ onBeforeUnmount(() => {
 
 :global(.shipment-korea-map__marker.is-destination) {
   border-left: 4px solid #7c3aed;
+}
+
+:global(.shipment-korea-map__marker.is-delayed) {
+  border-left-color: #991b1b;
+  background: #dc2626;
 }
 
 :global(.shipment-korea-map__marker:hover),

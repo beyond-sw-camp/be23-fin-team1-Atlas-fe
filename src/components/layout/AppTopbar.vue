@@ -355,7 +355,12 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
       <button class="app-icon-button app-mobile-menu-button" type="button" @click="ui.toggleMobileSidebar">
         <span class="material-symbols-outlined">{{ ui.mobileSidebarOpen ? 'close' : 'menu' }}</span>
       </button>
-      <button class="app-brand" type="button" @click="goHome">ATLAS</button>
+      <button class="app-brand" type="button" aria-label="ATLAS 홈" @click="goHome">
+        <picture>
+          <source media="(max-width: 640px)" srcset="/atlas_A_icon_light.svg" />
+          <img class="app-brand__logo" src="/atlas_A_wordmark_light.svg" alt="ATLAS" />
+        </picture>
+      </button>
       <button
         v-if="session.isAuthenticated"
         class="app-session-controls app-session-controls--mobile"

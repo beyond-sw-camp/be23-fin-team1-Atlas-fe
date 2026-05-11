@@ -32,6 +32,9 @@ const formattedVerificationExpiresAt = computed(() => {
 <template>
   <main class="login-screen">
     <section class="login-card">
+      <div class="login-card__brand" aria-label="ATLAS">
+        <img src="/atlas_A_wordmark_light.svg" alt="ATLAS" />
+      </div>
       <div class="login-card__eyebrow">{{ UI_COPY.secureAccess.ko }}</div>
 
       <!-- 일반 로그인 단계입니다. -->
