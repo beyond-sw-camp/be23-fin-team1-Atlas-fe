@@ -887,7 +887,7 @@ const shipmentStatusHistoryRows = computed(() => {
     statusCode: String(row.statusCode || '').toLowerCase(),
     location: display(row.locationText || row.location),
     message: display(row.statusMessage),
-    organization: formatActorOrganization(row.recordedBy),
+    organization: display(row.recordedOrganizationName ?? formatActorOrganization(row.recordedBy)),
     actor: formatActor(row.recordedBy),
   }))
 })
