@@ -876,9 +876,7 @@ await chat.openProfileDirectRoom({
 function formatDateTime(value?: string) {
   if (!value) return '-'
 
-  // 백엔드에서 온 날짜 문자열에 시간대 정보가 없으면 UTC로 간주하기 위해 'Z'를 붙입니다.
-  const isUtc = !value.includes('Z') && !value.includes('+')
-  const date = new Date(isUtc ? value + 'Z' : value)
+  const date = new Date(value)
 
   if (Number.isNaN(date.getTime())) {
     return value
@@ -899,9 +897,7 @@ function formatDateTime(value?: string) {
 function formatLoginTimeOnly(value?: string) {
   if (!value) return '-'
 
-  // 백엔드에서 온 날짜 문자열에 시간대 정보가 없으면 UTC로 간주하기 위해 'Z'를 붙입니다.
-  const isUtc = !value.includes('Z') && !value.includes('+')
-  const date = new Date(isUtc ? value + 'Z' : value)
+  const date = new Date(value)
 
   if (Number.isNaN(date.getTime())) {
     return value
