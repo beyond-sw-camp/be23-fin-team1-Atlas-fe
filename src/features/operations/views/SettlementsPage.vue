@@ -155,6 +155,8 @@ const monthlyBudgetRange = ref<MonthlyBudgetRange>('ALL')
 const settlements = ref<SettlementListResponseDto[]>([])
 
 const settlementStatistics = ref<SettlementStatisticsResponseDto | null>(null)
+// 최근 6개월이 전년도까지 걸칠 수 있어서 전년도 통계도 따로 저장합니다.
+const previousSettlementStatistics = ref<SettlementStatisticsResponseDto | null>(null)
 const isStatisticsLoading = ref(false)
 const statisticsErrorMessage = ref('')
 const statisticsYear = ref(new Date().getFullYear())
@@ -243,10 +245,48 @@ function budgetUsageStatusText(value: string | null | undefined) {
   const status = (value ?? 'NO_BUDGET') as BudgetUsageStatusLabel
   return content.value.stats.budgetStatuses[status] ?? value ?? content.value.stats.budgetStatuses.NO_BUDGET
 }
+type MonthlyBudgetChartPoint = {
+  key: string
+  year: number
+  month: number
+  label: string
+  budgetAmount: number
+  payableAmount: number
+  remainingAmount: number
+  usageRate: number
+  status: string
+}
 
-const monthlyBudgetChartPoints = computed(() => {
+function createMonthKey(year: number, month: number) {
+  // 연도와 월을 같이 묶어야 2025년 12월과 2026년 12월을 구분할 수 있습니다.
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+function getRecent6Months() {
+  const today = new Date()
+
+  // 현재 월 포함 6개월을 오래된 순서부터 만듭니다.
+  return Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(today.getFullYear(), today.getMonth() - 5 + index, 1)
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1
+
+    return {
+      key: createMonthKey(year, month),
+      year,
+      month,
+    }
+  })
+}
+
+function buildMonthlyBudgetChartPoints(
+  statistics: SettlementStatisticsResponseDto | null,
+  fallbackYear: number,
+): MonthlyBudgetChartPoint[] {
+  const year = statistics?.year ?? fallbackYear
+
   const source = new Map(
-    (settlementStatistics.value?.monthlyBudgetUsages ?? []).map((point) => [
+    (statistics?.monthlyBudgetUsages ?? []).map((point) => [
       Number(point.month),
       point,
     ]),
@@ -256,6 +296,8 @@ const monthlyBudgetChartPoints = computed(() => {
     const point = source.get(monthNumber)
 
     return {
+      key: createMonthKey(year, monthNumber),
+      year,
       month: monthNumber,
       label: monthLabel(monthNumber),
       budgetAmount: Number(point?.budgetAmount ?? 0),
@@ -263,6 +305,34 @@ const monthlyBudgetChartPoints = computed(() => {
       remainingAmount: Number(point?.remainingAmount ?? 0),
       usageRate: Number(point?.usageRate ?? 0),
       status: point?.status ?? 'NO_BUDGET',
+    }
+  })
+}
+
+
+const monthlyBudgetChartPoints = computed(() => {
+  return buildMonthlyBudgetChartPoints(settlementStatistics.value, statisticsYear.value)
+})
+
+const recent6MonthlyBudgetChartPoints = computed(() => {
+  const allPoints = [
+    ...buildMonthlyBudgetChartPoints(previousSettlementStatistics.value, statisticsYear.value - 1),
+    ...monthlyBudgetChartPoints.value,
+  ]
+
+  const pointMap = new Map(allPoints.map((point) => [point.key, point]))
+
+  return getRecent6Months().map(({ key, year, month }) => {
+    return pointMap.get(key) ?? {
+      key,
+      year,
+      month,
+      label: year === statisticsYear.value ? monthLabel(month) : `${year}.${month}월`,
+      budgetAmount: 0,
+      payableAmount: 0,
+      remainingAmount: 0,
+      usageRate: 0,
+      status: 'NO_BUDGET',
     }
   })
 })
@@ -273,7 +343,7 @@ const visibleMonthlyBudgetChartPoints = computed(() => {
     case 'Q2': return monthlyBudgetChartPoints.value.slice(3, 6)
     case 'Q3': return monthlyBudgetChartPoints.value.slice(6, 9)
     case 'Q4': return monthlyBudgetChartPoints.value.slice(9, 12)
-    case 'RECENT_6': return monthlyBudgetChartPoints.value.slice(6, 12)
+    case 'RECENT_6': return recent6MonthlyBudgetChartPoints.value
     default: return monthlyBudgetChartPoints.value
   }
 })
@@ -671,10 +741,24 @@ async function fetchSettlementStatistics() {
   statisticsErrorMessage.value = ''
 
   try {
-    settlementStatistics.value = await getSettlementStatistics(statisticsYear.value)
+    const today = new Date()
+    const shouldLoadPreviousYear =
+      today.getFullYear() === statisticsYear.value &&
+      today.getMonth() < 5
+
+    const [currentStatistics, previousStatistics] = await Promise.all([
+      getSettlementStatistics(statisticsYear.value),
+      shouldLoadPreviousYear
+        ? getSettlementStatistics(statisticsYear.value - 1)
+        : Promise.resolve(null),
+    ])
+
+    settlementStatistics.value = currentStatistics
+    previousSettlementStatistics.value = previousStatistics
   } catch (err: any) {
     console.error('Failed to fetch settlement statistics:', err)
     settlementStatistics.value = null
+    previousSettlementStatistics.value = null
     statisticsErrorMessage.value =
       err?.payload?.message ||
       err?.response?.data?.message ||
