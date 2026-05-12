@@ -893,11 +893,18 @@ function formatDateTime(value?: string) {
   }).format(date)
 }
 
+// 로그인 이력의 loginAt 은 서버(UTC)에서 LocalDateTime 으로 저장되어
+// 타임존 접미사 없이 내려오므로, 강제로 UTC 로 해석한 뒤 KST 로 변환합니다.
+function parseLoginTimestamp(value: string): Date {
+  const needsUtcSuffix = !value.includes('Z') && !value.includes('+')
+  return new Date(needsUtcSuffix ? value + 'Z' : value)
+}
+
 // 로그인 이력 카드 첫 줄에는 시간만 간단히 보여줍니다.
 function formatLoginTimeOnly(value?: string) {
   if (!value) return '-'
 
-  const date = new Date(value)
+  const date = parseLoginTimestamp(value)
 
   if (Number.isNaN(date.getTime())) {
     return value
@@ -911,6 +918,27 @@ function formatLoginTimeOnly(value?: string) {
   }).format(date)
 
   return `${timeText} KST`
+}
+
+// 로그인 이력 모달에서 날짜+시간을 함께 보여주는 전용 포맷터입니다.
+function formatLoginDateTime(value?: string) {
+  if (!value) return '-'
+
+  const date = parseLoginTimestamp(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Seoul',
+  }).format(date)
 }
 
 // 브라우저 문자열이 너무 길면 대표 이름만 보여줍니다.
@@ -1994,7 +2022,7 @@ onBeforeUnmount(() => {
                       : ('성공')
                   }}
                 </span>
-                / {{ formatDateTime(history.loginAt) }}
+                / {{ formatLoginDateTime(history.loginAt) }}
               </span>
 
               <strong class="page-feed__text">
