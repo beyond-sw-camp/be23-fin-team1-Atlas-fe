@@ -88,6 +88,7 @@ apiClient.interceptors.request.use(
     const isSupplyRequest = requestUrl.startsWith('/api/supply')
     const isControlRequest = requestUrl.startsWith('/api/control')
     const isFileRequest = requestUrl.startsWith('/api/files')
+    const isIntegratedSearchRequest = requestUrl.startsWith('/api/search')
 
     // 로그인 후 세션에 저장된 값을 꺼냅니다.
     const accessToken = window.sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
@@ -109,11 +110,12 @@ apiClient.interceptors.request.use(
 
     // 조직/권한 헤더는 supply 요청에만 붙입니다.
     // 검색(/api/search), auth(/api/auth)에는 일부러 붙이지 않습니다.
-    if (isSupplyRequest) {
-      applyHeaderIfPresent(config, 'X-Organization-Public-Id', organizationPublicId)
-      applyHeaderIfPresent(config, 'X-Organization-Type', organizationType)
-      applyHeaderIfPresent(config, 'X-User-Role', userRole)
-    }
+   if (isSupplyRequest || isIntegratedSearchRequest) {
+  applyHeaderIfPresent(config, 'X-Organization-Public-Id', organizationPublicId)
+  applyHeaderIfPresent(config, 'X-Organization-Type', organizationType)
+  applyHeaderIfPresent(config, 'X-User-Role', userRole)
+}
+
 
     return config
   },
