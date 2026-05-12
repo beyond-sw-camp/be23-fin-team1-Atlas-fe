@@ -6741,6 +6741,11 @@ watch(
   gap: 12px;
 }
 
+.operation-detail-page__shipment-summary-card--eta dl > div {
+  grid-template-columns: minmax(58px, 1fr) max-content;
+  gap: 8px;
+}
+
 .operation-detail-page__shipment-summary-card dt,
 .operation-detail-page__shipment-summary-card dd {
   margin: 0;
@@ -6751,6 +6756,10 @@ watch(
   font-size: 0.86rem;
   font-weight: 760;
   white-space: nowrap;
+}
+
+.operation-detail-page__shipment-summary-card--eta dd {
+  text-align: right;
 }
 
 .operation-detail-page__shipment-content-grid {
