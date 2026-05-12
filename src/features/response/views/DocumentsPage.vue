@@ -117,6 +117,13 @@ const certificateFileState = computed(() => {
 
 const certificateReviewPending = computed(() => props.certificate?.certificateStatus === 'REVIEW_REQUESTED')
 
+const certificateReviewerText = computed(() => {
+  return props.certificate?.reviewerName
+    || '-'
+})
+
+const certificateReviewedAtText = computed(() => formatDisplayDateTime(props.certificate?.reviewedAt))
+
 const certificateDurationText = computed(() => {
   const issuedAt = props.certificate?.issuedAt
   const expiredAt = props.certificate?.expiredAt
@@ -158,6 +165,8 @@ const certificateInfoSections = computed<DocumentInfoSection[]>(() => {
       title: '상태',
       rows: [
         ['심사 상태', certificateFileState.value],
+        ['심사자', certificateReviewerText.value],
+        ['심사 시간', certificateReviewedAtText.value],
       ],
     },
   ]
@@ -312,6 +321,16 @@ function formatDisplayDate(value?: string | null) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return `${date.getFullYear()}. ${String(date.getMonth() + 1).padStart(2, '0')}. ${String(date.getDate()).padStart(2, '0')}.`
+}
+
+function formatDisplayDateTime(value?: string | null) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return [
+    `${date.getFullYear()}. ${String(date.getMonth() + 1).padStart(2, '0')}. ${String(date.getDate()).padStart(2, '0')}.`,
+    `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
+  ].join(' ')
 }
 
 function formatFileSize(bytes: number) {

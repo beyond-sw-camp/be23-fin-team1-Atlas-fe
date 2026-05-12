@@ -169,8 +169,8 @@ export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; descr
     en: { label: '수용률', description: '권고안 수용률 현황', pageSubtitle: '수용률, 거절 사유, 긴급도별 반영 상태 추적' },
   },
   auditTrail: {
-    ko: { label: '감사 로그', description: '시스템 감사 로그', pageSubtitle: '사용자, 시스템, 보안 이벤트 감사 로그' },
-    en: { label: '감사 로그', description: '시스템 감사 로그', pageSubtitle: '사용자, 시스템, 보안 이벤트 감사 로그' },
+    ko: { label: '이벤트 발행 로그', description: 'Kafka 이벤트 발행 로그', pageSubtitle: 'Kafka 이벤트 발행 이력 추적' },
+    en: { label: '이벤트 발행 로그', description: 'Kafka 이벤트 발행 로그', pageSubtitle: 'Kafka 이벤트 발행 이력 추적' },
   },
   collaboration: {
     ko: { label: '협업', description: '실시간 대응 협업과 알림', pageSubtitle: '운영자, 협력사, 알림 흐름의 실시간 협업' },

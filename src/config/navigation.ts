@@ -294,10 +294,10 @@ export const NAV_ITEMS: NavEntry[] = [
   },
   {
     key: 'auditTrail',
-    label: '감사 로그',
+    label: '이벤트 발행 로그',
     icon: 'manage_search',
-    description: '시스템 감사 로그',
-    pageSubtitle: '사용자, 시스템, 보안 이벤트 감사 로그',
+    description: 'Kafka 이벤트 발행 로그',
+    pageSubtitle: 'Kafka 이벤트 발행 이력 추적',
     section: 'system',
     organizations: ['admin'],
   },

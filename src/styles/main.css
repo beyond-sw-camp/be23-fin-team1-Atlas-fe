@@ -4,6 +4,7 @@ body,
   margin: 0;
   width: 100%;
   min-height: 100%;
+  background-color: #f9f9f9;
 }
 
 *,
@@ -14,8 +15,13 @@ body,
 
 body {
   overflow-x: hidden;
-  background: #000;
+  background:
+    linear-gradient(to right, rgb(71 71 71 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(71 71 71 / 0.05) 1px, transparent 1px),
+    #f9f9f9;
+  background-size: 32px 32px;
   font-family: 'Inter', sans-serif;
+  overscroll-behavior-y: none;
 }
 
 button,
@@ -919,14 +925,14 @@ select:not(.app-language-select select):focus {
   color: inherit;
   padding: 0;
   width: 236px;
-  height: 52px;
+  height: 56px;
   cursor: pointer;
 }
 
 .app-brand__logo {
   display: block;
   width: 236px;
-  height: 44px;
+  height: 52px;
   object-fit: contain;
   object-position: left center;
 }
