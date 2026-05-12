@@ -116,6 +116,12 @@ function handleSearchFocus() {
   isSearchPanelOpen.value = true
 }
 
+function handleSearchInput(event: Event) {
+  // 한글 조합 입력도 바로 검색어 상태에 반영합니다.
+  const target = event.target as HTMLInputElement | null
+  searchKeyword.value = target?.value ?? ''
+}
+
 function closeSearchPanel() {
   // 검색 패널만 닫고 입력값은 남겨둡니다.
   isSearchPanelOpen.value = false
@@ -343,6 +349,15 @@ function resolveSearchStatusLabel(status: string | null) {
   return searchStatusLabels[status] ?? status
 }
 
+function shouldShowSearchStatus(item: IntegratedSearchItem) {
+  // 품목 통합검색은 활성 품목만 보여주므로 ACTIVE 표시는 숨깁니다.
+  if (item.type === 'ITEM' && item.status === 'ACTIVE') {
+    return false
+  }
+
+  return Boolean(resolveSearchStatusLabel(item.status))
+}
+
 async function enrichItemSearchThumbnails(sections: IntegratedSearchSection[]) {
   return Promise.all(
     sections.map(async (section) => {
@@ -432,11 +447,12 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
       <div ref="searchLayerRef" class="app-search">
         <span class="material-symbols-outlined">search</span>
         <input
-          v-model="searchKeyword"
+          :value="searchKeyword"
           id="app-integrated-search"
           name="app-integrated-search"
           type="text"
           :placeholder="UI_COPY.searchPlaceholder.ko"
+          @input="handleSearchInput"
           @focus="handleSearchFocus"
           @keydown.enter.prevent="handleSearchEnter"
           @keydown.esc="closeSearchPanel"
@@ -498,7 +514,7 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
                   <span class="app-search__item-content">
                     <span class="app-search__item-title-row">
                       <strong class="app-search__item-title">{{ resolveSearchItemTitle(item) }}</strong>
-                      <span v-if="resolveSearchStatusLabel(item.status)" class="app-search__chip">{{ resolveSearchStatusLabel(item.status) }}</span>
+                      <span v-if="shouldShowSearchStatus(item)" class="app-search__chip">{{ resolveSearchStatusLabel(item.status) }}</span>
                     </span>
                     <span v-if="resolveSearchItemSubtitle(item)" class="app-search__item-subtitle">
                       {{ resolveSearchItemSubtitle(item) }}
