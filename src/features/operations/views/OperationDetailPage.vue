@@ -170,7 +170,6 @@ const dialog = useAtlasDialogStore()
 const actor = useActorScope()
 
 const itemInlineEditMode = ref(false)
-const itemLockedModalOpen = ref(false)
 
 const userNamesMap = ref<Record<string, string>>({})
 const userOrganizationNamesMap = ref<Record<string, string>>({})
@@ -1239,12 +1238,6 @@ function isWithinLastDays(value: string | undefined | null, days: number) {
   start.setHours(0, 0, 0, 0)
   return target >= start && target <= today
 }
-
-const hasConfirmedLinkedOrder = computed(() => {
-  const lockedStatuses = new Set(['CREATED', 'PARTIALLY_CONFIRMED', 'CONFIRMED'])
-  const linkedOrders = Array.isArray(related.value.linkedOrders) ? related.value.linkedOrders : []
-  return linkedOrders.some((order: any) => lockedStatuses.has(String(order.poStatus ?? '').toUpperCase()))
-})
 
 const canEditCurrentInventory = computed(() => {
   if (!data.value || kind.value !== 'inventory') return false
@@ -2762,11 +2755,6 @@ async function saveItemMediaEdit() {
 async function handleEditItem() {
   if (!data.value) return
 
-  if (hasConfirmedLinkedOrder.value) {
-    itemLockedModalOpen.value = true
-    return
-  }
-
   itemEditErrorMessage.value = ''
   const capability = await getSupplierItemCapability(data.value.supplierPublicId, publicId.value).catch(() => null)
 
@@ -2931,14 +2919,6 @@ async function toggleItemActive() {
 
 async function submitItemEdit() {
   if (!data.value) return
-
-  if (hasConfirmedLinkedOrder.value) {
-    showItemEditError(t(
-      '해당 품목과 관계된 발주가 있어 수정이 불가능합니다.',
-      'This item cannot be edited because it has related purchase orders.',
-    ))
-    return
-  }
 
   const nextSpec = itemEditForm.value.spec.trim()
   if (!nextSpec) {
@@ -4509,8 +4489,8 @@ watch(
             </div>
           </section>
 
-          <!-- AI 섹션 임시 표시: 품목 상세에서만 노출 -->
-          <aside v-if="kind === 'items'" class="operation-detail-page__analysis-panel is-inventory"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 재고 부족 대응', 'AI Inventory Shortage Response') }}</h2><span class="operation-detail-page__chip is-high">{{ t('안전재고 미달', 'Below Safety Stock') }}</span></div><div class="operation-detail-page__recommendation"><strong>{{ t('01 긴급 발주', '01 Urgent Order') }}</strong><span>높음</span><p>{{ t('필요 수량 165 EA, 권장 발주 수량 170 EA', 'Required 165 EA, recommended order 170 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('실행 계획 보기', 'View Action Plan') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('02 대체 공급처 검토', '02 Review Alternative Suppliers') }}</strong><span>보통</span><p>{{ t('공급처 3개, 필요 수량 165 EA', '3 suppliers, required 165 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('후보 공급처 보기', 'View Supplier Candidates') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('03 분할 입고', '03 Split Inbound') }}</strong><span>낮음</span><p>{{ t('분할 횟수 2회, 운송 영향 보통', '2 splits, normal logistics impact') }}</p><button class="page-button page-button--primary" type="button">{{ t('분할 계획 보기', 'View Split Plan') }}</button></div></aside>
+          <!-- AI 섹션 임시 숨김: 필요 시 v-if 조건 제거 -->
+          <aside v-if="false" class="operation-detail-page__analysis-panel is-inventory"><div class="operation-detail-page__panel-head"><h2>{{ t('AI 재고 부족 대응', 'AI Inventory Shortage Response') }}</h2><span class="operation-detail-page__chip is-high">{{ t('안전재고 미달', 'Below Safety Stock') }}</span></div><div class="operation-detail-page__recommendation"><strong>{{ t('01 긴급 발주', '01 Urgent Order') }}</strong><span>높음</span><p>{{ t('필요 수량 165 EA, 권장 발주 수량 170 EA', 'Required 165 EA, recommended order 170 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('실행 계획 보기', 'View Action Plan') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('02 대체 공급처 검토', '02 Review Alternative Suppliers') }}</strong><span>보통</span><p>{{ t('공급처 3개, 필요 수량 165 EA', '3 suppliers, required 165 EA') }}</p><button class="page-button page-button--primary" type="button">{{ t('후보 공급처 보기', 'View Supplier Candidates') }}</button></div><div class="operation-detail-page__recommendation"><strong>{{ t('03 분할 입고', '03 Split Inbound') }}</strong><span>낮음</span><p>{{ t('분할 횟수 2회, 운송 영향 보통', '2 splits, normal logistics impact') }}</p><button class="page-button page-button--primary" type="button">{{ t('분할 계획 보기', 'View Split Plan') }}</button></div></aside>
         </main>
       </div>
     </template>
@@ -5070,20 +5050,6 @@ watch(
             {{ orderEditSaving ? '저장 중' : '수정 완료' }}
           </button>
         </div>
-      </div>
-    </BaseModal>
-
-    <BaseModal
-      v-model="itemLockedModalOpen"
-      title="품목 수정 불가"
-      description="해당 품목과 관계된 발주가 있어 수정이 불가능합니다."
-      size="sm"
-    >
-      <div class="operation-detail-page__bottom-actions">
-        <span></span>
-        <button class="page-button page-button--primary" type="button" @click="itemLockedModalOpen = false">
-          확인
-        </button>
       </div>
     </BaseModal>
 
