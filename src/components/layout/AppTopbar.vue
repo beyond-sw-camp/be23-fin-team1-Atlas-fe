@@ -9,6 +9,7 @@ import { useAtlasPreferencesStore } from '../../stores/preferences'
 import { useAtlasUiStore } from '../../stores/ui'
 import { useAtlasChatStore } from '../../stores/chat'
 import { useAtlasNotificationStore } from '../../stores/notification'
+import { getItemMedia, resolveItemMediaUrl } from '../../services/itemMedia'
 import {
   integratedSearchService,
   type IntegratedSearchItem,
@@ -154,9 +155,10 @@ watch(searchKeyword, (nextKeyword) => {
       isSearching.value = true
       searchError.value = ''
 
-      const response = await integratedSearchService.search(trimmedKeyword, 5)
+     const response = await integratedSearchService.search(trimmedKeyword, 5)
 
-      searchSections.value = response.sections ?? []
+    searchSections.value = await enrichItemSearchThumbnails(response.sections ?? [])
+
 
       isSearchPanelOpen.value = true
     } catch (error) {
@@ -340,6 +342,40 @@ function resolveSearchStatusLabel(status: string | null) {
   if (!status) return ''
   return searchStatusLabels[status] ?? status
 }
+
+async function enrichItemSearchThumbnails(sections: IntegratedSearchSection[]) {
+  return Promise.all(
+    sections.map(async (section) => {
+      if (section.type !== 'ITEM') {
+        return section
+      }
+
+      const items = await Promise.all(
+        section.items.map(async (item) => {
+          if (item.thumbnailUrl || !item.publicId) {
+            return item
+          }
+
+          try {
+            const mediaFiles = await getItemMedia(item.publicId)
+            const imageFile = mediaFiles.find((file) => file.kind === 'image') ?? mediaFiles[0]
+            const thumbnailUrl = resolveItemMediaUrl(imageFile)
+
+            return thumbnailUrl ? { ...item, thumbnailUrl } : item
+          } catch {
+            return item
+          }
+        }),
+      )
+
+      return {
+        ...section,
+        items,
+      }
+    }),
+  )
+}
+
 
 function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
   // 검색 결과마다 이미지 필드명이 다를 수 있어서 순서대로 확인합니다.
