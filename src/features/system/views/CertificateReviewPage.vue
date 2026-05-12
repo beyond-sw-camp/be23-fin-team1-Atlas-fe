@@ -81,20 +81,6 @@ function formatDate(value: string | undefined) {
   return value
 }
 
-function formatReviewDateTime(value: string | null | undefined) {
-  if (!value) return '-'
-  const normalized = value.length >= 16 ? value.substring(0, 16).replace('T', ' ') : value
-  return normalized.replace(/-/g, '.')
-}
-
-function reviewerOrganizationName(certificate: SupplierCertificateResponseDto) {
-  return certificate.reviewerOrganizationName || certificate.reviewedByOrganizationPublicId || '-'
-}
-
-function shouldShowReviewMeta(certificate: SupplierCertificateResponseDto) {
-  return certificate.certificateStatus === 'APPROVED' || certificate.certificateStatus === 'REJECTED'
-}
-
 function certificateStatusText(status: SupplierCertificateResponseDto['certificateStatus'] | null | undefined) {
   if (status === 'REVIEW_REQUESTED') return '심사 요청'
   if (status === 'APPROVED') return '승인'
@@ -317,10 +303,6 @@ watch(search, () => {
               <span :class="['page-status-chip', certificateStatusTone(certificate.certificateStatus)]">
                 {{ certificateStatusText(certificate.certificateStatus) }}
               </span>
-              <span v-if="shouldShowReviewMeta(certificate)" class="certificate-review-page__review-meta">
-                <span>심사자 {{ reviewerOrganizationName(certificate) }}</span>
-                <span>심사 시간 {{ formatReviewDateTime(certificate.reviewedAt) }}</span>
-              </span>
             </span>
             <span>
               <button class="page-button page-button--secondary certificate-review-page__detail-button" type="button" @click="openCertificateDetail(certificate)">
@@ -401,16 +383,6 @@ watch(search, () => {
   justify-content: center;
   min-width: 72px;
   white-space: nowrap;
-}
-
-.certificate-review-page__review-meta {
-  color: var(--color-on-surface-variant);
-  display: grid;
-  font-size: 0.72rem;
-  font-weight: 700;
-  gap: 2px;
-  line-height: 1.35;
-  min-width: 0;
 }
 
 .certificate-review-page__detail-screen {

@@ -8,8 +8,8 @@ import {
 
 const CONTENT = {
   ko: {
-    eyebrow: '시스템 / 감사 로그',
-    title: '감사 로그',
+    eyebrow: '시스템 / 이벤트 발행 로그',
+    title: '이벤트 발행 로그',
     subtitle: 'Kafka 이벤트 발행 히스토리를 감사 시계열 기준으로 추적합니다.',
     metrics: [
       { key: 'total', label: '전체 이벤트', meta: 'Kafka 발행 히스토리', tone: 'nominal' },
@@ -118,7 +118,7 @@ async function fetchAuditLogs() {
     eventLogsErrorMessage.value =
       error instanceof ApiError
         ? error.message
-        : '감사 로그를 불러오지 못했습니다.'
+        : '이벤트 발행 로그를 불러오지 못했습니다.'
     isInitialEventLogsLoading.value = false
   } finally {
     isLoadingEventLogs.value = false
@@ -204,7 +204,7 @@ onMounted(() => {
         <span class="page-panel__chip">{{ visibleRows.length }}</span>
       </div>
       <div v-if="false && isInitialEventLogsLoading" class="login-hint">
-        {{ '감사 로그를 불러오는 중입니다.' }}
+        {{ '이벤트 발행 로그를 불러오는 중입니다.' }}
       </div>
 
       <div v-if="eventLogsErrorMessage" class="login-error">

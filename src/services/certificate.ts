@@ -53,6 +53,7 @@ export interface SupplierCertificateResponseDto {
   rejectReason?: string
   reviewedByOrganizationPublicId?: string | null
   reviewerOrganizationName?: string | null
+  reviewerName?: string | null
   reviewedAt?: string | null
 }
 
