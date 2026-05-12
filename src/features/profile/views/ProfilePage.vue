@@ -7,7 +7,7 @@ import { VueDatePicker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 import PhoneField from '../../../components/forms/PhoneField.vue'
 import BaseModal from '../../shared/components/BaseModal.vue'
-import { getAttachmentOriginalImagePath, uploadUserProfileImage } from '../../../services/file'
+import { getAttachmentOriginalImagePath, replaceUserProfileImage } from '../../../services/file'
 import {
   confirmPasswordChangeVerification,
   getDepartments,
@@ -326,7 +326,11 @@ async function handleProfileImageSelected(event: Event) {
     profileError.value = ''
     profileSuccess.value = ''
 
-    const uploadResponse = await uploadUserProfileImage(file, userDetail.value.userPublicId)
+    const uploadResponse = await replaceUserProfileImage(
+      file,
+      userDetail.value.userPublicId,
+      userDetail.value.profileAttachmentPublicId,
+    )
     const attachmentPublicId = uploadResponse.attachmentPublicId
     const fileThumbPath = uploadResponse.files[0]?.fileThumbPath
 
