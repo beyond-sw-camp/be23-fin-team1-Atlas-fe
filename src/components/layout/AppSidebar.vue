@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import type { PageKey, ScreenTheme } from '../../types'
+import type { PageKey } from '../../types'
 import { getMyInfo, getUserDetailByPublicId } from '../../services/user'
 import { useAtlasNavigationStore } from '../../stores/navigation'
 import { useAtlasChatStore } from '../../stores/chat'
@@ -29,10 +29,6 @@ type SidebarBadgeItem = {
   key: string
   badge?: string | number | null
   badgeTone?: string | null
-}
-
-function toggleTheme() {
-  preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
 }
 
 function handleSidebarNavigate(itemKey: PageKey) {
@@ -210,9 +206,6 @@ onBeforeUnmount(() => {
     </nav>
 
     <div class="app-sidebar__mobile-tools">
-      <button class="app-icon-button" type="button" @click="toggleTheme">
-        <span class="material-symbols-outlined">contrast</span>
-      </button>
       <button
         :class="['app-icon-button', { 'app-icon-button--badge': chatStore.totalUnreadCount > 0 }]"
         type="button"
