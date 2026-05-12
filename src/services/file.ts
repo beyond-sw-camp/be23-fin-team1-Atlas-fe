@@ -80,6 +80,10 @@ export async function appendFiles(attachmentPublicId: string, fileOrFiles: File 
   return response.data
 }
 
+export async function deleteAttachment(attachmentPublicId: string): Promise<void> {
+  await apiClient.delete(`/api/files/attachments/${attachmentPublicId}`)
+}
+
 export type AttachmentFileUpdateAction = 'KEEP' | 'DELETE' | 'ADD'
 
 export interface UpdateAttachmentFileRequestDto {
@@ -123,6 +127,24 @@ export async function uploadUserProfileImage(
   userPublicId: string,
 ): Promise<AttachmentUploadResponseDto> {
   return uploadAttachment(file, 'USER_ACCOUNT', userPublicId)
+}
+
+export async function replaceUserProfileImage(
+  file: File,
+  userPublicId: string,
+  previousAttachmentPublicId?: string | null,
+): Promise<AttachmentUploadResponseDto> {
+  if (previousAttachmentPublicId) {
+    try {
+      await deleteAttachment(previousAttachmentPublicId)
+    } catch (error: any) {
+      if (error?.response?.status !== 404) {
+        throw error
+      }
+    }
+  }
+
+  return uploadUserProfileImage(file, userPublicId)
 }
 
 /**
