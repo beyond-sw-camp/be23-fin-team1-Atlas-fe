@@ -341,6 +341,7 @@
 
 <img width="900" src="images/중복로그인.png" />
 <img width="900" src="images/다른ip이메일인증.png" />
+<img width="900" src="images/로그인 이력.png" />
 
 <ul>
   <li>
