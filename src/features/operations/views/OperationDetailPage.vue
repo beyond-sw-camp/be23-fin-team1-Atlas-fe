@@ -2904,6 +2904,31 @@ async function toggleLogisticsNodeActive() {
   }
 }
 
+async function toggleItemActive() {
+  if (!data.value || kind.value !== 'items') return
+
+  const nextStatus: ManageableItemStatus = data.value.status === 'DEACTIVE' ? 'ACTIVE' : 'DEACTIVE'
+  const confirmed = nextStatus === 'DEACTIVE'
+    ? await dialog.confirm(t(
+      '출하 등록이 완료된 발주만 남은 경우에만 비활성화할 수 있습니다. 품목을 비활성화하시겠습니까?',
+      'Items can be deactivated only when remaining related orders are fully registered for shipment. Deactivate this item?',
+    ))
+    : await dialog.confirm(t('품목을 활성화하시겠습니까?', 'Activate this item?'))
+
+  if (!confirmed) return
+
+  try {
+    loading.value = true
+    errorMessage.value = ''
+    await changeItemStatus(publicId.value, { status: nextStatus })
+    await fetchDetail()
+  } catch (error: any) {
+    errorMessage.value = error?.message ?? t('품목 상태 변경에 실패했습니다.', 'Failed to update item status.')
+  } finally {
+    loading.value = false
+  }
+}
+
 async function submitItemEdit() {
   if (!data.value) return
 
@@ -4384,6 +4409,14 @@ watch(
             </article>
             <div v-if="kind === 'items'" class="operation-detail-page__bottom-actions operation-detail-page__item-bottom-actions">
               <template v-if="!itemInlineEditMode">
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="loading"
+                  @click="toggleItemActive"
+                >
+                  {{ data.status === 'DEACTIVE' ? t('활성화', 'Activate') : t('비활성화', 'Deactivate') }}
+                </button>
                 <button
                   class="page-button page-button--primary"
                   type="button"
