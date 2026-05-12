@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { useActorScope } from '../../../composables/useActorScope'
 import {
   changeItemStatus,
@@ -95,6 +97,8 @@ import {
   type ItemMediaFile,
 } from '../../../services/itemMedia'
 import LogisticsNodeLocationMap from '../components/LogisticsNodeLocationMap.vue'
+
+GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 
 
@@ -501,6 +505,13 @@ const historyPageSize = 10
 const itemMediaViewerOpen = ref(false)
 const itemMediaViewerIndex = ref(0)
 const mediaViewerSource = ref<'item' | 'return-proof'>('item')
+const supplierDocumentViewerOpen = ref(false)
+const supplierDocumentViewerLoading = ref(false)
+const supplierDocumentViewerError = ref('')
+const supplierDocumentViewerFile = ref<AttachmentFileDto | null>(null)
+const supplierDocumentPdfPages = ref<string[]>([])
+const supplierDocumentPdfPageIndex = ref(0)
+const supplierDocumentPreviewScale = ref(1)
 const itemMap = ref<Record<string, ItemResponseDto>>({})
 const itemMediaMap = ref<Record<string, ItemMediaFile[]>>({})
 const orderItemDetailModalOpen = ref(false)
@@ -1061,6 +1072,7 @@ function certificateDaysText(row: any) {
 const supplierCertificateRows = computed(() =>
   supplierCertificates.value.map((row: any) => ({
     publicId: row.publicId,
+    attachmentPublicId: row.attachmentPublicId,
     name: certificateTypeName(row.certificateType),
     number: row.certificateNo,
     issuer: row.issuerName ?? '-',
@@ -1071,6 +1083,17 @@ const supplierCertificateRows = computed(() =>
     days: certificateDaysText(row),
   })),
 )
+
+const supplierDocumentActivePdfPage = computed(() => supplierDocumentPdfPages.value[supplierDocumentPdfPageIndex.value] ?? '')
+const supplierDocumentPdfPageNumber = computed(() => {
+  if (supplierDocumentPdfPages.value.length === 0) return 0
+  return supplierDocumentPdfPageIndex.value + 1
+})
+const supplierDocumentCanMovePdfPrev = computed(() => supplierDocumentPdfPageIndex.value > 0)
+const supplierDocumentCanMovePdfNext = computed(
+  () => supplierDocumentPdfPageIndex.value + 1 < supplierDocumentPdfPages.value.length,
+)
+const supplierDocumentPreviewTransform = computed(() => `scale(${supplierDocumentPreviewScale.value})`)
 
 const supplierDocumentScore = computed(() => {
   const summary = supplierCertificateSummary.value
@@ -3381,6 +3404,96 @@ function openSupplierRelationOrder(row: ConnectedSupplierOrderResponseDto) {
   })
 }
 
+async function openSupplierCertificateDocument(row: { attachmentPublicId?: string | null }) {
+  supplierDocumentViewerOpen.value = true
+  supplierDocumentViewerLoading.value = true
+  supplierDocumentViewerError.value = ''
+  supplierDocumentViewerFile.value = null
+  supplierDocumentPdfPages.value = []
+  supplierDocumentPdfPageIndex.value = 0
+  supplierDocumentPreviewScale.value = 1
+
+  if (!row.attachmentPublicId) {
+    supplierDocumentViewerLoading.value = false
+    supplierDocumentViewerError.value = '연결된 문서 파일이 없습니다.'
+    return
+  }
+
+  try {
+    const attachment = await getAttachment(row.attachmentPublicId)
+    const file = attachment.files?.[0] ?? null
+    if (!file || !fileLink(file)) {
+      supplierDocumentViewerError.value = '문서 파일을 불러올 수 없습니다.'
+      return
+    }
+    supplierDocumentViewerFile.value = file
+    if (isPdfAttachment(file)) {
+      await renderSupplierDocumentPdf(fileLink(file))
+    }
+  } catch {
+    supplierDocumentViewerError.value = '문서 파일을 불러올 수 없습니다.'
+  } finally {
+    supplierDocumentViewerLoading.value = false
+  }
+}
+
+function closeSupplierDocumentViewer() {
+  supplierDocumentViewerOpen.value = false
+  supplierDocumentViewerLoading.value = false
+  supplierDocumentViewerError.value = ''
+  supplierDocumentViewerFile.value = null
+  supplierDocumentPdfPages.value = []
+  supplierDocumentPdfPageIndex.value = 0
+  supplierDocumentPreviewScale.value = 1
+}
+
+async function renderSupplierDocumentPdf(url: string) {
+  supplierDocumentPdfPages.value = []
+  supplierDocumentPdfPageIndex.value = 0
+
+  try {
+    const pdf = await getDocument({ url }).promise
+    const pages: string[] = []
+
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber)
+      const viewport = page.getViewport({ scale: 1.6 })
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')
+
+      if (!context) continue
+
+      canvas.width = Math.floor(viewport.width)
+      canvas.height = Math.floor(viewport.height)
+
+      await page.render({ canvasContext: context, viewport } as any).promise
+      pages.push(canvas.toDataURL('image/png'))
+    }
+
+    supplierDocumentPdfPages.value = pages
+    supplierDocumentPdfPageIndex.value = 0
+    if (pages.length === 0) {
+      supplierDocumentViewerError.value = 'PDF 미리보기를 불러올 수 없습니다.'
+    }
+  } catch {
+    supplierDocumentViewerError.value = 'PDF 미리보기를 불러올 수 없습니다.'
+  }
+}
+
+function zoomSupplierDocumentIn() {
+  supplierDocumentPreviewScale.value = Math.min(supplierDocumentPreviewScale.value + 0.1, 1.8)
+}
+
+function zoomSupplierDocumentOut() {
+  supplierDocumentPreviewScale.value = Math.max(supplierDocumentPreviewScale.value - 0.1, 0.7)
+}
+
+function moveSupplierDocumentPdfPage(direction: -1 | 1) {
+  const nextIndex = supplierDocumentPdfPageIndex.value + direction
+  if (nextIndex < 0 || nextIndex >= supplierDocumentPdfPages.value.length) return
+  supplierDocumentPdfPageIndex.value = nextIndex
+}
+
 function formatCapabilityStatus(row: Record<string, unknown>) {
   const availableQty = Number(row.availableQty ?? 0)
   return availableQty > 0 ? '재고 있음' : '재고 없음'
@@ -3475,10 +3588,16 @@ function fileLink(file: AttachmentFileDto) {
 }
 
 function isImageAttachment(file: AttachmentFileDto) {
-  const contentType = String(file.contentType ?? '').toLowerCase()
+  const contentType = String(file.contentType ?? file.mimeType ?? '').toLowerCase()
   if (contentType.startsWith('image/')) return true
   const source = String(file.originalFileName ?? file.filePath ?? file.fileUrl ?? '')
   return /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(source)
+}
+
+function isPdfAttachment(file: AttachmentFileDto) {
+  const contentType = String(file.contentType ?? file.mimeType ?? '').toLowerCase()
+  const source = String(file.originalFileName ?? file.filePath ?? file.fileUrl ?? '').toLowerCase()
+  return contentType === 'application/pdf' || source.endsWith('.pdf')
 }
 
 function formatFileSize(size: unknown) {
@@ -3951,7 +4070,7 @@ watch(
               </section>
               <table class="operation-detail-page__domain-table">
                 <thead>
-                  <tr><th>문서 유형</th><th>문서번호</th><th>발급기관</th><th>발급일</th><th>만료일</th><th>상태</th><th>위험도</th><th>잔여일</th></tr>
+                  <tr><th>문서 유형</th><th>문서번호</th><th>발급기관</th><th>발급일</th><th>만료일</th><th>위험도</th><th>잔여일</th><th>보기</th></tr>
                 </thead>
                 <tbody>
                   <tr v-if="supplierCertificateRows.length === 0">
@@ -3963,9 +4082,13 @@ watch(
                     <td>{{ row.issuer }}</td>
                     <td>{{ row.issuedAt }}</td>
                     <td>{{ row.expiredAt }}</td>
-                    <td><span :class="['operation-detail-page__state-chip', `is-${chipTone(row.status)}`]">{{ row.status }}</span></td>
                     <td>{{ row.risk }}</td>
                     <td>{{ row.days }}</td>
+                    <td>
+                      <button class="page-button page-button--secondary" type="button" @click="openSupplierCertificateDocument(row)">
+                        보기
+                      </button>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -5087,6 +5210,77 @@ watch(
       </div>
     </Teleport>
 
+    <Teleport to="body">
+      <div
+        v-if="supplierDocumentViewerOpen"
+        class="operation-detail-page__document-viewer"
+        @click.self="closeSupplierDocumentViewer"
+      >
+        <button class="operation-detail-page__media-viewer-close" type="button" @click="closeSupplierDocumentViewer">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+        <div class="operation-detail-page__document-viewer-panel">
+          <header class="operation-detail-page__document-viewer-head">
+            <strong>{{ supplierDocumentViewerFile?.originalFileName ?? '인증 문서' }}</strong>
+          </header>
+          <div v-if="supplierDocumentViewerLoading" class="operation-detail-page__document-viewer-state">
+            문서 파일을 불러오는 중입니다.
+          </div>
+          <div v-else-if="supplierDocumentViewerError" class="operation-detail-page__document-viewer-state">
+            {{ supplierDocumentViewerError }}
+          </div>
+          <template v-else-if="supplierDocumentViewerFile">
+            <img
+              v-if="isImageAttachment(supplierDocumentViewerFile)"
+              :src="fileLink(supplierDocumentViewerFile)"
+              :alt="supplierDocumentViewerFile.originalFileName"
+              class="operation-detail-page__document-viewer-image"
+            />
+            <div
+              v-else-if="isPdfAttachment(supplierDocumentViewerFile)"
+              class="operation-detail-page__document-viewer-pdf"
+            >
+              <div class="operation-detail-page__document-viewer-toolbar">
+                <button class="page-button page-button--secondary" type="button" @click="zoomSupplierDocumentIn">+</button>
+                <button class="page-button page-button--secondary" type="button" @click="zoomSupplierDocumentOut">-</button>
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="!supplierDocumentCanMovePdfPrev"
+                  @click="moveSupplierDocumentPdfPage(-1)"
+                >
+                  ‹
+                </button>
+                <button
+                  class="page-button page-button--secondary"
+                  type="button"
+                  :disabled="!supplierDocumentCanMovePdfNext"
+                  @click="moveSupplierDocumentPdfPage(1)"
+                >
+                  ›
+                </button>
+                <span v-if="supplierDocumentPdfPages.length" class="operation-detail-page__document-viewer-page-count">
+                  {{ supplierDocumentPdfPageNumber }} / {{ supplierDocumentPdfPages.length }}
+                </span>
+              </div>
+              <div class="operation-detail-page__document-viewer-canvas">
+                <img
+                  v-if="supplierDocumentActivePdfPage"
+                  :key="`${supplierDocumentViewerFile.publicId ?? supplierDocumentViewerFile.originalFileName}-${supplierDocumentPdfPageIndex}`"
+                  :src="supplierDocumentActivePdfPage"
+                  :alt="`${supplierDocumentViewerFile.originalFileName} ${supplierDocumentPdfPageNumber}`"
+                  :style="{ transform: supplierDocumentPreviewTransform }"
+                />
+              </div>
+            </div>
+            <div v-else class="operation-detail-page__document-viewer-state">
+              미리보기를 지원하지 않는 파일 형식입니다.
+            </div>
+          </template>
+        </div>
+      </div>
+    </Teleport>
+
   </section>
 </template>
 
@@ -5474,6 +5668,110 @@ watch(
 
 .operation-detail-page__media-viewer-nav--next {
   right: 20px;
+}
+
+.operation-detail-page__document-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgb(0 0 0 / 0.82);
+}
+
+.operation-detail-page__document-viewer-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(960px, 92vw);
+  height: min(860px, 88vh);
+  background: #fff;
+  border: 1px solid rgb(255 255 255 / 0.2);
+}
+
+.operation-detail-page__document-viewer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--detail-border);
+}
+
+.operation-detail-page__document-viewer-head strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--on-surface, #2d3435);
+  font-size: 0.95rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operation-detail-page__document-viewer-image {
+  align-self: center;
+  justify-self: center;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.operation-detail-page__document-viewer-pdf {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  background: #f4f5f5;
+}
+
+.operation-detail-page__document-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px 0;
+}
+
+.operation-detail-page__document-viewer-toolbar .page-button {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+}
+
+.operation-detail-page__document-viewer-page-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--detail-border);
+  color: var(--on-surface, #2d3435);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.operation-detail-page__document-viewer-canvas {
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+  text-align: center;
+}
+
+.operation-detail-page__document-viewer-canvas img {
+  width: min(100%, 760px);
+  height: auto;
+  background: #fff;
+  border: 1px solid var(--detail-border);
+  transform-origin: top center;
+}
+
+.operation-detail-page__document-viewer-state {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  padding: 24px;
+  color: var(--on-surface, #2d3435);
+  font-size: 0.95rem;
+  font-weight: 800;
 }
 
 .operation-detail-page__block-head,
