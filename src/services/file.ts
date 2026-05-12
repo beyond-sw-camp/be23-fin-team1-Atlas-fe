@@ -29,24 +29,9 @@ export interface AttachmentUploadResponseDto {
  * Step 1: 파일 서비스에 업로드하여 attachmentPublicId 획득
  */
 export async function uploadAttachment(fileOrFiles: File | File[], refType: string, refPublicId: string): Promise<AttachmentUploadResponseDto> {
-  const filesArray = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles]
-
-  // 1. 기존 첨부파일 그룹이 있는지 먼저 확인 (409 에러 방지)
-  try {
-    const existing = await getAttachmentByRef(refType, refPublicId)
-    // 기존 그룹이 존재하면 덮어쓰기/추가(append)로 진행
-    if (existing && existing.attachmentPublicId) {
-      return await appendFiles(existing.attachmentPublicId, filesArray)
-    }
-  } catch (error: any) {
-    // 404 Not Found는 정상 (아직 프로필/첨부파일 그룹이 없는 상태)
-    if (error?.response?.status !== 404) {
-      console.warn('Failed to check existing attachment:', error)
-    }
-  }
-
-  // 2. 기존 그룹이 없다면 새로 생성 (POST)
   const formData = new FormData()
+
+  // 1. 요청 메타데이터 (JSON Blob)
   const requestDto = {
     refType,
     refPublicId
@@ -56,14 +41,24 @@ export async function uploadAttachment(fileOrFiles: File | File[], refType: stri
     new Blob([JSON.stringify(requestDto)], { type: 'application/json' })
   )
 
+  // 2. 실제 파일 (files 파트) 다중 파일 지원
+  const filesArray = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles]
   for (const f of filesArray) {
     formData.append('files', f)
   }
 
-  const response = await apiClient.post<AttachmentUploadResponseDto>('/api/files/attachments', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
-  return response.data
+  try {
+    const response = await apiClient.post<AttachmentUploadResponseDto>('/api/files/attachments', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  } catch (error: any) {
+    if (error?.response?.status === 409) {
+      const existing = await getAttachmentByRef(refType, refPublicId)
+      return appendFiles(existing.attachmentPublicId, filesArray)
+    }
+    throw error
+  }
 }
 
 export async function getAttachmentByRef(refType: string, refPublicId: string): Promise<AttachmentUploadResponseDto> {
