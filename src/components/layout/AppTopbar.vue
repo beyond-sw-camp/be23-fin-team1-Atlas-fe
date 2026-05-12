@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAtlasSessionStore } from '../../stores/session'
-import type { OrganizationType, ScreenTheme, PageKey } from '../../types'
+import type { OrganizationType, PageKey } from '../../types'
 import { UI_COPY } from '../../config/appCopy'
 import { useAtlasNavigationStore } from '../../stores/navigation'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
@@ -89,10 +89,6 @@ const shouldShowSearchPanel = computed(() => {
 
   return true
 })
-
-function toggleTheme() {
-  preferences.setTheme(preferences.theme === 'dark' ? ('light' as ScreenTheme) : ('dark' as ScreenTheme))
-}
 
 function goHome() {
   const homePageByOrganization: Partial<Record<OrganizationType, PageKey>> = {
@@ -502,11 +498,6 @@ function resolveSearchItemThumbnail(item: IntegratedSearchItem) {
         </button>
       </div>
 
-
-      <!-- 아래 아이콘 버튼들은 그대로 둡니다. -->
-      <button class="app-icon-button" type="button" @click="toggleTheme">
-        <span class="material-symbols-outlined">contrast</span>
-      </button>
 
       <button
         :class="['app-icon-button', { 'app-icon-button--badge': chat.totalUnreadCount > 0 }]"
