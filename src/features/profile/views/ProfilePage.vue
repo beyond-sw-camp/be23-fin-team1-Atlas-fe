@@ -870,6 +870,17 @@ await chat.openProfileDirectRoom({
 
 }
 
+function parseServerDateTime(value?: string) {
+  if (!value) return null
+
+  // 서버가 타임존 없는 LocalDateTime을 내려주면 한국시간으로 기록된 값으로 봅니다.
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value)
+  const normalizedValue = hasTimezone ? value : `${value}+09:00`
+  const date = new Date(normalizedValue)
+
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 
 // 날짜와 시간을 보기 좋게 보여줍니다.
 // 이 함수는 이력 목록용이라 시간까지 포함합니다.
@@ -880,7 +891,7 @@ function formatDateTime(value?: string) {
   const isUtc = !value.includes('Z') && !value.includes('+')
   const date = new Date(isUtc ? value + 'Z' : value)
 
-  if (Number.isNaN(date.getTime())) {
+  if (!date) {
     return value
   }
 
@@ -903,7 +914,7 @@ function formatLoginTimeOnly(value?: string) {
   const isUtc = !value.includes('Z') && !value.includes('+')
   const date = new Date(isUtc ? value + 'Z' : value)
 
-  if (Number.isNaN(date.getTime())) {
+  if (!date) {
     return value
   }
 

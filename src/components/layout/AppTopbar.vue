@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAtlasSessionStore } from '../../stores/session'
-import type { ScreenTheme, PageKey } from '../../types'
+import type { OrganizationType, ScreenTheme, PageKey } from '../../types'
 import { UI_COPY } from '../../config/appCopy'
 import { useAtlasNavigationStore } from '../../stores/navigation'
 import { useAtlasPreferencesStore } from '../../stores/preferences'
@@ -95,7 +95,16 @@ function toggleTheme() {
 }
 
 function goHome() {
-  const home = navigation.availableNavItems[0]
+  const homePageByOrganization: Partial<Record<OrganizationType, PageKey>> = {
+    admin: 'auditTrail',
+    mainBuyer: 'shipments',
+    supplier: 'shipments',
+  }
+  const preferredHome = homePageByOrganization[preferences.organization]
+  const home =
+    navigation.availableNavItems.find((item) => item.key === preferredHome) ??
+    navigation.availableNavItems[0]
+
   if (home) {
     navigation.navigateToPage(home.key)
   }
