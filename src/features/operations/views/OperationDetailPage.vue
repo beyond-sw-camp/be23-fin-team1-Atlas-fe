@@ -4323,7 +4323,10 @@ watch(
                         <dd>
                           <span
                             v-if="row.role === 'status'"
-                            class="operation-detail-page__item-info-status-chip"
+                            :class="[
+                              'operation-detail-page__item-info-status-chip',
+                              `is-${chipTone(row.value)}`,
+                            ]"
                           >
                             {{ row.value }}
                           </span>
@@ -6434,12 +6437,30 @@ watch(
   justify-content: center;
   min-height: 24px;
   padding: 4px 10px;
-  color: var(--success, #2d7d46);
   font-size: 0.72rem;
   font-weight: 900;
   line-height: 1;
+  color: var(--text-tertiary, #6f7778);
+  border: 1px solid rgb(111 119 120 / 0.32);
+  background: rgb(111 119 120 / 0.08);
+}
+
+.operation-detail-page__item-info-status-chip.is-success {
+  color: var(--success, #2d7d46);
   border: 1px solid rgb(45 125 70 / 0.42);
   background: rgb(45 125 70 / 0.08);
+}
+
+.operation-detail-page__item-info-status-chip.is-critical {
+  color: var(--danger, #b84a4a);
+  border: 1px solid rgb(184 74 74 / 0.42);
+  background: rgb(184 74 74 / 0.08);
+}
+
+.operation-detail-page__item-info-status-chip.is-warning {
+  color: var(--warning, #9a6a13);
+  border: 1px solid rgb(154 106 19 / 0.42);
+  background: rgb(154 106 19 / 0.08);
 }
 
 .operation-detail-page__domain-table {
