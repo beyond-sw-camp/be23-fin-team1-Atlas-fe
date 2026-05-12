@@ -259,7 +259,6 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
 
     stompClient.onConnect = () => {
       isConnected.value = true
-      console.log('[STOMP] Chat connected.')
 
       // 알림 구독 — 채팅 STOMP 클라이언트에 통합 (별도 연결 불필요)
       if (currentUserPublicId.value) {
@@ -273,12 +272,10 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
             if (isChatNotification(notification)) {
               void fetchRooms()
             }
-            console.log('[STOMP] 알림 수신:', notification)
           } catch (e) {
             console.error('[STOMP] 알림 파싱 실패', e)
           }
         })
-        console.log(`[STOMP] 알림 구독 완료: /sub/notify.user.${currentUserPublicId.value}`)
       }
 
       // 채팅 패널이 열려있고 특정 방에 들어와있다면 구독 재개
@@ -330,8 +327,6 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
         return
       }
 
-      console.log('[STOMP] 메시지 수신:', chatMsg.messageBody?.slice(0, 30))
-
       // 현재 방의 메시지면 추가
       if (currentRoomPublicId.value === roomPublicId) {
         // 이미 있는 메시지인지 확인 (중복 방지)
@@ -377,7 +372,6 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
     if (roomSubscriptions.value.has(roomPublicId)) return
 
     const subPath = `/sub/chat.room.${roomPublicId}`
-    console.log('[STOMP] 채팅방 구독 시작:', subPath)
 
     const subscription = stompClient.subscribe(subPath, (message) => {
       handleIncomingRoomMessage(roomPublicId, message.body)
@@ -420,9 +414,7 @@ export const useAtlasChatStore = defineStore('atlasChat', () => {
 
   async function markAsRead(roomPublicId: string, lastMessagePublicId?: string) {
     try {
-      console.log('[Chat] markAsRead 호출:', roomPublicId, lastMessagePublicId)
       await chatService.markAsRead(roomPublicId, { lastReadMessagePublicId: lastMessagePublicId })
-      console.log('[Chat] markAsRead 성공')
       const room = rooms.value.find(r => r.publicId === roomPublicId)
       if (room) {
         room.unreadCount = 0
@@ -485,9 +477,6 @@ async function fetchAvailableUsers() {
     } else {
       console.warn('[Chat] 사용자 목록 구조를 파악할 수 없습니다.', response)
     }
-
-    // 디버깅용: F12 콘솔에서 데이터 직접 확인 가능하도록 출력
-    console.log('[Chat] 원본 사용자 데이터:', users)
 
     // 채팅 초대 목록에서 쓰는 형태로 변환합니다.
     availableUsers.value = users.map((user: any) => {
@@ -669,8 +658,6 @@ async function fetchAvailableUsers() {
     messages.value = []
     const requestedRoomPublicId = roomPublicId
 
-    console.log('[Chat] openRoom 시작:', roomPublicId)
-
     // 초대 목록용 전체 사용자 조회 (동시 호출)
     fetchAvailableUsers()
 
@@ -684,8 +671,6 @@ async function fetchAvailableUsers() {
       const raw = ((result as any).content || result || [])
       const initialMessages = Array.isArray(raw) ? raw.reverse().map(mapToChatMessage) : []
       mergeRoomMessages(initialMessages)
-
-      console.log('[Chat] 메시지 로드 완료:', messages.value.length, '건')
 
       // 참여자 목록 조회
       try {
@@ -717,16 +702,13 @@ async function fetchAvailableUsers() {
         room.unreadCount = 0
       }
 
-      console.log('[Chat] markAsRead 호출 직전, 메시지 수:', messages.value.length)
       if (messages.value.length > 0) {
         const lastMsg = messages.value[messages.value.length - 1]
-        console.log('[Chat] 마지막 메시지 publicId:', lastMsg.publicId)
         await markAsRead(roomPublicId, lastMsg.publicId)
       } else {
         await markAsRead(roomPublicId)
       }
       startRoomMessageSync()
-      console.log('[Chat] openRoom 완료')
     } catch (e) {
       console.error('[Chat] openRoom 에러:', e)
     } finally {

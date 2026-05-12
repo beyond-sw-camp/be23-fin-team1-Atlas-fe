@@ -297,7 +297,6 @@ async function handleSubmit() {
 
   try {
     isSubmitting.value = true
-    console.log('[ReturnCreate] 요청 데이터:', JSON.stringify(form.value, null, 2))
     const createdReturn = await createReturn(form.value)
     
     if (proofFiles.value.length > 0) {

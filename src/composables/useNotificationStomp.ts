@@ -40,7 +40,6 @@ export function useNotificationStomp(userPublicId: string = 'user-001') {
 
     stompClient.onConnect = () => {
       isConnected.value = true
-      console.log(`[STOMP] Connected. Subscribing to notifications for ${userPublicId}`)
       
       stompClient?.subscribe(`/sub/notify.user.${userPublicId}`, (message) => {
         try {
