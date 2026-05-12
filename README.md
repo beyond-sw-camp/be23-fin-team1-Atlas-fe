@@ -335,9 +335,43 @@
   </details>
 
   <details>
-    <summary><b>7.2 창고</b></summary>
+    <summary><b>7.2 사용자</b></summary>
 
-  <h4>7.2.1 창고 관리</h4>
+ <h4>7.2.1 로그인 보안 관리</h4>
+
+<img width="900" src="images/중복로그인.png" />
+<img width="900" src="images/다른ip이메일인증.png" />
+
+<ul>
+  <li>
+    <strong>중복 로그인 감지:</strong>
+    동일 계정이 다른 기기 또는 브라우저에서 로그인될 경우 기존 접속 세션을 만료 처리하고,
+    현재 사용자는 중복 로그인 안내 모달을 통해 재로그인을 유도
+  </li>
+  <li>
+    <strong>다른 IP 로그인 인증:</strong>
+    기존과 다른 IP에서 로그인이 감지되면 이메일 인증 절차를 추가로 요구하여 비정상 접근을 방지
+  </li>
+  <li>
+    <strong>이메일 인증 코드 검증:</strong>
+    사용자 이메일로 전송된 인증 코드를 제한 시간 내 입력해야 로그인을 완료할 수 있도록 처리
+  </li>
+  <li>
+    <strong>세션 보안 강화:</strong>
+    토큰 발급 시점과 최근 로그인 시점을 비교하여 이전 세션의 토큰을 무효화하고 계정 보안을 강화
+  </li>
+  <li>
+    <strong>로그인/보안 이력 관리:</strong>
+    로그인 성공 여부, 접속 IP, 브라우저 정보, 보안 이벤트를 기록하여 사용자가 계정 접근 이력을 확인 가능
+  </li>
+</ul>
+    
+  </details>
+
+  <details>
+    <summary><b>7.3 창고</b></summary>
+
+  <h4>7.3.1 창고 관리</h4>
   <img width="" height="" src="images\창고등록.png" />
   <img width="" height="" src="images\창고지도.png" />
     <ul>
@@ -350,9 +384,9 @@
   </details>
 
   <details>
-    <summary><b>7.3 품목</b></summary>
+    <summary><b>7.4 품목</b></summary>
 
-  <h4>7.3.1 카테고리 관리</h4>
+  <h4>7.4.1 카테고리 관리</h4>
   <img width="" height="" src="images\카테고리생성.png" />
     <ul>
       <li><strong>카테고리 등록:</strong> 식자재 등 품목 분류 기준 등록</li>
@@ -361,7 +395,7 @@
     </ul>
     
 
-  <h4>7.3.2 품목 관리</h4>
+  <h4>7.4.2 품목 관리</h4>
   <img width="" height="" src="images\품목등록.png" />
       <img width="" height="" src="images\품목상세.png" />
     <ul>
@@ -377,9 +411,9 @@
 
 
   <details>
-    <summary><b>7.4 재고</b></summary>
+    <summary><b>7.5 재고</b></summary>
 
-  <h4>7.4.1 재고 관리</h4>
+  <h4>7.5.1 재고 관리</h4>
   <img width="" height="" src="images\재고관리.png" />
     <img width="" height="" src="images\재고상세.png" />
     <ul>
@@ -394,9 +428,9 @@
   </details>
 
   <details>
-    <summary><b>7.5 발주</b></summary>
+    <summary><b>7.6 발주</b></summary>
 
-  <h4>7.5.1 발주 생성 및 조회</h4>
+  <h4>7.6.1 발주 생성 및 조회</h4>
   <img width="" height="" src="images\발주관리.png" />
     <ul>
       <li><strong>발주 생성:</strong> 공급사, 품목, 요청 수량, 납기일 등을 입력하여 발주 생성</li>
@@ -405,7 +439,7 @@
       <li><strong>발주 품목 관리:</strong> 하나의 발주에 여러 품목을 연결하여 주문 처리</li>
     </ul>
 
-  <h4>7.5.2 발주 처리</h4>
+  <h4>7.6.2 발주 처리</h4>
     <img width="" height="" src="images\발주관리.png" />
     <ul>
       <li><strong>발주 수락:</strong> 공급사가 요청된 발주를 수락하고 후속 재고/출하 흐름으로 연결</li>
@@ -417,9 +451,9 @@
   </details>
 
   <details>
-    <summary><b>7.6 출하</b></summary>
+    <summary><b>7.7 출하</b></summary>
 
-  <h4>7.6.1 출하 관리</h4>
+  <h4>7.7.1 출하 관리</h4>
   <img width="" height="" src="images\출하.png" />
     <img width="" height="" src="images\출하지도.png" />
     <img width="" height="" src="images\출하상세.png" />
@@ -434,9 +468,9 @@
   </details>
 
   <details>
-    <summary><b>7.7 반품/교환</b></summary>
+    <summary><b>7.8 반품/교환</b></summary>
 
-  <h4>7.7.1 반품 요청</h4>
+  <h4>7.8.1 반품 요청</h4>
   <img width="" height="" src="images\반품.png" />
     <img width="" height="" src="images\반품요청.png" />
     <ul>
@@ -446,7 +480,7 @@
       <li><strong>반품 상세 조회:</strong> 반품 요청 정보, 품목, 사유, 증빙 자료, 처리 상태 확인</li>
     </ul>
 
-  <h4>7.7.2 교환 및 처리</h4>
+  <h4>7.8.2 교환 및 처리</h4>
     <img width="" height="" src="images\반품.png" />
     <ul>
       <li><strong>검수 결과 등록:</strong> 반품 품목에 대한 검수 결과와 처리 의견 기록</li>
@@ -457,9 +491,9 @@
   </details>
 
   <details>
-    <summary><b>7.8 정산</b></summary>
+    <summary><b>7.9 정산</b></summary>
 
-   <h4>7.8.1 정산 관리</h4>
+   <h4>7.9.1 정산 관리</h4>
    <img width="" height="" src="images\정산관리1.png" />
     <img width="" height="" src="images\정산관리2.png" />
     <ul>
@@ -472,9 +506,9 @@
   </details>
 
   <details>
-    <summary><b>7.9 조직관리</b></summary>
+    <summary><b>7.10 조직관리</b></summary>
 
-  <h4>7.9.1 조직 및 사용자 관리</h4>
+  <h4>7.10.1 조직 및 사용자 관리</h4>
   <img width="" height="" src="images\최초 로그인 화면.png" />
     <img width="" height="" src="images\조직생성.png" />
     <img width="" height="" src="images\조직대표자생성.png" />
@@ -490,9 +524,9 @@
   </details>
 
   <details>
-    <summary><b>7.10 알림</b></summary>
+    <summary><b>7.11 알림</b></summary>
 
-  <h4>7.10.1 업무 알림</h4>
+  <h4>7.11.1 업무 알림</h4>
   <img width="" height="" src="images\알림 관리.png" />
     <ul>
       <li><strong>발주 알림:</strong> 신규 발주, 발주 수락/반려, 확정 상태 변경 알림</li>
@@ -504,9 +538,9 @@
   </details>
 
   <details>
-    <summary><b>7.11 채팅</b></summary>
+    <summary><b>7.12 채팅</b></summary>
 
-  <h4>7.11.1 실시간 커뮤니케이션</h4>
+  <h4>7.12.1 실시간 커뮤니케이션</h4>
   <img width="" height="" src="images\채팅.png" />
     <ul>
       <li><strong>업무 채팅:</strong> 발주사와 공급사 간 업무 협의를 위한 채팅 기능</li>
@@ -517,9 +551,9 @@
   </details>
 
   <details>
-    <summary><b>7.12 인증서</b></summary>
+    <summary><b>7.13 인증서</b></summary>
 
-  <h4>7.12.1 공급사 인증서 관리</h4>
+  <h4>7.13.1 공급사 인증서 관리</h4>
   <img width="" height="" src="images\인증분류생성.png" />
     <img width="" height="" src="images\인증서 관리.png" />
     <img width="" height="" src="images\인증서등록.png" />
@@ -534,9 +568,9 @@
   </details>
 
   <details>
-    <summary><b>7.13 프로필</b></summary>
+    <summary><b>7.14 프로필</b></summary>
 
-  <h4>7.13.1 사용자 프로필</h4>
+  <h4>7.14.1 사용자 프로필</h4>
   <img width="" height="" src="images\개인프로필.png" />
     <img width="" height="" src="images\조직대표자비밀번호변경.png" />
     <ul>
