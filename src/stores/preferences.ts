@@ -46,6 +46,7 @@ const ROUTE_PAGE_KEY_OVERRIDES: Record<string, PageKey> = {
   shipmentCreate: 'shipments',
   settlementBudgetCreate: 'settlements',
   returnCreate: 'returns',
+  userProfile: 'profile',
 }
 
 function getRouteNamePageKey(value: unknown, kind: unknown): PageKey {

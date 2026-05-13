@@ -27,7 +27,6 @@ import RecommendationsPage from '../features/response/views/RecommendationsPage.
 import StructuredPage from '../features/shared/components/StructuredPage.vue'
 import AuditPage from '../features/system/views/AuditPage.vue'
 import CertificateReviewPage from '../features/system/views/CertificateReviewPage.vue'
-import DesignSystemPage from '../features/system/views/DesignSystemPage.vue'
 import NotificationsPage from '../features/system/views/NotificationsPage.vue'
 import SettingsPage from '../features/system/views/SettingsPage.vue'
 import SystemSpecPage from '../features/system/views/SystemSpecPage.vue'
@@ -50,7 +49,6 @@ const pageRoutes = [
     meta: { hidePageHead: true },
   },
 
-  { path: 'design-system', name: 'designSystem', component: DesignSystemPage },
   { path: 'dashboard', alias: ['control-tower'], name: 'controlTower', component: ControlTowerPage },
   { path: 'impact', alias: ['impact-orders'], name: 'impactOrders', component: StructuredPage, props: { page: monitoringPageDefinitions.impactOrders } },
   { path: 'network', alias: ['supplier-network'], name: 'supplierNetwork', component: SupplierNetworkPage, meta: { hidePageHead: true } },

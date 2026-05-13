@@ -1940,30 +1940,23 @@ select:not(.app-language-select select):focus {
 }
 
 .structured-page,
-.design-system-page,
 .profile-page,
 .system-spec-page {
   display: grid;
   gap: 20px;
 }
 
-.design-system-page__intro,
 .spec-intro-panel {
   position: relative;
   overflow: hidden;
 }
 
-.design-system-page__lede,
 .spec-intro-panel__text {
   margin: 0;
   max-width: 900px;
   font-size: 0.95rem;
   line-height: 1.8;
   color: var(--on-surface-variant, #596061);
-}
-
-.design-system-page__metrics {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .design-mode-grid {
@@ -4083,7 +4076,6 @@ select:not(.app-language-select select):focus {
 @media (max-width: 1100px) {
 
   .page-metrics,
-  .design-system-page__metrics,
   .profile-page .page-metrics,
   .page-panels,
   .profile-summary,

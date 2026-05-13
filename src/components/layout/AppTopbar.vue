@@ -251,48 +251,17 @@ function openUserResult(item: IntegratedSearchItem) {
   closeSearchPanel()
 }
 function openOrganizationResult(item: IntegratedSearchItem) {
-  // 플랫폼 관리자는 조직관리 상세로 이동합니다.
-  if (session.userRole === 'ADMIN') {
-    if (!item.id) {
-      navigation.navigateToPage('organizationManagement')
-      closeSearchPanel()
-      return
-    }
-
-    router.push({
-      name: 'organizationManagement',
-      query: {
-        ...preferences.buildQuery(),
-        organizationId: String(item.id),
-      },
-    })
-
+  if (!item.id) {
+    navigation.navigateToPage('organizationManagement')
     closeSearchPanel()
     return
   }
 
-  // 다른 조직 담당자는 읽기 전용 조직 프로필로 이동합니다.
-  if (!item.publicId) {
-    return
-  }
-
   router.push({
-    name: 'organizationProfile',
-    params: {
-      organizationPublicId: item.publicId,
-    },
+    name: 'organizationManagement',
     query: {
       ...preferences.buildQuery(),
-      organizationId: item.id != null ? String(item.id) : '',
-      organizationName: item.title,
-      organizationEnglishName: item.organizationEnglishName ?? '',
-      contactEmail: item.contactEmail ?? '',
-      contactPhone: item.contactPhone ?? '',
-      contactName: item.contactName ?? '',
-      address: item.address ?? '',
-      addressDetail: item.addressDetail ?? '',
-      zipCode: item.zipCode ?? '',
-
+      organizationId: String(item.id),
     },
   })
 
