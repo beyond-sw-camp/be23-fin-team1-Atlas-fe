@@ -2101,7 +2101,9 @@ function sortHistoryRows(rows: any[]) {
 
 function historyRowTime(row: any) {
   const raw = row?.createdAt ?? row?.recordedAt ?? row?.updatedAt
-  const time = raw ? new Date(raw).getTime() : 0
+  const value = raw ? String(raw) : ''
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value)
+  const time = value ? new Date(hasTimezone ? value : `${value}Z`).getTime() : 0
   return Number.isNaN(time) ? 0 : time
 }
 
@@ -2415,7 +2417,22 @@ function formatAmount(value: unknown, _currency?: string) {
 
 function formatDate(value: unknown) {
   if (!value) return '-'
-  return String(value).replace('T', ' ').slice(0, 16)
+  const raw = String(value)
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(raw)
+  const normalizedValue = hasTimezone ? raw : `${raw}Z`
+  const date = new Date(normalizedValue)
+
+  if (Number.isNaN(date.getTime())) return raw
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Seoul',
+  }).format(date)
 }
 
 function formatDateOnly(value: unknown) {
@@ -2440,7 +2457,9 @@ function formatLeadTimeRange(values: number[]) {
 
 function getTimeValue(value: unknown) {
   if (!value || value === '-') return 0
-  const parsed = new Date(String(value).replace(/\./g, '-')).getTime()
+  const raw = String(value).replace(/\./g, '-')
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(raw)
+  const parsed = new Date(hasTimezone ? raw : `${raw}Z`).getTime()
   return Number.isNaN(parsed) ? 0 : parsed
 }
 
@@ -2451,13 +2470,23 @@ function sortByRecentTime<T extends Record<string, any>>(rows: T[], key = 'recor
 function formatShipmentEta(value: unknown) {
   if (!value) return '-'
   const raw = String(value)
-  const date = new Date(raw)
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(raw)
+  const date = new Date(hasTimezone ? raw : `${raw}Z`)
   if (Number.isNaN(date.getTime())) return raw.replace('T', ' ').slice(5, 16)
 
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hour = String(date.getHours()).padStart(2, '0')
-  const minute = String(date.getMinutes()).padStart(2, '0')
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Seoul',
+  }).formatToParts(date)
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '00'
+  const month = part('month')
+  const day = part('day')
+  const hour = part('hour')
+  const minute = part('minute')
   return `${month}. ${day}. ${hour}:${minute}`
 }
 

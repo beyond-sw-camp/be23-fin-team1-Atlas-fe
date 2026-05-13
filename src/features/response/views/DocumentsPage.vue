@@ -325,12 +325,23 @@ function formatDisplayDate(value?: string | null) {
 
 function formatDisplayDateTime(value?: string | null) {
   if (!value) return '-'
-  const date = new Date(value)
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value)
+  const normalizedValue = hasTimezone ? value : `${value}Z`
+  const date = new Date(normalizedValue)
   if (Number.isNaN(date.getTime())) return value
-  return [
-    `${date.getFullYear()}. ${String(date.getMonth() + 1).padStart(2, '0')}. ${String(date.getDate()).padStart(2, '0')}.`,
-    `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
-  ].join(' ')
+
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Seoul',
+  }).formatToParts(date)
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '00'
+
+  return `${part('year')}. ${part('month')}. ${part('day')}. ${part('hour')}:${part('minute')}`
 }
 
 function formatFileSize(bytes: number) {
