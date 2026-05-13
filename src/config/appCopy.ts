@@ -31,10 +31,6 @@ export const ORGANIZATION_I18N: Record<OrganizationType, Record<AppLanguage, str
 }
 
 export const NAV_I18N: Record<NavKey, Record<AppLanguage, { label: string; description: string; pageSubtitle: string }>> = {
-  designSystem: {
-    ko: { label: '디자인 시스템', description: '토큰, 타이포, 인터랙션 기준', pageSubtitle: 'Kinetic Blueprint 토큰, 계층, 컴포넌트 기준' },
-    en: { label: '디자인 시스템', description: '토큰, 타이포, 인터랙션 기준', pageSubtitle: 'Kinetic Blueprint 토큰, 계층, 컴포넌트 기준' },
-  },
   organizationProfile: {
     ko: {
       label: '조직 프로필',

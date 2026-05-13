@@ -74,9 +74,12 @@ const navigation = useAtlasNavigationStore()
 // 현재 로그인한 사용자의 역할 정보를 읽습니다.
 const actor = useActorScope()
 
+// 통합검색에서 조직 상세로 들어온 경우에는 조회 전용으로 처리합니다.
+const isOrganizationLookupMode = computed(() => getRouteOrganizationId() !== null)
+
 // 이 페이지는 플랫폼 관리자와 조직 대표자만 볼 수 있습니다.
 const canManageOrganization = computed(() => {
-  return actor.isAdminRole.value || actor.isOrgAdminRole.value
+  return isOrganizationLookupMode.value || actor.isAdminRole.value || actor.isOrgAdminRole.value
 })
 
 // 플랫폼 관리자 여부입니다.
@@ -85,16 +88,34 @@ const isAdminManager = computed(() => actor.isAdminRole.value)
 // 조직 대표자 여부입니다.
 const isOrgAdminManager = computed(() => actor.isOrgAdminRole.value)
 
-// 조직 수정은 조직 대표자만 할 수 있습니다.
-const canEditOrganization = computed(() => actor.isOrgAdminRole.value)
+// 검색으로 들어와도 로그인한 조직 대표자의 자기 조직이면 관리할 수 있습니다.
+const canManageSelectedOrganization = computed(() => {
+  if (!isOrganizationLookupMode.value) {
+    return true
+  }
 
-// 조직 상태 변경은 플랫폼 관리자와 조직 대표자 모두 가능합니다.
-const canChangeOrganizationStatus = computed(() => {
-  return actor.isAdminRole.value || actor.isOrgAdminRole.value
+  if (!actor.isOrgAdminRole.value) {
+    return false
+  }
+
+  const selectedOrganizationPublicId = selectedOrganizationDetail.value?.organizationPublicId
+
+  return !!selectedOrganizationPublicId && selectedOrganizationPublicId === actor.organizationPublicId.value
 })
 
-// 조직 삭제는 플랫폼 관리자만 가능합니다.
-const canDeleteOrganization = computed(() => actor.isAdminRole.value)
+// 조직 수정은 조직 대표자가 자기 조직을 볼 때만 할 수 있습니다.
+const canEditOrganization = computed(() => canManageSelectedOrganization.value && actor.isOrgAdminRole.value)
+
+// 조직 상태 변경은 권한 있는 관리자만 가능합니다.
+const canChangeOrganizationStatus = computed(() => {
+  return canManageSelectedOrganization.value && (actor.isAdminRole.value || actor.isOrgAdminRole.value)
+})
+
+// 조직 삭제는 플랫폼 관리자가 직접 조직관리에서 처리할 때만 가능합니다.
+const canDeleteOrganization = computed(() => !isOrganizationLookupMode.value && actor.isAdminRole.value)
+
+// 통합검색 조회 모드에서는 관리자라도 목록/생성 패널을 숨깁니다.
+const shouldShowOrganizationList = computed(() => isAdminManager.value && !isOrganizationLookupMode.value)
 
 // 조직관리 페이지 안에서 현재 어떤 탭을 보고 있는지 저장합니다.
 const activeTab = ref<OrganizationManagementTabKey>('organization')
@@ -1121,15 +1142,15 @@ async function loadPage() {
     return
   }
 
+  const routeOrganizationId = getRouteOrganizationId()
+
+  if (routeOrganizationId !== null) {
+    await loadOrganizationDetailById(routeOrganizationId)
+    return
+  }
+
   if (isAdminManager.value) {
     await loadOrganizationList()
-
-    const routeOrganizationId = getRouteOrganizationId()
-
-    if (routeOrganizationId !== null) {
-      await loadOrganizationDetailById(routeOrganizationId)
-    }
-
     return
   }
 
@@ -1359,10 +1380,6 @@ onMounted(() => {
 watch(
   () => route.query.organizationId,
   async () => {
-    if (!isAdminManager.value) {
-      return
-    }
-
     const routeOrganizationId = getRouteOrganizationId()
 
     if (routeOrganizationId !== null) {
@@ -1415,7 +1432,7 @@ watch(
           gap: 20px;
         "
       >
-        <article v-if="isAdminManager" class="page-panel">
+        <article v-if="shouldShowOrganizationList" class="page-panel">
           <div class="page-panel__head">
             <div>
               <div class="page-panel__eyebrow">{{ copy.eyebrow }}</div>
@@ -1522,13 +1539,13 @@ watch(
                     ? copy.createDescription
                     : activeTab === 'members'
                       ? copy.memberDescription
-                      : isAdminManager
+                      : isOrganizationLookupMode || isAdminManager
                         ? copy.readOnlyDescription
                         : copy.myOrganizationDescription
                 }}
               </p>
 
-              <div v-if="isOrgAdminManager" class="organization-management-tabs">
+              <div v-if="isOrgAdminManager && !isOrganizationLookupMode" class="organization-management-tabs">
                 <button
                   class="page-button"
                   type="button"
@@ -1551,7 +1568,7 @@ watch(
           </div>
 
           <!-- 조직 생성 폼 -->
-          <template v-if="organizationPanelMode === 'create' && isAdminManager">
+          <template v-if="organizationPanelMode === 'create' && shouldShowOrganizationList">
             <div v-if="organizationCreateError" class="login-error" style="margin-bottom: 12px;">
               {{ organizationCreateError }}
             </div>
@@ -1852,67 +1869,72 @@ watch(
                 </div>
               </div>
 
-              <div v-if="canEditOrganization" class="organization-form-actions">
-                <button
-                  v-if="!isEditingOrganization"
-                  class="page-button page-button--primary"
-                  type="button"
-                  @click="startOrganizationEdit"
-                >
-                  {{ copy.editButton }}
-                </button>
-
-                <template v-else>
+              <div
+                v-if="canEditOrganization || (canChangeOrganizationStatus && !isEditingOrganization)"
+                class="organization-form-actions"
+              >
+                <template v-if="canEditOrganization">
                   <button
-                    class="page-button page-button--secondary"
-                    type="button"
-                    :disabled="isSavingOrganization"
-                    @click="cancelOrganizationEdit"
-                  >
-                    {{ copy.cancelButton }}
-                  </button>
-
-                  <button
+                    v-if="!isEditingOrganization"
                     class="page-button page-button--primary"
                     type="button"
-                    :disabled="isSavingOrganization"
-                    @click="submitOrganizationUpdate"
+                    @click="startOrganizationEdit"
                   >
-                    {{ isSavingOrganization ? copy.savingButton : copy.saveButton }}
+                    {{ copy.editButton }}
+                  </button>
+
+                  <template v-else>
+                    <button
+                      class="page-button page-button--secondary"
+                      type="button"
+                      :disabled="isSavingOrganization"
+                      @click="cancelOrganizationEdit"
+                    >
+                      {{ copy.cancelButton }}
+                    </button>
+
+                    <button
+                      class="page-button page-button--primary"
+                      type="button"
+                      :disabled="isSavingOrganization"
+                      @click="submitOrganizationUpdate"
+                    >
+                      {{ isSavingOrganization ? copy.savingButton : copy.saveButton }}
+                    </button>
+                  </template>
+                </template>
+
+                <template v-if="canChangeOrganizationStatus && !isEditingOrganization">
+                  <button
+                    v-if="selectedOrganizationDetail.status !== 'ACTIVE'"
+                    class="page-button page-button--secondary"
+                    type="button"
+                    :disabled="isUpdatingOrganizationStatus"
+                    @click="submitOrganizationStatusUpdate('ACTIVE')"
+                  >
+                    {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.activateButton }}
+                  </button>
+
+                  <button
+                    v-if="selectedOrganizationDetail.status === 'ACTIVE'"
+                    class="page-button page-button--danger"
+                    type="button"
+                    :disabled="isUpdatingOrganizationStatus"
+                    @click="submitOrganizationStatusUpdate('DEACTIVE')"
+                  >
+                    {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.deactivateButton }}
+                  </button>
+
+                  <button
+                    v-if="canDeleteOrganization && selectedOrganizationDetail.status !== 'DELETE'"
+                    class="page-button page-button--danger"
+                    type="button"
+                    :disabled="isUpdatingOrganizationStatus"
+                    @click="submitOrganizationStatusUpdate('DELETE')"
+                  >
+                    {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.deleteButton }}
                   </button>
                 </template>
-              </div>
-
-              <div v-if="canChangeOrganizationStatus && !isEditingOrganization" class="organization-danger-actions">
-                <button
-                  v-if="selectedOrganizationDetail.status !== 'ACTIVE'"
-                  class="page-button page-button--secondary"
-                  type="button"
-                  :disabled="isUpdatingOrganizationStatus"
-                  @click="submitOrganizationStatusUpdate('ACTIVE')"
-                >
-                  {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.activateButton }}
-                </button>
-
-                <button
-                  v-if="selectedOrganizationDetail.status === 'ACTIVE'"
-                  class="page-button page-button--danger"
-                  type="button"
-                  :disabled="isUpdatingOrganizationStatus"
-                  @click="submitOrganizationStatusUpdate('DEACTIVE')"
-                >
-                  {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.deactivateButton }}
-                </button>
-
-                <button
-                  v-if="canDeleteOrganization && selectedOrganizationDetail.status !== 'DELETE'"
-                  class="page-button page-button--danger"
-                  type="button"
-                  :disabled="isUpdatingOrganizationStatus"
-                  @click="submitOrganizationStatusUpdate('DELETE')"
-                >
-                  {{ isUpdatingOrganizationStatus ? copy.updatingStatusButton : copy.deleteButton }}
-                </button>
               </div>
             </template>
 
@@ -2426,26 +2448,18 @@ watch(
 }
 
 .organization-form-actions .page-button {
-  min-width: 120px;
+  box-sizing: border-box;
+  flex: 0 0 96px;
+  width: 96px;
+  min-width: 96px;
+  padding-inline: 12px;
+  margin-top: 0;
 }
 
 .organization-create-form__contact-name {
   display: grid;
   grid-template-columns: minmax(120px, 0.42fr) minmax(0, 1fr);
   gap: 14px;
-}
-
-.organization-danger-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 20px;
-}
-
-.organization-danger-actions .page-button {
-  width: 96px;
-  min-height: 40px;
-  margin-top: 0;
 }
 
 /* 사원관리 서브탭 */
@@ -2622,14 +2636,9 @@ watch(
     width: 100%;
   }
 
-  .organization-form-actions,
-  .organization-danger-actions {
+  .organization-form-actions {
     justify-content: stretch;
     flex-direction: column;
-  }
-
-  .organization-danger-actions .page-button {
-    width: 100%;
   }
 
   .organization-inline-edit .profile-kv__row input,

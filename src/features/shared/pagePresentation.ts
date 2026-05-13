@@ -1,7 +1,6 @@
 import type { PageKey } from '../../types'
 
 export const PAGE_SHELL_CLASSES: Record<PageKey, string[]> = {
-  designSystem: ['bg-surface-container-lowest', 'text-on-surface', 'antialiased', 'no-roundness'],
   controlTower: ['bg-background', 'text-on-surface', 'antialiased'],
   impactOrders: ['bg-background', 'text-on-surface', 'antialiased'],
   supplierNetwork: ['bg-background', 'text-on-surface', 'antialiased'],

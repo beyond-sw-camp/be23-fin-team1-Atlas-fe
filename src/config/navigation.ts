@@ -1,7 +1,6 @@
 import type { NavEntry, NavSection, OrganizationType, PageKey } from '../types'
 
 export const PAGE_PATHS: Record<PageKey, string> = {
-  designSystem: '/design-system',
   controlTower: '/dashboard',
   impactOrders: '/impact',
   supplierNetwork: '/network',
@@ -46,16 +45,6 @@ export const ORGANIZATION_LABELS: Record<OrganizationType, string> = {
 }
 
 export const NAV_ITEMS: NavEntry[] = [
-  {
-    key: 'designSystem',
-    label: '디자인 시스템',
-    icon: 'palette',
-    description: '토큰, 타이포, 인터랙션 기준',
-    pageSubtitle: 'Kinetic Blueprint 토큰, 계층, 컴포넌트 기준',
-    section: 'system',
-    organizations: ['admin'],
-    hidden: true,
-  },
   {
     key: 'organizationProfile',
     label: '조직 프로필',
@@ -273,6 +262,7 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '권고안 반영 결과, 평가 점수, 월별 추이 관리',
     section: 'governance',
     organizations: ['mainBuyer', 'admin'],
+    hidden: true,
   },
   {
     key: 'vendorKpi',
@@ -282,6 +272,7 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '납기, 품질, ESG, 대응속도 기준 KPI 비교',
     section: 'governance',
     organizations: ['mainBuyer', 'admin'],
+    hidden: true,
   },
   {
     key: 'acceptance',
@@ -291,6 +282,7 @@ export const NAV_ITEMS: NavEntry[] = [
     pageSubtitle: '수용률, 거절 사유, 긴급도별 반영 상태 추적',
     section: 'governance',
     organizations: ['mainBuyer', 'admin'],
+    hidden: true,
   },
   {
     key: 'auditTrail',
@@ -356,7 +348,7 @@ export const NAV_ITEMS: NavEntry[] = [
     description: '조직 목록 조회와 조직 정보 수정',
     pageSubtitle: '플랫폼 관리자와 조직 대표자가 조직 정보를 관리하는 화면',
     section: 'system',
-    organizations: ['mainBuyer', 'supplier'],
+    organizations: ['mainBuyer', 'supplier', 'admin'],
   },
 
   {

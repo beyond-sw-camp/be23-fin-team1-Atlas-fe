@@ -112,6 +112,10 @@ export interface CreateItemCategoryRequestDto {
   sortOrder?: number
 }
 
+export interface ChangeItemCategoryStatusRequestDto {
+  status: 'ACTIVE' | 'DEACTIVE'
+}
+
 export interface ItemResponseDto {
   publicId: string
   supplierPublicId: string
@@ -316,9 +320,16 @@ export async function updateItemCategory(
 }
 
 
-// 품목 카테고리 삭제
-export async function deleteItemCategory(categoryPublicId: string) {
-  await apiClient.delete(`/api/supply/item-category/${categoryPublicId}`)
+// 품목 카테고리 상태 변경
+export async function changeItemCategoryStatus(
+  categoryPublicId: string,
+  data: ChangeItemCategoryStatusRequestDto,
+) {
+  const response = await apiClient.patch<ItemCategoryResponseDto>(
+    `/api/supply/item-category/${categoryPublicId}/status`,
+    data,
+  )
+  return response.data
 }
 
 

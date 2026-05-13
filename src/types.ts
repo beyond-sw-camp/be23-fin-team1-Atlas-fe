@@ -4,7 +4,6 @@ export type OrganizationType = 'mainBuyer' | 'supplier' | 'admin'
 export type AppLanguage = 'ko' | 'en'
 
 export type NavKey =
-  | 'designSystem'
   | 'controlTower'
   | 'impactOrders'
   | 'supplierNetwork'

@@ -12,10 +12,11 @@ import { createSupplier } from '../../../services/supplier'
 
 import { useActorScope } from '../../../composables/useActorScope'
 import {
+  changeItemCategoryStatus,
   createItemCategory,
-  deleteItemCategory,
   getItemCategories,
   updateItemCategory,
+  type ChangeItemCategoryStatusRequestDto,
   type CreateItemCategoryRequestDto,
   type ItemCategoryResponseDto,
   type UpdateItemCategoryRequestDto,
@@ -481,6 +482,10 @@ const selectedParentLabel = computed(() =>
 
 const nextCategoryLevel = computed(() => (selectedCategoryNode.value ? selectedCategoryNode.value.level + 1 : 1))
 
+const canCreateChildCategory = computed(() => (
+  !selectedCategoryNode.value || selectedCategoryNode.value.status === 'ACTIVE'
+))
+
 const selectedCertificateType = computed(
   () => certificateTypes.value.find((type) => type.publicId === selectedCertificateTypePublicId.value) ?? null,
 )
@@ -630,6 +635,7 @@ const editableParentCategoryOptions = computed<CategoryParentOption[]>(() => {
     },
     ...categoryTreeNodes.value
       .filter((category) => category.publicId !== targetCategory.publicId)
+      .filter((category) => category.status === 'ACTIVE')
       .map((category) => ({
         publicId: category.publicId,
         label: category.pathLabel,
@@ -713,6 +719,12 @@ function startCategoryEdit() {
   itemCategoryError.value = ''
   itemCategorySuccess.value = ''
 
+  if (targetCategory.status !== 'ACTIVE') {
+    itemCategoryError.value =
+      '비활성 카테고리는 활성화 후 수정할 수 있습니다.'
+    return
+  }
+
   if (targetCategory.hasChildren) {
     itemCategoryError.value =
       '하위 카테고리가 있는 카테고리는 수정할 수 없습니다.'
@@ -776,44 +788,48 @@ async function submitCategoryEdit() {
   }
 }
 
-async function deleteSelectedCategory() {
+async function toggleSelectedCategoryStatus() {
   const targetCategory = selectedCategoryNode.value
   if (!targetCategory) return
 
   itemCategoryError.value = ''
   itemCategorySuccess.value = ''
 
-  if (targetCategory.hasChildren) {
+  const nextStatus = targetCategory.status === 'DEACTIVE' ? 'ACTIVE' : 'DEACTIVE'
+
+  if (nextStatus === 'DEACTIVE' && targetCategory.hasChildren) {
     itemCategoryError.value =
-      '하위 카테고리가 있는 카테고리는 삭제할 수 없습니다.'
+      '하위 카테고리가 있는 카테고리는 비활성화할 수 없습니다.'
     return
   }
 
   const confirmed = await dialog.confirm(
     preferences.language === 'ko'
-      ? `'${targetCategory.categoryName}' 카테고리를 삭제하시겠습니까?`
-      : `Delete '${targetCategory.categoryName}' category?`,
+      ? `'${targetCategory.categoryName}' 카테고리를 ${nextStatus === 'DEACTIVE' ? '비활성화' : '활성화'}하시겠습니까?`
+      : `${nextStatus === 'DEACTIVE' ? 'Deactivate' : 'Activate'} '${targetCategory.categoryName}' category?`,
   )
 
   if (!confirmed) return
 
-  const nextSelectedCategoryPublicId = targetCategory.parentCategoryPublicId ?? ''
-
   try {
     itemCategoryDeleting.value = true
-    await deleteItemCategory(targetCategory.publicId)
+    await changeItemCategoryStatus(targetCategory.publicId, {
+      status: nextStatus,
+    } satisfies ChangeItemCategoryStatusRequestDto)
 
     itemCategorySuccess.value =
-      '카테고리가 삭제되었습니다.'
+      nextStatus === 'DEACTIVE'
+        ? '카테고리가 비활성화되었습니다.'
+        : '카테고리가 활성화되었습니다.'
 
     cancelCategoryEdit()
     await loadItemCategories()
-    selectedCategoryPublicId.value = nextSelectedCategoryPublicId
+    selectedCategoryPublicId.value = targetCategory.publicId
   } catch (error: any) {
     itemCategoryError.value =
       error?.payload?.message ||
       error?.message ||
-      ('카테고리 삭제에 실패했습니다.')
+      ('카테고리 상태 변경에 실패했습니다.')
   } finally {
     itemCategoryDeleting.value = false
   }
@@ -822,6 +838,12 @@ async function deleteSelectedCategory() {
 async function submitItemCategory() {
   itemCategoryError.value = ''
   itemCategorySuccess.value = ''
+
+  if (!canCreateChildCategory.value) {
+    itemCategoryError.value =
+      '비활성 카테고리 아래에는 하위 카테고리를 추가할 수 없습니다.'
+    return
+  }
 
   if (!itemCategoryForm.categoryName.trim()) {
     itemCategoryError.value =
@@ -1500,7 +1522,13 @@ if (!selectedOrganizationPublicId.value) {
             <div
               v-for="category in visibleCategoryNodes"
               :key="category.publicId"
-              :class="['settings-category__node', { 'is-active': selectedCategoryPublicId === category.publicId }]"
+              :class="[
+                'settings-category__node',
+                {
+                  'is-active': selectedCategoryPublicId === category.publicId,
+                  'is-inactive': category.status === 'DEACTIVE',
+                },
+              ]"
               :style="{ '--category-level': String(Math.max(category.level - 1, 0)) }"
             >
               <button
@@ -1572,19 +1600,24 @@ if (!selectedOrganizationPublicId.value) {
       <button
         class="page-button page-button--secondary"
         type="button"
-        :disabled="itemCategoryUpdating || itemCategoryDeleting"
+        :disabled="itemCategoryUpdating || itemCategoryDeleting || selectedCategoryNode.status !== 'ACTIVE'"
         @click="startCategoryEdit"
       >
         {{ '수정' }}
       </button>
 
       <button
-        class="page-button page-button--danger"
+        :class="[
+          'page-button',
+          selectedCategoryNode.status === 'DEACTIVE'
+            ? 'page-button--secondary'
+            : 'page-button--danger',
+        ]"
         type="button"
         :disabled="itemCategoryUpdating || itemCategoryDeleting"
-        @click="deleteSelectedCategory"
+        @click="toggleSelectedCategoryStatus"
       >
-        {{ '삭제' }}
+        {{ selectedCategoryNode.status === 'DEACTIVE' ? '활성화' : '비활성화' }}
       </button>
     </div>
   </div>
@@ -1667,7 +1700,7 @@ if (!selectedOrganizationPublicId.value) {
     <button
       class="page-button page-button--primary"
       type="button"
-      :disabled="itemCategorySubmitting"
+      :disabled="itemCategorySubmitting || !canCreateChildCategory"
       @click="submitItemCategory"
     >
       {{ selectedCategoryNode ? categoryCopy.submitLabel : categoryCopy.submitRootLabel }}
