@@ -9,6 +9,7 @@ import { ATLAS_NOTIFICATION_EVENT } from '../../../stores/notification'
 import type { NotificationDto } from '../../../services/notification'
 import { useActorScope } from '../../../composables/useActorScope'
 import { apiClient } from '../../../services/http'
+import { getAttachment } from '../../../services/file'
 import {
   getItem,
   getItems,
@@ -768,14 +769,22 @@ async function loadItemMediaForItems(items: ItemResponseDto[]) {
   if (!unloadedItems.length) return
 
   const entries = await Promise.all(
-    unloadedItems.map(async (item) => [
-      item.publicId,
-      itemMediaFilesFromItem(item).length
-        ? itemMediaFilesFromItem(item)
-        : item.primaryMediaFilePublicId
-          ? await getItemMedia(item.publicId)
-          : [],
-    ] as const),
+    unloadedItems.map(async (item) => {
+      let mediaFiles = itemMediaFilesFromItem(item)
+      if (!mediaFiles.length && item.primaryMediaFilePublicId) {
+        try {
+          // Try to load it as an attachment if the backend provided an attachment public ID
+          const attachment = await getAttachment(item.primaryMediaFilePublicId)
+          if (attachment && attachment.files) {
+            mediaFiles = attachment.files.map(f => ({ ...f, kind: 'image' as const }))
+          }
+        } catch {
+          // If it fails, fallback to the item media ref
+          mediaFiles = await getItemMedia(item.publicId)
+        }
+      }
+      return [item.publicId, mediaFiles] as const
+    })
   )
 
   itemMediaMap.value = {
@@ -1301,7 +1310,7 @@ function formatThousandAmount(value: number | null | undefined) {
 
 function isPublicIdLike(value: string | null | undefined) {
   if (!value) return false
-  return /^[A-Z]+_[0-9A-Z]+$/.test(value) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value)
+  return /^(?:[A-Z]+_)?[0-9A-Z]{26}$/.test(value) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value)
 }
 
 function displayNameOrFallback(value: string | null | undefined, fallback = '-') {
