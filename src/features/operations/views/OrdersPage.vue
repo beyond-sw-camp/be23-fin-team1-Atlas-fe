@@ -45,6 +45,7 @@ import {
   getSubPurchaseOrder,
   getSubPurchaseOrdersByParentPo,
   rejectSubPurchaseOrder,
+  acceptSubPurchaseOrder,
   type SubPoStatus,
   type SubPurchaseOrderResponseDto,
 } from '../../../services/subPurchaseOrder'
@@ -2862,14 +2863,7 @@ async function submitAcceptSubOrder() {
     subOrderDetailErrorMessage.value = ''
     subOrderSuccessMessage.value = ''
 
-    for (const item of selectedSubOrder.value.items ?? []) {
-      await confirmSubPurchaseOrderItem(
-        selectedSubOrder.value.subPoPublicId,
-        item.parentPoItemPublicId,
-        item.itemPublicId,
-        { confirmedQty: item.orderedQty },
-      )
-    }
+    await acceptSubPurchaseOrder(selectedSubOrder.value.subPoPublicId)
 
     await afterSubOrderMutation(copy.value.messages.subOrderAcceptSuccess)
   } catch (error) {
