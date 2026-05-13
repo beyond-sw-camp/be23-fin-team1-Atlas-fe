@@ -1320,8 +1320,21 @@ function organizationDisplayName(organizationPublicId: string, fallback = '-') {
     : organization.organizationName
 }
 
-function supplierDisplayName(supplierName: string | null | undefined) {
-  return displayNameOrFallback(supplierName, '거래처 미확인')
+function supplierDisplayName(supplierName: string | null | undefined, fallbackId?: string | null) {
+  let name = supplierName?.trim()
+  
+  if (!name || isPublicIdLike(name)) {
+    const searchId = isPublicIdLike(name) ? name : fallbackId
+    if (searchId) {
+      const foundSupplier = supplierOptions.value.find(s => s.detail?.publicId === searchId || s.detail?.organizationPublicId === searchId)
+      if (foundSupplier?.supplierName) return foundSupplier.supplierName.trim()
+      
+      const orgName = organizationDisplayName(searchId, '')
+      if (orgName) return orgName
+    }
+  }
+  
+  return displayNameOrFallback(name, '거래처 미확인')
 }
 
 function itemDisplayName(itemName: string | null | undefined, itemCode?: string | null) {
@@ -3403,7 +3416,7 @@ onBeforeUnmount(() => {
                 </small>
               </span>
               <span>{{ item.categoryName || copy.uncategorized }}</span>
-              <span>{{ supplierDisplayName(item.supplierName) }}</span>
+              <span>{{ supplierDisplayName(item.supplierName, item.supplierPublicId) }}</span>
               <span>{{ item.unit }}</span>
 
               <div class="orders-page__item-picker-actions">
@@ -3511,7 +3524,7 @@ onBeforeUnmount(() => {
                 </span>
                 <span class="orders-page__line-summary">
                   <strong>{{ selectedCreateLineItem(line)?.itemName || line.selectedItemName || copy.itemLine }}</strong>
-                  <small>{{ supplierDisplayName(selectedCreateLineItem(line)?.supplierName) }}</small>
+                  <small>{{ supplierDisplayName(selectedCreateLineItem(line)?.supplierName, selectedCreateLineItem(line)?.supplierPublicId) }}</small>
                 </span>
               </span>
               <button
@@ -4068,7 +4081,7 @@ onBeforeUnmount(() => {
               :key="supplierPublicIdOf(supplier)"
               :value="supplierPublicIdOf(supplier)"
             >
-              {{ supplierDisplayName(supplier.supplierName) }}
+              {{ supplierDisplayName(supplier.supplierName, supplierPublicIdOf(supplier)) }}
             </option>
           </select>
         </label>
