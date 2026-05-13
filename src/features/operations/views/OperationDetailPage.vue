@@ -551,6 +551,9 @@ const inventoryEditForm = ref({
 const logisticsEditModalOpen = ref(false)
 const logisticsEditLoading = ref(false)
 const logisticsEditErrorMessage = ref('')
+const logisticsActiveToggleLoading = ref(false)
+const logisticsDeactivateBlockedModalOpen = ref(false)
+const logisticsDeactivateBlockedMessage = ref('')
 const logisticsEditForm = ref({
   nodeName: '',
   baseAddress: '',
@@ -2934,6 +2937,15 @@ function closeLogisticsEditModal() {
   logisticsEditErrorMessage.value = ''
 }
 
+function closeLogisticsDeactivateBlockedModal() {
+  logisticsDeactivateBlockedModalOpen.value = false
+  logisticsDeactivateBlockedMessage.value = ''
+}
+
+function isReservedInventoryBlockMessage(message: string) {
+  return /예약\s*재고|reserved/i.test(message)
+}
+
 async function refreshLogisticsNodeHistories() {
   if (kind.value !== 'logistics-nodes' || !publicId.value) return
 
@@ -2979,18 +2991,29 @@ async function submitLogisticsEdit() {
 async function toggleLogisticsNodeActive() {
   if (!data.value) return
 
-  try {
-    loading.value = true
-    errorMessage.value = ''
+  const shouldDeactivate = data.value.active
 
-    data.value = data.value.active
+  try {
+    logisticsActiveToggleLoading.value = true
+    errorMessage.value = ''
+    logisticsDeactivateBlockedMessage.value = ''
+
+    data.value = shouldDeactivate
       ? await deactivateLogisticsNode(publicId.value)
       : await activateLogisticsNode(publicId.value)
     await refreshLogisticsNodeHistories()
   } catch (error: any) {
-    errorMessage.value = error?.message ?? t('활성 상태 변경에 실패했습니다.', 'Failed to update active status.')
+    const message = error?.message ?? t('활성 상태 변경에 실패했습니다.', 'Failed to update active status.')
+
+    if (shouldDeactivate && isReservedInventoryBlockMessage(message)) {
+      logisticsDeactivateBlockedMessage.value = message
+      logisticsDeactivateBlockedModalOpen.value = true
+      return
+    }
+
+    errorMessage.value = message
   } finally {
-    loading.value = false
+    logisticsActiveToggleLoading.value = false
   }
 }
 
@@ -4791,8 +4814,19 @@ watch(
             <button class="page-button page-button--secondary" type="button" @click="handleEditLogisticsNode">
               {{ t('수정', 'Edit') }}
             </button>
-            <button class="page-button page-button--secondary" type="button" :disabled="loading" @click="toggleLogisticsNodeActive">
-              {{ data.active ? t('비활성화', 'Deactivate') : t('활성화', 'Activate') }}
+            <button
+              class="page-button page-button--secondary"
+              type="button"
+              :disabled="logisticsActiveToggleLoading"
+              @click="toggleLogisticsNodeActive"
+            >
+              {{
+                logisticsActiveToggleLoading
+                  ? t('처리 중', 'Processing')
+                  : data.active
+                    ? t('비활성화', 'Deactivate')
+                    : t('활성화', 'Activate')
+              }}
             </button>
             <button class="page-button page-button--secondary" type="button" @click="goBack">
               {{ detailCopy.backToList }}
@@ -5286,6 +5320,23 @@ watch(
             {{ logisticsEditLoading ? t('저장 중', 'Saving') : t('수정 완료', 'Save Changes') }}
           </button>
         </div>
+      </div>
+    </BaseModal>
+
+    <BaseModal
+      v-model="logisticsDeactivateBlockedModalOpen"
+      :title="t('창고 비활성화 불가', 'Cannot Deactivate Warehouse')"
+      :description="logisticsDeactivateBlockedMessage || t('예약 재고가 있는 창고는 비활성화할 수 없습니다.', 'Warehouses with reserved inventory cannot be deactivated.')"
+      size="sm"
+      hide-eyebrow
+      hide-dividers
+      hide-close-button
+      @close="closeLogisticsDeactivateBlockedModal"
+    >
+      <div class="operation-detail-page__bottom-actions operation-detail-page__bottom-actions--end">
+        <button class="page-button page-button--primary" type="button" @click="closeLogisticsDeactivateBlockedModal">
+          {{ t('확인', 'OK') }}
+        </button>
       </div>
     </BaseModal>
 
