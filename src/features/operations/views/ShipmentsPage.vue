@@ -103,6 +103,7 @@ const CONTENT = {
     submitCreate: '출하 생성',
     submitUpdate: '시간 변경',
     cancelDetail: '취소',
+    closeDetail: '닫기',
     saveDetail: '저장',
     startShipment: '배송중 처리',
     arriveShipment: '도착완료 처리',
@@ -203,6 +204,7 @@ const CONTENT = {
     submitCreate: 'CREATE SHIPMENT',
     submitUpdate: 'SAVE TIME',
     cancelDetail: 'CANCEL',
+    closeDetail: 'CLOSE',
     saveDetail: 'SAVE',
     startShipment: 'START DELIVERY',
     arriveShipment: 'CONFIRM ARRIVAL',
@@ -551,6 +553,9 @@ const canArriveSelectedShipment = computed(() => selectedShipmentDetail.value?.c
 const canTrackSelectedShipment = computed(() => selectedShipmentDetail.value?.canTrack === true)
 const canRegisterExceptionSelectedShipment = computed(() =>
   selectedShipmentDetail.value?.canRegisterException === true,
+)
+const detailSecondaryButtonLabel = computed(() =>
+  selectedShipmentDetail.value?.status === 'IN_TRANSIT' ? content.value.closeDetail : content.value.cancelDetail,
 )
 
 function nullableText(value?: string | null) {
@@ -1968,7 +1973,7 @@ onMounted(() => {
             </div>
           </div>
           <div class="shipment-form-grid">
-            <label class="shipment-field">
+            <label class="shipment-field shipment-field--wide">
               <span>{{ content.departureEta }}</span>
               <div class="shipment-date-time-row">
                 <VueDatePicker
@@ -2167,7 +2172,7 @@ onMounted(() => {
     </div>
       <template v-if="selectedShipmentDetail" #footer>
         <button class="page-button page-button--secondary" type="button" @click="closeShipmentDetailModal">
-          {{ content.cancelDetail }}
+          {{ detailSecondaryButtonLabel }}
         </button>
         <button
           v-if="canEditSelectedShipment"
