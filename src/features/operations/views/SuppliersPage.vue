@@ -259,7 +259,21 @@ function toAmountNumber(value: number | null | undefined) {
 
 function formatDate(value: string | undefined) {
   if (!value) return '-'
-  return new Date(value).toLocaleString('ko-KR')
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value)
+  const normalizedValue = hasTimezone ? value : `${value}Z`
+  const date = new Date(normalizedValue)
+
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Seoul',
+  }).format(date)
 }
 
 

@@ -269,11 +269,25 @@ function getStatusTone(status: string): string {
 function formatDate(dateStr?: string): string {
   if (!dateStr) return '-'
 
-  const date = new Date(dateStr)
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(dateStr)
+  const normalizedValue = hasTimezone ? dateStr : `${dateStr}Z`
+  const date = new Date(normalizedValue)
+
+  if (Number.isNaN(date.getTime())) return dateStr
+
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Seoul',
+  }).formatToParts(date)
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '00'
+  const month = part('month')
+  const day = part('day')
+  const hours = part('hour')
+  const minutes = part('minute')
 
   return `${month}-${day} ${hours}:${minutes}`
 }
