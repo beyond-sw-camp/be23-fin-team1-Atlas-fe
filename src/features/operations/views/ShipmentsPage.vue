@@ -86,6 +86,7 @@ const CONTENT = {
     departureEta: '출발 예정 시각',
     arrivalEta: '도착 예정 시각',
     actualDepartedAt: '실제 출발',
+    departedAt: '출발 시각',
     actualArrivedAt: '실제 도착',
     carrierName: '운송사',
     vehicleNo: '차량 번호',
@@ -185,6 +186,7 @@ const CONTENT = {
     departureEta: 'Departure ETA',
     arrivalEta: 'Arrival ETA',
     actualDepartedAt: 'Actual Departed',
+    departedAt: 'Departure Time',
     actualArrivedAt: 'Actual Arrived',
     carrierName: 'Carrier',
     vehicleNo: 'Vehicle No',
@@ -722,6 +724,8 @@ function toShipmentListItem(shipment: ShipmentMapResponseDto): ShipmentListRespo
     currentNodeCode: shipment.currentNodeCode,
     departureEta: shipment.departureEta,
     arrivalEta: shipment.arrivalEta,
+    actualDepartedAt: shipment.actualDepartedAt,
+    actualArrivedAt: shipment.actualArrivedAt,
     status: shipment.status,
     temperatureRequired: shipment.temperatureRequired,
     sealedPackagingRequired: shipment.sealedPackagingRequired,
@@ -1732,7 +1736,7 @@ onMounted(() => {
                 {{ formatNodeDisplay(shipment.destinationNodeName, shipment.destinationNodeCode, shipment.destinationNodePublicId) }}
               </strong>
             </div>
-            <small>{{ content.departureEta }}: {{ formatDate(shipment.departureEta) }}</small>
+            <small>{{ content.departedAt }}: {{ formatDate(shipment.actualDepartedAt || shipment.departureEta) }}</small>
             <small>{{ content.arrivalEta }}: {{ formatDate(shipment.arrivalEta) }}</small>
             <span class="shipment-status-pill" :class="`is-${shipment.status.toLowerCase()}`">
               {{ formatShipmentStatus(shipment.status) }}

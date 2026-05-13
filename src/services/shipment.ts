@@ -29,6 +29,8 @@ export interface ShipmentListResponseDto {
   currentNodeCode?: string | null
   departureEta?: string | null
   arrivalEta?: string | null
+  actualDepartedAt?: string | null
+  actualArrivedAt?: string | null
   status: ShipmentStatus
   temperatureRequired?: boolean
   sealedPackagingRequired?: boolean
