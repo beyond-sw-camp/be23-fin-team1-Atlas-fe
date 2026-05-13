@@ -1656,9 +1656,9 @@ const heroMetrics = computed<DetailMetric[]>(() => {
 
   if (kind.value === 'settlements') {
     return [
-      { label: '정산 상태', value: displayStatus(item.settlementStatus), tone: statusTone.value },
-      { label: '대상 유형', value: displayStatus(item.targetType) },
-      { label: '기간', value: `${item.settlementPeriodStart ?? '-'} ~ ${item.settlementPeriodEnd ?? '-'}` },
+      { label: '정산 상태', value: displaySettlementStatus(item.settlementStatus), tone: statusTone.value },
+      { label: '대상 유형', value: displaySettlementTargetType(item.targetType) },
+      { label: '기간', value: displaySettlementPeriod(item) },
       { label: '금액', value: formatAmount(item.amount, item.currencyCode) },
     ]
   }
@@ -1706,6 +1706,16 @@ const processSteps = computed<DetailStep[]>(() => {
       { label: '협력사 확인', meta: display(item?.supplierName), state: current.includes('CREATED') ? 'active' : 'done' },
       { label: '수량 확정', meta: `${lineItems.value.length}건`, state: current.includes('PARTIAL') ? 'active' : current.includes('REJECT') ? 'critical' : 'done' },
       { label: '운영 완료', meta: displayStatus(item?.poStatus), state: current.includes('COMPLETE') ? 'done' : 'pending' },
+    ]
+  }
+
+  if (kind.value === 'settlements') {
+    const isCompleted = current === 'APPROVED'
+    return [
+      { label: '발주 생성', meta: formatDate(item?.createdAt), state: isCompleted ? 'done' : 'active' },
+      { label: '출하 생성', meta: isCompleted ? '출하 완료' : '-', state: isCompleted ? 'done' : 'pending' },
+      { label: '배송 중', meta: isCompleted ? '도착 완료' : '-', state: isCompleted ? 'done' : 'pending' },
+      { label: '배송 및 정산 완료', meta: isCompleted ? formatDate(item?.settledAt ?? item?.updatedAt) : '-', state: isCompleted ? 'success' : 'pending' },
     ]
   }
 
@@ -1860,10 +1870,10 @@ const sections = computed<DetailSection[]>(() => {
     return [
       section('정산 정보', [
         ['정산 번호', item.settlementNumber ?? '정산 상세'],
-        ['상태', displayStatus(item.settlementStatus)],
-        ['대상 유형', displayStatus(item.targetType)],
+        ['상태', displaySettlementStatus(item.settlementStatus)],
+        ['대상 유형', displaySettlementTargetType(item.targetType)],
         ['대상', item.targetName ?? item.targetNumber ?? '정산 대상'],
-        ['기간', `${item.settlementPeriodStart ?? '-'} ~ ${item.settlementPeriodEnd ?? '-'}`],
+        ['기간', displaySettlementPeriod(item)],
         ['금액', formatAmount(item.amount, item.currencyCode)],
       ]),
     ]
@@ -1945,8 +1955,8 @@ function chipTone(value?: string, fallback: DetailMetric['tone'] = 'neutral') {
   const text = String(value ?? '').toUpperCase()
 
   if (/(REJECT|CANCEL|DELAY|EXPIRED|SUSPEND|TERMINAT|FAILED|SHORTAGE|비활성|높음)/.test(text)) return 'critical'
-  if (/(PENDING|READY|WARNING|PARTIAL|OPEN|CREATED|가득 참|보통|진행 중)/.test(text)) return 'warning'
-  if (/(APPROVED|CONFIRMED|COMPLETE|ARRIVED|ACTIVE|VALID|SAFE|활성|사용 가능|낮음)/.test(text)) return 'success'
+  if (/(PENDING|READY|WARNING|PARTIAL|OPEN|CREATED|가득 참|보통|진행 중|정산 예정|발주 생성)/.test(text)) return 'warning'
+  if (/(APPROVED|CONFIRMED|COMPLETE|ARRIVED|ACTIVE|VALID|SAFE|활성|사용 가능|낮음|완료)/.test(text)) return 'success'
   return fallback ?? 'neutral'
 }
 
@@ -1999,6 +2009,31 @@ const historyRows = computed(() => {
   if (kind.value === 'orders') return []
   if (kind.value === 'items') return []
   if (kind.value === 'inventory') return []
+
+  if (kind.value === 'settlements' && String(status.value || '').toUpperCase() === 'APPROVED') {
+    return [
+      {
+        createdAt: data.value?.settledAt ?? data.value?.updatedAt ?? data.value?.createdAt,
+        statusCode: 'APPROVED',
+        processedByUserPublicId: data.value?.approvedByUserPublicId ?? 'SYSTEM',
+        memo: '출하 도착 완료에 따라 정산이 완료되었습니다.',
+      },
+    ]
+  }
+
+  if (kind.value === 'settlements') {
+    const targetOrder = related.value.targetOrder as PurchaseOrderDetailResponseDto | null | undefined
+    return [
+      {
+        createdAt: targetOrder?.orderedAt ?? data.value?.createdAt,
+        statusCode: data.value?.settlementStatus ?? 'PENDING',
+        processedByUserPublicId: targetOrder?.createdByUserPublicId ?? null,
+        memo: targetOrder?.poNumber
+          ? `${targetOrder.poNumber} 발주 생성으로 정산 대상이 생성되었습니다.`
+          : '발주 생성으로 정산 대상이 생성되었습니다.',
+      },
+    ]
+  }
 
   if (kind.value === 'logistics-nodes' && data.value) {
     const createdAt = data.value.createdAt ?? data.value.updatedAt
@@ -2087,6 +2122,10 @@ function historyChangeLabel(row: any) {
     return row.actionLabel ?? displayStatus(row.actionType ?? row.afterStatus ?? row.statusCode ?? status.value)
   }
 
+  if (kind.value === 'settlements') {
+    return displaySettlementStatus(row.statusCode ?? row.status ?? status.value)
+  }
+
   return displayStatus(row.statusCode ?? row.returnStatus ?? row.status ?? status.value)
 }
 
@@ -2105,6 +2144,14 @@ function historyDescription(row: any) {
 
   if (kind.value === 'inventory') {
     return row.memo ?? row.description ?? buildInventoryHistoryDescription(row)
+  }
+
+  if (kind.value === 'settlements') {
+    return row.memo ?? row.description ?? (
+      String(status.value || '').toUpperCase() === 'APPROVED'
+        ? '출하 도착 완료에 따라 정산이 완료되었습니다.'
+        : aiSummary.value
+    )
   }
 
   return row.memo ?? row.description ?? aiSummary.value
@@ -2199,6 +2246,32 @@ const displayStatus = (value: unknown) => {
   if (value === null || value === undefined || value === '') return '-'
   const statusValue = String(value).toUpperCase()
   return statusTextMap[statusValue] ?? display(value)
+}
+
+function displaySettlementStatus(value: unknown) {
+  const statusValue = String(value || '').toUpperCase()
+  if (statusValue === 'PENDING') return '발주 생성'
+  if (statusValue === 'APPROVED') return '완료'
+  if (statusValue === 'CANCELLED') return '취소'
+  return displayStatus(value)
+}
+
+function displaySettlementPeriod(item: Record<string, any>) {
+  const start = item?.settlementPeriodStart
+  const end = item?.settlementPeriodEnd
+  if (start && end) return `${start} ~ ${end}`
+  if (start) return `${start} ~ -`
+  if (end) return `- ~ ${end}`
+  return '-'
+}
+
+function displaySettlementTargetType(value: unknown) {
+  const targetType = String(value || '').toUpperCase()
+  if (targetType === 'ORDER') return '발주'
+  if (targetType === 'SHIPMENT') return '출하'
+  if (targetType === 'RETURN') return '반품'
+  if (targetType === 'DELIVERY_EXCEPTION') return '배송 예외'
+  return display(value)
 }
 
 const riskClass = (value: unknown) => {
@@ -2453,7 +2526,7 @@ function lineCell(row: any, index: number) {
     ][index]
   }
   if (kind.value === 'settlements') {
-    return [row.itemName ?? row.itemCode ?? '정산 품목', formatNumber(row.qty), formatAmount(row.unitPrice), formatAmount(row.amount), displayStatus(row.detailStatus)][index]
+    return [row.itemName ?? row.itemCode ?? '정산 품목', formatNumber(row.qty), formatAmount(row.unitPrice), formatAmount(row.amount), displaySettlementStatus(row.detailStatus)][index]
   }
   if (kind.value === 'items') {
     return [row.poNumber, row.supplierName, formatNumber(row.orderedQty), displayStatus(row.poStatus), row.expectedDueDate][index]
@@ -3373,7 +3446,16 @@ async function fetchDetail() {
       data.value = detail as Record<string, any>
       related.value = { nodeInventories, histories }
     } else if (kind.value === 'settlements') {
-      data.value = await getSettlement(publicId.value)
+      const settlement = await getSettlement(publicId.value)
+      data.value = settlement
+
+      if (settlement.targetType === 'ORDER' && settlement.targetPublicId) {
+        const targetOrder = await getPurchaseOrder(settlement.targetPublicId).catch(() => null)
+        related.value = { targetOrder }
+        if (targetOrder?.createdByUserPublicId) {
+          await loadUserName(targetOrder.createdByUserPublicId)
+        }
+      }
     } else if (kind.value === 'certificates') {
       const [detail, histories] = await Promise.all([
         getCertificate(publicId.value),
@@ -4501,7 +4583,10 @@ watch(
     <template v-else-if="data">
       <section
         v-if="kind !== 'logistics-nodes'"
-        class="operation-detail-page__summary-strip"
+        :class="[
+          'operation-detail-page__summary-strip',
+          { 'operation-detail-page__summary-strip--main-width': kind === 'settlements' },
+        ]"
         :style="{ gridTemplateColumns: `repeat(${heroMetrics.length}, minmax(0, 1fr))` }"
       >
         <article v-for="metric in heroMetrics" :key="metric.label" class="operation-detail-page__summary-cell">
@@ -4518,7 +4603,12 @@ watch(
         <main class="operation-detail-page__main">
           <article v-if="kind !== 'logistics-nodes'" class="operation-detail-page__block operation-detail-page__process">
             <h2>{{ detailCopy.common.process }}</h2>
-            <div class="operation-detail-page__timeline">
+            <div
+              :class="[
+                'operation-detail-page__timeline',
+                { 'operation-detail-page__timeline--settlement': kind === 'settlements' },
+              ]"
+            >
               <div
                 v-for="step in processSteps"
                 :key="step.label"
@@ -5398,6 +5488,10 @@ watch(
   background: var(--detail-surface-plain);
 }
 
+.operation-detail-page__summary-strip--main-width {
+  width: calc((100% - 14px) / 1.42);
+}
+
 .operation-detail-page__summary-cell {
   display: grid;
   gap: 7px;
@@ -5827,6 +5921,11 @@ watch(
   top: 12px;
   height: 1px;
   background: var(--detail-border-strong);
+}
+
+.operation-detail-page__timeline--settlement::before {
+  left: calc(12.5% + 9px);
+  right: calc(12.5% + 9px);
 }
 
 .operation-detail-page__timeline-step {
@@ -7581,6 +7680,10 @@ watch(
   .operation-detail-page__timeline,
   .operation-detail-page__impact-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .operation-detail-page__summary-strip--main-width {
+    width: 100%;
   }
 
   .operation-detail-page__definition-grid {
