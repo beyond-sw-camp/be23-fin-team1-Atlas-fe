@@ -776,11 +776,19 @@ async function loadItemMediaForItems(items: ItemResponseDto[]) {
           // Try to load it as an attachment if the backend provided an attachment public ID
           const attachment = await getAttachment(item.primaryMediaFilePublicId)
           if (attachment && attachment.files) {
-            mediaFiles = attachment.files.map(f => ({ ...f, kind: 'image' as const }))
+            mediaFiles = attachment.files.map(f => ({ 
+              ...f, 
+              kind: 'image' as const,
+              fileUrl: f.fileThumbPath || f.fileUrl || f.filePath || `/api/files/attachments/${attachment.attachmentPublicId}/files/${f.filePublicId || f.publicId}`
+            }))
           }
         } catch {
           // If it fails, fallback to the item media ref
-          mediaFiles = await getItemMedia(item.publicId)
+          const refFiles = await getItemMedia(item.publicId)
+          mediaFiles = refFiles.map(f => ({
+            ...f,
+            fileUrl: f.fileThumbPath || f.fileUrl || f.filePath || `/api/files/attachments/${f.attachmentPublicId}/files/${f.filePublicId || f.publicId}`
+          }))
         }
       }
       return [item.publicId, mediaFiles] as const
