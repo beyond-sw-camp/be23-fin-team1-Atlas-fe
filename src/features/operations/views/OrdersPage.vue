@@ -1004,7 +1004,7 @@ const orderRows = computed<OrderDisplayRow[]>(() => {
         kind: 'SUB_PO' as const,
         direction: 'ISSUED' as const,
         number: subOrder.subPoNumber,
-        counterpartyName: supplierDisplayName(subOrder.supplierName),
+        counterpartyName: supplierDisplayName(subOrder.supplierName, subOrder.supplierPublicId),
         supplierStatus: subOrder.supplierStatus,
         itemLabel:
           (subOrder.items?.length ?? 0) > 1
@@ -1173,7 +1173,7 @@ const selectedOrderDescription = computed(() =>
 
 const selectedSubOrderDescription = computed(() =>
   selectedSubOrder.value
-    ? `${selectedSubOrder.value.subPoNumber} / ${supplierDisplayName(selectedSubOrder.value.supplierName)}`
+    ? `${selectedSubOrder.value.subPoNumber} / ${supplierDisplayName(selectedSubOrder.value.supplierName, selectedSubOrder.value.supplierPublicId)}`
     : copy.value.selectedSubOrderFallback,
 )
 
@@ -1606,6 +1606,12 @@ async function loadParentSubOrders(poPublicId: string) {
 
     parentSubOrders.value = [...response.content].sort(
       (a, b) => new Date(b.orderedAt).getTime() - new Date(a.orderedAt).getTime(),
+    )
+
+    await loadItemLookupByItemIds(
+      parentSubOrders.value.flatMap((subOrder) =>
+        (subOrder.items ?? []).map((item) => item.itemPublicId),
+      ),
     )
   } catch {
     parentSubOrders.value = []
@@ -2779,6 +2785,10 @@ async function openSubOrderDetail(
     const detail = await getSubPurchaseOrder(subPoPublicId)
     selectedSubOrder.value = detail
     hasSelectedSubOrder.value = true
+
+    if (detail.items?.length) {
+      await loadItemLookupByItemIds(detail.items.map(i => i.itemPublicId))
+    }
   } catch (error) {
     subOrderDetailErrorMessage.value = normalizeErrorMessage(
       error,
@@ -2802,7 +2812,12 @@ function closeSubOrderDetailModal() {
 
 async function refreshSelectedSubOrder() {
   if (!selectedSubOrder.value) return
-  selectedSubOrder.value = await getSubPurchaseOrder(selectedSubOrder.value.subPoPublicId)
+  const detail = await getSubPurchaseOrder(selectedSubOrder.value.subPoPublicId)
+  selectedSubOrder.value = detail
+
+  if (detail.items?.length) {
+    await loadItemLookupByItemIds(detail.items.map(i => i.itemPublicId))
+  }
 }
 
 function canRespondSubOrder(subOrder: SubPurchaseOrderResponseDto | null) {
@@ -3849,7 +3864,7 @@ onBeforeUnmount(() => {
             <div>
               <strong>{{ subOrder.subPoNumber }}</strong>
               <p class="orders-page__sub-text">
-                {{ supplierDisplayName(subOrder.supplierName) }} / {{ subPoStatusText(subOrder.subPoStatus) }}
+                {{ supplierDisplayName(subOrder.supplierName, subOrder.supplierPublicId) }} / {{ subPoStatusText(subOrder.subPoStatus) }}
               </p>
             </div>
 
@@ -4186,7 +4201,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="orders-page__detail-item">
             <span>{{ copy.receiverSupplier }}</span>
-            <strong>{{ supplierDisplayName(selectedSubOrder.supplierName) }}</strong>
+            <strong>{{ supplierDisplayName(selectedSubOrder.supplierName, selectedSubOrder.supplierPublicId) }}</strong>
           </div>
           <div class="orders-page__detail-item">
             <span>{{ copy.supplierStatus }}</span>
